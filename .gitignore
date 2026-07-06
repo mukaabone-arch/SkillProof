@@ -6,6 +6,7 @@ dist/
 *.log
 *.tsbuildinfo
 .DS_Store
+apps/api/uploads/
 # Flutter
 apps/mobile/build/
 apps/mobile/.dart_tool/

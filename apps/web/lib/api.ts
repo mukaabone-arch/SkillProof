@@ -81,10 +81,13 @@ async function tryRefresh(): Promise<boolean> {
 
 async function rawFetch(path: string, options: RequestInit): Promise<Response> {
   const t = getToken();
+  // FormData bodies (file uploads) need the browser to set its own multipart
+  // boundary — an explicit Content-Type header here would break that.
+  const isFormData = options.body instanceof FormData;
   return fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(t ? { Authorization: `Bearer ${t}` } : {}),
       ...options.headers,
     },

@@ -13,6 +13,22 @@ interface Profile {
   githubUrl: string | null;
   linkedinUrl: string | null;
   completeness: number;
+  resumeS3Key: string | null;
+}
+
+interface ResumeExtraction {
+  fullName: string | null;
+  headline: string | null;
+  location: string | null;
+  yearsOfExp: number | null;
+  skills: string[];
+}
+
+interface ReviewForm {
+  fullName: string;
+  headline: string;
+  location: string;
+  yearsOfExp: string;
 }
 
 interface FormState {
@@ -44,6 +60,19 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
+  const [hasResume, setHasResume] = useState(false);
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploaded, setUploaded] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+
+  const [parsing, setParsing] = useState(false);
+  const [parseError, setParseError] = useState('');
+  const [extraction, setExtraction] = useState<ResumeExtraction | null>(null);
+  const [review, setReview] = useState<ReviewForm | null>(null);
+  const [applying, setApplying] = useState(false);
+  const [applied, setApplied] = useState(false);
+
   useEffect(() => {
     const hasToken = !!getToken();
     setLoggedIn(hasToken);
@@ -53,6 +82,7 @@ export default function ProfilePage() {
       .then((p) => {
         setForm(toForm(p));
         setCompleteness(p.completeness);
+        setHasResume(!!p.resumeS3Key);
       })
       .catch((e) => setError(e.message));
   }, []);
@@ -88,6 +118,74 @@ export default function ProfilePage() {
       setError((e as Error).message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function uploadResume() {
+    if (!resumeFile) return;
+    setUploading(true);
+    setUploadError('');
+    setUploaded(false);
+    try {
+      const body = new FormData();
+      body.append('file', resumeFile);
+      await api('/profiles/me/resume', { method: 'POST', body });
+      setHasResume(true);
+      setUploaded(true);
+      setExtraction(null);
+      setReview(null);
+      setApplied(false);
+    } catch (e) {
+      setUploadError((e as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function parseResume() {
+    setParsing(true);
+    setParseError('');
+    try {
+      const result = await api<ResumeExtraction>('/profiles/me/resume/parse', { method: 'POST' });
+      setExtraction(result);
+      setReview({
+        fullName: result.fullName ?? '',
+        headline: result.headline ?? '',
+        location: result.location ?? '',
+        yearsOfExp:
+          result.yearsOfExp !== null && result.yearsOfExp !== undefined ? String(result.yearsOfExp) : '',
+      });
+      setApplied(false);
+    } catch (e) {
+      setParseError((e as Error).message);
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  async function applyExtraction() {
+    if (!review) return;
+    setApplying(true);
+    setParseError('');
+    try {
+      const body: Record<string, unknown> = {
+        fullName: review.fullName || undefined,
+        headline: review.headline || undefined,
+        location: review.location || undefined,
+      };
+      if (review.yearsOfExp !== '') body.yearsOfExp = Number(review.yearsOfExp);
+
+      const updated = await api<Profile>('/profiles/me', {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      });
+      setForm(toForm(updated));
+      setCompleteness(updated.completeness);
+      setApplied(true);
+    } catch (e) {
+      setParseError((e as Error).message);
+    } finally {
+      setApplying(false);
     }
   }
 
@@ -182,6 +280,97 @@ export default function ProfilePage() {
             </button>
             {saved && <p className="ok" style={{ margin: 0 }}>✓ Saved</p>}
           </div>
+
+          <h2 style={{ marginTop: 32, marginBottom: 16 }}>Resume</h2>
+          <p>
+            Upload your resume as a PDF, then have AI pull out the highlights. Nothing is saved
+            to your profile until you review and confirm it below.
+          </p>
+
+          <div className="field">
+            <label htmlFor="resumeFile">PDF resume (max 5MB)</label>
+            <input
+              id="resumeFile"
+              type="file"
+              accept="application/pdf"
+              onChange={(e) => setResumeFile(e.target.files?.[0] ?? null)}
+            />
+          </div>
+
+          <div className="row">
+            <button onClick={uploadResume} disabled={!resumeFile || uploading}>
+              {uploading ? 'Uploading…' : 'Upload'}
+            </button>
+            <button onClick={parseResume} disabled={!hasResume || parsing}>
+              {parsing ? 'Parsing…' : 'Parse with AI'}
+            </button>
+          </div>
+          {uploaded && <p className="ok">✓ Resume uploaded</p>}
+          {uploadError && <p className="error">{uploadError}</p>}
+          {parseError && <p className="error">{parseError}</p>}
+
+          {review && (
+            <div
+              className="card"
+              style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12, marginTop: 8 }}
+            >
+              <strong>Review AI-extracted details</strong>
+              <p className="meta" style={{ margin: 0 }}>
+                Confirm or correct these before they&apos;re saved — nothing has been applied to
+                your profile yet.
+              </p>
+
+              <div className="field">
+                <label htmlFor="rvFullName">Full name</label>
+                <input
+                  id="rvFullName"
+                  value={review.fullName}
+                  onChange={(e) => setReview({ ...review, fullName: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="rvHeadline">Headline</label>
+                <input
+                  id="rvHeadline"
+                  value={review.headline}
+                  onChange={(e) => setReview({ ...review, headline: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="rvLocation">Location</label>
+                <input
+                  id="rvLocation"
+                  value={review.location}
+                  onChange={(e) => setReview({ ...review, location: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="rvYearsOfExp">Years of experience</label>
+                <input
+                  id="rvYearsOfExp"
+                  type="number"
+                  min={0}
+                  max={80}
+                  value={review.yearsOfExp}
+                  onChange={(e) => setReview({ ...review, yearsOfExp: e.target.value })}
+                />
+              </div>
+
+              {extraction && extraction.skills.length > 0 && (
+                <div className="field">
+                  <label>Skills detected (informational — not saved automatically)</label>
+                  <p className="meta" style={{ margin: 0 }}>{extraction.skills.join(', ')}</p>
+                </div>
+              )}
+
+              <div className="row" style={{ margin: 0 }}>
+                <button onClick={applyExtraction} disabled={applying}>
+                  {applying ? 'Applying…' : 'Looks good — apply to my profile'}
+                </button>
+                {applied && <p className="ok" style={{ margin: 0 }}>✓ Applied to your profile</p>}
+              </div>
+            </div>
+          )}
         </>
       )}
     </main>
