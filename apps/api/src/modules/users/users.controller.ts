@@ -13,7 +13,7 @@ export class UsersController {
       where: { id: req.user.sub },
       include: {
         profile: {
-          include: { skillClaims: { include: { skill: true } } },
+          include: { skillClaims: { include: { skill: true, badge: true } } },
         },
       },
     });

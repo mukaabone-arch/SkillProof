@@ -1,0 +1,104 @@
+import { SkillLevel } from '@prisma/client';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
+
+export class CreateAssessmentDto {
+  @IsUUID()
+  skillId: string;
+
+  @IsString()
+  @MaxLength(160)
+  title: string;
+
+  @IsEnum(SkillLevel)
+  targetLevel: SkillLevel;
+
+  @IsOptional()
+  @IsInt()
+  @Min(5)
+  @Max(240)
+  durationMins?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  passThreshold?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isPremium?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isLive?: boolean;
+}
+
+export class UpdateAssessmentDto {
+  @IsOptional()
+  @IsUUID()
+  skillId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  title?: string;
+
+  @IsOptional()
+  @IsEnum(SkillLevel)
+  targetLevel?: SkillLevel;
+
+  @IsOptional()
+  @IsInt()
+  @Min(5)
+  @Max(240)
+  durationMins?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  passThreshold?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isPremium?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isLive?: boolean;
+}
+
+export class CreateQuestionDto {
+  @IsString()
+  @MaxLength(2000)
+  text: string;
+
+  @IsArray()
+  @ArrayMinSize(2)
+  @ArrayMaxSize(8)
+  @IsString({ each: true })
+  @MaxLength(300, { each: true })
+  options: string[];
+
+  @IsInt()
+  @Min(0)
+  correctIndex: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  difficulty: number;
+}

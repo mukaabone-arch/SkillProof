@@ -33,6 +33,7 @@ export default function TakeAssessmentPage() {
   const [result, setResult] = useState<Result>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   const start = useCallback(async () => {
     if (!getToken()) { router.push('/'); return; }
@@ -41,6 +42,7 @@ export default function TakeAssessmentPage() {
       setAttemptId(attempt.id);
       setQuestions(await api<Question[]>(`/attempts/${attempt.id}/questions`));
     } catch (e) { setError((e as Error).message); }
+    finally { setLoaded(true); }
   }, [id, router]);
 
   useEffect(() => { start(); }, [start]);
@@ -98,6 +100,9 @@ export default function TakeAssessmentPage() {
     <main>
       <h1>Assessment</h1>
       {error && <p className="error">{error}</p>}
+      {loaded && !error && questions.length === 0 && (
+        <p>This assessment has no questions yet — check back soon.</p>
+      )}
       {questions.map((q, i) => (
         <div key={q.id} className="question">
           <p><strong>Q{i + 1}.</strong> {q.body.text}</p>

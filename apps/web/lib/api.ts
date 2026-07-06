@@ -48,6 +48,19 @@ export function clearTokens() {
   setTokens(null, null);
 }
 
+/** Revokes the refresh token server-side, then clears local storage. */
+export async function logout(): Promise<void> {
+  const rt = getRefresh();
+  if (rt) {
+    await fetch(`${API_URL}/auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: rt }),
+    }).catch(() => undefined);
+  }
+  clearTokens();
+}
+
 async function tryRefresh(): Promise<boolean> {
   const rt = getRefresh();
   if (!rt) return false;

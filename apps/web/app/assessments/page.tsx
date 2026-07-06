@@ -13,6 +13,7 @@ interface AssessmentItem {
   passThreshold: number;
   isPremium: boolean;
   skill: { name: string; domain: { name: string } };
+  _count: { questions: number };
 }
 
 export default function AssessmentsPage() {
@@ -26,7 +27,9 @@ export default function AssessmentsPage() {
   useEffect(() => {
     setLoggedIn(!!getToken());
     setReady(true);
-    api<AssessmentItem[]>('/assessments').then(setItems).catch((e) => setError(e.message));
+    api<AssessmentItem[]>('/assessments')
+      .then((items) => setItems(items.filter((a) => a._count.questions > 0)))
+      .catch((e) => setError(e.message));
   }, []);
 
   return (

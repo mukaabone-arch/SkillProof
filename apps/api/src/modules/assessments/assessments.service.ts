@@ -23,7 +23,10 @@ export class AssessmentsService {
   listLive() {
     return this.prisma.assessment.findMany({
       where: { isLive: true },
-      include: { skill: { include: { domain: true } } },
+      include: {
+        skill: { include: { domain: true } },
+        _count: { select: { questions: { where: { isLive: true } } } },
+      },
     });
   }
 
