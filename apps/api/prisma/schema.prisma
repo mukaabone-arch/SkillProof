@@ -1,0 +1,209 @@
+// SkillProof Phase 1 schema — mirrors tech spec §5 conventions:
+// UUID PKs, createdAt/updatedAt everywhere, soft deletes on user-facing entities.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CANDIDATE
+  EMPLOYER_ADMIN
+  EMPLOYER_MEMBER
+  PLATFORM_ADMIN
+}
+
+enum SkillLevel {
+  L1
+  L2
+  L3
+  L4
+}
+
+enum ClaimStatus {
+  UNVERIFIED
+  VERIFIED
+  EXPIRED
+}
+
+enum AttemptStatus {
+  CREATED
+  IN_PROGRESS
+  SUBMITTED
+  GRADING
+  GRADED
+  FAILED_INTEGRITY
+}
+
+model User {
+  id           String    @id @default(uuid())
+  phone        String?   @unique
+  email        String?   @unique
+  passwordHash String?
+  role         Role      @default(CANDIDATE)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  profile  CandidateProfile?
+  attempts Attempt[]
+  badges   Badge[]
+  refreshTokens RefreshToken[]
+}
+
+model CandidateProfile {
+  id           String    @id @default(uuid())
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id])
+  fullName     String?
+  headline     String?
+  location     String?
+  yearsOfExp   Float?
+  githubUrl    String?
+  linkedinUrl  String?
+  resumeS3Key  String?
+  completeness Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  skillClaims SkillClaim[]
+}
+
+// ---------- Taxonomy (spec section 4.3) ----------
+
+model Domain {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  skills    Skill[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Skill {
+  id        String   @id @default(uuid())
+  domainId  String
+  domain    Domain   @relation(fields: [domainId], references: [id])
+  name      String
+  aliases   String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  claims      SkillClaim[]
+  assessments Assessment[]
+
+  @@unique([domainId, name])
+}
+
+model SkillClaim {
+  id        String           @id @default(uuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id])
+  skillId   String
+  skill     Skill            @relation(fields: [skillId], references: [id])
+  level     SkillLevel       @default(L1)
+  status    ClaimStatus      @default(UNVERIFIED)
+  badgeId   String?          @unique
+  badge     Badge?           @relation(fields: [badgeId], references: [id])
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([profileId, skillId])
+}
+
+// ---------- Assessments (spec section 4.4) ----------
+
+model Assessment {
+  id            String     @id @default(uuid())
+  skillId       String
+  skill         Skill      @relation(fields: [skillId], references: [id])
+  title         String
+  targetLevel   SkillLevel
+  durationMins  Int        @default(30)
+  passThreshold Int        @default(70)
+  isPremium     Boolean    @default(false)
+  isLive        Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  questions Question[]
+  attempts  Attempt[]
+}
+
+model Question {
+  id           String     @id @default(uuid())
+  assessmentId String
+  assessment   Assessment @relation(fields: [assessmentId], references: [id])
+  type         String     @default("MCQ") // MCQ | CODING | PROMPT_TASK
+  body         Json // question text + options (safe to send to client)
+  correct      Json // answers/rubric — NEVER send to client
+  difficulty   Int        @default(2)
+  isLive       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  answers AttemptAnswer[]
+}
+
+model Attempt {
+  id           String        @id @default(uuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id])
+  assessmentId String
+  assessment   Assessment    @relation(fields: [assessmentId], references: [id])
+  status       AttemptStatus @default(CREATED)
+  startedAt    DateTime?
+  submittedAt  DateTime?
+  scorePercent Int?
+  passed       Boolean?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  answers AttemptAnswer[]
+  badge   Badge?
+}
+
+model AttemptAnswer {
+  id         String   @id @default(uuid())
+  attemptId  String
+  attempt    Attempt  @relation(fields: [attemptId], references: [id])
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id])
+  answer     Json
+  isCorrect  Boolean?
+  createdAt  DateTime @default(now())
+
+  @@unique([attemptId, questionId])
+}
+
+model Badge {
+  id         String     @id @default(uuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id])
+  attemptId  String     @unique
+  attempt    Attempt    @relation(fields: [attemptId], references: [id])
+  verifyHash String     @unique
+  level      SkillLevel
+  issuedAt   DateTime   @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  skillClaim SkillClaim?
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}

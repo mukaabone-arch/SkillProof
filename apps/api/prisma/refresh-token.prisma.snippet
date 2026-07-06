@@ -1,0 +1,14 @@
+// ADD this model to apps/api/prisma/schema.prisma (paste at the end).
+// Then run:  npx prisma migrate dev --name add_refresh_tokens
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String    @unique // sha256 of the raw token — raw value never stored
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}

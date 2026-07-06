@@ -1,0 +1,61 @@
+'use client';
+
+/** Assessment catalog: lists live assessments from GET /assessments */
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { api, getToken } from '@/lib/api';
+
+interface AssessmentItem {
+  id: string;
+  title: string;
+  targetLevel: string;
+  durationMins: number;
+  passThreshold: number;
+  isPremium: boolean;
+  skill: { name: string; domain: { name: string } };
+}
+
+export default function AssessmentsPage() {
+  const [items, setItems] = useState<AssessmentItem[]>([]);
+  const [error, setError] = useState('');
+  // Resolved after mount so server and client render the same first pass
+  // (prevents the hydration mismatch on the "not logged in" message).
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    setLoggedIn(!!getToken());
+    setReady(true);
+    api<AssessmentItem[]>('/assessments').then(setItems).catch((e) => setError(e.message));
+  }, []);
+
+  return (
+    <main>
+      <h1>Assessments</h1>
+      <p>Pass an assessment to earn a verified skill badge.</p>
+      {ready && !loggedIn && (
+        <p className="error">
+          You are not logged in — <Link href="/">log in first</Link> to start an attempt.
+        </p>
+      )}
+      {error && <p className="error">{error}</p>}
+      {ready && items.length === 0 && !error && (
+        <p>No live assessments yet. Run the assessment seed.</p>
+      )}
+      {items.map((a) => (
+        <div key={a.id} className="card">
+          <div>
+            <strong>{a.title}</strong>
+            <div className="meta">
+              {a.skill.domain.name} → {a.skill.name} · Level {a.targetLevel} · {a.durationMins} min
+              · pass ≥ {a.passThreshold}%
+            </div>
+          </div>
+          <Link href={`/assessments/${a.id}`}>
+            <button>Start</button>
+          </Link>
+        </div>
+      ))}
+    </main>
+  );
+}
