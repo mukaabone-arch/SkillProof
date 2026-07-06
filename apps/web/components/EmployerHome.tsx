@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, logout } from '@/lib/api';
 import EmployerJobs from './EmployerJobs';
+import CandidateSearch from './CandidateSearch';
 
 interface OrgMe {
   organization: { id: string; name: string };
@@ -54,10 +55,7 @@ export default function EmployerHome({ onLoggedOut }: Props) {
 
       <EmployerJobs />
 
-      <div className="card" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4, marginTop: 32 }}>
-        <strong>Find candidates</strong>
-        <span className="meta">Coming soon — search candidates by verified skill badges.</span>
-      </div>
+      <CandidateSearch />
     </main>
   );
 }
