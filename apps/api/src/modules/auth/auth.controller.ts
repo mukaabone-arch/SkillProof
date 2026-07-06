@@ -1,6 +1,6 @@
 import { Body, Controller, Post, HttpCode } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { RequestOtpDto, VerifyOtpDto } from './auth.dto';
+import { EmployerRegisterDto, RequestOtpDto, VerifyOtpDto } from './auth.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -16,6 +16,13 @@ export class AuthController {
   @HttpCode(200)
   verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.auth.verifyOtp(dto.phone, dto.otp);
+  }
+
+  /** Employer signup/login — reuses the same OTP request flow at /auth/otp/request. */
+  @Post('employer/register')
+  @HttpCode(200)
+  employerRegister(@Body() dto: EmployerRegisterDto) {
+    return this.auth.verifyOtp(dto.phone, dto.otp, dto.orgName);
   }
 
   @Post('refresh')
