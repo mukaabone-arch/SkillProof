@@ -7,6 +7,7 @@
  * AI suggestions before "Save job" ever calls the API.
  */
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { api } from '@/lib/api';
 
 interface Skill {
@@ -66,6 +67,39 @@ interface JobForm {
   status: string;
 }
 
+interface MatchedSkill {
+  skillId: string;
+  skillName: string;
+  level: string;
+  verifyHash: string;
+}
+
+interface MissingSkill {
+  skillId: string;
+  skillName: string;
+  requiredLevel: string;
+  candidateLevel: string | null;
+  verified: boolean;
+}
+
+interface CandidateMatch {
+  profileId: string;
+  fullName: string | null;
+  headline: string | null;
+  location: string | null;
+  yearsOfExp: number | null;
+  score: number;
+  matched: MatchedSkill[];
+  missing: MissingSkill[];
+  aiExplanation: string;
+}
+
+interface MatchesResponse {
+  jobId: string;
+  jobTitle: string;
+  candidates: CandidateMatch[];
+}
+
 const EMPLOYMENT_TYPES = ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERNSHIP'];
 const LEVELS = ['L1', 'L2', 'L3', 'L4'];
 
@@ -92,6 +126,11 @@ export default function EmployerJobs() {
   const [suggested, setSuggested] = useState<SuggestedSkill[]>([]);
   const [parsing, setParsing] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  const [matchesForJob, setMatchesForJob] = useState<string | null>(null);
+  const [matches, setMatches] = useState<CandidateMatch[]>([]);
+  const [loadingMatches, setLoadingMatches] = useState(false);
+  const [matchesError, setMatchesError] = useState('');
 
   useEffect(() => {
     api<Job[]>('/jobs').then(setJobs).catch((e) => setError(e.message));
@@ -160,6 +199,25 @@ export default function EmployerJobs() {
 
   function removeSuggested(index: number) {
     setSuggested((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function viewMatches(jobId: string) {
+    if (matchesForJob === jobId) {
+      setMatchesForJob(null);
+      return;
+    }
+    setMatchesForJob(jobId);
+    setMatches([]);
+    setMatchesError('');
+    setLoadingMatches(true);
+    try {
+      const res = await api<MatchesResponse>(`/jobs/${jobId}/matches`);
+      setMatches(res.candidates);
+    } catch (e) {
+      setMatchesError((e as Error).message);
+    } finally {
+      setLoadingMatches(false);
+    }
   }
 
   async function createJob() {
@@ -387,6 +445,63 @@ export default function EmployerJobs() {
               {j.skills
                 .map((s) => `${s.skill.name} (${s.requiredLevel}${s.isRequired ? '' : ', optional'})`)
                 .join(', ')}
+            </div>
+          )}
+
+          <button onClick={() => viewMatches(j.id)} style={{ marginTop: 8, alignSelf: 'flex-start' }}>
+            {matchesForJob === j.id ? 'Hide matches' : 'View matches'}
+          </button>
+
+          {matchesForJob === j.id && (
+            <div style={{ marginTop: 8 }}>
+              {loadingMatches && <p className="meta" style={{ margin: 0 }}>Scoring candidates…</p>}
+              {matchesError && <p className="error">{matchesError}</p>}
+              {!loadingMatches && !matchesError && matches.length === 0 && (
+                <p className="meta" style={{ margin: 0 }}>No matching candidates yet.</p>
+              )}
+              {matches.map((c) => (
+                <div
+                  key={c.profileId}
+                  className="card"
+                  style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}
+                >
+                  <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
+                    <strong>{c.fullName || 'Candidate'}</strong>
+                    <span className="ok">{c.score}</span>
+                  </div>
+                  <div className="progress-track">
+                    <div className="progress-fill" style={{ width: `${c.score}%` }} />
+                  </div>
+                  {c.headline && <div className="meta">{c.headline}</div>}
+                  <div className="meta">
+                    {c.location || 'Location not set'}
+                    {c.yearsOfExp !== null && ` · ${c.yearsOfExp} yrs experience`}
+                  </div>
+                  <p style={{ margin: 0 }}>{c.aiExplanation}</p>
+                  {c.matched.length > 0 && (
+                    <div className="row" style={{ flexWrap: 'wrap', margin: 0 }}>
+                      {c.matched.map((m) => (
+                        <Link key={m.skillId} href={`/badges/${m.verifyHash}`}>
+                          <button>{m.skillName} ({m.level})</button>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                  {c.missing.length > 0 && (
+                    <div className="error" style={{ margin: 0, fontSize: '0.85rem' }}>
+                      Gap:{' '}
+                      {c.missing
+                        .map((m) => {
+                          const has = m.candidateLevel
+                            ? `has ${m.verified ? 'verified' : 'unverified'} ${m.candidateLevel}`
+                            : 'no claim';
+                          return `${m.skillName} (needs ${m.requiredLevel}, ${has})`;
+                        })
+                        .join(', ')}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>

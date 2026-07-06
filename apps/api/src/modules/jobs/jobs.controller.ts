@@ -5,13 +5,17 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { OrgMemberGuard, OrgScopedRequest } from '../auth/org-member.guard';
 import { JobsService } from './jobs.service';
+import { MatchingService } from './matching.service';
 import { CreateJobDto, ParseJobDescriptionDto, SetJobSkillsDto, UpdateJobDto } from './jobs.dto';
 
 @Controller('jobs')
 @UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard)
 @Roles(Role.EMPLOYER_ADMIN, Role.EMPLOYER_MEMBER)
 export class JobsController {
-  constructor(private readonly svc: JobsService) {}
+  constructor(
+    private readonly svc: JobsService,
+    private readonly matching: MatchingService,
+  ) {}
 
   @Post()
   create(@Req() req: OrgScopedRequest, @Body() dto: CreateJobDto) {
@@ -37,5 +41,10 @@ export class JobsController {
   @Post('parse-description')
   parseDescription(@Body() dto: ParseJobDescriptionDto) {
     return this.svc.parseDescription(dto.description);
+  }
+
+  @Get(':id/matches')
+  matches(@Req() req: OrgScopedRequest, @Param('id') id: string) {
+    return this.matching.getMatches(req.orgId, id);
   }
 }

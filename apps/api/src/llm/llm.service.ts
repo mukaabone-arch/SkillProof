@@ -31,6 +31,20 @@ export interface JobExtraction {
   experienceMax: number | null;
 }
 
+export interface MatchExplanationInput {
+  /** Verified matches only — the skills contributing full credit to the score. */
+  matched: { skillName: string; level: SkillLevel }[];
+  /** Required skills lacking a verified claim at the required level. */
+  missing: {
+    skillName: string;
+    requiredLevel: SkillLevel;
+    /** What the candidate actually has for this skill, if anything — lets the explanation be precise
+     *  ("verified L1, needs L2") instead of implying zero expertise when a partial claim exists. */
+    candidateLevel: SkillLevel | null;
+    verified: boolean;
+  }[];
+}
+
 const nullableString = { anyOf: [{ type: 'string' }, { type: 'null' }] };
 const nullableNumber = { anyOf: [{ type: 'number' }, { type: 'null' }] };
 
@@ -179,6 +193,66 @@ export class LlmService {
     return this.validateJobShape(parsed, taxonomySkillNames);
   }
 
+  /**
+   * Narrates an already-computed match breakdown — never calculates or
+   * changes the score. No candidate PII (name, contact info) is sent, only
+   * skill names/levels, since that's all the explanation needs.
+   */
+  async explainMatch(input: MatchExplanationInput): Promise<string> {
+    this.logger.log('Requesting AI match explanation from Claude');
+
+    const schema = {
+      type: 'object',
+      properties: { explanation: { type: 'string' } },
+      required: ['explanation'],
+      additionalProperties: false,
+    };
+
+    const matchedText =
+      input.matched.length > 0
+        ? input.matched.map((m) => `${m.skillName} (verified ${m.level})`).join(', ')
+        : '(none)';
+    const missingText =
+      input.missing.length > 0
+        ? input.missing
+            .map((m) => {
+              if (m.candidateLevel === null) {
+                return `${m.skillName} (needs verified ${m.requiredLevel}; no claim on file)`;
+              }
+              const claimDesc = m.verified ? `verified ${m.candidateLevel}` : `unverified ${m.candidateLevel}`;
+              return `${m.skillName} (needs verified ${m.requiredLevel}; candidate has ${claimDesc})`;
+            })
+            .join(', ')
+        : '(none)';
+
+    const parsed = await this.callForJson(
+      {
+        max_tokens: 256,
+        system:
+          'You write short, plain-language explanations of how well a candidate matches a job, ' +
+          'given a pre-computed structured match breakdown. The score itself is already decided ' +
+          'elsewhere — you only explain it in 1-2 sentences, citing specific skills by name. Be ' +
+          'direct and factual. Do not invent skills or claims not present in the breakdown, and ' +
+          'do not mention a numeric score.',
+        output_config: { format: { type: 'json_schema', schema } },
+        messages: [
+          {
+            role: 'user',
+            content:
+              `Verified skill matches: ${matchedText}\n` +
+              `Missing required skills (no verified claim at the required level): ${missingText}\n\n` +
+              'Write a 1-2 sentence plain-language explanation of this match for an employer, ' +
+              'citing specific skills by name — e.g. "Strong on RAG Systems (verified L3); gap: ' +
+              'no verified Fine-tuning."',
+          },
+        ],
+      },
+      'match explanation generator',
+    );
+
+    return this.validateExplanationShape(parsed);
+  }
+
   /** Shared call path: request → text block → JSON.parse, all failures as BadGatewayException. */
   private async callForJson(
     params: Omit<Anthropic.MessageCreateParamsNonStreaming, 'model'>,
@@ -287,5 +361,16 @@ export class LlmService {
       experienceMax: d.experienceMax as number | null,
       suggestedSkills,
     };
+  }
+
+  private validateExplanationShape(data: unknown): string {
+    if (
+      typeof data !== 'object' ||
+      data === null ||
+      typeof (data as Record<string, unknown>).explanation !== 'string'
+    ) {
+      throw new BadGatewayException('The AI parser returned data that did not match the expected shape.');
+    }
+    return (data as { explanation: string }).explanation;
   }
 }
