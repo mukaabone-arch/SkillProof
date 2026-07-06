@@ -39,6 +39,19 @@ enum AttemptStatus {
   FAILED_INTEGRITY
 }
 
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+}
+
+enum JobStatus {
+  DRAFT
+  LIVE
+  CLOSED
+}
+
 model User {
   id           String    @id @default(uuid())
   phone        String?   @unique
@@ -65,6 +78,7 @@ model Organization {
   updatedAt DateTime @updatedAt
 
   members OrgMember[]
+  jobs    Job[]
 }
 
 model OrgMember {
@@ -119,6 +133,7 @@ model Skill {
 
   claims      SkillClaim[]
   assessments Assessment[]
+  jobSkills   JobSkill[]
 
   @@unique([domainId, name])
 }
@@ -137,6 +152,42 @@ model SkillClaim {
   updatedAt DateTime         @updatedAt
 
   @@unique([profileId, skillId])
+}
+
+// ---------- Job postings (employer side, step 3b) ----------
+
+model Job {
+  id             String         @id @default(uuid())
+  orgId          String
+  organization   Organization   @relation(fields: [orgId], references: [id])
+  title          String
+  description    String
+  employmentType EmploymentType
+  location       String?
+  remote         Boolean        @default(false)
+  experienceMin  Int?
+  experienceMax  Int?
+  salaryMin      Int?
+  salaryMax      Int?
+  status         JobStatus      @default(DRAFT)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  skills JobSkill[]
+
+  @@index([orgId])
+}
+
+model JobSkill {
+  id            String     @id @default(uuid())
+  jobId         String
+  job           Job        @relation(fields: [jobId], references: [id])
+  skillId       String
+  skill         Skill      @relation(fields: [skillId], references: [id])
+  requiredLevel SkillLevel @default(L1)
+  isRequired    Boolean    @default(true)
+
+  @@unique([jobId, skillId])
 }
 
 // ---------- Assessments (spec section 4.4) ----------

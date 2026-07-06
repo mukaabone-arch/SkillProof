@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, logout } from '@/lib/api';
+import EmployerJobs from './EmployerJobs';
 
 interface OrgMe {
   organization: { id: string; name: string };
@@ -51,12 +52,9 @@ export default function EmployerHome({ onLoggedOut }: Props) {
       <h1>Welcome, {org.organization.name}</h1>
       <p>Signed in as {org.role === 'EMPLOYER_ADMIN' ? 'an admin' : 'a member'} of this organization.</p>
 
-      <div className="card" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
-        <strong>Post a job</strong>
-        <span className="meta">Coming soon — publish roles and attach verified-skill requirements.</span>
-      </div>
+      <EmployerJobs />
 
-      <div className="card" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+      <div className="card" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4, marginTop: 32 }}>
         <strong>Find candidates</strong>
         <span className="meta">Coming soon — search candidates by verified skill badges.</span>
       </div>
