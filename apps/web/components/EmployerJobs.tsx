@@ -102,6 +102,28 @@ interface MatchesResponse {
   candidates: CandidateMatch[];
 }
 
+interface ApplicantSkill {
+  skillId: string;
+  skillName: string;
+  level: string;
+  verifyHash: string;
+}
+
+interface Applicant {
+  applicationId: string;
+  status: string;
+  appliedAt: string;
+  profileId: string;
+  fullName: string | null;
+  headline: string | null;
+  location: string | null;
+  yearsOfExp: number | null;
+  score: number | null;
+  verifiedSkills: ApplicantSkill[];
+}
+
+const STATUS_ACTIONS = ['REVIEWED', 'SHORTLISTED', 'REJECTED'];
+
 const EMPLOYMENT_TYPES = ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERNSHIP'];
 const LEVELS = ['L1', 'L2', 'L3', 'L4'];
 
@@ -133,6 +155,13 @@ export default function EmployerJobs() {
   const [matches, setMatches] = useState<CandidateMatch[]>([]);
   const [loadingMatches, setLoadingMatches] = useState(false);
   const [matchesError, setMatchesError] = useState('');
+
+  const [applicantsForJob, setApplicantsForJob] = useState<string | null>(null);
+  const [applicants, setApplicants] = useState<Applicant[]>([]);
+  const [loadingApplicants, setLoadingApplicants] = useState(false);
+  const [applicantsError, setApplicantsError] = useState('');
+  const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
+  const [statusConfirmed, setStatusConfirmed] = useState<string | null>(null);
 
   useEffect(() => {
     api<Job[]>('/jobs').then(setJobs).catch((e) => setError(e.message));
@@ -229,6 +258,45 @@ export default function EmployerJobs() {
       setMatchesError((e as Error).message);
     } finally {
       setLoadingMatches(false);
+    }
+  }
+
+  async function viewApplicants(jobId: string) {
+    if (applicantsForJob === jobId) {
+      setApplicantsForJob(null);
+      return;
+    }
+    setApplicantsForJob(jobId);
+    setApplicants([]);
+    setApplicantsError('');
+    setLoadingApplicants(true);
+    try {
+      const res = await api<Applicant[]>(`/jobs/${jobId}/applicants`);
+      setApplicants(res);
+    } catch (e) {
+      setApplicantsError((e as Error).message);
+    } finally {
+      setLoadingApplicants(false);
+    }
+  }
+
+  async function updateApplicantStatus(applicationId: string, status: string) {
+    setStatusUpdating(applicationId);
+    setApplicantsError('');
+    try {
+      const updated = await api<{ status: string }>(`/applications/${applicationId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      });
+      setApplicants((prev) =>
+        prev.map((a) => (a.applicationId === applicationId ? { ...a, status: updated.status } : a)),
+      );
+      setStatusConfirmed(applicationId);
+      setTimeout(() => setStatusConfirmed((c) => (c === applicationId ? null : c)), 2500);
+    } catch (e) {
+      setApplicantsError((e as Error).message);
+    } finally {
+      setStatusUpdating(null);
     }
   }
 
@@ -460,9 +528,14 @@ export default function EmployerJobs() {
             </div>
           )}
 
-          <button onClick={() => viewMatches(j.id)} style={{ marginTop: 8, alignSelf: 'flex-start' }}>
-            {matchesForJob === j.id ? 'Hide matches' : 'View matches'}
-          </button>
+          <div className="row" style={{ margin: 0, marginTop: 8 }}>
+            <button onClick={() => viewMatches(j.id)}>
+              {matchesForJob === j.id ? 'Hide matches' : 'View matches'}
+            </button>
+            <button onClick={() => viewApplicants(j.id)}>
+              {applicantsForJob === j.id ? 'Hide applicants' : 'View applicants'}
+            </button>
+          </div>
 
           {matchesForJob === j.id && (
             <div style={{ marginTop: 8 }}>
@@ -512,6 +585,65 @@ export default function EmployerJobs() {
                         .join(', ')}
                     </div>
                   )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {applicantsForJob === j.id && (
+            <div style={{ marginTop: 8 }}>
+              {loadingApplicants && <p className="meta" style={{ margin: 0 }}>Loading applicants…</p>}
+              {applicantsError && <p className="error">{applicantsError}</p>}
+              {!loadingApplicants && !applicantsError && applicants.length === 0 && (
+                <p className="meta" style={{ margin: 0 }}>No applicants yet.</p>
+              )}
+              {applicants.map((a) => (
+                <div
+                  key={a.applicationId}
+                  className="card"
+                  style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}
+                >
+                  <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
+                    <strong>{a.fullName || 'Candidate'}</strong>
+                    {a.score !== null && <span className="ok">{a.score}</span>}
+                  </div>
+                  {a.score !== null && (
+                    <div className="progress-track">
+                      <div className="progress-fill" style={{ width: `${a.score}%` }} />
+                    </div>
+                  )}
+                  {a.headline && <div className="meta">{a.headline}</div>}
+                  <div className="meta">
+                    {a.location || 'Location not set'}
+                    {a.yearsOfExp !== null && ` · ${a.yearsOfExp} yrs experience`}
+                  </div>
+                  <div className="meta">Applied {new Date(a.appliedAt).toLocaleDateString()}</div>
+
+                  {a.verifiedSkills.length > 0 && (
+                    <div className="row" style={{ flexWrap: 'wrap', margin: 0 }}>
+                      {a.verifiedSkills.map((s) => (
+                        <Link key={s.skillId} href={`/badges/${s.verifyHash}`}>
+                          <button>{s.skillName} ({s.level})</button>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="row" style={{ alignItems: 'center', margin: 0 }}>
+                    <span className="meta" style={{ margin: 0 }}>Status: {a.status}</span>
+                    {STATUS_ACTIONS.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => updateApplicantStatus(a.applicationId, s)}
+                        disabled={statusUpdating === a.applicationId || a.status === s}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                    {statusConfirmed === a.applicationId && (
+                      <span className="ok" style={{ margin: 0 }}>✓ Updated</span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

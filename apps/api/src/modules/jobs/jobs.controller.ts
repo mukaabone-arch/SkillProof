@@ -47,4 +47,9 @@ export class JobsController {
   matches(@Req() req: OrgScopedRequest, @Param('id') id: string) {
     return this.matching.getMatches(req.orgId, id);
   }
+
+  @Get(':id/applicants')
+  applicants(@Req() req: OrgScopedRequest, @Param('id') id: string) {
+    return this.svc.getApplicants(req.orgId, id);
+  }
 }

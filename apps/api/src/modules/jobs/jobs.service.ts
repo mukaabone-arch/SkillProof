@@ -1,6 +1,8 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ClaimStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../llm/llm.service';
+import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
 import { CreateJobDto, JobSkillItemDto, UpdateJobDto } from './jobs.dto';
 
 @Injectable()
@@ -51,6 +53,78 @@ export class JobsService {
         });
       }
       return tx.jobSkill.findMany({ where: { jobId }, include: { skill: true } });
+    });
+  }
+
+  /**
+   * Employer-facing applicant list for one job. Same privacy model as
+   * CandidatesService.search(): only public profile fields plus VERIFIED
+   * skill claims with a badge to link to — no phone, no email, no
+   * unverified claim details. The match score is computed with the exact
+   * same `scoreCandidate` (scoring.ts) used everywhere else; it's the only
+   * place an unverified claim is allowed to influence anything, and even
+   * then only as a number, never surfaced as claim detail.
+   */
+  async getApplicants(orgId: string, jobId: string) {
+    await this.getOwnedJob(orgId, jobId);
+
+    const job = await this.prisma.job.findUniqueOrThrow({
+      where: { id: jobId },
+      include: { skills: { include: { skill: true } } },
+    });
+    const jobSkills: JobSkillRequirement[] = job.skills.map((s) => ({
+      skillId: s.skillId,
+      skillName: s.skill.name,
+      requiredLevel: s.requiredLevel,
+      isRequired: s.isRequired,
+    }));
+
+    const applications = await this.prisma.application.findMany({
+      where: { jobId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        candidateProfile: {
+          include: { skillClaims: { include: { skill: true, badge: true } } },
+        },
+      },
+    });
+
+    return applications.map((app) => {
+      const profile = app.candidateProfile;
+      const claimsBySkillId = new Map<string, CandidateSkillClaim>();
+      for (const c of profile.skillClaims) {
+        claimsBySkillId.set(c.skillId, {
+          skillId: c.skillId,
+          level: c.level,
+          verified: c.status === ClaimStatus.VERIFIED,
+        });
+      }
+
+      const score =
+        jobSkills.length > 0
+          ? scoreCandidate(jobSkills, claimsBySkillId, profile.yearsOfExp, job.experienceMin, job.experienceMax)
+              .score
+          : null;
+
+      return {
+        applicationId: app.id,
+        status: app.status,
+        appliedAt: app.createdAt,
+        profileId: profile.id,
+        fullName: profile.fullName,
+        headline: profile.headline,
+        location: profile.location,
+        yearsOfExp: profile.yearsOfExp,
+        score,
+        verifiedSkills: profile.skillClaims
+          .filter((c) => c.status === ClaimStatus.VERIFIED && c.badge)
+          .map((c) => ({
+            skillId: c.skillId,
+            skillName: c.skill.name,
+            level: c.level,
+            verifyHash: c.badge!.verifyHash,
+          })),
+      };
     });
   }
 
