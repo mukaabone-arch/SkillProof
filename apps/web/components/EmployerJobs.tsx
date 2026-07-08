@@ -140,7 +140,11 @@ export default function EmployerJobs() {
         domains.forEach((d) => d.skills.forEach((s) => { map[s.name] = s.id; }));
         setSkillIdByName(map);
       })
-      .catch(() => undefined);
+      .catch(() =>
+        setError(
+          'Could not load the skills taxonomy — AI-suggested skills may not attach to new jobs. Refresh the page and try again.',
+        ),
+      );
   }, []);
 
   async function refresh() {
@@ -176,16 +180,22 @@ export default function EmployerJobs() {
           result.experienceMax !== null ? String(result.experienceMax) : f.experienceMax,
       }));
 
-      setSuggested(
-        result.suggestedSkills
-          .filter((s) => skillIdByName[s.skillName])
-          .map((s) => ({
-            skillId: skillIdByName[s.skillName],
-            skillName: s.skillName,
-            requiredLevel: s.requiredLevel,
-            isRequired: s.isRequired,
-          })),
-      );
+      const mapped = result.suggestedSkills
+        .filter((s) => skillIdByName[s.skillName])
+        .map((s) => ({
+          skillId: skillIdByName[s.skillName],
+          skillName: s.skillName,
+          requiredLevel: s.requiredLevel,
+          isRequired: s.isRequired,
+        }));
+      setSuggested(mapped);
+
+      if (result.suggestedSkills.length > 0 && mapped.length === 0) {
+        setError(
+          'The AI suggested skills, but none could be matched to the taxonomy — the skills ' +
+            'taxonomy may still be loading. Try "Parse with AI" again before saving.',
+        );
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {

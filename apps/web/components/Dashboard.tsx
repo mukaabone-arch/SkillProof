@@ -78,7 +78,7 @@ export default function Dashboard({ onLoggedOut }: Props) {
         <div className="row" style={{ gap: 20, margin: 0, alignItems: 'center' }}>
           <Link href="/profile">Profile</Link>
           <Link href="/assessments">Assessments</Link>
-          <span className="meta" style={{ margin: 0 }}>More, coming soon</span>
+          <Link href="/jobs">Jobs</Link>
         </div>
         <button onClick={handleLogout}>Log out</button>
       </nav>

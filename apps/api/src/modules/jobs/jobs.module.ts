@@ -4,10 +4,12 @@ import { LlmModule } from '../../llm/llm.module';
 import { JobsController } from './jobs.controller';
 import { JobsService } from './jobs.service';
 import { MatchingService } from './matching.service';
+import { CandidateJobsController } from './candidate-jobs.controller';
+import { CandidateJobsService } from './candidate-jobs.service';
 
 @Module({
   imports: [AuthModule, LlmModule],
-  controllers: [JobsController],
-  providers: [JobsService, MatchingService],
+  controllers: [JobsController, CandidateJobsController],
+  providers: [JobsService, MatchingService, CandidateJobsService],
 })
 export class JobsModule {}

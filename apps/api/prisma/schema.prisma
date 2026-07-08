@@ -52,6 +52,14 @@ enum JobStatus {
   CLOSED
 }
 
+enum ApplicationStatus {
+  APPLIED
+  REVIEWED
+  SHORTLISTED
+  REJECTED
+  WITHDRAWN
+}
+
 model User {
   id           String    @id @default(uuid())
   phone        String?   @unique
@@ -62,9 +70,9 @@ model User {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
-  profile  CandidateProfile?
-  attempts Attempt[]
-  badges   Badge[]
+  profile       CandidateProfile?
+  attempts      Attempt[]
+  badges        Badge[]
   refreshTokens RefreshToken[]
   orgMembership OrgMember?
 }
@@ -108,7 +116,8 @@ model CandidateProfile {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
-  skillClaims SkillClaim[]
+  skillClaims  SkillClaim[]
+  applications Application[]
 }
 
 // ---------- Taxonomy (spec section 4.3) ----------
@@ -173,7 +182,8 @@ model Job {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  skills JobSkill[]
+  skills       JobSkill[]
+  applications Application[]
 
   @@index([orgId])
 }
@@ -188,6 +198,22 @@ model JobSkill {
   isRequired    Boolean    @default(true)
 
   @@unique([jobId, skillId])
+}
+
+// ---------- Applications (candidate side, step 3d) ----------
+
+model Application {
+  id                 String            @id @default(uuid())
+  candidateProfileId String
+  candidateProfile   CandidateProfile  @relation(fields: [candidateProfileId], references: [id])
+  jobId              String
+  job                Job               @relation(fields: [jobId], references: [id])
+  status             ApplicationStatus @default(APPLIED)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@unique([candidateProfileId, jobId])
+  @@index([jobId])
 }
 
 // ---------- Assessments (spec section 4.4) ----------
