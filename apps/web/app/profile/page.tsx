@@ -7,6 +7,7 @@ import { api, getToken } from '@/lib/api';
 
 interface Profile {
   fullName: string | null;
+  email: string | null;
   headline: string | null;
   location: string | null;
   yearsOfExp: number | null;
@@ -33,6 +34,7 @@ interface ReviewForm {
 
 interface FormState {
   fullName: string;
+  email: string;
   headline: string;
   location: string;
   yearsOfExp: string;
@@ -43,6 +45,7 @@ interface FormState {
 function toForm(p: Profile): FormState {
   return {
     fullName: p.fullName ?? '',
+    email: p.email ?? '',
     headline: p.headline ?? '',
     location: p.location ?? '',
     yearsOfExp: p.yearsOfExp !== null && p.yearsOfExp !== undefined ? String(p.yearsOfExp) : '',
@@ -100,6 +103,7 @@ export default function ProfilePage() {
     try {
       const body: Record<string, unknown> = {
         fullName: form.fullName || undefined,
+        email: form.email || undefined,
         headline: form.headline || undefined,
         location: form.location || undefined,
         githubUrl: form.githubUrl || undefined,
@@ -217,6 +221,21 @@ export default function ProfilePage() {
               onChange={(e) => update('fullName', e.target.value)}
               maxLength={120}
             />
+          </div>
+
+          <div className="field">
+            <label htmlFor="email">Email address</label>
+            <input
+              id="email"
+              type="email"
+              value={form.email}
+              onChange={(e) => update('email', e.target.value)}
+              placeholder="you@example.com"
+              maxLength={255}
+            />
+            <p className="meta" style={{ margin: 0 }}>
+              Used to email you about job and application updates.
+            </p>
           </div>
 
           <div className="field">

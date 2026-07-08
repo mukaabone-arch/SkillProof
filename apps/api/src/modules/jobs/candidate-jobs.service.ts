@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClaimStatus, JobStatus, Prisma } from '@prisma/client';
+import { ClaimStatus, JobStatus, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
 import { BrowseJobsDto } from './candidate-jobs.dto';
 
@@ -37,7 +38,10 @@ type JobDetailRow = Prisma.JobGetPayload<{ select: typeof JOB_DETAIL_SELECT }>;
 
 @Injectable()
 export class CandidateJobsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async browse(userId: string, dto: BrowseJobsDto) {
     const { skillId, location, remote, limit, offset } = dto;
@@ -153,13 +157,17 @@ export class CandidateJobsService {
   }
 
   async apply(userId: string, jobId: string) {
-    const job = await this.prisma.job.findUnique({ where: { id: jobId } });
+    const job = await this.prisma.job.findUnique({
+      where: { id: jobId },
+      include: { organization: { select: { name: true } } },
+    });
     if (!job || job.status !== JobStatus.LIVE) throw new NotFoundException('Job not found');
 
     const profile = await this.ensureProfile(userId);
 
+    let application;
     try {
-      return await this.prisma.application.create({
+      application = await this.prisma.application.create({
         data: { candidateProfileId: profile.id, jobId },
         include: { job: { select: { id: true, title: true } } },
       });
@@ -169,6 +177,17 @@ export class CandidateJobsService {
       }
       throw err;
     }
+
+    // Best-effort — a slow/failed email must never fail the application itself.
+    try {
+      const subject = `You've applied to ${job.title} at ${job.organization.name}`;
+      const html = `<p>You've applied to <strong>${job.title}</strong> at <strong>${job.organization.name}</strong>. The employer will review your application and you'll be notified of any status change.</p>`;
+      await this.notifications.sendEmail(userId, NotificationType.APPLICATION_CONFIRMATION, subject, html);
+    } catch {
+      // NotificationsService already swallows its own errors; this catch is defense in depth.
+    }
+
+    return application;
   }
 
   private async ensureProfile(userId: string) {

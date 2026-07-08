@@ -60,6 +60,22 @@ enum ApplicationStatus {
   WITHDRAWN
 }
 
+enum NotificationType {
+  APPLICATION_CONFIRMATION
+  APPLICATION_STATUS
+  MATCH_DIGEST
+}
+
+enum NotificationChannel {
+  EMAIL
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
 model User {
   id           String    @id @default(uuid())
   phone        String?   @unique
@@ -75,6 +91,7 @@ model User {
   badges        Badge[]
   refreshTokens RefreshToken[]
   orgMembership OrgMember?
+  notifications Notification[]
 }
 
 // ---------- Employer accounts (spec section: employer side, step 3a) ----------
@@ -101,20 +118,21 @@ model OrgMember {
 }
 
 model CandidateProfile {
-  id           String    @id @default(uuid())
-  userId       String    @unique
-  user         User      @relation(fields: [userId], references: [id])
-  fullName     String?
-  headline     String?
-  location     String?
-  yearsOfExp   Float?
-  githubUrl    String?
-  linkedinUrl  String?
-  resumeS3Key  String?
-  completeness Int       @default(0)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
+  id                 String    @id @default(uuid())
+  userId             String    @unique
+  user               User      @relation(fields: [userId], references: [id])
+  fullName           String?
+  headline           String?
+  location           String?
+  yearsOfExp         Float?
+  githubUrl          String?
+  linkedinUrl        String?
+  resumeS3Key        String?
+  completeness       Int       @default(0)
+  emailNotifications Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
 
   skillClaims  SkillClaim[]
   applications Application[]
@@ -214,6 +232,27 @@ model Application {
 
   @@unique([candidateProfileId, jobId])
   @@index([jobId])
+}
+
+// ---------- Notifications (spec section: email, step 3e) ----------
+
+model Notification {
+  id        String              @id @default(uuid())
+  userId    String
+  user      User                @relation(fields: [userId], references: [id])
+  type      NotificationType
+  channel   NotificationChannel @default(EMAIL)
+  subject   String
+  body      String
+  status    NotificationStatus  @default(QUEUED)
+  // Job ids this notification already covered — only populated for
+  // MATCH_DIGEST, so the daily digest job can exclude jobs a candidate has
+  // already been told about instead of re-sending the same match forever.
+  jobIds    String[]            @default([])
+  sentAt    DateTime?
+  createdAt DateTime            @default(now())
+
+  @@index([userId])
 }
 
 // ---------- Assessments (spec section 4.4) ----------

@@ -1,15 +1,17 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { LlmModule } from '../../llm/llm.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { JobsController } from './jobs.controller';
 import { JobsService } from './jobs.service';
 import { MatchingService } from './matching.service';
 import { CandidateJobsController } from './candidate-jobs.controller';
 import { CandidateJobsService } from './candidate-jobs.service';
+import { MatchDigestService } from './match-digest.service';
 
 @Module({
-  imports: [AuthModule, LlmModule],
+  imports: [AuthModule, LlmModule, NotificationsModule],
   controllers: [JobsController, CandidateJobsController],
-  providers: [JobsService, MatchingService, CandidateJobsService],
+  providers: [JobsService, MatchingService, CandidateJobsService, MatchDigestService],
 })
 export class JobsModule {}
