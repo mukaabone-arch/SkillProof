@@ -3,9 +3,11 @@
 /** Employer home: greets by org name, placeholder sections for what's coming next. */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { api, logout } from '@/lib/api';
+import { employerApi } from '@/lib/api';
 import EmployerJobs from './EmployerJobs';
 import CandidateSearch from './CandidateSearch';
+
+const { api, logout } = employerApi;
 
 interface OrgMe {
   organization: { id: string; name: string };

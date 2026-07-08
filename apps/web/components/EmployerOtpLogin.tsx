@@ -8,7 +8,9 @@
  * always 123456.
  */
 import { useState } from 'react';
-import { api, setTokens } from '@/lib/api';
+import { employerApi } from '@/lib/api';
+
+const { api, setTokens } = employerApi;
 
 interface Props {
   onLoggedIn: () => void;

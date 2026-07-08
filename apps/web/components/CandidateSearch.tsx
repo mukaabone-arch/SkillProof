@@ -3,7 +3,9 @@
 /** Employer candidate search: filter by taxonomy skill + min level + verified-only, browse results. */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { api } from '@/lib/api';
+import { employerApi } from '@/lib/api';
+
+const { api } = employerApi;
 
 interface Skill {
   id: string;

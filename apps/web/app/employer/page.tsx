@@ -7,9 +7,11 @@
  * (enforced server-side by the role checks in /auth/employer/register).
  */
 import { useEffect, useState } from 'react';
-import { getToken } from '@/lib/api';
+import { employerApi } from '@/lib/api';
 import EmployerOtpLogin from '@/components/EmployerOtpLogin';
 import EmployerHome from '@/components/EmployerHome';
+
+const { getToken } = employerApi;
 
 export default function EmployerPage() {
   const [status, setStatus] = useState<'loading' | 'anon' | 'authed'>('loading');
