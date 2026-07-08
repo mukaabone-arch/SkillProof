@@ -125,6 +125,56 @@ export class AdminService {
     return this.prisma.question.update({ where: { id }, data: { isLive: false } });
   }
 
+  /**
+   * Admin-only attempt detail, including integrity signals — the candidate's
+   * own GET /attempts/:id/result never includes any of this. Events are
+   * summarized by type/count plus the full timeline; flags/events, not a
+   * verdict — admins interpret them, the system doesn't auto-fail attempts.
+   */
+  async getAttemptForReview(id: string) {
+    const attempt = await this.prisma.attempt.findUnique({
+      where: { id },
+      include: {
+        user: { select: { id: true, phone: true, email: true, profile: { select: { fullName: true } } } },
+        assessment: { select: { title: true, skill: { select: { name: true } } } },
+        integrityEvents: { orderBy: { createdAt: 'asc' } },
+      },
+    });
+    if (!attempt) throw new NotFoundException('Attempt not found');
+
+    const eventCountsByType: Record<string, number> = {};
+    for (const e of attempt.integrityEvents) {
+      eventCountsByType[e.type] = (eventCountsByType[e.type] ?? 0) + 1;
+    }
+
+    return {
+      id: attempt.id,
+      status: attempt.status,
+      scorePercent: attempt.scorePercent,
+      passed: attempt.passed,
+      startedAt: attempt.startedAt,
+      submittedAt: attempt.submittedAt,
+      candidate: {
+        id: attempt.user.id,
+        fullName: attempt.user.profile?.fullName ?? null,
+        phone: attempt.user.phone,
+        email: attempt.user.email,
+      },
+      assessmentTitle: attempt.assessment.title,
+      skillName: attempt.assessment.skill.name,
+      integrity: {
+        status: attempt.integrityStatus,
+        flagCount: attempt.integrityFlagCount,
+        eventCountsByType,
+        events: attempt.integrityEvents.map((e) => ({
+          type: e.type,
+          metadata: e.metadata,
+          createdAt: e.createdAt,
+        })),
+      },
+    };
+  }
+
   private async getAssessmentOrThrow(id: string) {
     const assessment = await this.prisma.assessment.findUnique({ where: { id } });
     if (!assessment) throw new NotFoundException('Assessment not found');

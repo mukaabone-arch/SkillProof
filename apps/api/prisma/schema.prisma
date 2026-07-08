@@ -39,6 +39,25 @@ enum AttemptStatus {
   FAILED_INTEGRITY
 }
 
+// ---------- Integrity monitoring (spec: lightweight, detect-and-record) ----------
+// Signals only — never treated as proof. See IntegrityEvent doc comment.
+
+enum IntegrityEventType {
+  TAB_BLUR
+  TAB_FOCUS
+  PASTE_ATTEMPT
+  COPY_ATTEMPT
+  FULLSCREEN_EXIT
+  RAPID_ANSWER
+  RIGHT_CLICK
+}
+
+enum IntegrityStatus {
+  CLEAN
+  FLAGGED
+  REVIEW
+}
+
 enum EmploymentType {
   FULL_TIME
   PART_TIME
@@ -286,7 +305,8 @@ model Question {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  answers AttemptAnswer[]
+  answers          AttemptAnswer[]
+  servedTimestamps QuestionServedAt[]
 }
 
 model Attempt {
@@ -303,8 +323,54 @@ model Attempt {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  answers AttemptAnswer[]
-  badge   Badge?
+  // Integrity monitoring — aggregate counters kept in sync with IntegrityEvent
+  // rows by AssessmentsService (see addIntegrityEvent); never written by the client.
+  integrityFlagCount Int             @default(0)
+  integrityStatus    IntegrityStatus @default(CLEAN)
+
+  answers         AttemptAnswer[]
+  badge           Badge?
+  integrityEvents IntegrityEvent[]
+  questionsServed QuestionServedAt[]
+}
+
+/**
+ * One detected integrity signal for an attempt — a tab blur, a paste, an
+ * implausibly-fast answer, etc. This is an audit trail, not a verdict: each
+ * row records what was observed, never a conclusion. `metadata` is a free-form
+ * JSON bag (e.g. { questionId, elapsedMs } for RAPID_ANSWER) so new event
+ * types — including a future webcam/proctoring tier — can attach whatever
+ * detail they need without a schema change.
+ */
+model IntegrityEvent {
+  id        String             @id @default(uuid())
+  attemptId String
+  attempt   Attempt            @relation(fields: [attemptId], references: [id])
+  type      IntegrityEventType
+  metadata  Json?
+  createdAt DateTime           @default(now())
+
+  @@index([attemptId])
+}
+
+/**
+ * Server-recorded "this question was served to the candidate at this time"
+ * — one row per (attempt, question), created when the question set is first
+ * fetched and refreshed (bumped to "now") for every still-unanswered question
+ * whenever any other answer lands. That refresh is what makes RAPID_ANSWER a
+ * genuine per-question signal instead of one dominated by time already spent
+ * on earlier questions — see AssessmentsService.checkRapidAnswer /
+ * refreshServedTimestamps. Never written from anything client-reported.
+ */
+model QuestionServedAt {
+  id         String   @id @default(uuid())
+  attemptId  String
+  attempt    Attempt  @relation(fields: [attemptId], references: [id])
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id])
+  servedAt   DateTime @default(now())
+
+  @@unique([attemptId, questionId])
 }
 
 model AttemptAnswer {

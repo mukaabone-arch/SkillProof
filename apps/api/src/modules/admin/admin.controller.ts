@@ -6,7 +6,6 @@ import { Roles } from '../auth/roles.decorator';
 import { AdminService } from './admin.service';
 import { CreateAssessmentDto, CreateQuestionDto, UpdateAssessmentDto } from './admin.dto';
 
-
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.PLATFORM_ADMIN)
@@ -42,5 +41,11 @@ export class AdminController {
   @Delete('questions/:id')
   removeQuestion(@Param('id') id: string) {
     return this.svc.removeQuestion(id);
+  }
+
+  /** Admin-only attempt review — includes integrity data never shown to the candidate. */
+  @Get('attempts/:id')
+  getAttempt(@Param('id') id: string) {
+    return this.svc.getAttemptForReview(id);
   }
 }

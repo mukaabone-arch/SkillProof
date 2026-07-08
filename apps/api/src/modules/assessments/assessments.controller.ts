@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard, AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { AssessmentsService } from './assessments.service';
+import { RecordIntegrityEventDto } from './assessments.dto';
 
 @Controller()
 export class AssessmentsController {
@@ -51,6 +52,17 @@ export class AssessmentsController {
   @UseGuards(JwtAuthGuard)
   result(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.svc.getResult(req.user.sub, id);
+  }
+
+  /** Signals only (tab blur, paste, ...) — never surfaced back to the candidate. */
+  @Post('attempts/:id/integrity-event')
+  @UseGuards(JwtAuthGuard)
+  integrityEvent(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: RecordIntegrityEventDto,
+  ) {
+    return this.svc.recordIntegrityEvent(req.user.sub, id, dto);
   }
 
   /** Public certificate verification page data */
