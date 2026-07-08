@@ -1,6 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateAssessmentDto, CreateQuestionDto, UpdateAssessmentDto } from './admin.dto';
+import { BulkQuestionItemDto, CreateAssessmentDto, CreateQuestionDto, UpdateAssessmentDto } from './admin.dto';
+
+interface BulkItemErrors {
+  index: number;
+  errors: string[];
+}
 
 @Injectable()
 export class AdminService {
@@ -32,15 +40,83 @@ export class AdminService {
     }
 
     return this.prisma.question.create({
-      data: {
-        assessmentId,
-        type: 'MCQ',
-        body: { text: dto.text, options: dto.options },
-        correct: { answer: dto.correctIndex },
-        difficulty: dto.difficulty,
-        isLive: true,
-      },
+      data: this.buildQuestionData(assessmentId, dto.text, dto.options, dto.correctIndex, dto.difficulty),
     });
+  }
+
+  /**
+   * Validates the entire batch before writing anything — a bad item anywhere
+   * in the paste fails the whole import with a per-item report instead of
+   * half-importing. Rows are created via the exact same data shape as
+   * `addQuestion` (buildQuestionData), so bulk and single-question imports
+   * are indistinguishable in the DB.
+   */
+  async bulkAddQuestions(assessmentId: string, body: unknown) {
+    await this.getAssessmentOrThrow(assessmentId);
+
+    if (!Array.isArray(body) || body.length === 0) {
+      throw new BadRequestException('Expected a non-empty JSON array of question objects.');
+    }
+
+    const errorReport: BulkItemErrors[] = [];
+    const valid: BulkQuestionItemDto[] = [];
+
+    for (let index = 0; index < body.length; index++) {
+      const raw = body[index];
+      if (typeof raw !== 'object' || raw === null) {
+        errorReport.push({ index, errors: ['Expected a JSON object'] });
+        continue;
+      }
+
+      const dto = plainToInstance(BulkQuestionItemDto, raw);
+      const violations = await validate(dto);
+      const messages = violations.flatMap((v) => Object.values(v.constraints ?? {}));
+
+      if (Array.isArray(dto.options) && Number.isInteger(dto.correctIndex) && dto.correctIndex >= dto.options.length) {
+        messages.push('correctIndex must reference one of the provided options');
+      }
+
+      if (messages.length > 0) {
+        errorReport.push({ index, errors: messages });
+      } else {
+        valid.push(dto);
+      }
+    }
+
+    if (errorReport.length > 0) {
+      throw new BadRequestException({
+        message: `${errorReport.length} of ${body.length} question(s) failed validation — nothing was imported.`,
+        errors: errorReport,
+      });
+    }
+
+    const created = await this.prisma.$transaction(
+      valid.map((dto) =>
+        this.prisma.question.create({
+          data: this.buildQuestionData(assessmentId, dto.question, dto.options, dto.correctIndex, dto.difficulty ?? 2),
+        }),
+      ),
+    );
+
+    return { created: created.length };
+  }
+
+  /** Single source of truth for the Question row shape — reused by addQuestion and bulkAddQuestions. */
+  private buildQuestionData(
+    assessmentId: string,
+    text: string,
+    options: string[],
+    correctIndex: number,
+    difficulty: number,
+  ): Prisma.QuestionCreateInput {
+    return {
+      assessment: { connect: { id: assessmentId } },
+      type: 'MCQ',
+      body: { text, options },
+      correct: { answer: correctIndex },
+      difficulty,
+      isLive: true,
+    };
   }
 
   async removeQuestion(id: string) {

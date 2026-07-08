@@ -17,6 +17,11 @@
  */
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
+/** Thrown by api() on a non-ok response — `body` is the parsed JSON error payload, if any. */
+export interface ApiError extends Error {
+  body?: unknown;
+}
+
 interface ScopeKeys {
   access: string;
   refresh: string;
@@ -116,7 +121,11 @@ function createApiClient({ access: ACCESS_KEY, refresh: REFRESH_KEY }: ScopeKeys
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      throw new Error(body.message ?? `Request failed: ${res.status}`);
+      // Some endpoints (e.g. bulk import) return structured detail beyond a
+      // single message — stash the raw body so callers can read it if needed.
+      const err = new Error(body.message ?? `Request failed: ${res.status}`) as ApiError;
+      err.body = body;
+      throw err;
     }
     return res.json();
   }

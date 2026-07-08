@@ -6,6 +6,7 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
+  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -101,4 +102,35 @@ export class CreateQuestionDto {
   @Min(1)
   @Max(5)
   difficulty: number;
+}
+
+/**
+ * One item of a bulk import batch. Deliberately loose about what a caller
+ * may send — our generation pipeline attaches extra fields (rationale,
+ * sourceRef, etc.) that we accept and simply never read. Only these four are
+ * ever used; `class-transformer` copies the rest onto the instance but they
+ * never reach the create() call.
+ */
+export class BulkQuestionItemDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2000)
+  question: string;
+
+  @IsArray()
+  @ArrayMinSize(2)
+  @ArrayMaxSize(8)
+  @IsString({ each: true })
+  @MaxLength(300, { each: true })
+  options: string[];
+
+  @IsInt()
+  @Min(0)
+  correctIndex: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  difficulty?: number;
 }

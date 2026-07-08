@@ -7,7 +7,7 @@
  * role logic on the client.
  */
 import { useEffect, useState } from 'react';
-import { api, getToken } from '@/lib/api';
+import { api, getToken, type ApiError } from '@/lib/api';
 
 interface Skill {
   id: string;
@@ -68,6 +68,16 @@ const emptyQuestionForm: QuestionForm = {
   difficulty: '2',
 };
 
+interface BulkItemError {
+  index: number;
+  errors: string[];
+}
+
+interface BulkImportErrorBody {
+  message?: string;
+  errors?: BulkItemError[];
+}
+
 export default function AdminAssessmentsPage() {
   const [status, setStatus] = useState<'loading' | 'forbidden' | 'ok'>('loading');
   const [domains, setDomains] = useState<Domain[]>([]);
@@ -80,6 +90,12 @@ export default function AdminAssessmentsPage() {
   const [openFor, setOpenFor] = useState<string | null>(null);
   const [qForm, setQForm] = useState<QuestionForm>(emptyQuestionForm);
   const [addingQuestion, setAddingQuestion] = useState(false);
+
+  const [bulkOpenFor, setBulkOpenFor] = useState<string | null>(null);
+  const [bulkText, setBulkText] = useState('');
+  const [bulkImporting, setBulkImporting] = useState(false);
+  const [bulkResult, setBulkResult] = useState('');
+  const [bulkErrors, setBulkErrors] = useState<BulkItemError[]>([]);
 
   useEffect(() => {
     if (!getToken()) {
@@ -153,6 +169,45 @@ export default function AdminAssessmentsPage() {
       setError((e as Error).message);
     } finally {
       setAddingQuestion(false);
+    }
+  }
+
+  function openBulkImport(assessmentId: string) {
+    setBulkOpenFor(assessmentId);
+    setBulkText('');
+    setBulkResult('');
+    setBulkErrors([]);
+  }
+
+  async function submitBulkImport(assessmentId: string) {
+    setBulkResult('');
+    setBulkErrors([]);
+
+    let items: unknown;
+    try {
+      items = JSON.parse(bulkText);
+    } catch {
+      setBulkErrors([{ index: -1, errors: ['Not valid JSON — check for a trailing comma or unmatched bracket.'] }]);
+      return;
+    }
+
+    setBulkImporting(true);
+    try {
+      const res = await api<{ created: number }>(`/admin/assessments/${assessmentId}/questions/bulk`, {
+        method: 'POST',
+        body: JSON.stringify(items),
+      });
+      setBulkResult(`${res.created} question${res.created === 1 ? '' : 's'} imported.`);
+      await refresh();
+    } catch (e) {
+      const body = (e as ApiError).body as BulkImportErrorBody | undefined;
+      if (body?.errors) {
+        setBulkErrors(body.errors);
+      } else {
+        setBulkErrors([{ index: -1, errors: [(e as Error).message] }]);
+      }
+    } finally {
+      setBulkImporting(false);
     }
   }
 
@@ -293,9 +348,14 @@ export default function AdminAssessmentsPage() {
                 {a.isLive ? <span className="ok">live</span> : 'draft'}
               </div>
             </div>
-            <button onClick={() => (openFor === a.id ? setOpenFor(null) : openQuestionForm(a.id))}>
-              {openFor === a.id ? 'Cancel' : 'Add question'}
-            </button>
+            <div className="row" style={{ margin: 0 }}>
+              <button onClick={() => (openFor === a.id ? setOpenFor(null) : openQuestionForm(a.id))}>
+                {openFor === a.id ? 'Cancel' : 'Add question'}
+              </button>
+              <button onClick={() => (bulkOpenFor === a.id ? setBulkOpenFor(null) : openBulkImport(a.id))}>
+                {bulkOpenFor === a.id ? 'Cancel' : 'Bulk import questions'}
+              </button>
+            </div>
           </div>
 
           {openFor === a.id && (
@@ -347,6 +407,50 @@ export default function AdminAssessmentsPage() {
               <button onClick={() => submitQuestion(a.id)} disabled={addingQuestion || !qForm.text.trim()}>
                 {addingQuestion ? 'Adding…' : 'Save question'}
               </button>
+            </div>
+          )}
+
+          {bulkOpenFor === a.id && (
+            <div style={{ marginTop: 8 }}>
+              <div className="field">
+                <label htmlFor="bulkJson">Paste a JSON array of questions</label>
+                <textarea
+                  id="bulkJson"
+                  rows={8}
+                  value={bulkText}
+                  onChange={(e) => setBulkText(e.target.value)}
+                  placeholder={
+                    '[\n' +
+                    '  {\n' +
+                    '    "question": "What does HTTP 404 mean?",\n' +
+                    '    "options": ["Not found", "Server error", "Forbidden", "Redirect"],\n' +
+                    '    "correctIndex": 0,\n' +
+                    '    "difficulty": 2\n' +
+                    '  }\n' +
+                    ']'
+                  }
+                />
+                <p className="meta" style={{ margin: 0 }}>
+                  Extra fields per item (e.g. from a generation pipeline) are ignored — only question,
+                  options, correctIndex, and difficulty are used.
+                </p>
+              </div>
+
+              <button onClick={() => submitBulkImport(a.id)} disabled={bulkImporting || !bulkText.trim()}>
+                {bulkImporting ? 'Importing…' : 'Import'}
+              </button>
+
+              {bulkResult && <p className="ok">✓ {bulkResult}</p>}
+              {bulkErrors.length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  {bulkErrors.map((be, i) => (
+                    <p key={i} className="error" style={{ margin: 0 }}>
+                      {be.index >= 0 ? `Item ${be.index}: ` : ''}
+                      {be.errors.join('; ')}
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

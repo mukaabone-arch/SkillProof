@@ -6,6 +6,7 @@ import { Roles } from '../auth/roles.decorator';
 import { AdminService } from './admin.service';
 import { CreateAssessmentDto, CreateQuestionDto, UpdateAssessmentDto } from './admin.dto';
 
+
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.PLATFORM_ADMIN)
@@ -30,6 +31,12 @@ export class AdminController {
   @Post('assessments/:id/questions')
   addQuestion(@Param('id') id: string, @Body() dto: CreateQuestionDto) {
     return this.svc.addQuestion(id, dto);
+  }
+
+  /** Body is a bare JSON array, not a wrapped object — validated item-by-item in the service. */
+  @Post('assessments/:id/questions/bulk')
+  bulkAddQuestions(@Param('id') id: string, @Body() body: unknown) {
+    return this.svc.bulkAddQuestions(id, body);
   }
 
   @Delete('questions/:id')
