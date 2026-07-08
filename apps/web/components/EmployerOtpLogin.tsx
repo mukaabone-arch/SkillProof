@@ -9,6 +9,7 @@
  */
 import { useState } from 'react';
 import { employerApi } from '@/lib/api';
+import Logo from './Logo';
 
 const { api, setTokens } = employerApi;
 
@@ -55,39 +56,46 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
   }
 
   return (
-    <main>
-      <h1>SkillProof for Employers</h1>
-      <p>Post assessments and find verified candidates. Log in with your phone to get started.</p>
-
-      {stage === 'phone' && (
-        <>
-          <div className="field">
-            <label htmlFor="orgName">Organization name</label>
-            <input
-              id="orgName"
-              value={orgName}
-              onChange={(e) => setOrgName(e.target.value)}
-              placeholder="Acme Inc."
-              maxLength={160}
-            />
-          </div>
-          <div className="row">
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91..." />
-            <button onClick={requestOtp} disabled={busy || !orgName.trim()}>
-              Send OTP
-            </button>
-          </div>
-        </>
-      )}
-
-      {stage === 'otp' && (
-        <div className="row">
-          <input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="6-digit OTP" />
-          <button onClick={verify} disabled={busy}>Verify</button>
+    <main className="auth">
+      <div className="auth-card">
+        <div className="brand-lockup-hero">
+          <Logo className="brand-logo-hero" />
+          <h1 className="brand-product-name" style={{ margin: 0 }}>
+            SkillProof <span style={{ color: 'var(--ink-60)', fontWeight: 500 }}>for Employers</span>
+          </h1>
         </div>
-      )}
+        <p>Post assessments and find verified candidates. Log in with your phone to get started.</p>
 
-      {error && <p className="error">{error}</p>}
+        {stage === 'phone' && (
+          <>
+            <div className="field">
+              <label htmlFor="orgName">Organization name</label>
+              <input
+                id="orgName"
+                value={orgName}
+                onChange={(e) => setOrgName(e.target.value)}
+                placeholder="Acme Inc."
+                maxLength={160}
+              />
+            </div>
+            <div className="row">
+              <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91..." />
+              <button onClick={requestOtp} disabled={busy || !orgName.trim()}>
+                Send OTP
+              </button>
+            </div>
+          </>
+        )}
+
+        {stage === 'otp' && (
+          <div className="row">
+            <input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="6-digit OTP" />
+            <button onClick={verify} disabled={busy}>Verify</button>
+          </div>
+        )}
+
+        {error && <p className="error">{error}</p>}
+      </div>
     </main>
   );
 }

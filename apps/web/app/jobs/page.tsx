@@ -1,9 +1,10 @@
 'use client';
 
 /** Candidate job area: matched-to-you ranking, browse/search, and my applications. */
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getToken } from '@/lib/api';
+import CandidateNav from '@/components/CandidateNav';
 import CandidateJobs from '@/components/CandidateJobs';
 
 export default function JobsPage() {
@@ -16,17 +17,24 @@ export default function JobsPage() {
   }, []);
 
   return (
-    <main>
-      <h1>Jobs</h1>
-      <p>Browse live openings, see how you match up, and track your applications.</p>
+    <>
+      {loggedIn && <CandidateNav onLoggedOut={() => setLoggedIn(false)} />}
+      <main>
+        <h1>Jobs</h1>
+        <p>Browse live openings, see how you match up, and track your applications.</p>
 
-      {ready && !loggedIn && (
-        <p className="error">
-          You are not logged in — <Link href="/">log in first</Link> to view jobs.
-        </p>
-      )}
+        {ready && !loggedIn && (
+          <p className="error">
+            You are not logged in — <Link href="/">log in first</Link> to view jobs.
+          </p>
+        )}
 
-      {loggedIn && <CandidateJobs />}
-    </main>
+        {loggedIn && (
+          <Suspense fallback={<p className="meta">Loading…</p>}>
+            <CandidateJobs />
+          </Suspense>
+        )}
+      </main>
+    </>
   );
 }

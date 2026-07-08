@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, getToken } from '@/lib/api';
+import CandidateNav from '@/components/CandidateNav';
 
 interface Profile {
   fullName: string | null;
@@ -194,7 +195,9 @@ export default function ProfilePage() {
   }
 
   return (
-    <main>
+    <>
+      {loggedIn && <CandidateNav onLoggedOut={() => setLoggedIn(false)} />}
+      <main>
       <h1>Your profile</h1>
       <p>Keep this up to date — employers see it alongside your verified badges.</p>
 
@@ -392,6 +395,7 @@ export default function ProfilePage() {
           )}
         </>
       )}
-    </main>
+      </main>
+    </>
   );
 }

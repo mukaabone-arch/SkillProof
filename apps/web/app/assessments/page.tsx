@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, getToken } from '@/lib/api';
+import CandidateNav from '@/components/CandidateNav';
 
 interface AssessmentItem {
   id: string;
@@ -33,32 +34,35 @@ export default function AssessmentsPage() {
   }, []);
 
   return (
-    <main>
-      <h1>Assessments</h1>
-      <p>Pass an assessment to earn a verified skill badge.</p>
-      {ready && !loggedIn && (
-        <p className="error">
-          You are not logged in — <Link href="/">log in first</Link> to start an attempt.
-        </p>
-      )}
-      {error && <p className="error">{error}</p>}
-      {ready && items.length === 0 && !error && (
-        <p>No live assessments yet. Run the assessment seed.</p>
-      )}
-      {items.map((a) => (
-        <div key={a.id} className="card">
-          <div>
-            <strong>{a.title}</strong>
-            <div className="meta">
-              {a.skill.domain.name} → {a.skill.name} · Level {a.targetLevel} · {a.durationMins} min
-              · pass ≥ {a.passThreshold}%
+    <>
+      {loggedIn && <CandidateNav onLoggedOut={() => setLoggedIn(false)} />}
+      <main>
+        <h1>Assessments</h1>
+        <p>Pass an assessment to earn a verified skill badge.</p>
+        {ready && !loggedIn && (
+          <p className="error">
+            You are not logged in — <Link href="/">log in first</Link> to start an attempt.
+          </p>
+        )}
+        {error && <p className="error">{error}</p>}
+        {ready && items.length === 0 && !error && (
+          <p>No live assessments yet. Run the assessment seed.</p>
+        )}
+        {items.map((a) => (
+          <div key={a.id} className="card">
+            <div>
+              <strong>{a.title}</strong>
+              <div className="meta">
+                {a.skill.domain.name} → {a.skill.name} · Level {a.targetLevel} · {a.durationMins} min
+                · pass ≥ {a.passThreshold}%
+              </div>
             </div>
+            <Link href={`/assessments/${a.id}`}>
+              <button>Start</button>
+            </Link>
           </div>
-          <Link href={`/assessments/${a.id}`}>
-            <button>Start</button>
-          </Link>
-        </div>
-      ))}
-    </main>
+        ))}
+      </main>
+    </>
   );
 }

@@ -8,6 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 
 interface Skill {
@@ -82,6 +83,10 @@ interface MyApplication {
 
 type Tab = 'matched' | 'browse' | 'applications';
 
+function isValidTab(value: string | null): value is Tab {
+  return value === 'matched' || value === 'browse' || value === 'applications';
+}
+
 function JobMeta({ job }: { job: JobSummary }) {
   return (
     <div className="meta">
@@ -106,7 +111,9 @@ function JobSkills({ skills }: { skills: JobSkillView[] }) {
 }
 
 export default function CandidateJobs() {
-  const [tab, setTab] = useState<Tab>('matched');
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const [tab, setTab] = useState<Tab>(isValidTab(requestedTab) ? requestedTab : 'matched');
   const [domains, setDomains] = useState<Domain[]>([]);
 
   const [skillId, setSkillId] = useState('');

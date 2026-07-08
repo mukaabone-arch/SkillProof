@@ -1,19 +1,35 @@
 :root {
   --paper: #f5f6f2;
+  --paper-2: #ecefe7;
   --ink: #141b2d;
   --ink-60: rgba(20, 27, 45, 0.62);
+  --ink-30: rgba(20, 27, 45, 0.3);
+  --ink-12: rgba(20, 27, 45, 0.12);
   --indigo: #3240b8;
+  --indigo-dark: #232e8f;
+  --indigo-soft: #e4e7fb;
   --verified: #0b8a5c;
+  --verified-soft: #ddf0e7;
+  --card: #fff;
+  --radius: 14px;
+  --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-body: 'Instrument Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-body);
   background: var(--paper);
   color: var(--ink);
   line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
 }
 main { max-width: 640px; margin: 0 auto; padding: 64px 24px; }
-h1 { letter-spacing: -0.02em; margin-bottom: 12px; }
+main.hub { max-width: 880px; }
+h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
+h1 { font-weight: 800; margin-bottom: 12px; }
+h2 { font-weight: 700; }
+h3 { font-weight: 700; }
 p { color: var(--ink-60); margin-bottom: 24px; }
 input, select, textarea, button {
   font: inherit; padding: 12px 16px; border-radius: 10px;
@@ -23,7 +39,9 @@ textarea { width: 100%; resize: vertical; }
 button {
   background: var(--indigo); color: #fff; border: none;
   font-weight: 600; cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease;
 }
+button:hover:not(:disabled) { background: var(--indigo-dark); transform: translateY(-1px); }
 a { color: var(--indigo); font-weight: 600; text-decoration: none; }
 a:hover { text-decoration: underline; }
 nav { font-size: 0.95rem; }
@@ -33,6 +51,68 @@ nav { font-size: 0.95rem; }
 pre {
   background: #fff; border: 1px solid rgba(20, 27, 45, 0.12);
   border-radius: 10px; padding: 16px; font-size: 0.8rem; overflow: auto;
+}
+
+/* ---- shared design language (matches public/landing.html) ---- */
+.mono { font-family: var(--font-mono); }
+.eyebrow {
+  font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.08em; font-weight: 500;
+  color: var(--indigo); text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 11px; border-radius: 100px; background: var(--indigo-soft);
+}
+.eyebrow.verified { color: var(--verified); background: var(--verified-soft); }
+.btn-ghost {
+  display: inline-block; background: transparent; color: var(--ink); font-weight: 600;
+  border: 1.5px solid var(--ink-30); border-radius: 10px; padding: 12px 22px; cursor: pointer;
+}
+.btn-ghost:hover { border-color: var(--ink); background: transparent; transform: none; }
+.check-circle {
+  width: 22px; height: 22px; border-radius: 50%; background: var(--ink-12); color: var(--ink-30);
+  display: inline-grid; place-items: center; font-size: 0.72rem; flex-shrink: 0; font-weight: 700;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.check-circle.done { background: var(--verified); color: #fff; }
+.check-circle.active { background: var(--indigo); color: #fff; }
+
+/* ---- flair future Intelligence branding ----
+   logo.svg already bakes in its own dark rounded panel — never re-wrap it in
+   another background, just size it. Nav scale vs. hero scale (pre-login
+   pages) are the only two sizes used anywhere in the app, so both live here. */
+.brand-logo { height: 30px; width: auto; display: block; }
+.brand-logo-hero { height: 44px; width: auto; display: block; }
+.brand-product-name { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; letter-spacing: -0.01em; color: var(--ink); }
+.brand-lockup-hero { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+.brand-lockup-hero .brand-product-name { font-size: 1.3rem; }
+.app-footer-credit { text-align: center; font-size: 0.78rem; color: var(--ink-30); margin-top: 40px; }
+@media (max-width: 480px) {
+  .brand-logo { height: 24px; }
+  .brand-logo-hero { height: 36px; }
+  .brand-product-name { font-size: 0.92rem; }
+}
+
+/* ---- auth pages only (OTP login/signup) — never applied to app pages ----
+   `main.auth` opts a single page into the hero-image treatment; the bare
+   `main` selector everywhere else stays untouched. A brand-tinted dark scrim
+   sits between the image and the card so the card's own contrast doesn't
+   depend on which part of the (busy, high-contrast) photo lands behind it. */
+main.auth {
+  max-width: none; margin: 0; padding: 24px;
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background-image:
+    linear-gradient(135deg, rgba(15, 17, 21, 0.85) 0%, rgba(139, 92, 246, 0.45) 45%, rgba(34, 197, 94, 0.4) 100%),
+    url('/background.jpg');
+  background-size: cover;
+  background-position: center 40%;
+  background-repeat: no-repeat;
+}
+.auth-card {
+  background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius);
+  box-shadow: 0 24px 60px -20px rgba(15, 17, 21, 0.45);
+  padding: 40px 36px; max-width: 440px; width: 100%;
+}
+@media (max-width: 480px) {
+  main.auth { padding: 16px; }
+  .auth-card { padding: 26px 22px; }
 }
 
 /* ---- assessment slice ---- */
@@ -72,4 +152,53 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .progress-fill {
   background: var(--indigo); height: 100%; border-radius: 999px;
   transition: width 0.2s ease;
+}
+
+/* ---- dashboard hub ---- */
+/* Rendered as a sibling before <main>, full-bleed and sticky, independent of any page's max-width. */
+.appnav {
+  position: sticky; top: 0; z-index: 50; background: rgba(245, 246, 242, 0.85);
+  backdrop-filter: blur(10px); border-bottom: 1px solid var(--ink-12);
+}
+.appnav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; max-width: 880px; margin: 0 auto; padding: 0 24px; }
+.appnav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.appnav-logo:hover { text-decoration: none; }
+.appnav-links { display: flex; gap: 24px; align-items: center; }
+.appnav-links a { font-size: 0.9rem; font-weight: 500; color: var(--ink-60); text-decoration: none; }
+.appnav-links a:hover { color: var(--ink); text-decoration: none; }
+.appnav-links a.active { color: var(--indigo); }
+.appnav-logout { background: transparent !important; color: var(--ink-60) !important; font-size: 0.85rem; padding: 8px 14px !important; border: 1px solid var(--ink-12) !important; }
+.appnav-logout:hover { color: var(--ink) !important; transform: none !important; }
+
+.stepper { display: flex; align-items: center; gap: 8px; }
+.stepper-item { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--ink-30); font-weight: 600; }
+.stepper-item.done, .stepper-item.active { color: var(--ink); }
+.stepper-line { width: 28px; height: 1.5px; background: var(--ink-12); flex-shrink: 0; }
+.stepper-line.done { background: var(--verified); }
+
+.next-step-card {
+  background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius);
+  box-shadow: 0 24px 60px -32px rgba(20, 27, 45, 0.25);
+  padding: 28px 30px; margin-bottom: 28px;
+}
+.status-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
+.status-card {
+  background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius);
+  padding: 22px 22px 20px; text-decoration: none; color: var(--ink); display: block;
+  transition: border-color 0.15s ease, transform 0.12s ease;
+}
+.status-card:hover { border-color: var(--indigo-soft); transform: translateY(-2px); text-decoration: none; }
+.status-stat { font-family: var(--font-display); font-weight: 800; font-size: 2rem; letter-spacing: -0.02em; color: var(--indigo); line-height: 1; margin-bottom: 6px; }
+.status-stat.verified { color: var(--verified); }
+.status-card-label { font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-30); margin-bottom: 10px; }
+.chip {
+  font-family: var(--font-mono); font-size: 0.68rem; padding: 5px 10px; border-radius: 100px;
+  border: 1px solid var(--verified-soft); background: var(--verified-soft); color: var(--verified);
+  display: inline-flex; align-items: center; gap: 5px;
+}
+
+@media (max-width: 720px) {
+  main.hub { padding-left: 16px; padding-right: 16px; }
+  .status-grid { grid-template-columns: 1fr; }
+  .appnav-links a:not(.appnav-logout-link) { display: none; }
 }

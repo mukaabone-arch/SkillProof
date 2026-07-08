@@ -4,10 +4,11 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { employerApi } from '@/lib/api';
+import EmployerNav from './EmployerNav';
 import EmployerJobs from './EmployerJobs';
 import CandidateSearch from './CandidateSearch';
 
-const { api, logout } = employerApi;
+const { api } = employerApi;
 
 interface OrgMe {
   organization: { id: string; name: string };
@@ -28,36 +29,41 @@ export default function EmployerHome({ onLoggedOut }: Props) {
       .catch((e) => setError(e.message));
   }, []);
 
-  async function handleLogout() {
-    await logout();
-    onLoggedOut();
-  }
-
   if (error) {
     return (
-      <main>
-        <p className="error">{error}</p>
-        <p>
-          Looking for the candidate app? <Link href="/">Go there instead</Link>.
-        </p>
-      </main>
+      <>
+        <EmployerNav onLoggedOut={onLoggedOut} />
+        <main>
+          <p className="error">{error}</p>
+          <p>
+            Looking for the candidate app? <Link href="/">Go there instead</Link>.
+          </p>
+        </main>
+      </>
     );
   }
-  if (!org) return <main><p>Loading your organization…</p></main>;
+  if (!org) {
+    return (
+      <>
+        <EmployerNav onLoggedOut={onLoggedOut} />
+        <main><p>Loading your organization…</p></main>
+      </>
+    );
+  }
 
   return (
-    <main>
-      <nav className="row" style={{ justifyContent: 'space-between', margin: 0, marginBottom: 32 }}>
-        <span className="meta" style={{ margin: 0 }}>Employer portal</span>
-        <button onClick={handleLogout}>Log out</button>
-      </nav>
+    <>
+      <EmployerNav onLoggedOut={onLoggedOut} />
+      <main>
+        <h1>Welcome, {org.organization.name}</h1>
+        <p>Signed in as {org.role === 'EMPLOYER_ADMIN' ? 'an admin' : 'a member'} of this organization.</p>
 
-      <h1>Welcome, {org.organization.name}</h1>
-      <p>Signed in as {org.role === 'EMPLOYER_ADMIN' ? 'an admin' : 'a member'} of this organization.</p>
+        <EmployerJobs />
 
-      <EmployerJobs />
+        <CandidateSearch />
 
-      <CandidateSearch />
-    </main>
+        <p className="app-footer-credit">by flair future Intelligence</p>
+      </main>
+    </>
   );
 }

@@ -3,6 +3,7 @@
 /** Phone → OTP → JWT login flow. In dev, the OTP is always 123456. */
 import { useState } from 'react';
 import { api, setTokens } from '@/lib/api';
+import Logo from './Logo';
 
 interface Props {
   onLoggedIn: () => void;
@@ -46,25 +47,30 @@ export default function OtpLogin({ onLoggedIn }: Props) {
   }
 
   return (
-    <main>
-      <h1>SkillProof</h1>
-      <p>Verified AI-skill assessments. Log in with your phone to get started.</p>
-
-      {stage === 'phone' && (
-        <div className="row">
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91..." />
-          <button onClick={requestOtp} disabled={busy}>Send OTP</button>
+    <main className="auth">
+      <div className="auth-card">
+        <div className="brand-lockup-hero">
+          <Logo className="brand-logo-hero" />
+          <h1 className="brand-product-name" style={{ margin: 0 }}>SkillProof</h1>
         </div>
-      )}
+        <p>Verified AI-skill assessments. Log in with your phone to get started.</p>
 
-      {stage === 'otp' && (
-        <div className="row">
-          <input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="6-digit OTP" />
-          <button onClick={verify} disabled={busy}>Verify</button>
-        </div>
-      )}
+        {stage === 'phone' && (
+          <div className="row">
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91..." />
+            <button onClick={requestOtp} disabled={busy}>Send OTP</button>
+          </div>
+        )}
 
-      {error && <p className="error">{error}</p>}
+        {stage === 'otp' && (
+          <div className="row">
+            <input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="6-digit OTP" />
+            <button onClick={verify} disabled={busy}>Verify</button>
+          </div>
+        )}
+
+        {error && <p className="error">{error}</p>}
+      </div>
     </main>
   );
 }
