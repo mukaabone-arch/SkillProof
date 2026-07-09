@@ -112,10 +112,25 @@
   }
 
   /* ---------- Model card (signature) ---------- */
+  /* Glassmorphism — this card floats over the hero photo, so it's frosted
+     glass rather than the opaque white used everywhere else. Tuned above the
+     textbook 0.15–0.25 "light glass" range: this card carries dense small
+     text (name, scores, benchmarks) over a busy, dark-scrimmed photo, so a
+     higher tint (0.72) keeps --ink text comfortably legible while blur(12px)
+     still shows a soft, genuinely glassy wash of color at the edges. Border
+     radius is untouched (still var(--radius)). */
   .model-card{
-    background:var(--card);border:1px solid var(--ink-12);border-radius:var(--radius);
-    box-shadow:0 24px 60px -24px rgba(20,27,45,.25);
+    background:rgba(255,255,255,.72);
+    border:1px solid rgba(255,255,255,.4);border-radius:var(--radius);
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    box-shadow:0 24px 60px -20px rgba(15,17,21,.5);
     padding:26px 26px 22px;font-size:.85rem;position:relative;
+  }
+  /* Browsers without backdrop-filter support (some older mobile WebViews)
+     get a near-opaque card instead of a barely-tinted see-through one, since
+     there's no blur to obscure the photo behind it. */
+  @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+    .model-card{background:rgba(255,255,255,.92)}
   }
   .mc-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
   .mc-name{font-family:var(--font-display);font-weight:700;font-size:1.15rem;letter-spacing:-.01em}

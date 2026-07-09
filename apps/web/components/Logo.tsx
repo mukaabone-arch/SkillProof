@@ -23,9 +23,9 @@ export default function Logo({ className }: Props) {
       <rect x="150" y="70" width="380" height="60" rx="12" fill="#0f1115" />
       <text x="170" y="110" fontFamily="Arial, Helvetica, sans-serif" fontSize="30" fontWeight="700">
         <tspan fill="#ffffff">fl</tspan>
-        <tspan fill="#8b5cf6">AI</tspan>
+        <tspan fill="var(--brand-purple, #8b5cf6)">AI</tspan>
         <tspan fill="#ffffff">r future </tspan>
-        <tspan fill="#22c55e">Intelligence</tspan>
+        <tspan fill="var(--brand-green, #22c55e)">Intelligence</tspan>
       </text>
     </svg>
   );
