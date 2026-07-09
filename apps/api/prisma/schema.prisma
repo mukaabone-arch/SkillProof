@@ -56,6 +56,15 @@ enum IntegrityStatus {
   CLEAN
   FLAGGED
   REVIEW
+  INVALIDATED
+}
+
+/**
+ * An admin's decision on a FLAGGED attempt — the only thing that can invalidate an attempt/badge.
+ */
+enum ReviewOutcome {
+  APPROVED
+  INVALIDATED
 }
 
 enum EmploymentType {
@@ -105,12 +114,13 @@ model User {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
-  profile       CandidateProfile?
-  attempts      Attempt[]
-  badges        Badge[]
-  refreshTokens RefreshToken[]
-  orgMembership OrgMember?
-  notifications Notification[]
+  profile          CandidateProfile?
+  attempts         Attempt[]
+  badges           Badge[]
+  refreshTokens    RefreshToken[]
+  orgMembership    OrgMember?
+  notifications    Notification[]
+  reviewedAttempts Attempt[]         @relation("AttemptReviewedBy")
 }
 
 // ---------- Employer accounts (spec section: employer side, step 3a) ----------
@@ -277,17 +287,24 @@ model Notification {
 // ---------- Assessments (spec section 4.4) ----------
 
 model Assessment {
-  id            String     @id @default(uuid())
-  skillId       String
-  skill         Skill      @relation(fields: [skillId], references: [id])
-  title         String
-  targetLevel   SkillLevel
-  durationMins  Int        @default(30)
-  passThreshold Int        @default(70)
-  isPremium     Boolean    @default(false)
-  isLive        Boolean    @default(false)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id                  String     @id @default(uuid())
+  skillId             String
+  skill               Skill      @relation(fields: [skillId], references: [id])
+  title               String
+  targetLevel         SkillLevel
+  durationMins        Int        @default(30)
+  // Server-enforced deadline = Attempt.startedAt + durationMins. This is
+  // also the field the task brief calls "timeLimitMinutes" — durationMins
+  // already existed and means the same thing, so it's reused rather than
+  // duplicated (see AssessmentsService.deadlineFor).
+  passThreshold       Int        @default(70)
+  // Also existing — a 0-100 percentage compared against scorePercent in
+  // gradeAttempt(), not a separate 0-1 fraction field.
+  questionsPerAttempt Int        @default(20)
+  isPremium           Boolean    @default(false)
+  isLive              Boolean    @default(false)
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
 
   questions Question[]
   attempts  Attempt[]
@@ -327,6 +344,15 @@ model Attempt {
   // rows by AssessmentsService (see addIntegrityEvent); never written by the client.
   integrityFlagCount Int             @default(0)
   integrityStatus    IntegrityStatus @default(CLEAN)
+
+  // Admin review of a FLAGGED attempt (AdminService.reviewAttempt) — the only
+  // path that can move an attempt to INVALIDATED and revoke its badge.
+  // Null until an admin actually reviews it.
+  reviewOutcome    ReviewOutcome?
+  reviewNote       String?
+  reviewedAt       DateTime?
+  reviewedByUserId String?
+  reviewedByUser   User?          @relation("AttemptReviewedBy", fields: [reviewedByUserId], references: [id])
 
   answers         AttemptAnswer[]
   badge           Badge?

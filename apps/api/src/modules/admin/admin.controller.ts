@@ -1,10 +1,16 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AuthenticatedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { AdminService } from './admin.service';
-import { CreateAssessmentDto, CreateQuestionDto, UpdateAssessmentDto } from './admin.dto';
+import {
+  CreateAssessmentDto,
+  CreateQuestionDto,
+  ListAttemptsQueryDto,
+  ReviewAttemptDto,
+  UpdateAssessmentDto,
+} from './admin.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -43,9 +49,25 @@ export class AdminController {
     return this.svc.removeQuestion(id);
   }
 
+  /** Review queue — GET /admin/attempts?status=FLAGGED lists attempts needing a decision. */
+  @Get('attempts')
+  listAttempts(@Query() query: ListAttemptsQueryDto) {
+    return this.svc.listAttemptsForReview(query);
+  }
+
   /** Admin-only attempt review — includes integrity data never shown to the candidate. */
   @Get('attempts/:id')
   getAttempt(@Param('id') id: string) {
     return this.svc.getAttemptForReview(id);
+  }
+
+  /** The only path that can invalidate an attempt/badge — never automatic. */
+  @Patch('attempts/:id/review')
+  reviewAttempt(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: ReviewAttemptDto,
+  ) {
+    return this.svc.reviewAttempt(id, req.user.sub, dto);
   }
 }

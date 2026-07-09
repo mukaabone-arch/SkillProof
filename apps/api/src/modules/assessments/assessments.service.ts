@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { AttemptStatus, ClaimStatus, IntegrityEventType, IntegrityStatus, Prisma } from '@prisma/client';
@@ -26,6 +27,8 @@ const NON_FLAGGING_EVENT_TYPES = new Set<IntegrityEventType>([IntegrityEventType
  */
 const RAPID_ANSWER_THRESHOLD_MS = Number(process.env.RAPID_ANSWER_THRESHOLD_MS) || 3000;
 
+type AttemptWithAssessment = Prisma.AttemptGetPayload<{ include: { assessment: true } }>;
+
 /**
  * MCQ assessment flow (spec §4.4 state machine):
  * CREATED → IN_PROGRESS → SUBMITTED → GRADING → GRADED
@@ -36,6 +39,8 @@ const RAPID_ANSWER_THRESHOLD_MS = Number(process.env.RAPID_ANSWER_THRESHOLD_MS) 
  */
 @Injectable()
 export class AssessmentsService {
+  private readonly logger = new Logger(AssessmentsService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   listLive() {
@@ -48,6 +53,13 @@ export class AssessmentsService {
     });
   }
 
+  /**
+   * Draws `assessment.questionsPerAttempt` random questions from the live
+   * pool and persists the served set (QuestionServedAt) at creation time —
+   * this is the one true "which questions belong to this attempt" record,
+   * used for grading, for the per-question timing signal, and to reject
+   * answers to questions this attempt was never shown.
+   */
   async startAttempt(userId: string, assessmentId: string) {
     const assessment = await this.prisma.assessment.findUnique({
       where: { id: assessmentId },
@@ -64,7 +76,19 @@ export class AssessmentsService {
     });
     if (active) return active;
 
-    return this.prisma.attempt.create({
+    const pool = await this.prisma.question.findMany({
+      where: { assessmentId, isLive: true },
+      select: { id: true },
+    });
+    if (pool.length < assessment.questionsPerAttempt) {
+      this.logger.warn(
+        `Assessment ${assessmentId} has only ${pool.length} live question(s), fewer than ` +
+          `questionsPerAttempt=${assessment.questionsPerAttempt}. Serving all of them.`,
+      );
+    }
+    const served = this.sampleQuestions(pool, assessment.questionsPerAttempt);
+
+    const attempt = await this.prisma.attempt.create({
       data: {
         userId,
         assessmentId,
@@ -72,41 +96,58 @@ export class AssessmentsService {
         startedAt: new Date(),
       },
     });
-  }
 
-  /** Questions WITHOUT the `correct` field — never leak answers to the client. */
-  async getQuestions(userId: string, attemptId: string) {
-    const attempt = await this.getOwnedAttempt(userId, attemptId);
-    if (attempt.status !== AttemptStatus.IN_PROGRESS) {
-      throw new BadRequestException('Attempt is not in progress');
-    }
-    this.assertWithinTime(attempt);
-
-    const questions = await this.prisma.question.findMany({
-      where: { assessmentId: attempt.assessmentId, isLive: true },
-      select: { id: true, type: true, body: true, difficulty: true },
-    });
-
-    // Server-recorded "served" bookkeeping for the rapid-answer check below —
-    // never derived from anything the client reports. skipDuplicates makes
-    // this safe to call again on a page refresh: existing serve times for
-    // this attempt are left untouched.
-    if (questions.length > 0) {
+    if (served.length > 0) {
       await this.prisma.questionServedAt.createMany({
-        data: questions.map((q) => ({ attemptId, questionId: q.id })),
-        skipDuplicates: true,
+        data: served.map((q) => ({ attemptId: attempt.id, questionId: q.id })),
       });
     }
 
-    return questions;
+    return attempt;
+  }
+
+  /**
+   * Questions WITHOUT the `correct` field — never leak answers to the
+   * client. Returns the attempt's already-served set (drawn once, at
+   * startAttempt) plus the server-computed remaining time so the UI can show
+   * a countdown; the countdown display is a courtesy, not the enforcement —
+   * see enforceDeadline.
+   */
+  async getQuestions(userId: string, attemptId: string) {
+    let attempt = await this.getOwnedAttempt(userId, attemptId);
+    attempt = await this.enforceDeadline(attempt);
+    if (attempt.status !== AttemptStatus.IN_PROGRESS) {
+      throw new BadRequestException('This attempt is no longer in progress.');
+    }
+
+    const served = await this.prisma.questionServedAt.findMany({
+      where: { attemptId },
+      orderBy: { servedAt: 'asc' },
+      include: { question: { select: { id: true, type: true, body: true, difficulty: true } } },
+    });
+
+    const deadline = this.deadlineFor(attempt);
+    return {
+      questions: served.map((s) => s.question),
+      remainingSeconds: deadline ? Math.max(0, Math.round((deadline.getTime() - Date.now()) / 1000)) : null,
+      deadlineAt: deadline,
+    };
   }
 
   async submitAnswer(userId: string, attemptId: string, questionId: string, answer: unknown) {
-    const attempt = await this.getOwnedAttempt(userId, attemptId);
+    let attempt = await this.getOwnedAttempt(userId, attemptId);
+    attempt = await this.enforceDeadline(attempt);
     if (attempt.status !== AttemptStatus.IN_PROGRESS) {
-      throw new BadRequestException('Attempt is not in progress');
+      throw new BadRequestException(
+        'The time limit for this attempt has passed and it has been auto-submitted.',
+      );
     }
-    this.assertWithinTime(attempt);
+
+    // Only accept answers for questions this attempt actually drew.
+    const served = await this.prisma.questionServedAt.findUnique({
+      where: { attemptId_questionId: { attemptId, questionId } },
+    });
+    if (!served) throw new BadRequestException('This question was not served in this attempt.');
 
     // Idempotent: re-answering overwrites (unique [attemptId, questionId])
     const result = await this.prisma.attemptAnswer.upsert({
@@ -134,43 +175,9 @@ export class AssessmentsService {
       throw new BadRequestException('Attempt already submitted');
     }
 
-    await this.prisma.attempt.update({
-      where: { id: attemptId },
-      data: { status: AttemptStatus.GRADING, submittedAt: new Date() },
-    });
-
-    // --- Synchronous MCQ grading (move to BullMQ worker later) ---
-    const [answers, questions, assessment] = await Promise.all([
-      this.prisma.attemptAnswer.findMany({ where: { attemptId } }),
-      this.prisma.question.findMany({ where: { assessmentId: attempt.assessmentId, isLive: true } }),
-      this.prisma.assessment.findUniqueOrThrow({ where: { id: attempt.assessmentId } }),
-    ]);
-
-    let correct = 0;
-    for (const q of questions) {
-      const a = answers.find((x: any) => x.questionId === q.id);
-      const isCorrect =
-        a != null && JSON.stringify(a.answer) === JSON.stringify((q.correct as any)?.answer);
-      if (a) {
-        await this.prisma.attemptAnswer.update({
-          where: { id: a.id },
-          data: { isCorrect },
-        });
-      }
-      if (isCorrect) correct += 1;
-    }
-
-    const scorePercent = questions.length ? Math.round((correct / questions.length) * 100) : 0;
-    const passed = scorePercent >= assessment.passThreshold;
-
-    const graded = await this.prisma.attempt.update({
-      where: { id: attemptId },
-      data: { status: AttemptStatus.GRADED, scorePercent, passed },
-    });
-
-    if (passed) await this.issueBadge(userId, graded.id, assessment.skillId, assessment.targetLevel);
-
-    return { attemptId, scorePercent, passed };
+    await this.gradeAttempt(attemptId);
+    const graded = await this.prisma.attempt.findUniqueOrThrow({ where: { id: attemptId } });
+    return { attemptId, scorePercent: graded.scorePercent, passed: graded.passed };
   }
 
   async getResult(userId: string, attemptId: string) {
@@ -196,6 +203,8 @@ export class AssessmentsService {
             expiresAt: full!.badge.expiresAt,
           }
         : null,
+      // Deliberately no integrity fields here — this is the candidate's own
+      // result view. See AdminService.getAttemptForReview for the admin one.
     };
   }
 
@@ -216,35 +225,131 @@ export class AssessmentsService {
       issuedAt: badge.issuedAt,
       expiresAt: badge.expiresAt,
       valid: badge.expiresAt > new Date(),
+      /**
+       * A positive-only trust signal — true only when the attempt is
+       * currently CLEAN (never flagged, or flagged and then admin-APPROVED,
+       * which resets it to CLEAN — see AdminService.reviewAttempt). There is
+       * deliberately no corresponding "flagged"/"under review" field: the
+       * frontend can only ever render the positive mark or nothing. An
+       * INVALIDATED attempt's badge is revoked (see reviewAttempt), so it
+       * never reaches this far at all — the whole certificate 404s above.
+       */
+      verifiedClean: badge.attempt.integrityStatus === IntegrityStatus.CLEAN,
     };
   }
 
   // ---------- helpers ----------
 
-  private async getOwnedAttempt(userId: string, attemptId: string) {
-    const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } });
+  private async getOwnedAttempt(userId: string, attemptId: string): Promise<AttemptWithAssessment> {
+    const attempt = await this.prisma.attempt.findUnique({
+      where: { id: attemptId },
+      include: { assessment: true },
+    });
     if (!attempt) throw new NotFoundException('Attempt not found');
     // IDOR protection: users may only touch their own attempts (spec §7.2)
     if (attempt.userId !== userId) throw new ForbiddenException();
     return attempt;
   }
 
-  private assertWithinTime(attempt: { startedAt: Date | null; assessmentId: string }) {
-    // Server-side timing is authoritative; enforced fully once duration is
-    // loaded with the attempt. Simplified here: enforce in submit() too.
+  private deadlineFor(attempt: { startedAt: Date | null; assessment: { durationMins: number } }): Date | null {
+    if (!attempt.startedAt) return null;
+    return new Date(attempt.startedAt.getTime() + attempt.assessment.durationMins * 60_000);
+  }
+
+  /**
+   * Server-side-only deadline check — never trusts a client-side timer. If
+   * the attempt is still IN_PROGRESS but startedAt + assessment.durationMins
+   * has already passed, auto-submits/grades it right here with whatever
+   * answers were recorded, exactly as if the candidate had clicked Submit.
+   * Called at the top of every attempt-touching endpoint (getQuestions,
+   * submitAnswer) so the deadline is enforced no matter which one the client
+   * happens to call next — there's no separate timer/cron involved.
+   */
+  private async enforceDeadline(attempt: AttemptWithAssessment): Promise<AttemptWithAssessment> {
+    if (attempt.status !== AttemptStatus.IN_PROGRESS) return attempt;
+    const deadline = this.deadlineFor(attempt);
+    if (!deadline || Date.now() < deadline.getTime()) return attempt;
+
+    await this.gradeAttempt(attempt.id);
+    return this.prisma.attempt.findUniqueOrThrow({
+      where: { id: attempt.id },
+      include: { assessment: true },
+    });
+  }
+
+  /**
+   * Shared grading logic — used by the explicit POST /attempts/:id/submit
+   * endpoint AND by enforceDeadline's auto-submit-on-timeout path, so both
+   * produce identical results from whatever answers happen to be recorded
+   * at the moment grading runs. Grades against this attempt's *served* set
+   * (QuestionServedAt), not the assessment's whole live pool — each attempt
+   * only ever saw questionsPerAttempt of them.
+   */
+  private async gradeAttempt(attemptId: string): Promise<void> {
+    const attempt = await this.prisma.attempt.findUniqueOrThrow({ where: { id: attemptId } });
+    if (attempt.status !== AttemptStatus.IN_PROGRESS) return;
+
+    await this.prisma.attempt.update({
+      where: { id: attemptId },
+      data: { status: AttemptStatus.GRADING, submittedAt: new Date() },
+    });
+
+    const [answers, served, assessment] = await Promise.all([
+      this.prisma.attemptAnswer.findMany({ where: { attemptId } }),
+      this.prisma.questionServedAt.findMany({ where: { attemptId }, include: { question: true } }),
+      this.prisma.assessment.findUniqueOrThrow({ where: { id: attempt.assessmentId } }),
+    ]);
+    const questions = served.map((s) => s.question);
+
+    let correct = 0;
+    for (const q of questions) {
+      const a = answers.find((x) => x.questionId === q.id);
+      const isCorrect =
+        a != null && JSON.stringify(a.answer) === JSON.stringify((q.correct as any)?.answer);
+      if (a) {
+        await this.prisma.attemptAnswer.update({
+          where: { id: a.id },
+          data: { isCorrect },
+        });
+      }
+      if (isCorrect) correct += 1;
+    }
+
+    const scorePercent = questions.length ? Math.round((correct / questions.length) * 100) : 0;
+    const passed = scorePercent >= assessment.passThreshold;
+
+    const graded = await this.prisma.attempt.update({
+      where: { id: attemptId },
+      data: { status: AttemptStatus.GRADED, scorePercent, passed },
+    });
+
+    if (passed) {
+      await this.issueBadge(attempt.userId, graded.id, assessment.skillId, assessment.targetLevel);
+    }
+  }
+
+  /** Fisher-Yates partial shuffle — returns up to `count` items from `pool`, or all of it if smaller. */
+  private sampleQuestions<T>(pool: T[], count: number): T[] {
+    if (pool.length <= count) return pool;
+    const arr = [...pool];
+    for (let i = arr.length - 1; i > arr.length - 1 - count; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr.slice(arr.length - count);
   }
 
   /**
    * Per-question timing signal, computed entirely from server-recorded
    * timestamps — never anything the client reports. The reference point is
-   * this question's own QuestionServedAt.servedAt (written by getQuestions()
-   * on first fetch, then bumped forward by refreshServedTimestamps() every
-   * time a *different* question gets answered — see that method for why).
-   * That reset is what makes this a genuine per-question check: elapsed time
-   * is no longer dominated by however long earlier questions took, the way it
+   * this question's own QuestionServedAt.servedAt (written by startAttempt's
+   * random draw, then bumped forward by refreshServedTimestamps() every time
+   * a *different* question gets answered — see that method for why). That
+   * reset is what makes this a genuine per-question check: elapsed time is
+   * no longer dominated by however long earlier questions took, the way it
    * would be if this were measured against a single fixed attempt-start time.
    * Falls back to attempt.startedAt only as a defensive safety net (a served
-   * row should always exist once getQuestions() has run).
+   * row should always exist once startAttempt() has run).
    */
   private async checkRapidAnswer(attempt: { id: string; startedAt: Date | null }, questionId: string): Promise<void> {
     const served = await this.prisma.questionServedAt.findUnique({
@@ -300,6 +405,11 @@ export class AssessmentsService {
    * and thresholding happen exactly once, consistently, server-side only.
    * Always writes the audit row; only "flag-worthy" types advance the counter
    * or can flip integrityStatus. The client never sets either directly.
+   *
+   * This only ever moves CLEAN → FLAGGED. An attempt is never auto-failed or
+   * auto-blocked here — FLAGGED just means "needs admin review" (see
+   * AdminService.listAttemptsForReview / reviewAttempt); grading, badge
+   * issuance, and the certificate page all proceed normally regardless.
    */
   private async addIntegrityEvent(attemptId: string, type: IntegrityEventType, metadata?: unknown): Promise<void> {
     await this.prisma.integrityEvent.create({

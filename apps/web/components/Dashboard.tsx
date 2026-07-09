@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import CandidateNav from './CandidateNav';
+import { SegmentedProgress, SegmentedProgressState } from './ui/SegmentedProgress';
 
 interface SkillClaim {
   id: string;
@@ -51,15 +52,10 @@ interface Props {
   onLoggedOut: () => void;
 }
 
-type StepState = 'done' | 'active' | 'upcoming';
-
-function JourneyStep({ label, state }: { label: string; state: StepState }) {
-  return (
-    <div className={`stepper-item ${state}`}>
-      <span className={`check-circle ${state}`}>{state === 'done' ? '✓' : ''}</span>
-      {label}
-    </div>
-  );
+function journeySubLabel(state: SegmentedProgressState): string {
+  if (state === 'done') return 'Complete';
+  if (state === 'active') return 'In progress';
+  return 'Not started';
 }
 
 export default function Dashboard({ onLoggedOut }: Props) {
@@ -121,9 +117,15 @@ export default function Dashboard({ onLoggedOut }: Props) {
   // Each stage's state falls out of the one before it — the same booleans
   // drive both the stepper and the "next step" card below, so they can never
   // disagree about what the candidate should do next.
-  const stage1: StepState = hasProfile ? 'done' : 'active';
-  const stage2: StepState = hasBadge ? 'done' : hasProfile ? 'active' : 'upcoming';
-  const stage3: StepState = hasApplied ? 'done' : hasBadge ? 'active' : 'upcoming';
+  const stage1: SegmentedProgressState = hasProfile ? 'done' : 'active';
+  const stage2: SegmentedProgressState = hasBadge ? 'done' : hasProfile ? 'active' : 'upcoming';
+  const stage3: SegmentedProgressState = hasApplied ? 'done' : hasBadge ? 'active' : 'upcoming';
+
+  const journeySteps = [
+    { label: 'Profile built', subLabel: journeySubLabel(stage1), state: stage1 },
+    { label: 'First badge', subLabel: journeySubLabel(stage2), state: stage2 },
+    { label: 'Jobs explored', subLabel: journeySubLabel(stage3), state: stage3 },
+  ];
 
   const displayName = profile.fullName || me.phone || me.email || 'there';
 
@@ -182,13 +184,7 @@ export default function Dashboard({ onLoggedOut }: Props) {
       <main className="hub">
         <h1 style={{ marginBottom: 16 }}>Welcome back, {displayName}</h1>
 
-        <div className="stepper" style={{ marginBottom: 36 }}>
-          <JourneyStep label="Profile built" state={stage1} />
-          <span className={`stepper-line ${stage1 === 'done' ? 'done' : ''}`} />
-          <JourneyStep label="First badge" state={stage2} />
-          <span className={`stepper-line ${stage2 === 'done' ? 'done' : ''}`} />
-          <JourneyStep label="Jobs explored" state={stage3} />
-        </div>
+        <SegmentedProgress steps={journeySteps} />
 
         <div className="next-step-card">
           <span className={`eyebrow ${hasBadge ? 'verified' : ''}`}>{nextStep.kicker}</span>

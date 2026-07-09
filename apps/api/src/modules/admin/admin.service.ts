@@ -1,9 +1,16 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { Prisma } from '@prisma/client';
+import { ClaimStatus, IntegrityStatus, Prisma, ReviewOutcome } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { BulkQuestionItemDto, CreateAssessmentDto, CreateQuestionDto, UpdateAssessmentDto } from './admin.dto';
+import {
+  BulkQuestionItemDto,
+  CreateAssessmentDto,
+  CreateQuestionDto,
+  ListAttemptsQueryDto,
+  ReviewAttemptDto,
+  UpdateAssessmentDto,
+} from './admin.dto';
 
 interface BulkItemErrors {
   index: number;
@@ -173,6 +180,81 @@ export class AdminService {
         })),
       },
     };
+  }
+
+  /** Lightweight list for the review queue — GET /admin/attempts?status=FLAGGED. */
+  async listAttemptsForReview(query: ListAttemptsQueryDto) {
+    const attempts = await this.prisma.attempt.findMany({
+      where: query.status ? { integrityStatus: query.status } : undefined,
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        user: { select: { id: true, phone: true, email: true, profile: { select: { fullName: true } } } },
+        assessment: { select: { title: true, skill: { select: { name: true } } } },
+      },
+    });
+
+    return attempts.map((a) => ({
+      id: a.id,
+      status: a.status,
+      scorePercent: a.scorePercent,
+      passed: a.passed,
+      candidate: {
+        id: a.user.id,
+        fullName: a.user.profile?.fullName ?? null,
+        phone: a.user.phone,
+        email: a.user.email,
+      },
+      assessmentTitle: a.assessment.title,
+      skillName: a.assessment.skill.name,
+      integrityStatus: a.integrityStatus,
+      integrityFlagCount: a.integrityFlagCount,
+      reviewOutcome: a.reviewOutcome,
+      reviewedAt: a.reviewedAt,
+    }));
+  }
+
+  /**
+   * The only path that can invalidate an attempt/badge — never automatic.
+   * APPROVED clears the flag back to CLEAN (the candidate is never
+   * permanently penalized in the UI for something an admin reviewed and
+   * cleared — the certificate's "Verified clean" mark reappears). INVALIDATED
+   * revokes the badge (so the public certificate 404s outright) and expires
+   * the resulting skill claim, so an invalidated result stops conferring
+   * "verified" anywhere else in the app (search, matching, etc.).
+   */
+  async reviewAttempt(attemptId: string, adminUserId: string, dto: ReviewAttemptDto) {
+    const attempt = await this.prisma.attempt.findUnique({
+      where: { id: attemptId },
+      include: { badge: true },
+    });
+    if (!attempt) throw new NotFoundException('Attempt not found');
+
+    const newStatus = dto.outcome === ReviewOutcome.APPROVED ? IntegrityStatus.CLEAN : IntegrityStatus.INVALIDATED;
+
+    const updated = await this.prisma.attempt.update({
+      where: { id: attemptId },
+      data: {
+        integrityStatus: newStatus,
+        reviewOutcome: dto.outcome,
+        reviewNote: dto.note,
+        reviewedAt: new Date(),
+        reviewedByUserId: adminUserId,
+        ...(dto.outcome === ReviewOutcome.INVALIDATED ? { passed: false } : {}),
+      },
+    });
+
+    if (dto.outcome === ReviewOutcome.INVALIDATED && attempt.badge) {
+      await this.prisma.badge.update({
+        where: { id: attempt.badge.id },
+        data: { revokedAt: new Date() },
+      });
+      await this.prisma.skillClaim.updateMany({
+        where: { badgeId: attempt.badge.id },
+        data: { status: ClaimStatus.EXPIRED },
+      });
+    }
+
+    return updated;
   }
 
   private async getAssessmentOrThrow(id: string) {

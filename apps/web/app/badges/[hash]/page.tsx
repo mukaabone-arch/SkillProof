@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api';
+import { Badge } from '@/components/ui';
 
 interface BadgeInfo {
   candidate: string;
@@ -13,6 +14,12 @@ interface BadgeInfo {
   issuedAt: string;
   expiresAt: string;
   valid: boolean;
+  /**
+   * A positive-only trust signal from the server — true only while the
+   * attempt is CLEAN. There's no corresponding "flagged" field: if this is
+   * false, we render nothing about integrity at all, never a negative label.
+   */
+  verifiedClean: boolean;
 }
 
 export default function BadgeVerifyPage() {
@@ -34,6 +41,11 @@ export default function BadgeVerifyPage() {
         <h1>Verified Skill</h1>
         <p className="cert-skill">{badge.skill} — Level {badge.level}</p>
         <p><strong>{badge.candidate}</strong></p>
+        {badge.verifiedClean && (
+          <p style={{ margin: '0 0 16px' }}>
+            <Badge variant="verified">✓ Verified clean</Badge>
+          </p>
+        )}
         <p className="meta">
           Issued {new Date(badge.issuedAt).toLocaleDateString()} · Valid until{' '}
           {new Date(badge.expiresAt).toLocaleDateString()}

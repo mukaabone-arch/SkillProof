@@ -23,6 +23,12 @@ interface Question {
   type: string;
   body: { text: string; options: string[] };
 }
+interface QuestionsResponse {
+  questions: Question[];
+  /** Server-computed remaining time — the server is authoritative; this only drives the display. */
+  remainingSeconds: number | null;
+  deadlineAt: string | null;
+}
 interface Result {
   status: string;
   scorePercent: number | null;
@@ -43,6 +49,7 @@ export default function TakeAssessmentPage() {
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [showIntegrityNotice, setShowIntegrityNotice] = useState(true);
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
 
   // Ref (not state) so in-flight event listeners always see the latest
   // value without needing to be torn down/rebuilt on every render.
@@ -53,7 +60,9 @@ export default function TakeAssessmentPage() {
     try {
       const attempt = await api<{ id: string }>(`/assessments/${id}/attempts`, { method: 'POST' });
       setAttemptId(attempt.id);
-      setQuestions(await api<Question[]>(`/attempts/${attempt.id}/questions`));
+      const res = await api<QuestionsResponse>(`/attempts/${attempt.id}/questions`);
+      setQuestions(res.questions);
+      setRemainingSeconds(res.remainingSeconds);
     } catch (e) { setError((e as Error).message); }
     finally { setLoaded(true); }
   }, [id, router]);
@@ -136,6 +145,31 @@ export default function TakeAssessmentPage() {
     finally { setBusy(false); }
   }
 
+  /**
+   * Client-side countdown display only — the server is authoritative
+   * (AssessmentsService.enforceDeadline runs on every getQuestions/
+   * submitAnswer call regardless of this timer). At zero we still call
+   * submit() so the UI moves on immediately instead of waiting for the
+   * candidate to notice; if the server already auto-graded it in the
+   * background, this just fetches that result.
+   */
+  useEffect(() => {
+    if (remainingSeconds === null || result || finishedRef.current) return;
+    if (remainingSeconds <= 0) {
+      submit();
+      return;
+    }
+    const timer = setTimeout(() => setRemainingSeconds((s) => (s !== null ? s - 1 : s)), 1000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remainingSeconds, result]);
+
+  function formatTime(seconds: number): string {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
   if (result) {
     return (
       <main>
@@ -167,7 +201,14 @@ export default function TakeAssessmentPage() {
 
   return (
     <main>
-      <h1>Assessment</h1>
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline', margin: 0 }}>
+        <h1 style={{ marginBottom: 0 }}>Assessment</h1>
+        {remainingSeconds !== null && questions.length > 0 && (
+          <span className={remainingSeconds <= 60 ? 'error' : 'meta'} style={{ margin: 0 }}>
+            Time remaining: {formatTime(remainingSeconds)}
+          </span>
+        )}
+      </div>
       {error && <p className="error">{error}</p>}
       {loaded && !error && questions.length === 0 && (
         <p>This assessment has no questions yet — check back soon.</p>

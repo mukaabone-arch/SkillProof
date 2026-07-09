@@ -131,13 +131,6 @@ pre {
   border: 1.5px solid var(--ink-30); border-radius: 10px; padding: 12px 22px; cursor: pointer;
 }
 .btn-ghost:hover { border-color: var(--ink); background: transparent; transform: none; }
-.check-circle {
-  width: 22px; height: 22px; border-radius: 50%; background: var(--ink-12); color: var(--ink-30);
-  display: inline-grid; place-items: center; font-size: 0.72rem; flex-shrink: 0; font-weight: 700;
-  transition: background 0.2s ease, color 0.2s ease;
-}
-.check-circle.done { background: var(--verified); color: #fff; }
-.check-circle.active { background: var(--indigo); color: #fff; }
 
 /* ---- typography scale utilities ----
    Opt-in classes, not applied to bare h1/h2/h3 — existing pages' heading
@@ -308,11 +301,36 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .appnav-logout { background: transparent !important; color: var(--ink-60) !important; font-size: 0.85rem; padding: 8px 14px !important; border: 1px solid var(--ink-12) !important; }
 .appnav-logout:hover { color: var(--ink) !important; transform: none !important; }
 
-.stepper { display: flex; align-items: center; gap: 8px; }
-.stepper-item { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--ink-30); font-weight: 600; }
-.stepper-item.done, .stepper-item.active { color: var(--ink); }
-.stepper-line { width: 28px; height: 1.5px; background: var(--ink-12); flex-shrink: 0; }
-.stepper-line.done { background: var(--verified); }
+/* ---- segmented journey progress (candidate dashboard) ----
+   Three (or more) labeled points on a horizontal bar. --brand-green for
+   completed segments/dots (the logo's own green, per the design system —
+   deliberately distinct from --verified, which stays reserved for badge/
+   certificate "verified" chips elsewhere); --indigo with a soft ring for the
+   current stage; --ink-30/--ink-12 neutrals for anything not reached yet. */
+.segmented-progress { display: flex; margin-bottom: var(--space-7); }
+.segmented-progress-step { flex: 1; position: relative; text-align: center; }
+.segmented-progress-track {
+  position: absolute; top: 9.5px; left: 50%; width: 100%; height: 3px;
+  background: var(--ink-12); z-index: 0;
+}
+.segmented-progress-track.done { background: var(--brand-green); }
+.segmented-progress-dot {
+  position: relative; z-index: 1; width: 22px; height: 22px; margin: 0 auto;
+  border-radius: 50%; display: grid; place-items: center;
+  font-size: 0.68rem; font-weight: 700; color: #fff;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+.segmented-progress-dot.done { background: var(--brand-green); }
+.segmented-progress-dot.upcoming { background: var(--paper); border: 2.5px solid var(--ink-12); }
+.segmented-progress-dot.active { background: var(--indigo); box-shadow: 0 0 0 5px var(--indigo-soft); }
+.segmented-progress-label { margin-top: var(--space-3); font-size: var(--text-sm); font-weight: 600; color: var(--ink); }
+.segmented-progress-step.upcoming .segmented-progress-label { color: var(--ink-30); }
+.segmented-progress-sublabel { margin-top: 2px; font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.02em; color: var(--ink-60); }
+.segmented-progress-step.upcoming .segmented-progress-sublabel { color: var(--ink-30); }
+@media (max-width: 480px) {
+  .segmented-progress-label { font-size: 0.78rem; }
+  .segmented-progress-sublabel { font-size: 0.62rem; }
+}
 
 .next-step-card {
   background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius);

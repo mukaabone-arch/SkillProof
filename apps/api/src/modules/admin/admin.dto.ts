@@ -1,4 +1,4 @@
-import { SkillLevel } from '@prisma/client';
+import { IntegrityStatus, ReviewOutcome, SkillLevel } from '@prisma/client';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -39,6 +39,12 @@ export class CreateAssessmentDto {
   passThreshold?: number;
 
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  questionsPerAttempt?: number;
+
+  @IsOptional()
   @IsBoolean()
   isPremium?: boolean;
 
@@ -72,6 +78,12 @@ export class UpdateAssessmentDto {
   @Min(0)
   @Max(100)
   passThreshold?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  questionsPerAttempt?: number;
 
   @IsOptional()
   @IsBoolean()
@@ -133,4 +145,21 @@ export class BulkQuestionItemDto {
   @Min(1)
   @Max(5)
   difficulty?: number;
+}
+
+export class ListAttemptsQueryDto {
+  @IsOptional()
+  @IsEnum(IntegrityStatus)
+  status?: IntegrityStatus;
+}
+
+/** Admin decision on a FLAGGED attempt — the only thing that can invalidate an attempt/badge. */
+export class ReviewAttemptDto {
+  @IsEnum(ReviewOutcome)
+  outcome: ReviewOutcome;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  note?: string;
 }
