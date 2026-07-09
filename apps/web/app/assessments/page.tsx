@@ -1,10 +1,12 @@
 'use client';
 
 /** Assessment catalog: lists live assessments from GET /assessments */
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api, getToken } from '@/lib/api';
 import CandidateNav from '@/components/CandidateNav';
+import { isSafeReturnTo } from '@/lib/returnTo';
 
 interface AssessmentItem {
   id: string;
@@ -17,7 +19,10 @@ interface AssessmentItem {
   _count: { questions: number };
 }
 
-export default function AssessmentsPage() {
+function AssessmentsPageInner() {
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get('returnTo');
+
   const [items, setItems] = useState<AssessmentItem[]>([]);
   const [error, setError] = useState('');
   // Resolved after mount so server and client render the same first pass
@@ -63,6 +68,12 @@ export default function AssessmentsPage() {
             <Link href="/profile">complete your profile →</Link>
           </p>
         )}
+        {loggedIn && isSafeReturnTo(returnTo) && items.length > 0 && (
+          <p className="meta" style={{ marginTop: -8, marginBottom: 20 }}>
+            Pass an assessment to earn a verified badge, then{' '}
+            <Link href={returnTo}>return to the job you were applying to →</Link>
+          </p>
+        )}
         {items.map((a) => (
           <div key={a.id} className="card">
             <div>
@@ -79,5 +90,13 @@ export default function AssessmentsPage() {
         ))}
       </main>
     </>
+  );
+}
+
+export default function AssessmentsPage() {
+  return (
+    <Suspense fallback={<main><p>Loading…</p></main>}>
+      <AssessmentsPageInner />
+    </Suspense>
   );
 }

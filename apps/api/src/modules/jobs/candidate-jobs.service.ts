@@ -1,9 +1,17 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ClaimStatus, JobStatus, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
 import { BrowseJobsDto } from './candidate-jobs.dto';
+import { isProfileReadyToApply } from './profile-readiness';
+
+/**
+ * One-line flip once assessment coverage across the taxonomy is sufficient
+ * to fairly require it — defaults to false (env var absent or anything other
+ * than the literal string 'true'), so applying doesn't yet require a badge.
+ */
+const REQUIRE_VERIFIED_BADGE_TO_APPLY = process.env.REQUIRE_VERIFIED_BADGE_TO_APPLY === 'true';
 
 /** Public fields only — no orgId, no status, nothing employer-internal. */
 const JOB_LIST_SELECT = {
@@ -164,6 +172,10 @@ export class CandidateJobsService {
     if (!job || job.status !== JobStatus.LIVE) throw new NotFoundException('Job not found');
 
     const profile = await this.ensureProfile(userId);
+    this.assertProfileReadyToApply(profile);
+    if (REQUIRE_VERIFIED_BADGE_TO_APPLY) {
+      await this.assertHasVerifiedBadge(profile.id);
+    }
 
     let application;
     try {
@@ -194,6 +206,41 @@ export class CandidateJobsService {
     const existing = await this.prisma.candidateProfile.findUnique({ where: { userId } });
     if (existing) return existing;
     return this.prisma.candidateProfile.create({ data: { userId } });
+  }
+
+  /**
+   * Employers should never see a blank applicant card — require a name plus
+   * at least one of headline/yearsOfExp before letting someone apply. The
+   * `code` is machine-readable so the frontend can show a targeted prompt
+   * (→ /profile) instead of a generic error. Uses the exact same check
+   * JobsService.getApplicants uses to flag pre-existing incomplete
+   * applicants, so enforcement and display can never disagree.
+   */
+  private assertProfileReadyToApply(profile: {
+    fullName: string | null;
+    headline: string | null;
+    yearsOfExp: number | null;
+  }): void {
+    if (!isProfileReadyToApply(profile)) {
+      throw new BadRequestException({
+        code: 'PROFILE_INCOMPLETE',
+        message:
+          'Add your name and either a headline or years of experience before applying, so the employer knows who they’re reviewing.',
+      });
+    }
+  }
+
+  /** Only counts currently-valid badges — an admin-invalidated (revoked) one doesn't satisfy this. */
+  private async assertHasVerifiedBadge(profileId: string): Promise<void> {
+    const verifiedCount = await this.prisma.skillClaim.count({
+      where: { profileId, status: ClaimStatus.VERIFIED, badge: { revokedAt: null } },
+    });
+    if (verifiedCount === 0) {
+      throw new BadRequestException({
+        code: 'BADGE_REQUIRED',
+        message: 'Earn at least one verified skill badge before applying — take an assessment to get started.',
+      });
+    }
   }
 
   private async appliedJobIds(userId: string): Promise<Set<string>> {

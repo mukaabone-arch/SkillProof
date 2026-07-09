@@ -130,12 +130,34 @@ function createApiClient({ access: ACCESS_KEY, refresh: REFRESH_KEY }: ScopeKeys
     return res.json();
   }
 
-  return { api, setTokens, setToken, getToken, clearTokens, logout };
+  /**
+   * Same auth/refresh handling as api(), but for binary responses (PDF
+   * downloads) that can't go through res.json(). A failed request still
+   * comes back as JSON from Nest's exception filter, so the error path is
+   * unchanged from api()'s.
+   */
+  async function apiBlob(path: string, options: RequestInit = {}): Promise<Blob> {
+    let res = await rawFetch(path, options);
+
+    if (res.status === 401 && (await tryRefresh())) {
+      res = await rawFetch(path, options);
+    }
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const err = new Error(body.message ?? `Request failed: ${res.status}`) as ApiError;
+      err.body = body;
+      throw err;
+    }
+    return res.blob();
+  }
+
+  return { api, apiBlob, setTokens, setToken, getToken, clearTokens, logout };
 }
 
 /** Candidate app (and any other main-site page) — unchanged storage keys. */
 const candidateClient = createApiClient({ access: 'sp_token', refresh: 'sp_refresh' });
-export const { api, setTokens, setToken, getToken, clearTokens, logout } = candidateClient;
+export const { api, apiBlob, setTokens, setToken, getToken, clearTokens, logout } = candidateClient;
 
 /** Employer portal (/employer) — separate keys so it never clobbers a candidate session. */
 export const employerApi = createApiClient({ access: 'sp_emp_token', refresh: 'sp_emp_refresh' });

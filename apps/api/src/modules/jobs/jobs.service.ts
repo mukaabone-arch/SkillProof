@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../llm/llm.service';
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
 import { CreateJobDto, JobSkillItemDto, UpdateJobDto } from './jobs.dto';
+import { isProfileReadyToApply } from './profile-readiness';
 
 @Injectable()
 export class JobsService {
@@ -115,6 +116,9 @@ export class JobsService {
         headline: profile.headline,
         location: profile.location,
         yearsOfExp: profile.yearsOfExp,
+        // Older applications predate the apply-time profile requirement —
+        // flag those explicitly rather than showing the employer a blank card.
+        profileIncomplete: !isProfileReadyToApply(profile),
         score,
         verifiedSkills: profile.skillClaims
           .filter((c) => c.status === ClaimStatus.VERIFIED && c.badge)

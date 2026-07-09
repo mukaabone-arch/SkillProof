@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { api, getToken } from '@/lib/api';
+import { api, getToken, type ApiError } from '@/lib/api';
 
 interface JobSkillView {
   skillId: string;
@@ -29,12 +29,19 @@ interface JobDetail {
   alreadyApplied: boolean;
 }
 
+/** Machine-readable codes the backend returns when apply-time requirements aren't met. */
+interface ApplyIssueBody {
+  code?: 'PROFILE_INCOMPLETE' | 'BADGE_REQUIRED';
+  message?: string;
+}
+
 export default function JobDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [job, setJob] = useState<JobDetail | null>(null);
   const [error, setError] = useState('');
   const [applying, setApplying] = useState(false);
   const [applyError, setApplyError] = useState('');
+  const [applyIssue, setApplyIssue] = useState<ApplyIssueBody | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -51,11 +58,17 @@ export default function JobDetailPage() {
   async function apply() {
     setApplying(true);
     setApplyError('');
+    setApplyIssue(null);
     try {
       await api(`/jobs/${id}/apply`, { method: 'POST' });
       setJob((j) => (j ? { ...j, alreadyApplied: true } : j));
     } catch (e) {
-      setApplyError((e as Error).message);
+      const body = (e as ApiError).body as ApplyIssueBody | undefined;
+      if (body?.code === 'PROFILE_INCOMPLETE' || body?.code === 'BADGE_REQUIRED') {
+        setApplyIssue(body);
+      } else {
+        setApplyError((e as Error).message);
+      }
     } finally {
       setApplying(false);
     }
@@ -112,6 +125,19 @@ export default function JobDetailPage() {
         </button>
         {job.alreadyApplied && <span className="ok">✓ You&apos;ve applied to this job</span>}
       </div>
+
+      {applyIssue?.code === 'PROFILE_INCOMPLETE' && (
+        <p className="meta">
+          Almost there — add your name and experience so this employer knows who&apos;s applying.{' '}
+          <Link href={`/profile?returnTo=/jobs/${id}`}>Complete your profile →</Link>
+        </p>
+      )}
+      {applyIssue?.code === 'BADGE_REQUIRED' && (
+        <p className="meta">
+          {applyIssue.message}{' '}
+          <Link href={`/assessments?returnTo=/jobs/${id}`}>Take an assessment →</Link>
+        </p>
+      )}
       {applyError && <p className="error">{applyError}</p>}
     </main>
   );

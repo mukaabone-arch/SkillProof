@@ -1,10 +1,11 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { CandidateProfile, Prisma } from '@prisma/client';
+import { CandidateProfile, ClaimStatus, Prisma } from '@prisma/client';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../llm/llm.service';
-import { UpdateProfileDto } from './profiles.dto';
+import { GenerateResumeDto, UpdateProfileDto } from './profiles.dto';
+import { buildResumePdf, VerifiedSkillEntry } from './resume-pdf.builder';
 
 type CompletenessFields = Pick<
   CandidateProfile,
@@ -69,19 +70,74 @@ export class ProfilesService {
    * extracted fields for review — nothing is written to the profile here.
    */
   async parseResume(userId: string) {
+    const pdfBuffer = await this.readStoredResume(userId);
+    return this.llm.extractResumeFields(pdfBuffer.toString('base64'));
+  }
+
+  /**
+   * Rewrites the candidate's already-uploaded resume into a stronger,
+   * structured version (summary/experience/education/skills) for review —
+   * nothing is written to the profile here, exactly like parseResume. Reads
+   * the source PDF fresh rather than working from parseResume's sparse
+   * output; see LlmService.improveResume for why.
+   */
+  async improveResume(userId: string) {
+    const pdfBuffer = await this.readStoredResume(userId);
+    return this.llm.improveResume(pdfBuffer.toString('base64'));
+  }
+
+  /**
+   * Renders a one-page PDF from the candidate's profile + verified badges,
+   * plus whatever improved/edited content the client sends (both empty for
+   * "build from profile" and populated for "improve my resume" hit this same
+   * method). Never persisted — this is a one-off download.
+   */
+  async generateResumePdf(userId: string, dto: GenerateResumeDto): Promise<Buffer> {
+    const profile = await this.ensureProfile(userId);
+    const verifiedSkills = await this.getVerifiedSkillsForResume(profile.id);
+
+    return buildResumePdf({
+      fullName: profile.fullName || 'SkillProof Candidate',
+      headline: profile.headline,
+      location: profile.location,
+      yearsOfExp: profile.yearsOfExp,
+      githubUrl: profile.githubUrl,
+      linkedinUrl: profile.linkedinUrl,
+      summary: dto.summary,
+      experience: dto.experience,
+      education: dto.education,
+      skills: dto.skills,
+      verifiedSkills,
+    });
+  }
+
+  /** Only currently-valid badges — an admin-INVALIDATED (revoked) one must never appear as verified. */
+  private async getVerifiedSkillsForResume(profileId: string): Promise<VerifiedSkillEntry[]> {
+    const claims = await this.prisma.skillClaim.findMany({
+      where: { profileId, status: ClaimStatus.VERIFIED, badge: { revokedAt: null } },
+      include: { skill: true, badge: true },
+    });
+
+    const verifyBaseUrl = (process.env.CORS_ORIGIN ?? 'http://localhost:3000').split(',')[0];
+    return claims
+      .filter((c) => c.badge)
+      .map((c) => ({
+        skillName: c.skill.name,
+        level: c.level,
+        verifyUrl: `${verifyBaseUrl}/badges/${c.badge!.verifyHash}`,
+      }));
+  }
+
+  private async readStoredResume(userId: string): Promise<Buffer> {
     const profile = await this.ensureProfile(userId);
     if (!profile.resumeS3Key) {
       throw new BadRequestException('Upload a resume before parsing it.');
     }
-
-    let pdfBuffer: Buffer;
     try {
-      pdfBuffer = await fs.readFile(join(process.cwd(), profile.resumeS3Key));
+      return await fs.readFile(join(process.cwd(), profile.resumeS3Key));
     } catch {
       throw new NotFoundException('Stored resume file could not be read. Try re-uploading.');
     }
-
-    return this.llm.extractResumeFields(pdfBuffer.toString('base64'));
   }
 
   private async ensureProfile(userId: string) {

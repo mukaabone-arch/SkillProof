@@ -3,9 +3,11 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Patch,
   Post,
   Req,
+  StreamableFile,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -17,7 +19,7 @@ import { mkdirSync } from 'fs';
 import { join } from 'path';
 import { JwtAuthGuard, AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { ProfilesService } from './profiles.service';
-import { UpdateProfileDto } from './profiles.dto';
+import { GenerateResumeDto, UpdateProfileDto } from './profiles.dto';
 
 const UPLOAD_DIR = join(process.cwd(), 'uploads');
 const MAX_RESUME_BYTES = 5 * 1024 * 1024;
@@ -64,5 +66,20 @@ export class ProfilesController {
   @Post('me/resume/parse')
   parseResume(@Req() req: AuthenticatedRequest) {
     return this.svc.parseResume(req.user.sub);
+  }
+
+  /** Rewrites the already-uploaded resume into structured, stronger content — review-only, never auto-saved. */
+  @Post('me/resume/improve')
+  improveResume(@Req() req: AuthenticatedRequest) {
+    return this.svc.improveResume(req.user.sub);
+  }
+
+  /** Renders a one-page PDF from the profile + verified badges + optional improved content. */
+  @Post('me/resume/generate')
+  @Header('Content-Type', 'application/pdf')
+  @Header('Content-Disposition', 'attachment; filename="resume.pdf"')
+  async generateResume(@Req() req: AuthenticatedRequest, @Body() dto: GenerateResumeDto) {
+    const pdf = await this.svc.generateResumePdf(req.user.sub, dto);
+    return new StreamableFile(pdf);
   }
 }

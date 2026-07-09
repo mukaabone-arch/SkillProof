@@ -1,10 +1,12 @@
 'use client';
 
 /** Candidate profile editor: GET/PATCH /profiles/me */
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api, getToken } from '@/lib/api';
 import CandidateNav from '@/components/CandidateNav';
+import { isSafeReturnTo } from '@/lib/returnTo';
 
 interface Profile {
   fullName: string | null;
@@ -55,7 +57,11 @@ function toForm(p: Profile): FormState {
   };
 }
 
-export default function ProfilePage() {
+function ProfilePageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get('returnTo');
+
   const [form, setForm] = useState<FormState | null>(null);
   const [completeness, setCompleteness] = useState(0);
   const [loggedIn, setLoggedIn] = useState(false);
@@ -119,6 +125,13 @@ export default function ProfilePage() {
       setForm(toForm(updated));
       setCompleteness(updated.completeness);
       setSaved(true);
+
+      // Came here from "complete your profile to apply" — go straight back
+      // so the candidate can try applying again immediately.
+      if (isSafeReturnTo(returnTo)) {
+        router.push(returnTo);
+        return;
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -200,6 +213,12 @@ export default function ProfilePage() {
       <main>
       <h1>Your profile</h1>
       <p>Keep this up to date — employers see it alongside your verified badges.</p>
+
+      {ready && loggedIn && isSafeReturnTo(returnTo) && (
+        <p className="meta" style={{ marginTop: -16 }}>
+          Complete your profile, then save to go straight back and apply.
+        </p>
+      )}
 
       {ready && !loggedIn && (
         <p className="error">
@@ -308,6 +327,9 @@ export default function ProfilePage() {
             Upload your resume as a PDF, then have AI pull out the highlights. Nothing is saved
             to your profile until you review and confirm it below.
           </p>
+          <p style={{ marginTop: -12 }}>
+            Want a polished, downloadable resume instead? <Link href="/resume">Build one →</Link>
+          </p>
 
           <div className="field">
             <label htmlFor="resumeFile">PDF resume (max 5MB)</label>
@@ -397,5 +419,13 @@ export default function ProfilePage() {
       )}
       </main>
     </>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={<main><p>Loading…</p></main>}>
+      <ProfilePageInner />
+    </Suspense>
   );
 }

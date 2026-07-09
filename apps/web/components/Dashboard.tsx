@@ -234,6 +234,10 @@ export default function Dashboard({ onLoggedOut }: Props) {
           </Link>
         </div>
 
+        <p style={{ marginTop: -8 }}>
+          <Link href="/resume">Build a resume PDF from your profile & badges →</Link>
+        </p>
+
         <p className="app-footer-credit">by flair future Intelligence</p>
       </main>
     </>

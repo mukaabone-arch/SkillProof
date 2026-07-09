@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { employerApi } from '@/lib/api';
+import { Badge } from '@/components/ui';
 
 const { api } = employerApi;
 
@@ -118,6 +119,8 @@ interface Applicant {
   headline: string | null;
   location: string | null;
   yearsOfExp: number | null;
+  /** True for applications that predate the apply-time profile requirement. */
+  profileIncomplete: boolean;
   score: number | null;
   verifiedSkills: ApplicantSkill[];
 }
@@ -607,6 +610,9 @@ export default function EmployerJobs() {
                     <strong>{a.fullName || 'Candidate'}</strong>
                     {a.score !== null && <span className="ok">{a.score}</span>}
                   </div>
+                  {a.profileIncomplete && (
+                    <Badge variant="warning" style={{ alignSelf: 'flex-start' }}>Profile incomplete</Badge>
+                  )}
                   {a.score !== null && (
                     <div className="progress-track">
                       <div className="progress-fill" style={{ width: `${a.score}%` }} />
