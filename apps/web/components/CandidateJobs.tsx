@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
+import { EmptyState } from '@/components/ui';
 
 interface Skill {
   id: string;
@@ -81,6 +82,14 @@ interface MyApplication {
   };
 }
 
+interface SkillClaim {
+  status: string;
+  badge: { verifyHash: string } | null;
+}
+interface Me {
+  profile: { skillClaims: SkillClaim[] } | null;
+}
+
 type Tab = 'matched' | 'browse' | 'applications';
 
 function isValidTab(value: string | null): value is Tab {
@@ -132,8 +141,19 @@ export default function CandidateJobs() {
   const [loadingApplications, setLoadingApplications] = useState(false);
   const [applicationsError, setApplicationsError] = useState('');
 
+  // Drives which empty state the "Matched to you" tab shows: a candidate
+  // with no verified skills yet sees why matching is empty (and how to fix
+  // it), rather than a bare "no jobs" message that gives no context.
+  const [hasVerifiedSkills, setHasVerifiedSkills] = useState<boolean | null>(null);
+
   useEffect(() => {
     api<Domain[]>('/taxonomy').then(setDomains).catch(() => undefined);
+    api<Me>('/users/me')
+      .then((me) => {
+        const claims = me.profile?.skillClaims ?? [];
+        setHasVerifiedSkills(claims.some((c) => c.status === 'VERIFIED' && c.badge));
+      })
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -202,12 +222,20 @@ export default function CandidateJobs() {
           {loadingMatched && <p className="meta">Scoring jobs against your verified skills…</p>}
           {matchedError && <p className="error">{matchedError}</p>}
           {!loadingMatched && !matchedError && matched.length === 0 && (
-            <p>
-              No live jobs to score yet.{' '}
-              <a href="#" onClick={(e) => { e.preventDefault(); setTab('browse'); }}>
-                Browse all jobs →
-              </a>
-            </p>
+            hasVerifiedSkills === false ? (
+              <EmptyState
+                message="Job matches are based on your verified skills. Earn a badge to see roles that match you."
+                actionLabel="Take an assessment"
+                actionHref="/assessments"
+              />
+            ) : (
+              <p>
+                No live jobs to score yet.{' '}
+                <a href="#" onClick={(e) => { e.preventDefault(); setTab('browse'); }}>
+                  Browse all jobs →
+                </a>
+              </p>
+            )
           )}
           {matched.map((j) => (
             <Link key={j.id} href={`/jobs/${j.id}`} style={{ textDecoration: 'none' }}>

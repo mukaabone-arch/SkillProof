@@ -24,13 +24,22 @@ export default function AssessmentsPage() {
   // (prevents the hydration mismatch on the "not logged in" message).
   const [loggedIn, setLoggedIn] = useState(false);
   const [ready, setReady] = useState(false);
+  // Light, non-blocking nudge only — assessments stay fully accessible with
+  // or without a profile (free exploration is the design principle).
+  const [profileEmpty, setProfileEmpty] = useState(false);
 
   useEffect(() => {
-    setLoggedIn(!!getToken());
+    const hasToken = !!getToken();
+    setLoggedIn(hasToken);
     setReady(true);
     api<AssessmentItem[]>('/assessments')
       .then((items) => setItems(items.filter((a) => a._count.questions > 0)))
       .catch((e) => setError(e.message));
+    if (hasToken) {
+      api<{ completeness: number }>('/profiles/me')
+        .then((p) => setProfileEmpty(p.completeness === 0))
+        .catch(() => undefined);
+    }
   }, []);
 
   return (
@@ -47,6 +56,12 @@ export default function AssessmentsPage() {
         {error && <p className="error">{error}</p>}
         {ready && items.length === 0 && !error && (
           <p>No live assessments yet. Run the assessment seed.</p>
+        )}
+        {loggedIn && profileEmpty && items.length > 0 && (
+          <p className="meta" style={{ marginTop: -8, marginBottom: 20 }}>
+            Tip: completing your profile helps employers find you once you&apos;ve earned a badge —{' '}
+            <Link href="/profile">complete your profile →</Link>
+          </p>
         )}
         {items.map((a) => (
           <div key={a.id} className="card">

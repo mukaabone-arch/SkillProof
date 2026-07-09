@@ -12,9 +12,11 @@ export interface SegmentedProgressProps {
 
 /**
  * Labeled points along a horizontal bar — completed segments filled in
- * --brand-green, the current stage a prominent ringed dot, upcoming stages
- * muted grey (--ink-30/--ink-12). Generic over `steps`, not tied to any one
- * page's specific stages.
+ * --indigo (green is reserved exclusively for "verified" elsewhere in the
+ * app — badges, certificates, verified-skill chips — so progress/navigation
+ * never borrows it), the current stage a prominent indigo-ringed dot,
+ * upcoming stages muted grey (--ink-30/--ink-12). Generic over `steps`, not
+ * tied to any one page's specific stages.
  */
 export function SegmentedProgress({ steps }: SegmentedProgressProps) {
   return (

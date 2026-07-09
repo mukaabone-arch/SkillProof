@@ -113,6 +113,9 @@ export default function Dashboard({ onLoggedOut }: Props) {
   const hasProfile = profile.completeness > 0;
   const hasBadge = badges.length > 0;
   const hasApplied = applications.length > 0;
+  // No new field: "first session" is derived entirely from existing signals —
+  // nothing built a profile, earned a badge, or applied to anything yet.
+  const isFirstSession = !hasProfile && !hasBadge && !hasApplied;
 
   // Each stage's state falls out of the one before it — the same booleans
   // drive both the stepper and the "next step" card below, so they can never
@@ -127,7 +130,14 @@ export default function Dashboard({ onLoggedOut }: Props) {
     { label: 'Jobs explored', subLabel: journeySubLabel(stage3), state: stage3 },
   ];
 
-  const displayName = profile.fullName || me.phone || me.email || 'there';
+  // Never show the raw phone/email as a "name" — greet by fullName once it
+  // exists, otherwise a neutral greeting that still distinguishes a brand
+  // new visitor from someone returning who just hasn't named themselves yet.
+  const greeting = profile.fullName
+    ? `Welcome back, ${profile.fullName}`
+    : isFirstSession
+      ? 'Welcome to SkillProof'
+      : 'Welcome back';
 
   let nextStep: { kicker: string; title: string; cta: string; href: string };
   if (!hasProfile) {
@@ -182,7 +192,7 @@ export default function Dashboard({ onLoggedOut }: Props) {
     <>
       <CandidateNav onLoggedOut={onLoggedOut} />
       <main className="hub">
-        <h1 style={{ marginBottom: 16 }}>Welcome back, {displayName}</h1>
+        <h1 style={{ marginBottom: 16 }}>{greeting}</h1>
 
         <SegmentedProgress steps={journeySteps} />
 
