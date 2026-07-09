@@ -1,21 +1,8 @@
 import 'package:flutter/material.dart';
-import 'screens/login_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-void main() => runApp(const SkillProofApp());
+import 'app.dart';
 
-class SkillProofApp extends StatelessWidget {
-  const SkillProofApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'SkillProof',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF3240B8)),
-        useMaterial3: true,
-      ),
-      home: const LoginScreen(),
-    );
-  }
+void main() {
+  runApp(const ProviderScope(child: SkillProofApp()));
 }

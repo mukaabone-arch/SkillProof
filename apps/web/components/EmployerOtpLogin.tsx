@@ -57,12 +57,17 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
 
   return (
     <main className="auth">
+      <h1 className="auth-headline">
+        The Global Intelligence Network
+        <br />
+        for Verified AI Talent.
+      </h1>
       <div className="auth-card">
         <div className="brand-lockup-hero">
           <Logo className="brand-logo-hero" />
-          <h1 className="brand-product-name" style={{ margin: 0 }}>
+          <span className="brand-product-name">
             SkillProof <span style={{ color: 'var(--ink-60)', fontWeight: 500 }}>for Employers</span>
-          </h1>
+          </span>
         </div>
         <p>Post assessments and find verified candidates. Log in with your phone to get started.</p>
 

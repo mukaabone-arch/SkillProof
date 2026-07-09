@@ -7,7 +7,9 @@
  * role logic on the client.
  */
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { api, getToken, type ApiError } from '@/lib/api';
+import AdminNav from '@/components/AdminNav';
 
 interface Skill {
   id: string;
@@ -79,6 +81,7 @@ interface BulkImportErrorBody {
 }
 
 export default function AdminAssessmentsPage() {
+  const router = useRouter();
   const [status, setStatus] = useState<'loading' | 'forbidden' | 'ok'>('loading');
   const [domains, setDomains] = useState<Domain[]>([]);
   const [assessments, setAssessments] = useState<AdminAssessment[]>([]);
@@ -232,7 +235,9 @@ export default function AdminAssessmentsPage() {
   }
 
   return (
-    <main>
+    <>
+      <AdminNav onLoggedOut={() => router.push('/')} />
+      <main>
       <h1>Admin: Assessments</h1>
       <p>Create assessments and MCQ questions without touching seed scripts.</p>
       {error && <p className="error">{error}</p>}
@@ -455,6 +460,7 @@ export default function AdminAssessmentsPage() {
           )}
         </div>
       ))}
-    </main>
+      </main>
+    </>
   );
 }

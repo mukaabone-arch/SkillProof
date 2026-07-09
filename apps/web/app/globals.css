@@ -77,6 +77,13 @@
   --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
   --font-body: 'Instrument Sans', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  /* Serif, used only by .auth-headline — a stand-in for Calisto MT (a
+     Microsoft-bundled font with no reliable web-font equivalent). Libre
+     Baskerville was picked over Crimson Pro/Source Serif 4 for its closer
+     old-style-transitional character and because it was drawn specifically
+     for screen legibility at text sizes, same brief as Calisto MT's own
+     on-screen-document origin. */
+  --font-serif: 'Libre Baskerville', Georgia, serif;
   --text-xs: 0.72rem;
   --text-sm: 0.85rem;
   --text-base: 1rem;
@@ -213,13 +220,32 @@ pre {
    depend on which part of the (busy, high-contrast) photo lands behind it. */
 main.auth {
   max-width: none; margin: 0; padding: 24px;
-  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--space-7);
   background-image:
     linear-gradient(135deg, rgba(15, 17, 21, 0.85) 0%, rgba(139, 92, 246, 0.45) 45%, rgba(34, 197, 94, 0.4) 100%),
     url('/background.jpg');
   background-size: cover;
   background-position: center 40%;
   background-repeat: no-repeat;
+}
+/*
+ * Headline above the login card. Contrast: solid white — an earlier version
+ * carried the brand purple on "Verified AI Talent" alone, but the scrim
+ * already has a purple gradient stop at 45% opacity (see background-image
+ * above), so an all-white headline reads more deliberately than a partial
+ * accent that could blur into its own backdrop. Sized down from the
+ * landing-page hero scale (was --text-3xl) — at that size the headline
+ * pushed the card below the fold on a typical laptop viewport; this clamp
+ * keeps both comfortably on-screen together. The two-line break ("The
+ * Global Intelligence Network" / "for Verified AI Talent.") is an explicit
+ * <br/> in the markup, not a width-driven wrap — reliable at any viewport
+ * width rather than depending on font metrics happening to wrap there.
+ */
+.auth-headline {
+  font-family: var(--font-serif); font-weight: 700;
+  font-size: clamp(1.5rem, 2.6vw, 2rem); line-height: 1.3; letter-spacing: 0;
+  color: #fff; text-align: center; margin: 0;
 }
 /* Glassmorphism, matching .model-card's treatment on the landing page (same
    underlying busy/dark-scrimmed photo problem). Background is tuned well
@@ -246,8 +272,9 @@ main.auth {
   .auth-card { background: rgba(255, 255, 255, 0.92); }
 }
 @media (max-width: 480px) {
-  main.auth { padding: 16px; }
+  main.auth { padding: 16px; gap: var(--space-5); }
   .auth-card { padding: 26px 22px; }
+  .auth-headline { font-size: 1.2rem; }
 }
 
 /* ---- assessment slice ---- */

@@ -15,6 +15,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import CandidateNav from './CandidateNav';
+import AdminNav from './AdminNav';
+import { EmptyState } from './ui';
 import { SegmentedProgress, SegmentedProgressState } from './ui/SegmentedProgress';
 
 interface SkillClaim {
@@ -25,6 +27,7 @@ interface SkillClaim {
 }
 
 interface Me {
+  role: string;
   phone: string | null;
   email: string | null;
   profile: { skillClaims: SkillClaim[] } | null;
@@ -67,22 +70,44 @@ export default function Dashboard({ onLoggedOut }: Props) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    Promise.all([
-      api<Me>('/users/me'),
-      api<Profile>('/profiles/me'),
-      api<Assessment[]>('/assessments'),
-      api<MatchedResponse>('/jobs/matched'),
-      api<MyApplication[]>('/applications/me'),
-    ])
-      .then(([m, p, a, j, apps]) => {
+    // /users/me first, standalone — the candidate-only endpoints below 403
+    // for a PLATFORM_ADMIN account, and we want to detect that role and show
+    // the admin fallback instead of a raw "Insufficient permissions" error.
+    // (The normal path never reaches this: app/page.tsx already redirects
+    // admins to /admin/assessments before this component mounts.)
+    api<Me>('/users/me')
+      .then((m) => {
         setMe(m);
-        setProfile(p);
-        setAssessments(a);
-        setMatched(j);
-        setApplications(apps);
+        if (m.role === 'PLATFORM_ADMIN') return;
+        return Promise.all([
+          api<Profile>('/profiles/me'),
+          api<Assessment[]>('/assessments'),
+          api<MatchedResponse>('/jobs/matched'),
+          api<MyApplication[]>('/applications/me'),
+        ]).then(([p, a, j, apps]) => {
+          setProfile(p);
+          setAssessments(a);
+          setMatched(j);
+          setApplications(apps);
+        });
       })
       .catch((e) => setError(e.message));
   }, []);
+
+  if (me?.role === 'PLATFORM_ADMIN') {
+    return (
+      <>
+        <AdminNav onLoggedOut={onLoggedOut} />
+        <main className="hub">
+          <EmptyState
+            message="You're signed in with an admin account — the candidate dashboard isn't meant for admins."
+            actionLabel="Go to admin console"
+            actionHref="/admin/assessments"
+          />
+        </main>
+      </>
+    );
+  }
 
   if (error) {
     return (

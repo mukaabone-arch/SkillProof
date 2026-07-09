@@ -103,7 +103,10 @@ export class CandidateJobsService {
   async matched(userId: string) {
     const profile = await this.prisma.candidateProfile.findUnique({
       where: { userId },
-      include: { skillClaims: true, applications: { select: { jobId: true } } },
+      include: {
+        skillClaims: { include: { badge: { select: { revokedAt: true } } } },
+        applications: { select: { jobId: true } },
+      },
     });
 
     const claimsBySkillId = new Map<string, CandidateSkillClaim>();
@@ -111,9 +114,17 @@ export class CandidateJobsService {
       claimsBySkillId.set(c.skillId, {
         skillId: c.skillId,
         level: c.level,
-        verified: c.status === ClaimStatus.VERIFIED,
+        verified: c.status === ClaimStatus.VERIFIED && !!c.badge && !c.badge.revokedAt,
       });
     }
+
+    // Matching is meaningless without at least one verified claim — every
+    // job would score 0 and render as a demoralizing wall of zeros. The
+    // frontend shows a dedicated "earn a badge" empty state for this case,
+    // keyed off an empty list, so short-circuit before scoring anything.
+    const hasVerifiedClaim = [...claimsBySkillId.values()].some((c) => c.verified);
+    if (!hasVerifiedClaim) return { jobs: [] };
+
     const applied = new Set((profile?.applications ?? []).map((a) => a.jobId));
 
     const jobs = await this.prisma.job.findMany({
