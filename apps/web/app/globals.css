@@ -230,21 +230,23 @@ main.auth {
   background-repeat: no-repeat;
 }
 /*
- * Headline above the login card. Contrast: solid white — an earlier version
- * carried the brand purple on "Verified AI Talent" alone, but the scrim
- * already has a purple gradient stop at 45% opacity (see background-image
- * above), so an all-white headline reads more deliberately than a partial
- * accent that could blur into its own backdrop. Sized down from the
- * landing-page hero scale (was --text-3xl) — at that size the headline
- * pushed the card below the fold on a typical laptop viewport; this clamp
- * keeps both comfortably on-screen together. The two-line break ("The
- * Global Intelligence Network" / "for Verified AI Talent.") is an explicit
- * <br/> in the markup, not a width-driven wrap — reliable at any viewport
- * width rather than depending on font metrics happening to wrap there.
+ * Headline above the login card. Contrast: solid white, reaffirmed here —
+ * an earlier version carried the brand purple on part of the (longer)
+ * former headline, but the scrim already has a purple gradient stop at 45%
+ * opacity (see background-image above), so a partial accent risked
+ * blurring into its own backdrop; that's still true regardless of headline
+ * length, so this stays all-white rather than reintroducing an accent.
+ * Now a single short line ("Global AI Talent Hub", no forced <br/> — at
+ * this length a natural wrap only kicks in on unusually narrow viewports,
+ * which is a safer fallback than clipping) rather than the old two-line
+ * phrase, so it can run noticeably larger while still using *less* total
+ * vertical space than the old two-line block did — verified this still
+ * keeps the card comfortably on-screen on both a typical laptop viewport
+ * and a phone.
  */
 .auth-headline {
   font-family: var(--font-serif); font-weight: 700;
-  font-size: clamp(1.5rem, 2.6vw, 2rem); line-height: 1.3; letter-spacing: 0;
+  font-size: clamp(1.6rem, 6vw, 3.25rem); line-height: 1.15; letter-spacing: 0;
   color: #fff; text-align: center; margin: 0;
 }
 /* Glassmorphism, matching .model-card's treatment on the landing page (same
@@ -274,7 +276,8 @@ main.auth {
 @media (max-width: 480px) {
   main.auth { padding: 16px; gap: var(--space-5); }
   .auth-card { padding: 26px 22px; }
-  .auth-headline { font-size: 1.2rem; }
+  /* No .auth-headline override needed here anymore — its clamp() floor
+     (1.6rem) already lands at a sensible mobile size on its own. */
 }
 
 /* ---- assessment slice ---- */

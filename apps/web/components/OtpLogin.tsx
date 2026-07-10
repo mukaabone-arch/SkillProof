@@ -59,11 +59,7 @@ export default function OtpLogin({ onLoggedIn }: Props) {
 
   return (
     <main className="auth">
-      <h1 className="auth-headline">
-        The Global Intelligence Network
-        <br />
-        for Verified AI Talent.
-      </h1>
+      <h1 className="auth-headline">Global AI Talent Hub</h1>
       <div className="auth-card">
         <div className="brand-lockup-hero">
           <Logo className="brand-logo-hero" />
