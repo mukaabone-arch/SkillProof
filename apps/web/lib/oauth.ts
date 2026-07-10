@@ -16,6 +16,8 @@ interface OAuthProviderConfig {
   /** openid email profile (Google) / read:user user:email (GitHub) — see docs/oauth-setup.md for why each scope is needed. */
   scope: string;
   clientId: string | undefined;
+  /** Provider-specific authorize params beyond the common set (client_id/redirect_uri/response_type/scope/state). */
+  extraParams?: Record<string, string>;
 }
 
 const PROVIDERS: Record<OAuthProviderId, OAuthProviderConfig> = {
@@ -23,6 +25,18 @@ const PROVIDERS: Record<OAuthProviderId, OAuthProviderConfig> = {
     authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
     scope: 'openid email profile',
     clientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+    // Without this, Google silently re-authorizes whichever Google account
+    // is already signed in to the browser and skips the account chooser —
+    // fine for a returning user, but it means there's no way to switch
+    // accounts to test sign-up or the auto-link-by-email flow without
+    // signing out of Google entirely first. `select_account` forces the
+    // chooser every time, even with one signed-in account.
+    // GitHub has no equivalent `prompt` param on its authorize endpoint —
+    // it always shows its own account/session picker when more than one
+    // GitHub session exists, but offers no way to force that picker when
+    // only one does, so switching test accounts there does require signing
+    // out of GitHub first.
+    extraParams: { prompt: 'select_account' },
   },
   github: {
     authorizeUrl: 'https://github.com/login/oauth/authorize',
@@ -72,6 +86,7 @@ export function startOAuthLogin(provider: OAuthProviderId): void {
     response_type: 'code',
     scope: config.scope,
     state,
+    ...config.extraParams,
   });
   window.location.assign(`${config.authorizeUrl}?${params.toString()}`);
 }
