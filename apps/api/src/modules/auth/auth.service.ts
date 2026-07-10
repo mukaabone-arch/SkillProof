@@ -14,6 +14,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { GithubOAuthProvider } from './oauth/github-oauth.provider';
 import { GoogleOAuthProvider } from './oauth/google-oauth.provider';
 import { ExternalProfile, OAuthCodeExchange } from './oauth/oauth.types';
+import { normalizeEmail } from './normalize-email';
 
 const EMPLOYER_ROLES: Role[] = [Role.EMPLOYER_ADMIN, Role.EMPLOYER_MEMBER];
 
@@ -207,6 +208,8 @@ export class AuthService {
           userId: linkTarget.id,
           provider,
           providerId: profile.providerId,
+          // Raw, as-reported value — see the matching comment in
+          // createUserWithIdentity. Not a lookup key, so no normalization.
           email: profile.email,
           emailVerified: profile.emailVerified,
         },
@@ -218,10 +221,25 @@ export class AuthService {
     return this.issueTokens(created.id, created.role, this.publicUser(created));
   }
 
-  /** Only a provider-verified email is eligible to auto-link; an unverified one is never a lookup key. */
+  /**
+   * Only a provider-verified email is eligible to auto-link; an unverified
+   * one is never a lookup key.
+   *
+   * Case-insensitive on purpose, and deliberately *not* findUnique (which
+   * can only do an exact indexed match): normalizing the incoming value
+   * alone isn't enough, because existing User.email rows aren't guaranteed
+   * to already be lowercased — createUserWithIdentity only started
+   * normalizing new writes once this bug was fixed, so any row written
+   * before that (or written with different casing by whatever the provider
+   * reported at the time) would otherwise silently stop matching again.
+   * `mode: 'insensitive'` matches regardless of how the stored value happens
+   * to be cased, which is what actually makes this robust.
+   */
   private async findVerifiedEmailMatch(profile: ExternalProfile) {
     if (!profile.emailVerified || !profile.email) return null;
-    return this.prisma.user.findUnique({ where: { email: profile.email } });
+    return this.prisma.user.findFirst({
+      where: { email: { equals: normalizeEmail(profile.email), mode: 'insensitive' } },
+    });
   }
 
   private async createUserWithIdentity(provider: IdentityProvider, profile: ExternalProfile) {
@@ -230,10 +248,14 @@ export class AuthService {
         const user = await tx.user.create({
           data: {
             // Only ever promote a *verified* provider email onto the account
-            // record. An unverified one lives solely on the Identity row
-            // (below) — if it were copied here, it would become a future
-            // auto-link target for whoever actually owns that address.
-            email: profile.emailVerified ? profile.email : null,
+            // record, and normalized (see normalize-email.ts) so it matches
+            // whatever a future provider reports for the same mailbox
+            // regardless of case — otherwise this becomes exactly the kind
+            // of value findVerifiedEmailMatch can never find later. An
+            // unverified email lives solely on the Identity row (below) —
+            // if it were copied here, it would become a future auto-link
+            // target for whoever actually owns that address.
+            email: profile.emailVerified && profile.email ? normalizeEmail(profile.email) : null,
             profile: { create: {} },
           },
         });
@@ -242,6 +264,10 @@ export class AuthService {
             userId: user.id,
             provider,
             providerId: profile.providerId,
+            // Deliberately the raw, as-reported value (not normalized) —
+            // this is what the provider actually told us at link time, kept
+            // for provenance. It's never used as a lookup key, unlike
+            // User.email above.
             email: profile.email,
             emailVerified: profile.emailVerified,
           },
