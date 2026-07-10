@@ -5,6 +5,8 @@ import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
 import { OrgMemberGuard } from './org-member.guard';
+import { GoogleOAuthProvider } from './oauth/google-oauth.provider';
+import { GithubOAuthProvider } from './oauth/github-oauth.provider';
 
 @Module({
   imports: [
@@ -16,7 +18,7 @@ import { OrgMemberGuard } from './org-member.guard';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard, RolesGuard, OrgMemberGuard],
+  providers: [AuthService, JwtAuthGuard, RolesGuard, OrgMemberGuard, GoogleOAuthProvider, GithubOAuthProvider],
   exports: [JwtAuthGuard, RolesGuard, OrgMemberGuard, JwtModule],
 })
 export class AuthModule {}

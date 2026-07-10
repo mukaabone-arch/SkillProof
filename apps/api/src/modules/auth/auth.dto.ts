@@ -1,4 +1,4 @@
-import { IsPhoneNumber, IsString, Length, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsPhoneNumber, IsString, Length, MaxLength, MinLength } from 'class-validator';
 
 export class RequestOtpDto {
   // 'IN' default region; accepts +91XXXXXXXXXX or local formats
@@ -31,3 +31,21 @@ export class EmployerRegisterDto {
   @MaxLength(160)
   orgName: string;
 }
+
+/**
+ * Authorization-code exchange sent by web (confidential client, no
+ * codeVerifier needed) or the mobile app (native SDK / PKCE, so
+ * codeVerifier is required there).
+ */
+export class OAuthCodeDto {
+  @IsString()
+  code: string;
+
+  @IsString()
+  redirectUri: string;
+
+  @IsOptional()
+  @IsString()
+  codeVerifier?: string;
+}
+

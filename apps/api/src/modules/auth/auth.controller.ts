@@ -1,6 +1,8 @@
-import { Body, Controller, Post, HttpCode } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Param, Post, HttpCode, Req, UseGuards } from '@nestjs/common';
+import { IdentityProvider } from '@prisma/client';
 import { AuthService } from './auth.service';
-import { EmployerRegisterDto, RequestOtpDto, VerifyOtpDto } from './auth.dto';
+import { EmployerRegisterDto, OAuthCodeDto, RequestOtpDto, VerifyOtpDto } from './auth.dto';
+import { AuthenticatedRequest, JwtAuthGuard } from './jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -23,6 +25,40 @@ export class AuthController {
   @HttpCode(200)
   employerRegister(@Body() dto: EmployerRegisterDto) {
     return this.auth.verifyOtp(dto.phone, dto.otp, dto.orgName);
+  }
+
+  /**
+   * Authorization-code exchange. Web sends the code from its own redirect;
+   * the mobile app runs the native SDK / PKCE flow and forwards the
+   * resulting code + codeVerifier here. Either way we issue the same JWT
+   * access + refresh token pair as /auth/otp/verify.
+   */
+  @Post('google')
+  @HttpCode(200)
+  loginWithGoogle(@Body() dto: OAuthCodeDto) {
+    return this.auth.loginWithGoogle(dto);
+  }
+
+  @Post('github')
+  @HttpCode(200)
+  loginWithGithub(@Body() dto: OAuthCodeDto) {
+    return this.auth.loginWithGithub(dto);
+  }
+
+  /** Explicit "connect provider" from settings while already logged in — links regardless of email match. */
+  @Post('connect/:provider')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  connectProvider(
+    @Req() req: AuthenticatedRequest,
+    @Param('provider') provider: string,
+    @Body() dto: OAuthCodeDto,
+  ) {
+    const normalized = provider.toUpperCase();
+    if (normalized !== IdentityProvider.GOOGLE && normalized !== IdentityProvider.GITHUB) {
+      throw new BadRequestException('Unsupported provider');
+    }
+    return this.auth.connectProvider(req.user.sub, normalized, dto);
   }
 
   @Post('refresh')

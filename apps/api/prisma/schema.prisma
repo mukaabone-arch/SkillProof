@@ -17,6 +17,12 @@ enum Role {
   PLATFORM_ADMIN
 }
 
+enum IdentityProvider {
+  PHONE
+  GOOGLE
+  GITHUB
+}
+
 enum SkillLevel {
   L1
   L2
@@ -121,6 +127,32 @@ model User {
   orgMembership    OrgMember?
   notifications    Notification[]
   reviewedAttempts Attempt[]         @relation("AttemptReviewedBy")
+  identities       Identity[]
+}
+
+// ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
+
+/**
+ * One row per (provider, providerId) a user has signed in with. providerId is
+ * the provider's own stable subject identifier (Google `sub`, GitHub numeric
+ * user id, or the phone number for the PHONE provider) — never the email,
+ * since emails can change or be reassigned by the provider. email/emailVerified
+ * are just what that provider reported at the time of the most recent link;
+ * they drive the auto-link-by-verified-email policy in AuthService and are
+ * not treated as a login key.
+ */
+model Identity {
+  id            String           @id @default(uuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id])
+  provider      IdentityProvider
+  providerId    String
+  email         String?
+  emailVerified Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+
+  @@unique([provider, providerId])
+  @@index([userId])
 }
 
 // ---------- Employer accounts (spec section: employer side, step 3a) ----------
