@@ -6,6 +6,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../llm/llm.service';
 import { GenerateResumeDto, UpdateProfileDto } from './profiles.dto';
 import { buildResumePdf, VerifiedSkillEntry } from './resume-pdf.builder';
+import { UPLOAD_DIR } from '../../config/upload-dir';
 
 type CompletenessFields = Pick<
   CandidateProfile,
@@ -56,12 +57,16 @@ export class ProfilesService {
     }
   }
 
-  /** Records where the uploaded PDF landed on disk. Reuses CandidateProfile.resumeS3Key. */
-  async saveResume(userId: string, relativePath: string) {
+  /**
+   * Records the uploaded PDF's filename within UPLOAD_DIR. Reuses
+   * CandidateProfile.resumeS3Key (named for the original S3 design — still
+   * local disk for now, see UPLOAD_DIR's own doc comment on why).
+   */
+  async saveResume(userId: string, filename: string) {
     await this.ensureProfile(userId);
     return this.prisma.candidateProfile.update({
       where: { userId },
-      data: { resumeS3Key: relativePath },
+      data: { resumeS3Key: filename },
     });
   }
 
@@ -134,7 +139,7 @@ export class ProfilesService {
       throw new BadRequestException('Upload a resume before parsing it.');
     }
     try {
-      return await fs.readFile(join(process.cwd(), profile.resumeS3Key));
+      return await fs.readFile(join(UPLOAD_DIR, profile.resumeS3Key));
     } catch {
       throw new NotFoundException('Stored resume file could not be read. Try re-uploading.');
     }

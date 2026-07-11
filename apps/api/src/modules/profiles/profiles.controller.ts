@@ -16,12 +16,11 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { randomUUID } from 'crypto';
 import { mkdirSync } from 'fs';
-import { join } from 'path';
 import { JwtAuthGuard, AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { ProfilesService } from './profiles.service';
 import { GenerateResumeDto, UpdateProfileDto } from './profiles.dto';
+import { UPLOAD_DIR } from '../../config/upload-dir';
 
-const UPLOAD_DIR = join(process.cwd(), 'uploads');
 const MAX_RESUME_BYTES = 5 * 1024 * 1024;
 
 @Controller('profiles')
@@ -60,7 +59,11 @@ export class ProfilesController {
   )
   uploadResume(@Req() req: AuthenticatedRequest, @UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('No file uploaded');
-    return this.svc.saveResume(req.user.sub, `uploads/${file.filename}`);
+    // Bare filename, resolved against UPLOAD_DIR wherever it's read back
+    // (ProfilesService.readStoredResume) — not a path fragment baked
+    // around a hardcoded "uploads/" prefix, so this stays correct
+    // regardless of what UPLOAD_DIR is configured to.
+    return this.svc.saveResume(req.user.sub, file.filename);
   }
 
   @Post('me/resume/parse')
