@@ -110,6 +110,28 @@ interface ApplicantSkill {
   verifyHash: string;
 }
 
+type CredentialIssuer = 'CREDLY' | 'AWS' | 'GOOGLE' | 'AZURE' | 'NVIDIA' | 'DATABRICKS' | 'IBM' | 'OTHER';
+
+interface ApplicantExternalCredential {
+  id: string;
+  issuer: CredentialIssuer;
+  name: string | null;
+  credentialUrl: string;
+  issuedAt: string | null;
+  expiresAt: string | null;
+}
+
+const ISSUER_LABELS: Record<CredentialIssuer, string> = {
+  CREDLY: 'Credly',
+  AWS: 'AWS',
+  GOOGLE: 'Google',
+  AZURE: 'Microsoft Azure',
+  NVIDIA: 'NVIDIA',
+  DATABRICKS: 'Databricks',
+  IBM: 'IBM',
+  OTHER: 'Unknown issuer',
+};
+
 interface Applicant {
   applicationId: string;
   status: string;
@@ -123,6 +145,8 @@ interface Applicant {
   profileIncomplete: boolean;
   score: number | null;
   verifiedSkills: ApplicantSkill[];
+  /** Only ever VERIFIED, non-scoring credentials — see JobsService.getApplicants. */
+  externalCredentials: ApplicantExternalCredential[];
 }
 
 const STATUS_ACTIONS = ['REVIEWED', 'SHORTLISTED', 'REJECTED'];
@@ -626,12 +650,43 @@ export default function EmployerJobs() {
                   <div className="meta">Applied {new Date(a.appliedAt).toLocaleDateString()}</div>
 
                   {a.verifiedSkills.length > 0 && (
-                    <div className="row" style={{ flexWrap: 'wrap', margin: 0 }}>
-                      {a.verifiedSkills.map((s) => (
-                        <Link key={s.skillId} href={`/badges/${s.verifyHash}`}>
-                          <button>{s.skillName} ({s.level})</button>
-                        </Link>
-                      ))}
+                    <div style={{ marginTop: 4 }}>
+                      <div className="meta" style={{ margin: 0, marginBottom: 4 }}>
+                        SkillProof-Verified Skills
+                      </div>
+                      <div className="row" style={{ flexWrap: 'wrap', margin: 0 }}>
+                        {a.verifiedSkills.map((s) => (
+                          <Link key={s.skillId} href={`/badges/${s.verifyHash}`}>
+                            <Badge variant="verified">{s.skillName} ({s.level})</Badge>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Distinct, non-green tier — the employer judges relevance themselves, we only present. */}
+                  {a.externalCredentials.length > 0 && (
+                    <div style={{ marginTop: 4 }}>
+                      <div className="meta" style={{ margin: 0, marginBottom: 4 }}>
+                        External Credentials
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {a.externalCredentials.map((c) => (
+                          <a
+                            key={c.id}
+                            href={c.credentialUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                          >
+                            <Badge variant="default">{c.name ?? 'Credential'}</Badge>
+                            <span className="meta" style={{ margin: 0 }}>
+                              {ISSUER_LABELS[c.issuer]} · verified via Credly
+                              {c.expiresAt && new Date(c.expiresAt) < new Date() ? ' · expired' : ''}
+                            </span>
+                          </a>
+                        ))}
+                      </div>
                     </div>
                   )}
 

@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { api, getToken } from '@/lib/api';
 import CandidateNav from '@/components/CandidateNav';
 import { isSafeReturnTo } from '@/lib/returnTo';
+import { Badge, EmptyState } from '@/components/ui';
 
 interface Profile {
   fullName: string | null;
@@ -44,6 +45,30 @@ interface FormState {
   githubUrl: string;
   linkedinUrl: string;
 }
+
+type CredentialIssuer = 'CREDLY' | 'AWS' | 'GOOGLE' | 'AZURE' | 'NVIDIA' | 'DATABRICKS' | 'IBM' | 'OTHER';
+type CredentialVerificationState = 'PENDING' | 'VERIFIED' | 'FAILED';
+
+interface ExternalCredential {
+  id: string;
+  issuer: CredentialIssuer;
+  name: string | null;
+  credentialUrl: string;
+  verificationState: CredentialVerificationState;
+  issuedAt: string | null;
+  expiresAt: string | null;
+}
+
+const ISSUER_LABELS: Record<CredentialIssuer, string> = {
+  CREDLY: 'Credly',
+  AWS: 'AWS',
+  GOOGLE: 'Google',
+  AZURE: 'Microsoft Azure',
+  NVIDIA: 'NVIDIA',
+  DATABRICKS: 'Databricks',
+  IBM: 'IBM',
+  OTHER: 'Unknown issuer',
+};
 
 function toForm(p: Profile): FormState {
   return {
@@ -83,6 +108,12 @@ function ProfilePageInner() {
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
 
+  const [credentials, setCredentials] = useState<ExternalCredential[]>([]);
+  const [credentialUrl, setCredentialUrl] = useState('');
+  const [addingCredential, setAddingCredential] = useState(false);
+  const [credentialError, setCredentialError] = useState('');
+  const [deletingCredentialId, setDeletingCredentialId] = useState<string | null>(null);
+
   useEffect(() => {
     const hasToken = !!getToken();
     setLoggedIn(hasToken);
@@ -95,6 +126,9 @@ function ProfilePageInner() {
         setHasResume(!!p.resumeS3Key);
       })
       .catch((e) => setError(e.message));
+    api<ExternalCredential[]>('/profiles/me/external-credentials')
+      .then(setCredentials)
+      .catch(() => undefined);
   }, []);
 
   function update<K extends keyof FormState>(key: K, value: string) {
@@ -205,6 +239,54 @@ function ProfilePageInner() {
     } finally {
       setApplying(false);
     }
+  }
+
+  async function addCredential() {
+    const url = credentialUrl.trim();
+    if (!url) return;
+    setAddingCredential(true);
+    setCredentialError('');
+    try {
+      const created = await api<ExternalCredential>('/profiles/me/external-credentials', {
+        method: 'POST',
+        body: JSON.stringify({ credentialUrl: url }),
+      });
+      setCredentials((prev) => [created, ...prev]);
+      setCredentialUrl('');
+    } catch (e) {
+      setCredentialError((e as Error).message);
+    } finally {
+      setAddingCredential(false);
+    }
+  }
+
+  async function removeCredential(id: string) {
+    setDeletingCredentialId(id);
+    setCredentialError('');
+    try {
+      await api(`/profiles/me/external-credentials/${id}`, { method: 'DELETE' });
+      setCredentials((prev) => prev.filter((c) => c.id !== id));
+    } catch (e) {
+      setCredentialError((e as Error).message);
+    } finally {
+      setDeletingCredentialId(null);
+    }
+  }
+
+  /**
+   * Deliberately never uses Badge variant="verified" (the reserved
+   * SkillProof-assessed green) — external credentials get the indigo
+   * "default" pill instead, so the two proof tiers stay visually distinct
+   * at a glance everywhere they're shown, here and on the employer side.
+   */
+  function credentialStatus(c: ExternalCredential) {
+    if (c.verificationState === 'VERIFIED') {
+      return <Badge variant="default">Verified via Credly</Badge>;
+    }
+    if (c.verificationState === 'FAILED') {
+      return <Badge variant="danger">Couldn&apos;t verify</Badge>;
+    }
+    return <Badge variant="neutral">Pending</Badge>;
   }
 
   return (
@@ -414,6 +496,83 @@ function ProfilePageInner() {
                 {applied && <p className="ok" style={{ margin: 0 }}>✓ Applied to your profile</p>}
               </div>
             </div>
+          )}
+
+          <h2 style={{ marginTop: 32, marginBottom: 16 }}>External credentials</h2>
+          <p>
+            Add certifications from other platforms. Credly badge URLs are verified automatically
+            by checking the badge is public — these are shown to employers as a separate,
+            distinctly-styled tier from your SkillProof-verified skills, and never affect your
+            match score.
+          </p>
+
+          <div className="field">
+            <label htmlFor="credentialUrl">Credly badge URL</label>
+            <input
+              id="credentialUrl"
+              value={credentialUrl}
+              onChange={(e) => setCredentialUrl(e.target.value)}
+              placeholder="https://www.credly.com/badges/..."
+            />
+          </div>
+          <div className="row">
+            <button onClick={addCredential} disabled={!credentialUrl.trim() || addingCredential}>
+              {addingCredential ? 'Adding…' : 'Add credential'}
+            </button>
+          </div>
+          {credentialError && <p className="error">{credentialError}</p>}
+
+          {credentials.length === 0 ? (
+            <EmptyState message="No external credentials yet — paste a Credly badge URL above to add one." />
+          ) : (
+            credentials.map((c) => (
+              <div
+                key={c.id}
+                className="card"
+                style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}
+              >
+                {credentialStatus(c)}
+
+                {c.verificationState === 'VERIFIED' && (
+                  <>
+                    <strong>{c.name}</strong>
+                    <div className="meta">{ISSUER_LABELS[c.issuer]}</div>
+                    <div className="meta">
+                      Issued {c.issuedAt ? new Date(c.issuedAt).toLocaleDateString() : 'Unknown'}
+                      {' · '}
+                      {c.expiresAt ? `Expires ${new Date(c.expiresAt).toLocaleDateString()}` : 'No expiration'}
+                    </div>
+                    <a href={c.credentialUrl} target="_blank" rel="noopener noreferrer">
+                      View badge on Credly ↗
+                    </a>
+                  </>
+                )}
+
+                {c.verificationState === 'FAILED' && (
+                  <p className="meta" style={{ margin: 0 }}>
+                    Couldn&apos;t verify this badge — make sure it&apos;s set to public on Credly,
+                    then remove this and paste the URL again.
+                  </p>
+                )}
+
+                {c.verificationState === 'PENDING' && (
+                  <p className="meta" style={{ margin: 0 }}>
+                    We don&apos;t automatically verify this issuer yet — this link is saved but
+                    unconfirmed.
+                  </p>
+                )}
+
+                {c.verificationState !== 'VERIFIED' && (
+                  <div className="meta" style={{ wordBreak: 'break-all' }}>{c.credentialUrl}</div>
+                )}
+
+                <div className="row" style={{ margin: 0, marginTop: 4 }}>
+                  <button onClick={() => removeCredential(c.id)} disabled={deletingCredentialId === c.id}>
+                    {deletingCredentialId === c.id ? 'Removing…' : 'Remove'}
+                  </button>
+                </div>
+              </div>
+            ))
           )}
         </>
       )}

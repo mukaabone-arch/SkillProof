@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClaimStatus } from '@prisma/client';
+import { ClaimStatus, CredentialVerificationState } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../llm/llm.service';
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
@@ -65,6 +65,11 @@ export class JobsService {
    * same `scoreCandidate` (scoring.ts) used everywhere else; it's the only
    * place an unverified claim is allowed to influence anything, and even
    * then only as a number, never surfaced as claim detail.
+   *
+   * externalCredentials are surfaced alongside but kept out of scoring
+   * entirely (per scoring.ts's separation from the external-credentials
+   * system) — only VERIFIED ones are returned, so the employer judges
+   * relevance themselves rather than us presenting an unverified claim.
    */
   async getApplicants(orgId: string, jobId: string) {
     await this.getOwnedJob(orgId, jobId);
@@ -85,7 +90,10 @@ export class JobsService {
       orderBy: { createdAt: 'desc' },
       include: {
         candidateProfile: {
-          include: { skillClaims: { include: { skill: true, badge: true } } },
+          include: {
+            skillClaims: { include: { skill: true, badge: true } },
+            externalCredentials: { where: { verificationState: CredentialVerificationState.VERIFIED } },
+          },
         },
       },
     });
@@ -128,6 +136,14 @@ export class JobsService {
             level: c.level,
             verifyHash: c.badge!.verifyHash,
           })),
+        externalCredentials: profile.externalCredentials.map((c) => ({
+          id: c.id,
+          issuer: c.issuer,
+          name: c.name,
+          credentialUrl: c.credentialUrl,
+          issuedAt: c.issuedAt,
+          expiresAt: c.expiresAt,
+        })),
       };
     });
   }

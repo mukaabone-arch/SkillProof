@@ -47,13 +47,15 @@ export class ExternalCredentialsService {
     });
   }
 
-  async remove(userId: string, id: string): Promise<void> {
+  /** Returns the deleted id (rather than void) so the response body isn't empty — callers can't rely on res.json() otherwise. */
+  async remove(userId: string, id: string): Promise<{ id: string }> {
     const profile = await this.ensureProfile(userId);
     const credential = await this.prisma.externalCredential.findUnique({ where: { id } });
     if (!credential || credential.profileId !== profile.id) {
       throw new NotFoundException('External credential not found');
     }
     await this.prisma.externalCredential.delete({ where: { id } });
+    return { id };
   }
 
   private async ensureProfile(userId: string) {
