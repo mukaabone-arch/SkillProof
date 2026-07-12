@@ -70,6 +70,23 @@ const ISSUER_LABELS: Record<CredentialIssuer, string> = {
   OTHER: 'Unknown issuer',
 };
 
+// Mirrors the backend's CredlyVerificationService badge-URL pattern — kept
+// client-side so we can reject non-badge URLs before ever hitting the API,
+// instead of creating a doomed PENDING record for a link we already know
+// can't verify.
+const CREDLY_BADGE_URL_RE = /^https?:\/\/(?:www\.)?credly\.com\/badges\/[0-9a-fA-F-]{36}(?:[/?#].*)?$/;
+const CREDLY_PROFILE_URL_RE = /^https?:\/\/(?:www\.)?credly\.com\/users\//i;
+
+/** Empty string = valid (or nothing typed yet). */
+function validateCredentialUrl(url: string): string {
+  if (!url) return '';
+  if (CREDLY_BADGE_URL_RE.test(url)) return '';
+  if (CREDLY_PROFILE_URL_RE.test(url)) {
+    return "That looks like a profile URL. Open a specific badge and paste its URL instead.";
+  }
+  return 'Paste the URL of a single Credly badge — it should look like credly.com/badges/<id>.';
+}
+
 function toForm(p: Profile): FormState {
   return {
     fullName: p.fullName ?? '',
@@ -243,7 +260,7 @@ function ProfilePageInner() {
 
   async function addCredential() {
     const url = credentialUrl.trim();
-    if (!url) return;
+    if (!url || validateCredentialUrl(url)) return;
     setAddingCredential(true);
     setCredentialError('');
     try {
@@ -288,6 +305,8 @@ function ProfilePageInner() {
     }
     return <Badge variant="neutral">Pending</Badge>;
   }
+
+  const credentialUrlError = validateCredentialUrl(credentialUrl.trim());
 
   return (
     <>
@@ -507,16 +526,33 @@ function ProfilePageInner() {
           </p>
 
           <div className="field">
-            <label htmlFor="credentialUrl">Credly badge URL</label>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+              <label htmlFor="credentialUrl" style={{ margin: 0 }}>Credly badge URL</label>
+              <details className="hint-toggle">
+                <summary>How do I find this?</summary>
+                <div className="hint-popover">
+                  Paste the URL of one specific badge, not your Credly profile — it looks like{' '}
+                  <code>credly.com/badges/&lt;id&gt;</code>.
+                  <br />
+                  To find it: open your Credly profile → click a badge → copy that page&apos;s URL.
+                  Make sure the badge is set to <strong>public</strong> in Credly.
+                </div>
+              </details>
+            </div>
             <input
               id="credentialUrl"
               value={credentialUrl}
               onChange={(e) => setCredentialUrl(e.target.value)}
               placeholder="https://www.credly.com/badges/..."
+              className={credentialUrlError ? 'field-input-error' : undefined}
             />
+            {credentialUrlError && <p className="field-error">{credentialUrlError}</p>}
           </div>
           <div className="row">
-            <button onClick={addCredential} disabled={!credentialUrl.trim() || addingCredential}>
+            <button
+              onClick={addCredential}
+              disabled={!credentialUrl.trim() || !!credentialUrlError || addingCredential}
+            >
               {addingCredential ? 'Adding…' : 'Add credential'}
             </button>
           </div>
