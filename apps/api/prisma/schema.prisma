@@ -110,6 +110,25 @@ enum NotificationStatus {
   FAILED
 }
 
+// ---------- External credentials (Credly-first, URL-verified) ----------
+
+enum CredentialIssuer {
+  CREDLY
+  AWS
+  GOOGLE
+  AZURE
+  NVIDIA
+  DATABRICKS
+  IBM
+  OTHER
+}
+
+enum CredentialVerificationState {
+  PENDING
+  VERIFIED
+  FAILED
+}
+
 model User {
   id           String    @id @default(uuid())
   phone        String?   @unique
@@ -195,8 +214,9 @@ model CandidateProfile {
   updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?
 
-  skillClaims  SkillClaim[]
-  applications Application[]
+  skillClaims         SkillClaim[]
+  applications        Application[]
+  externalCredentials ExternalCredential[]
 }
 
 // ---------- Taxonomy (spec section 4.3) ----------
@@ -240,6 +260,37 @@ model SkillClaim {
   updatedAt DateTime         @updatedAt
 
   @@unique([profileId, skillId])
+}
+
+/**
+ * A candidate-submitted, externally-issued credential (Credly badge, etc.),
+ * kept entirely separate from the SkillClaim/Badge system: it never maps to
+ * our skill taxonomy and never feeds match scoring (scoring.ts). It only
+ * ever unlocks the apply-gate as an alternative to a verified SkillClaim —
+ * see CandidateJobsService.assertHasVerifiedBadge.
+ * name/issuer/externalId/issuedAt/expiresAt/rawMetadata are populated by
+ * CredlyVerificationService from the fetched public badge data — never
+ * client-supplied — and stay null until a verification attempt succeeds.
+ * issuer defaults to OTHER (the "unidentified" state) until a successful
+ * fetch identifies the real issuing org.
+ */
+model ExternalCredential {
+  id                String                      @id @default(uuid())
+  profileId         String
+  profile           CandidateProfile            @relation(fields: [profileId], references: [id])
+  issuer            CredentialIssuer            @default(OTHER)
+  name              String?
+  credentialUrl     String
+  verificationState CredentialVerificationState @default(PENDING)
+  verifiedAt        DateTime?
+  externalId        String?
+  issuedAt          DateTime?
+  expiresAt         DateTime?
+  rawMetadata       Json?
+  createdAt         DateTime                    @default(now())
+
+  @@unique([profileId, credentialUrl])
+  @@index([profileId])
 }
 
 // ---------- Job postings (employer side, step 3b) ----------

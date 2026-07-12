@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClaimStatus, JobStatus, NotificationType, Prisma } from '@prisma/client';
+import { ClaimStatus, CredentialVerificationState, JobStatus, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
@@ -241,12 +241,27 @@ export class CandidateJobsService {
     }
   }
 
-  /** Only counts currently-valid badges — an admin-invalidated (revoked) one doesn't satisfy this. */
+  /**
+   * Satisfied by either a verified SkillProof SkillClaim (currently-valid —
+   * an admin-invalidated/revoked one doesn't count) or a verified external
+   * credential (e.g. a Credly badge) that hasn't expired. External
+   * credentials are otherwise kept fully separate from this system — this
+   * gate is their only interaction with it, and they never touch scoring.
+   */
   private async assertHasVerifiedBadge(profileId: string): Promise<void> {
-    const verifiedCount = await this.prisma.skillClaim.count({
-      where: { profileId, status: ClaimStatus.VERIFIED, badge: { revokedAt: null } },
-    });
-    if (verifiedCount === 0) {
+    const [verifiedClaimCount, verifiedCredentialCount] = await Promise.all([
+      this.prisma.skillClaim.count({
+        where: { profileId, status: ClaimStatus.VERIFIED, badge: { revokedAt: null } },
+      }),
+      this.prisma.externalCredential.count({
+        where: {
+          profileId,
+          verificationState: CredentialVerificationState.VERIFIED,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+      }),
+    ]);
+    if (verifiedClaimCount === 0 && verifiedCredentialCount === 0) {
       throw new BadRequestException({
         code: 'BADGE_REQUIRED',
         message: 'Earn at least one verified skill badge before applying — take an assessment to get started.',
