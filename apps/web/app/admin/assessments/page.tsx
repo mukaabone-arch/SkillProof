@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, getToken, type ApiError } from '@/lib/api';
 import AdminNav from '@/components/AdminNav';
+import { Badge } from '@/components/ui';
 
 interface Skill {
   id: string;
@@ -28,6 +29,7 @@ interface AdminAssessment {
   targetLevel: string;
   durationMins: number;
   passThreshold: number;
+  questionsPerAttempt: number;
   isPremium: boolean;
   isLive: boolean;
   skill: { name: string; domain: { name: string } };
@@ -42,6 +44,7 @@ interface AssessmentForm {
   targetLevel: string;
   durationMins: string;
   passThreshold: string;
+  questionsPerAttempt: string;
   isPremium: boolean;
   isLive: boolean;
 }
@@ -52,9 +55,58 @@ const emptyAssessmentForm: AssessmentForm = {
   targetLevel: 'L1',
   durationMins: '30',
   passThreshold: '70',
+  questionsPerAttempt: '20',
   isPremium: false,
   isLive: false,
 };
+
+/** Just the three tunables this page lets an admin edit post-creation. */
+interface ConfigForm {
+  durationMins: string;
+  passThreshold: string;
+  questionsPerAttempt: string;
+}
+
+/**
+ * Shared by the create form and the per-assessment edit panel.
+ * `poolSize` is the live question count — null on create (an assessment
+ * always starts with zero questions, so "not more than the pool" can't be
+ * checked yet there) and a number when editing an existing one.
+ */
+function configError(form: ConfigForm, poolSize: number | null): string | null {
+  const durationMins = Number(form.durationMins);
+  const passThreshold = Number(form.passThreshold);
+  const questionsPerAttempt = Number(form.questionsPerAttempt);
+
+  if (!Number.isFinite(durationMins) || durationMins <= 0) {
+    return 'Duration must be greater than 0 minutes.';
+  }
+  // Matches the API's own @Min(0)/@Max(100) — passThreshold is a percentage
+  // of scorePercent (0-100), compared directly against it at grading time,
+  // not a 0-1 fraction.
+  if (!Number.isFinite(passThreshold) || passThreshold < 0 || passThreshold > 100) {
+    return 'Pass threshold must be between 0 and 100%.';
+  }
+  if (!Number.isInteger(questionsPerAttempt) || questionsPerAttempt < 1) {
+    return 'Questions per attempt must be at least 1.';
+  }
+  if (poolSize !== null && poolSize > 0 && questionsPerAttempt > poolSize) {
+    return `Questions per attempt (${questionsPerAttempt}) can't exceed the live question pool (${poolSize}).`;
+  }
+  return null;
+}
+
+/**
+ * Non-blocking: warns when an attempt would draw most or all of the live
+ * pool, so repeat-takers (or candidates who compare notes) are likely to see
+ * the same questions — weak randomization, not a hard limit.
+ */
+function lowIntegrityWarning(questionsPerAttempt: number, poolSize: number): string | null {
+  if (poolSize <= 0 || !Number.isInteger(questionsPerAttempt) || questionsPerAttempt < 1) return null;
+  const ratio = questionsPerAttempt / poolSize;
+  if (ratio < 0.7) return null;
+  return `${questionsPerAttempt} of ${poolSize} live questions (${Math.round(ratio * 100)}%) get served per attempt — most candidates will see nearly the same set. Consider adding more questions or lowering this number.`;
+}
 
 interface QuestionForm {
   text: string;
@@ -90,6 +142,11 @@ export default function AdminAssessmentsPage() {
   const [form, setForm] = useState<AssessmentForm>(emptyAssessmentForm);
   const [creating, setCreating] = useState(false);
 
+  const [editOpenFor, setEditOpenFor] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<ConfigForm>({ durationMins: '', passThreshold: '', questionsPerAttempt: '' });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+
   const [openFor, setOpenFor] = useState<string | null>(null);
   const [qForm, setQForm] = useState<QuestionForm>(emptyQuestionForm);
   const [addingQuestion, setAddingQuestion] = useState(false);
@@ -119,6 +176,11 @@ export default function AdminAssessmentsPage() {
   }
 
   async function createAssessment() {
+    const configErr = configError(form, null);
+    if (configErr) {
+      setError(configErr);
+      return;
+    }
     setError('');
     setCreating(true);
     try {
@@ -130,6 +192,7 @@ export default function AdminAssessmentsPage() {
           targetLevel: form.targetLevel,
           durationMins: Number(form.durationMins),
           passThreshold: Number(form.passThreshold),
+          questionsPerAttempt: Number(form.questionsPerAttempt),
           isPremium: form.isPremium,
           isLive: form.isLive,
         }),
@@ -140,6 +203,42 @@ export default function AdminAssessmentsPage() {
       setError((e as Error).message);
     } finally {
       setCreating(false);
+    }
+  }
+
+  function openEdit(a: AdminAssessment) {
+    setEditOpenFor(a.id);
+    setEditForm({
+      durationMins: String(a.durationMins),
+      passThreshold: String(a.passThreshold),
+      questionsPerAttempt: String(a.questionsPerAttempt),
+    });
+    setEditError('');
+  }
+
+  async function submitEdit(a: AdminAssessment) {
+    const configErr = configError(editForm, a._count.questions);
+    if (configErr) {
+      setEditError(configErr);
+      return;
+    }
+    setEditError('');
+    setEditSaving(true);
+    try {
+      await api(`/admin/assessments/${a.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          durationMins: Number(editForm.durationMins),
+          passThreshold: Number(editForm.passThreshold),
+          questionsPerAttempt: Number(editForm.questionsPerAttempt),
+        }),
+      });
+      setEditOpenFor(null);
+      await refresh();
+    } catch (e) {
+      setEditError((e as Error).message);
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -314,6 +413,21 @@ export default function AdminAssessmentsPage() {
           />
         </div>
 
+        <div className="field">
+          <label htmlFor="questionsPerAttempt">Questions per attempt</label>
+          <input
+            id="questionsPerAttempt"
+            type="number"
+            min={1}
+            value={form.questionsPerAttempt}
+            onChange={(e) => setForm({ ...form, questionsPerAttempt: e.target.value })}
+          />
+          <p className="meta" style={{ margin: 0 }}>
+            Drawn randomly from the live question pool once one exists — a new assessment starts
+            with no questions, so this can&apos;t be checked against pool size until you&apos;ve added some.
+          </p>
+        </div>
+
         <label className="row" style={{ alignItems: 'center' }}>
           <input
             type="checkbox"
@@ -332,7 +446,12 @@ export default function AdminAssessmentsPage() {
           Live (visible to candidates)
         </label>
 
-        <button onClick={createAssessment} disabled={creating || !form.skillId || !form.title}>
+        {configError(form, null) && <p className="error" style={{ margin: 0 }}>{configError(form, null)}</p>}
+
+        <button
+          onClick={createAssessment}
+          disabled={creating || !form.skillId || !form.title || !!configError(form, null)}
+        >
           {creating ? 'Creating…' : 'Create assessment'}
         </button>
       </div>
@@ -347,13 +466,24 @@ export default function AdminAssessmentsPage() {
               <strong>{a.title}</strong>
               <div className="meta">
                 {a.skill.domain.name} → {a.skill.name} · {a.targetLevel} · {a.durationMins} min · pass
-                ≥ {a.passThreshold}% · {a._count.questions} question
+                ≥ {a.passThreshold}% · {a.questionsPerAttempt}/attempt · {a._count.questions} question
                 {a._count.questions === 1 ? '' : 's'}
                 {a.isPremium ? ' · premium' : ''} ·{' '}
                 {a.isLive ? <span className="ok">live</span> : 'draft'}
               </div>
+              {lowIntegrityWarning(a.questionsPerAttempt, a._count.questions) && (
+                <div style={{ marginTop: 6 }}>
+                  <Badge variant="warning">Low integrity ratio</Badge>{' '}
+                  <span className="meta" style={{ margin: 0 }}>
+                    {lowIntegrityWarning(a.questionsPerAttempt, a._count.questions)}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="row" style={{ margin: 0 }}>
+              <button onClick={() => (editOpenFor === a.id ? setEditOpenFor(null) : openEdit(a))}>
+                {editOpenFor === a.id ? 'Cancel' : 'Edit config'}
+              </button>
               <button onClick={() => (openFor === a.id ? setOpenFor(null) : openQuestionForm(a.id))}>
                 {openFor === a.id ? 'Cancel' : 'Add question'}
               </button>
@@ -362,6 +492,65 @@ export default function AdminAssessmentsPage() {
               </button>
             </div>
           </div>
+
+          {editOpenFor === a.id && (
+            <div style={{ marginTop: 8 }}>
+              <div className="field">
+                <label htmlFor="editDurationMins">Duration (mins)</label>
+                <input
+                  id="editDurationMins"
+                  type="number"
+                  min={5}
+                  max={240}
+                  value={editForm.durationMins}
+                  onChange={(e) => setEditForm({ ...editForm, durationMins: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="editPassThreshold">Pass threshold (%)</label>
+                <input
+                  id="editPassThreshold"
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={editForm.passThreshold}
+                  onChange={(e) => setEditForm({ ...editForm, passThreshold: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="editQuestionsPerAttempt">Questions per attempt</label>
+                <input
+                  id="editQuestionsPerAttempt"
+                  type="number"
+                  min={1}
+                  max={a._count.questions || undefined}
+                  value={editForm.questionsPerAttempt}
+                  onChange={(e) => setEditForm({ ...editForm, questionsPerAttempt: e.target.value })}
+                />
+                <p className="meta" style={{ margin: 0 }}>
+                  {a._count.questions} live question{a._count.questions === 1 ? '' : 's'} in the pool.
+                </p>
+              </div>
+
+              {configError(editForm, a._count.questions) && (
+                <p className="error">{configError(editForm, a._count.questions)}</p>
+              )}
+              {!configError(editForm, a._count.questions) &&
+                lowIntegrityWarning(Number(editForm.questionsPerAttempt), a._count.questions) && (
+                  <p className="meta">
+                    ⚠ {lowIntegrityWarning(Number(editForm.questionsPerAttempt), a._count.questions)}
+                  </p>
+                )}
+
+              <button
+                onClick={() => submitEdit(a)}
+                disabled={editSaving || !!configError(editForm, a._count.questions)}
+              >
+                {editSaving ? 'Saving…' : 'Save changes'}
+              </button>
+              {editError && <p className="error">{editError}</p>}
+            </div>
+          )}
 
           {openFor === a.id && (
             <div style={{ marginTop: 8 }}>
