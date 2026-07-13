@@ -194,6 +194,7 @@ export class AssessmentsService {
       status: full!.status,
       scorePercent: full!.scorePercent,
       passed: full!.passed,
+      passThreshold: full!.assessment.passThreshold,
       assessmentTitle: full!.assessment.title,
       skillName: full!.assessment.skill.name,
       badge: full!.badge
@@ -205,6 +206,14 @@ export class AssessmentsService {
         : null,
       // Deliberately no integrity fields here — this is the candidate's own
       // result view. See AdminService.getAttemptForReview for the admin one.
+      //
+      // Deliberately no per-question or per-topic breakdown either: Question
+      // has no topic/subskill tag today (schema.prisma), so a real
+      // strong/weak-by-area summary isn't possible without first adding that
+      // tagging — this stays an overall score until that lands. And even once
+      // it does, this must only ever aggregate isCorrect by topic, never
+      // return question text or `correct` — see gradeAttempt's own comment
+      // on why `correct` never leaves the server.
     };
   }
 

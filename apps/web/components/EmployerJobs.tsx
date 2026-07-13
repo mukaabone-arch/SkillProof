@@ -111,6 +111,7 @@ interface ApplicantSkill {
 }
 
 type CredentialIssuer = 'CREDLY' | 'AWS' | 'GOOGLE' | 'AZURE' | 'NVIDIA' | 'DATABRICKS' | 'IBM' | 'OTHER';
+type NameMatchState = 'MATCH' | 'MISMATCH' | 'UNCHECKED';
 
 interface ApplicantExternalCredential {
   id: string;
@@ -119,6 +120,8 @@ interface ApplicantExternalCredential {
   credentialUrl: string;
   issuedAt: string | null;
   expiresAt: string | null;
+  /** Advisory only — see NameMatchState. Never affects verification or scoring. */
+  nameMatchState: NameMatchState;
 }
 
 const ISSUER_LABELS: Record<CredentialIssuer, string> = {
@@ -684,6 +687,9 @@ export default function EmployerJobs() {
                               {ISSUER_LABELS[c.issuer]} · verified via Credly
                               {c.expiresAt && new Date(c.expiresAt) < new Date() ? ' · expired' : ''}
                             </span>
+                            {c.nameMatchState === 'MISMATCH' && (
+                              <Badge variant="warning">Name mismatch</Badge>
+                            )}
                           </a>
                         ))}
                       </div>

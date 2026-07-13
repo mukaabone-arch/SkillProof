@@ -60,7 +60,12 @@ function AssessmentsPageInner() {
         )}
         {error && <p className="error">{error}</p>}
         {ready && items.length === 0 && !error && (
-          <p>No live assessments yet. Run the assessment seed.</p>
+          <p>
+            No assessments are available just yet — check back soon. In the
+            meantime, you can{' '}
+            <Link href="/profile">add a verified credential</Link> on your
+            profile to start applying.
+          </p>
         )}
         {loggedIn && profileEmpty && items.length > 0 && (
           <p className="meta" style={{ marginTop: -8, marginBottom: 20 }}>

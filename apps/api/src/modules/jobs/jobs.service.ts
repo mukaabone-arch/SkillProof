@@ -143,6 +143,8 @@ export class JobsService {
           credentialUrl: c.credentialUrl,
           issuedAt: c.issuedAt,
           expiresAt: c.expiresAt,
+          // Advisory only — see NameMatchState. Employer weighs it, we don't act on it.
+          nameMatchState: c.nameMatchState,
         })),
       };
     });

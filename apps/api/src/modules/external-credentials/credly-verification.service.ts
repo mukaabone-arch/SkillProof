@@ -9,6 +9,15 @@ interface CredlyAssertion {
   badge?: string;
   issuedOn?: string;
   expires?: string;
+  /**
+   * Standard OBI v2 "recipient profile" extension for exposing a plaintext
+   * holder identity (https://openbadgespec.org/extensions/recipientProfileExtension/).
+   * Credly's public badge_assertions endpoint does not populate this today —
+   * recipient.identity is always a hashed email — but the field is read
+   * defensively so name-matching activates automatically if that changes,
+   * without another code change.
+   */
+  'extensions:recipientProfile'?: { name?: string };
 }
 
 interface CredlyBadgeClass {
@@ -22,6 +31,8 @@ export interface CredlyVerificationResult {
   state: CredentialVerificationState;
   issuer: CredentialIssuer;
   name: string | null;
+  /** Badge holder's plaintext name, if the issuer's data exposes one — see CredlyAssertion. */
+  holderName: string | null;
   externalId: string | null;
   issuedAt: Date | null;
   expiresAt: Date | null;
@@ -33,6 +44,7 @@ const UNSUPPORTED_RESULT: CredlyVerificationResult = {
   state: CredentialVerificationState.PENDING,
   issuer: CredentialIssuer.OTHER,
   name: null,
+  holderName: null,
   externalId: null,
   issuedAt: null,
   expiresAt: null,
@@ -82,15 +94,18 @@ export class CredlyVerificationService {
         return this.failed(badgeId, 'Badge exists but its details could not be read.', { assertion });
       }
 
+      const holderName = this.extractHolderName(assertion);
+
       return {
         supported: true,
         state: CredentialVerificationState.VERIFIED,
         issuer: this.mapIssuer(badgeClass.issuer?.name),
         name: badgeClass.name,
+        holderName,
         externalId: badgeId,
         issuedAt: assertion.issuedOn ? new Date(assertion.issuedOn) : null,
         expiresAt: assertion.expires ? new Date(assertion.expires) : null,
-        rawMetadata: { assertion, badgeClass } as unknown as Prisma.InputJsonValue,
+        rawMetadata: { assertion, badgeClass, holderName } as unknown as Prisma.InputJsonValue,
       };
     } catch (err) {
       this.logger.warn(`Credly verification failed for badge ${badgeId}: ${(err as Error).message}`);
@@ -104,11 +119,17 @@ export class CredlyVerificationService {
       state: CredentialVerificationState.FAILED,
       issuer: CredentialIssuer.OTHER,
       name: null,
+      holderName: null,
       externalId: badgeId,
       issuedAt: null,
       expiresAt: null,
       rawMetadata: { reason, ...extra } as unknown as Prisma.InputJsonValue,
     };
+  }
+
+  private extractHolderName(assertion: CredlyAssertion): string | null {
+    const name = assertion['extensions:recipientProfile']?.name;
+    return name?.trim() || null;
   }
 
   private async fetchJson<T>(url: string): Promise<T | null> {

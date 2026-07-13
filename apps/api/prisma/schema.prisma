@@ -56,6 +56,13 @@ enum IntegrityEventType {
   FULLSCREEN_EXIT
   RAPID_ANSWER
   RIGHT_CLICK
+  /**
+   * Browser detected the PrintScreen key specifically. Partial signal only —
+   * OS-level screenshot tools (Win+Shift+S Snipping Tool, a second device
+   * photographing the screen, etc.) fire no browser event at all and are not
+   * detectable this way. Do not treat this as screenshot prevention.
+   */
+  PRINT_SCREEN
 }
 
 enum IntegrityStatus {
@@ -127,6 +134,17 @@ enum CredentialVerificationState {
   PENDING
   VERIFIED
   FAILED
+}
+
+/**
+ * Advisory-only signal comparing the badge holder's name (when the issuer
+ * exposes one) against the candidate's profile fullName. Never affects
+ * verificationState or the apply-gate — see ExternalCredential.nameMatchState.
+ */
+enum NameMatchState {
+  MATCH
+  MISMATCH
+  UNCHECKED
 }
 
 model User {
@@ -273,6 +291,11 @@ model SkillClaim {
  * client-supplied — and stay null until a verification attempt succeeds.
  * issuer defaults to OTHER (the "unidentified" state) until a successful
  * fetch identifies the real issuing org.
+ * nameMatchState is a separate, advisory-only signal (see NameMatchState) —
+ * it never influences verificationState or the apply-gate. It's UNCHECKED
+ * whenever the issuer's data has no holder name to compare (the common case
+ * today: Credly's public OBI assertion only exposes a hashed recipient
+ * email, not a plaintext name) or the candidate has no profile fullName yet.
  */
 model ExternalCredential {
   id                String                      @id @default(uuid())
@@ -282,6 +305,7 @@ model ExternalCredential {
   name              String?
   credentialUrl     String
   verificationState CredentialVerificationState @default(PENDING)
+  nameMatchState    NameMatchState              @default(UNCHECKED)
   verifiedAt        DateTime?
   externalId        String?
   issuedAt          DateTime?

@@ -48,6 +48,7 @@ interface FormState {
 
 type CredentialIssuer = 'CREDLY' | 'AWS' | 'GOOGLE' | 'AZURE' | 'NVIDIA' | 'DATABRICKS' | 'IBM' | 'OTHER';
 type CredentialVerificationState = 'PENDING' | 'VERIFIED' | 'FAILED';
+type NameMatchState = 'MATCH' | 'MISMATCH' | 'UNCHECKED';
 
 interface ExternalCredential {
   id: string;
@@ -55,8 +56,11 @@ interface ExternalCredential {
   name: string | null;
   credentialUrl: string;
   verificationState: CredentialVerificationState;
+  nameMatchState: NameMatchState;
   issuedAt: string | null;
   expiresAt: string | null;
+  /** rawMetadata.holderName is the only place the badge holder's name lives — see NameMatchState. */
+  rawMetadata: { holderName?: string | null } | null;
 }
 
 const ISSUER_LABELS: Record<CredentialIssuer, string> = {
@@ -581,6 +585,14 @@ function ProfilePageInner() {
                     <a href={c.credentialUrl} target="_blank" rel="noopener noreferrer">
                       View badge on Credly ↗
                     </a>
+                    {c.nameMatchState === 'MISMATCH' && (
+                      <p className="meta" style={{ margin: 0 }}>
+                        The name on this badge
+                        {c.rawMetadata?.holderName ? ` (${c.rawMetadata.holderName})` : ''} doesn&apos;t
+                        match your profile name{form.fullName ? ` (${form.fullName})` : ''}. Make sure
+                        this credential is yours; employers may see this flag.
+                      </p>
+                    )}
                   </>
                 )}
 

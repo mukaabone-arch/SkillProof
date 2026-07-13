@@ -16,7 +16,8 @@ type IntegrityEventType =
   | 'PASTE_ATTEMPT'
   | 'COPY_ATTEMPT'
   | 'FULLSCREEN_EXIT'
-  | 'RIGHT_CLICK';
+  | 'RIGHT_CLICK'
+  | 'PRINT_SCREEN';
 
 interface Question {
   id: string;
@@ -33,6 +34,7 @@ interface Result {
   status: string;
   scorePercent: number | null;
   passed: boolean | null;
+  passThreshold: number;
   assessmentTitle: string;
   skillName: string;
   badge: { verifyHash: string; level: string; expiresAt: string } | null;
@@ -48,8 +50,11 @@ export default function TakeAssessmentPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [showIntegrityNotice, setShowIntegrityNotice] = useState(true);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  // Gates start(): the attempt is never created until the candidate has
+  // explicitly acknowledged the monitoring notice below.
+  const [acknowledged, setAcknowledged] = useState(false);
+  const [ackChecked, setAckChecked] = useState(false);
 
   // Ref (not state) so in-flight event listeners always see the latest
   // value without needing to be torn down/rebuilt on every render.
@@ -67,7 +72,9 @@ export default function TakeAssessmentPage() {
     finally { setLoaded(true); }
   }, [id, router]);
 
-  useEffect(() => { start(); }, [start]);
+  useEffect(() => {
+    if (acknowledged) start();
+  }, [acknowledged, start]);
 
   /**
    * Best-effort, fire-and-forget: a failed report must never interrupt the
@@ -106,11 +113,24 @@ export default function TakeAssessmentPage() {
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement) reportIntegrityEvent('FULLSCREEN_EXIT');
     };
+    /**
+     * Catches the PrintScreen key specifically (via keyup — PrintScreen
+     * doesn't reliably fire keydown/keypress across browsers and can't be
+     * preventDefault-ed). This is a partial signal only: OS-level capture
+     * tools that don't involve that key — the Windows Snipping Tool
+     * (Win+Shift+S), a phone photographing the screen, etc. — never touch
+     * the browser and are not detectable here. Do not treat this as
+     * screenshot prevention, only as one more review signal.
+     */
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'PrintScreen') reportIntegrityEvent('PRINT_SCREEN');
+    };
 
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('blur', handleBlur);
     window.addEventListener('focus', handleFocus);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
+    window.addEventListener('keyup', handleKeyUp);
 
     // Optional and best-effort — browsers may silently refuse this without a
     // direct user gesture; that's fine, we just won't see FULLSCREEN_EXIT then.
@@ -121,6 +141,7 @@ export default function TakeAssessmentPage() {
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      window.removeEventListener('keyup', handleKeyUp);
     };
   }, [attemptId, reportIntegrityEvent]);
 
@@ -143,6 +164,25 @@ export default function TakeAssessmentPage() {
       setResult(await api<Result>(`/attempts/${attemptId}/result`));
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
+  }
+
+  /**
+   * There's no cooldown on this system — startAttempt() happily opens a new
+   * attempt the moment the previous one is GRADED — so retrying just resets
+   * local state back to the pre-attempt notice gate; re-acknowledging it is
+   * required again for the new attempt, same as the first one.
+   */
+  function retry() {
+    finishedRef.current = false;
+    setResult(undefined);
+    setQuestions([]);
+    setAnswers({});
+    setAttemptId(undefined);
+    setRemainingSeconds(null);
+    setLoaded(false);
+    setError('');
+    setAckChecked(false);
+    setAcknowledged(false);
   }
 
   /**
@@ -174,24 +214,80 @@ export default function TakeAssessmentPage() {
     return (
       <main>
         <h1>{result.passed ? '🎉 Passed!' : 'Not this time'}</h1>
+        {/*
+          Performance summary only — score, pass/fail against the threshold,
+          and (once questions carry a topic tag — they don't yet, see
+          AssessmentsService.getResult) a strong/weak breakdown by area.
+          Never the questions themselves or which answers were right/wrong —
+          that would leak the question bank to every candidate who takes it.
+        */}
         <p>
-          {result.assessmentTitle} — score: <strong>{result.scorePercent}%</strong>
+          {result.assessmentTitle} — score: <strong>{result.scorePercent}%</strong>{' '}
+          <span className="meta">(pass threshold: {result.passThreshold}%)</span>
         </p>
         {result.passed && result.badge ? (
-          <div className="card badge-card">
-            <div>
-              <strong>✓ Verified: {result.skillName} ({result.badge.level})</strong>
-              <div className="meta">
-                Valid until {new Date(result.badge.expiresAt).toLocaleDateString()}
+          <>
+            <div className="card badge-card">
+              <div>
+                <strong>✓ Verified: {result.skillName} ({result.badge.level})</strong>
+                <div className="meta">
+                  Valid until {new Date(result.badge.expiresAt).toLocaleDateString()}
+                </div>
               </div>
+              <Link href={`/badges/${result.badge.verifyHash}`}>
+                <button>View your verified certificate</button>
+              </Link>
             </div>
-            <Link href={`/badges/${result.badge.verifyHash}`}>
-              <button>View certificate</button>
-            </Link>
-          </div>
+          </>
         ) : (
-          <p>Review the material and try again — your best attempt counts.</p>
+          <>
+            <p>Review the material and try again — your best attempt counts.</p>
+            <p className="meta">
+              No cooldown — you can retry this assessment right away, as many times as you like.
+            </p>
+            <div className="row" style={{ margin: 0 }}>
+              <button onClick={retry}>Try again</button>
+            </div>
+          </>
         )}
+        <Link href="/assessments">← Back to assessments</Link>
+      </main>
+    );
+  }
+
+  if (!acknowledged) {
+    return (
+      <main>
+        <h1>Before you begin</h1>
+        <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+          <p style={{ margin: 0 }}>This assessment is monitored for integrity. While it&apos;s in progress:</p>
+          <ul style={{ margin: 0, paddingLeft: 20 }}>
+            <li>Stay in this browser tab and window — don&apos;t switch tabs or apps.</li>
+            <li>Don&apos;t copy or paste.</li>
+            <li>Don&apos;t exit fullscreen.</li>
+            <li>Complete it in one sitting, within the time limit.</li>
+          </ul>
+          <p className="meta" style={{ margin: 0 }}>
+            These are recorded as review signals, not automatic failures — an isolated distraction
+            won&apos;t penalize you. Repeated or serious deviations are flagged for a human to review
+            before any badge is issued.
+          </p>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={ackChecked}
+              onChange={(e) => setAckChecked(e.target.checked)}
+            />
+            I understand and agree to these conditions.
+          </label>
+          <button
+            onClick={() => setAcknowledged(true)}
+            disabled={!ackChecked}
+            style={{ alignSelf: 'flex-start' }}
+          >
+            I understand, begin
+          </button>
+        </div>
         <Link href="/assessments">← Back to assessments</Link>
       </main>
     );
@@ -212,18 +308,6 @@ export default function TakeAssessmentPage() {
       {error && <p className="error">{error}</p>}
       {loaded && !error && questions.length === 0 && (
         <p>This assessment has no questions yet — check back soon.</p>
-      )}
-
-      {showIntegrityNotice && questions.length > 0 && (
-        <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-          <p style={{ margin: 0 }}>
-            This assessment monitors basic integrity signals (tab switches, copy/paste, etc.) as part
-            of verification. Answer normally — a brief distraction won&apos;t penalize you.
-          </p>
-          <button onClick={() => setShowIntegrityNotice(false)} style={{ alignSelf: 'flex-start' }}>
-            Got it
-          </button>
-        </div>
       )}
 
       <div

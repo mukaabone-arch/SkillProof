@@ -3,6 +3,7 @@ import { CredentialVerificationState, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CredlyVerificationService } from './credly-verification.service';
 import { CreateExternalCredentialDto } from './external-credentials.dto';
+import { computeNameMatchState } from './name-match.util';
 
 @Injectable()
 export class ExternalCredentialsService {
@@ -15,6 +16,8 @@ export class ExternalCredentialsService {
   async create(userId: string, dto: CreateExternalCredentialDto) {
     const profile = await this.ensureProfile(userId);
     const result = await this.credly.verify(dto.credentialUrl);
+    // Advisory-only, per NameMatchState — never affects result.state above.
+    const nameMatchState = computeNameMatchState(result.holderName, profile.fullName);
 
     try {
       return await this.prisma.externalCredential.create({
@@ -24,6 +27,7 @@ export class ExternalCredentialsService {
           issuer: result.issuer,
           name: result.name,
           verificationState: result.state,
+          nameMatchState,
           verifiedAt: result.state === CredentialVerificationState.VERIFIED ? new Date() : null,
           externalId: result.externalId,
           issuedAt: result.issuedAt,
