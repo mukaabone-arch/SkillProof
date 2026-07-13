@@ -526,8 +526,8 @@ function ProfilePageInner() {
           </p>
 
           <div className="field">
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-              <label htmlFor="credentialUrl" style={{ margin: 0 }}>Credly badge URL</label>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <label htmlFor="credentialUrl" style={{ margin: 0, whiteSpace: 'nowrap' }}>Credly badge URL</label>
               <details className="hint-toggle">
                 <summary>How do I find this?</summary>
                 <div className="hint-popover">

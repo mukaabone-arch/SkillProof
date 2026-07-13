@@ -65,7 +65,7 @@ export default function OtpLogin({ onLoggedIn }: Props) {
           <Logo className="brand-logo-hero" />
           <span className="brand-product-name">SkillProof</span>
         </div>
-        <p>Verified AI-skill assessments. Log in with your phone to get started.</p>
+        <p>Verified AI-skill assessments. Sign in to get started.</p>
 
         {stage === 'phone' && (
           <div className="row">
