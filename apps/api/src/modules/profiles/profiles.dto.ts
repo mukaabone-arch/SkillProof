@@ -1,8 +1,10 @@
+import { CandidateRoleTitle } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
   IsEmail,
+  IsEnum,
   IsNumber,
   IsOptional,
   IsString,
@@ -30,6 +32,20 @@ export class UpdateProfileDto {
   @IsString()
   @MaxLength(160)
   headline?: string;
+
+  /**
+   * Structured role dropdown — display/filter only, see CandidateRoleTitle's
+   * doc comment in schema.prisma. NEVER read this in scoring.ts.
+   */
+  @IsOptional()
+  @IsEnum(CandidateRoleTitle)
+  roleTitle?: CandidateRoleTitle;
+
+  /** Free text, only meaningful when roleTitle is OTHER. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  roleTitleOther?: string;
 
   @IsOptional()
   @IsString()

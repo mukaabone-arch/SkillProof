@@ -1,4 +1,4 @@
-import { SkillLevel } from '@prisma/client';
+import { CandidateRoleTitle, SkillLevel } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 
@@ -10,6 +10,11 @@ export class SearchCandidatesDto {
   @IsOptional()
   @IsEnum(SkillLevel)
   minLevel?: SkillLevel;
+
+  /** Display/filter only — see CandidateRoleTitle's doc comment. Narrows results, never affects scoring. */
+  @IsOptional()
+  @IsEnum(CandidateRoleTitle)
+  roleTitle?: CandidateRoleTitle;
 
   @IsOptional()
   @Transform(({ value }) => (value === undefined ? true : value === true || value === 'true'))

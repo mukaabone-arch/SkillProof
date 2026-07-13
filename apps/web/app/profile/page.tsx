@@ -9,10 +9,46 @@ import CandidateNav from '@/components/CandidateNav';
 import { isSafeReturnTo } from '@/lib/returnTo';
 import { Badge, EmptyState } from '@/components/ui';
 
+/**
+ * Structured role dropdown — display/filter only, mirrors the API's
+ * CandidateRoleTitle enum. NEVER wire this into any matching/scoring logic;
+ * see scoring.ts's own warning comment. '' means "not set" in form state.
+ */
+type CandidateRoleTitle =
+  | 'AI_ENGINEER'
+  | 'ML_ENGINEER'
+  | 'PROMPT_ENGINEER'
+  | 'DATA_SCIENTIST'
+  | 'MLOPS_ENGINEER'
+  | 'NLP_ENGINEER'
+  | 'COMPUTER_VISION_ENGINEER'
+  | 'RESEARCH_ENGINEER'
+  | 'DATA_ENGINEER'
+  | 'AI_PRODUCT_MANAGER'
+  | 'OTHER';
+
+const ROLE_TITLE_LABELS: Record<CandidateRoleTitle, string> = {
+  AI_ENGINEER: 'AI Engineer',
+  ML_ENGINEER: 'ML Engineer',
+  PROMPT_ENGINEER: 'Prompt Engineer',
+  DATA_SCIENTIST: 'Data Scientist',
+  MLOPS_ENGINEER: 'MLOps Engineer',
+  NLP_ENGINEER: 'NLP Engineer',
+  COMPUTER_VISION_ENGINEER: 'Computer Vision Engineer',
+  RESEARCH_ENGINEER: 'Research Engineer',
+  DATA_ENGINEER: 'Data Engineer',
+  AI_PRODUCT_MANAGER: 'AI Product Manager',
+  OTHER: 'Other',
+};
+
+const ROLE_TITLE_OPTIONS = Object.keys(ROLE_TITLE_LABELS) as CandidateRoleTitle[];
+
 interface Profile {
   fullName: string | null;
   email: string | null;
   headline: string | null;
+  roleTitle: CandidateRoleTitle | null;
+  roleTitleOther: string | null;
   location: string | null;
   yearsOfExp: number | null;
   githubUrl: string | null;
@@ -27,6 +63,8 @@ interface ResumeExtraction {
   location: string | null;
   yearsOfExp: number | null;
   skills: string[];
+  /** AI's best guess at the closest dropdown match — a suggestion only, never auto-applied. */
+  suggestedRoleTitle: CandidateRoleTitle | null;
 }
 
 interface ReviewForm {
@@ -34,12 +72,18 @@ interface ReviewForm {
   headline: string;
   location: string;
   yearsOfExp: string;
+  /** Holds a CandidateRoleTitle key or '' — plain string like the other <select>-bound form fields. */
+  roleTitle: string;
+  roleTitleOther: string;
 }
 
 interface FormState {
   fullName: string;
   email: string;
   headline: string;
+  /** Holds a CandidateRoleTitle key or '' — plain string like the other <select>-bound form fields. */
+  roleTitle: string;
+  roleTitleOther: string;
   location: string;
   yearsOfExp: string;
   githubUrl: string;
@@ -96,6 +140,8 @@ function toForm(p: Profile): FormState {
     fullName: p.fullName ?? '',
     email: p.email ?? '',
     headline: p.headline ?? '',
+    roleTitle: p.roleTitle ?? '',
+    roleTitleOther: p.roleTitleOther ?? '',
     location: p.location ?? '',
     yearsOfExp: p.yearsOfExp !== null && p.yearsOfExp !== undefined ? String(p.yearsOfExp) : '',
     githubUrl: p.githubUrl ?? '',
@@ -167,6 +213,10 @@ function ProfilePageInner() {
         fullName: form.fullName || undefined,
         email: form.email || undefined,
         headline: form.headline || undefined,
+        roleTitle: form.roleTitle || undefined,
+        // Only meaningful when roleTitle is OTHER — omitted otherwise so a
+        // stale value from a previous OTHER selection doesn't linger unread.
+        roleTitleOther: form.roleTitle === 'OTHER' ? form.roleTitleOther || undefined : undefined,
         location: form.location || undefined,
         githubUrl: form.githubUrl || undefined,
         linkedinUrl: form.linkedinUrl || undefined,
@@ -227,6 +277,9 @@ function ProfilePageInner() {
         location: result.location ?? '',
         yearsOfExp:
           result.yearsOfExp !== null && result.yearsOfExp !== undefined ? String(result.yearsOfExp) : '',
+        // A suggestion the candidate must confirm below — never applied until "Looks good" is clicked.
+        roleTitle: result.suggestedRoleTitle ?? '',
+        roleTitleOther: '',
       });
       setApplied(false);
     } catch (e) {
@@ -244,6 +297,8 @@ function ProfilePageInner() {
       const body: Record<string, unknown> = {
         fullName: review.fullName || undefined,
         headline: review.headline || undefined,
+        roleTitle: review.roleTitle || undefined,
+        roleTitleOther: review.roleTitle === 'OTHER' ? review.roleTitleOther || undefined : undefined,
         location: review.location || undefined,
       };
       if (review.yearsOfExp !== '') body.yearsOfExp = Number(review.yearsOfExp);
@@ -377,6 +432,33 @@ function ProfilePageInner() {
           </div>
 
           <div className="field">
+            <label htmlFor="roleTitle">Role</label>
+            <select
+              id="roleTitle"
+              value={form.roleTitle}
+              onChange={(e) => update('roleTitle', e.target.value)}
+            >
+              <option value="">Not set</option>
+              {ROLE_TITLE_OPTIONS.map((r) => (
+                <option key={r} value={r}>{ROLE_TITLE_LABELS[r]}</option>
+              ))}
+            </select>
+            {form.roleTitle === 'OTHER' && (
+              <input
+                value={form.roleTitleOther}
+                onChange={(e) => update('roleTitleOther', e.target.value)}
+                placeholder="Your role title"
+                maxLength={160}
+                style={{ marginTop: 8 }}
+              />
+            )}
+            <p className="meta" style={{ margin: 0 }}>
+              Shown to employers and used to filter candidate search — this never affects your
+              match score, which is driven only by your verified skill badges.
+            </p>
+          </div>
+
+          <div className="field">
             <label htmlFor="location">Location</label>
             <input
               id="location"
@@ -484,6 +566,30 @@ function ProfilePageInner() {
                   value={review.headline}
                   onChange={(e) => setReview({ ...review, headline: e.target.value })}
                 />
+              </div>
+              <div className="field">
+                <label htmlFor="rvRoleTitle">
+                  Role {extraction?.suggestedRoleTitle && <span className="meta">(AI suggestion — confirm or change)</span>}
+                </label>
+                <select
+                  id="rvRoleTitle"
+                  value={review.roleTitle}
+                  onChange={(e) => setReview({ ...review, roleTitle: e.target.value })}
+                >
+                  <option value="">Not set</option>
+                  {ROLE_TITLE_OPTIONS.map((r) => (
+                    <option key={r} value={r}>{ROLE_TITLE_LABELS[r]}</option>
+                  ))}
+                </select>
+                {review.roleTitle === 'OTHER' && (
+                  <input
+                    value={review.roleTitleOther}
+                    onChange={(e) => setReview({ ...review, roleTitleOther: e.target.value })}
+                    placeholder="Your role title"
+                    maxLength={160}
+                    style={{ marginTop: 8 }}
+                  />
+                )}
               </div>
               <div className="field">
                 <label htmlFor="rvLocation">Location</label>

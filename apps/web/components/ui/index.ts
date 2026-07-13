@@ -14,3 +14,5 @@ export { ErrorState } from './ErrorState';
 export type { ErrorStateProps } from './ErrorState';
 export { SegmentedProgress } from './SegmentedProgress';
 export type { SegmentedProgressProps, SegmentedProgressStep, SegmentedProgressState } from './SegmentedProgress';
+export { JobDescription } from './JobDescription';
+export type { JobDescriptionProps } from './JobDescription';

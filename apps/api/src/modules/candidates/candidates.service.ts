@@ -22,7 +22,7 @@ export class CandidatesService {
    * are the only ones with an issued badge to link to.
    */
   async search(dto: SearchCandidatesDto) {
-    const { skillId, minLevel, verifiedOnly, limit, offset } = dto;
+    const { skillId, minLevel, roleTitle, verifiedOnly, limit, offset } = dto;
     const levels = minLevel ? levelsAtOrAbove(minLevel) : undefined;
 
     const matchClaimWhere: Prisma.SkillClaimWhereInput = {
@@ -39,6 +39,12 @@ export class CandidatesService {
     ];
     if (skillId || levels) {
       conditions.push({ skillClaims: { some: matchClaimWhere } });
+    }
+    // Display/filter narrowing only — see CandidateRoleTitle's doc comment.
+    // Never touches scoring; this whole service is a browse/search list, not
+    // a job-match ranking (that's MatchingService.getMatches).
+    if (roleTitle) {
+      conditions.push({ roleTitle });
     }
     const where: Prisma.CandidateProfileWhereInput = { AND: conditions };
 
@@ -70,6 +76,8 @@ export class CandidatesService {
         profileId: p.id,
         fullName: p.fullName,
         headline: p.headline,
+        roleTitle: p.roleTitle,
+        roleTitleOther: p.roleTitleOther,
         location: p.location,
         yearsOfExp: p.yearsOfExp,
         verifiedSkills: p.skillClaims

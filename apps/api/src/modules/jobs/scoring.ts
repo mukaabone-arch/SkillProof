@@ -4,6 +4,15 @@ import { SkillLevel } from '@prisma/client';
  * Deterministic candidate ↔ job scoring. Pure functions, no I/O — the AI
  * explanation layer (LlmService.explainMatch) only narrates this output, it
  * never influences the numbers.
+ *
+ * Inputs are deliberately limited to verified SkillClaims/Badges and
+ * yearsOfExp — see scoreCandidate's signature below. NEVER add
+ * CandidateProfile.roleTitle, headline, location, fullName, or any other
+ * self-reported/unverified profile text field as a scoring input. roleTitle
+ * in particular exists purely for display and employer search/filter (see
+ * its doc comment in schema.prisma) — it carries no verification and must
+ * never influence a match score, no matter how tempting a "boost exact role
+ * matches" feature sounds later.
  */
 
 export interface JobSkillRequirement {

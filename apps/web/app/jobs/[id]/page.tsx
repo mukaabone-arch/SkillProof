@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api, getToken, type ApiError } from '@/lib/api';
+import { JobDescription } from '@/components/ui';
 
 interface JobSkillView {
   skillId: string;
@@ -116,7 +117,7 @@ export default function JobDetailPage() {
 
       <div className="field">
         <label>Description</label>
-        <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{job.description}</p>
+        <JobDescription description={job.description} />
       </div>
 
       <div className="row" style={{ alignItems: 'center' }}>

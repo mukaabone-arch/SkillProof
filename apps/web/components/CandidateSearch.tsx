@@ -25,10 +25,42 @@ interface VerifiedSkill {
   verifyHash: string;
 }
 
+/** Display/filter only — mirrors the API's CandidateRoleTitle enum. Never fed into match scoring. */
+type CandidateRoleTitle =
+  | 'AI_ENGINEER'
+  | 'ML_ENGINEER'
+  | 'PROMPT_ENGINEER'
+  | 'DATA_SCIENTIST'
+  | 'MLOPS_ENGINEER'
+  | 'NLP_ENGINEER'
+  | 'COMPUTER_VISION_ENGINEER'
+  | 'RESEARCH_ENGINEER'
+  | 'DATA_ENGINEER'
+  | 'AI_PRODUCT_MANAGER'
+  | 'OTHER';
+
+const ROLE_TITLE_LABELS: Record<CandidateRoleTitle, string> = {
+  AI_ENGINEER: 'AI Engineer',
+  ML_ENGINEER: 'ML Engineer',
+  PROMPT_ENGINEER: 'Prompt Engineer',
+  DATA_SCIENTIST: 'Data Scientist',
+  MLOPS_ENGINEER: 'MLOps Engineer',
+  NLP_ENGINEER: 'NLP Engineer',
+  COMPUTER_VISION_ENGINEER: 'Computer Vision Engineer',
+  RESEARCH_ENGINEER: 'Research Engineer',
+  DATA_ENGINEER: 'Data Engineer',
+  AI_PRODUCT_MANAGER: 'AI Product Manager',
+  OTHER: 'Other',
+};
+
+const ROLE_TITLE_OPTIONS = Object.keys(ROLE_TITLE_LABELS) as CandidateRoleTitle[];
+
 interface CandidateResult {
   profileId: string;
   fullName: string | null;
   headline: string | null;
+  roleTitle: CandidateRoleTitle | null;
+  roleTitleOther: string | null;
   location: string | null;
   yearsOfExp: number | null;
   verifiedSkills: VerifiedSkill[];
@@ -47,6 +79,7 @@ export default function CandidateSearch() {
   const [domains, setDomains] = useState<Domain[]>([]);
   const [skillId, setSkillId] = useState('');
   const [minLevel, setMinLevel] = useState('');
+  const [roleTitle, setRoleTitle] = useState('');
   const [verifiedOnly, setVerifiedOnly] = useState(true);
 
   const [results, setResults] = useState<CandidateResult[]>([]);
@@ -65,6 +98,7 @@ export default function CandidateSearch() {
       const params = new URLSearchParams();
       if (skillId) params.set('skillId', skillId);
       if (minLevel) params.set('minLevel', minLevel);
+      if (roleTitle) params.set('roleTitle', roleTitle);
       params.set('verifiedOnly', String(verifiedOnly));
 
       const res = await api<SearchResponse>(`/candidates/search?${params.toString()}`);
@@ -106,6 +140,16 @@ export default function CandidateSearch() {
           </select>
         </div>
 
+        <div className="field">
+          <label htmlFor="roleTitle">Role</label>
+          <select id="roleTitle" value={roleTitle} onChange={(e) => setRoleTitle(e.target.value)}>
+            <option value="">Any role</option>
+            {ROLE_TITLE_OPTIONS.map((r) => (
+              <option key={r} value={r}>{ROLE_TITLE_LABELS[r]}</option>
+            ))}
+          </select>
+        </div>
+
         <label className="row" style={{ alignItems: 'center' }}>
           <input
             type="checkbox"
@@ -135,6 +179,11 @@ export default function CandidateSearch() {
           style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}
         >
           <strong>{c.fullName || 'Candidate'}</strong>
+          {c.roleTitle && (
+            <div className="meta">
+              {c.roleTitle === 'OTHER' ? c.roleTitleOther || 'Other' : ROLE_TITLE_LABELS[c.roleTitle]}
+            </div>
+          )}
           {c.headline && <div className="meta">{c.headline}</div>}
           <div className="meta">
             {c.location || 'Location not set'}

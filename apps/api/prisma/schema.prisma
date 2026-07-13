@@ -215,6 +215,28 @@ model OrgMember {
   @@index([organizationId])
 }
 
+/**
+ * Structured job-title dropdown, separate from the free-text `headline`.
+ * Predefined AI/ML role categories the candidate self-selects, plus OTHER
+ * with `roleTitleOther` as its free-text fallback. Display and filter only —
+ * see CandidateRoleTitle's own doc comment for why this must never reach
+ * scoring.ts.
+ */
+enum CandidateRoleTitle {
+  AI_ENGINEER
+  ML_ENGINEER
+  PROMPT_ENGINEER
+  DATA_SCIENTIST
+  MLOPS_ENGINEER
+  NLP_ENGINEER
+  COMPUTER_VISION_ENGINEER
+  RESEARCH_ENGINEER
+  DATA_ENGINEER
+  AI_PRODUCT_MANAGER
+  /** Free-text fallback — see CandidateProfile.roleTitleOther. */
+  OTHER
+}
+
 model CandidateProfile {
   id                 String    @id @default(uuid())
   userId             String    @unique
@@ -231,6 +253,19 @@ model CandidateProfile {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?
+
+  /**
+   * Structured role/title dropdown (roleTitleOther holds the free-text value
+   * when roleTitle is OTHER). Candidate-set directly, or accepted from an
+   * AI resume-parse suggestion only after the candidate confirms it in the
+   * review UI — never auto-applied. Display and employer search/filter
+   * only. NEVER read this in scoring.ts / matching.service.ts — matching is
+   * driven solely by verified SkillClaims and verified ExternalCredentials
+   * (see those models' own "never feeds match scoring" comments); this
+   * field carries no verification and must not influence match scores.
+   */
+  roleTitle      CandidateRoleTitle?
+  roleTitleOther String?
 
   skillClaims         SkillClaim[]
   applications        Application[]
