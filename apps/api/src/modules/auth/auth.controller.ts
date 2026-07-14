@@ -45,6 +45,23 @@ export class AuthController {
     return this.auth.loginWithGithub(dto);
   }
 
+  /**
+   * Employer-portal counterpart of /auth/google and /auth/github — same
+   * code exchange, but only issues a token if the resolved account already
+   * has an employer role and an OrgMember; see AuthService.loginEmployerWithIdentity.
+   */
+  @Post('employer/google')
+  @HttpCode(200)
+  loginEmployerWithGoogle(@Body() dto: OAuthCodeDto) {
+    return this.auth.loginEmployerWithGoogle(dto);
+  }
+
+  @Post('employer/github')
+  @HttpCode(200)
+  loginEmployerWithGithub(@Body() dto: OAuthCodeDto) {
+    return this.auth.loginEmployerWithGithub(dto);
+  }
+
   /** Explicit "connect provider" from settings while already logged in — links regardless of email match. */
   @Post('connect/:provider')
   @HttpCode(200)

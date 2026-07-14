@@ -51,6 +51,10 @@ export const PROVIDER_LABEL: Record<OAuthProviderId, string> = {
 };
 
 const STATE_KEY_PREFIX = 'sp_oauth_state_';
+const PORTAL_KEY_PREFIX = 'sp_oauth_portal_';
+
+/** Which portal kicked off the flow — read back by the callback page to pick the right token client and backend endpoint. Same redirect_uri is reused for both, so this rides in sessionStorage rather than the URL. */
+export type OAuthPortal = 'candidate' | 'employer';
 
 /** Must exactly match what's registered in each provider's console (see docs/oauth-setup.md) and what the callback route posts back to the API. */
 export function redirectUriFor(provider: OAuthProviderId): string {
@@ -71,7 +75,7 @@ function generateState(): string {
  * in sessionStorage (survives the round trip to the provider and back,
  * scoped to this tab) and navigates to the provider's authorize URL.
  */
-export function startOAuthLogin(provider: OAuthProviderId): void {
+export function startOAuthLogin(provider: OAuthProviderId, portal: OAuthPortal = 'candidate'): void {
   const config = PROVIDERS[provider];
   if (!config.clientId) {
     throw new Error(`${PROVIDER_LABEL[provider]} sign-in is not configured.`);
@@ -79,6 +83,7 @@ export function startOAuthLogin(provider: OAuthProviderId): void {
 
   const state = generateState();
   sessionStorage.setItem(STATE_KEY_PREFIX + provider, state);
+  sessionStorage.setItem(PORTAL_KEY_PREFIX + provider, portal);
 
   const params = new URLSearchParams({
     client_id: config.clientId,
@@ -102,4 +107,12 @@ export function consumeStoredState(provider: OAuthProviderId): string | null {
   const value = sessionStorage.getItem(key);
   sessionStorage.removeItem(key);
   return value;
+}
+
+/** Companion to [consumeStoredState] — defaults to 'candidate' if nothing was stored (e.g. the callback was hit directly). */
+export function consumeStoredPortal(provider: OAuthProviderId): OAuthPortal {
+  const key = PORTAL_KEY_PREFIX + provider;
+  const value = sessionStorage.getItem(key);
+  sessionStorage.removeItem(key);
+  return value === 'employer' ? 'employer' : 'candidate';
 }

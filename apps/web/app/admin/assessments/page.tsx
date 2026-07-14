@@ -315,7 +315,7 @@ export default function AdminAssessmentsPage() {
 
   if (status === 'loading') {
     return (
-      <main>
+      <main className="hub">
         <h1>Admin: Assessments</h1>
         <p>Loading…</p>
       </main>
@@ -324,7 +324,7 @@ export default function AdminAssessmentsPage() {
 
   if (status === 'forbidden') {
     return (
-      <main>
+      <main className="hub">
         <h1>Admin: Assessments</h1>
         <p className="error">
           Admins only — log in with a PLATFORM_ADMIN account to manage assessments.
@@ -336,7 +336,7 @@ export default function AdminAssessmentsPage() {
   return (
     <>
       <AdminNav onLoggedOut={() => router.push('/')} />
-      <main>
+      <main className="hub">
       <h1>Admin: Assessments</h1>
       <p>Create assessments and MCQ questions without touching seed scripts.</p>
       {error && <p className="error">{error}</p>}
@@ -461,10 +461,10 @@ export default function AdminAssessmentsPage() {
 
       {assessments.map((a) => (
         <div key={a.id} className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-          <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
-            <div>
+          <div className="assessment-row">
+            <div className="assessment-info">
               <strong>{a.title}</strong>
-              <div className="meta">
+              <div className="meta assessment-meta">
                 {a.skill.domain.name} → {a.skill.name} · {a.targetLevel} · {a.durationMins} min · pass
                 ≥ {a.passThreshold}% · {a.questionsPerAttempt}/attempt · {a._count.questions} question
                 {a._count.questions === 1 ? '' : 's'}
@@ -480,15 +480,24 @@ export default function AdminAssessmentsPage() {
                 </div>
               )}
             </div>
-            <div className="row" style={{ margin: 0 }}>
-              <button onClick={() => (editOpenFor === a.id ? setEditOpenFor(null) : openEdit(a))}>
+            <div className="assessment-actions">
+              <button
+                className="btn btn-secondary"
+                onClick={() => (editOpenFor === a.id ? setEditOpenFor(null) : openEdit(a))}
+              >
                 {editOpenFor === a.id ? 'Cancel' : 'Edit config'}
               </button>
-              <button onClick={() => (openFor === a.id ? setOpenFor(null) : openQuestionForm(a.id))}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => (openFor === a.id ? setOpenFor(null) : openQuestionForm(a.id))}
+              >
                 {openFor === a.id ? 'Cancel' : 'Add question'}
               </button>
-              <button onClick={() => (bulkOpenFor === a.id ? setBulkOpenFor(null) : openBulkImport(a.id))}>
-                {bulkOpenFor === a.id ? 'Cancel' : 'Bulk import questions'}
+              <button
+                className="btn btn-secondary"
+                onClick={() => (bulkOpenFor === a.id ? setBulkOpenFor(null) : openBulkImport(a.id))}
+              >
+                {bulkOpenFor === a.id ? 'Cancel' : 'Bulk import'}
               </button>
             </div>
           </div>

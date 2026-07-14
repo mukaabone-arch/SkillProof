@@ -1,15 +1,20 @@
 'use client';
 
 /**
- * Shared handler for /auth/google/callback and /auth/github/callback.
- * Verifies CSRF `state`, exchanges `code` for our own JWT pair via
- * POST /auth/:provider, stores it with the candidate-scoped setTokens, and
- * bounces to the dashboard. See docs/oauth-setup.md for the full flow.
+ * Shared handler for /auth/google/callback and /auth/github/callback —
+ * for BOTH the candidate app and the employer portal, since both reuse the
+ * same registered redirect_uri. Verifies CSRF `state`, then reads back which
+ * portal kicked off the flow (stashed by startOAuthLogin, see
+ * consumeStoredPortal) to decide: exchange `code` via POST /auth/:provider
+ * and store it with the candidate-scoped setTokens, or via
+ * POST /auth/employer/:provider and store it with employerApi's
+ * sp_emp_token/sp_emp_refresh instead. See docs/oauth-setup.md for the full
+ * flow.
  */
 import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { api, setTokens } from '@/lib/api';
-import { consumeStoredState, redirectUriFor, PROVIDER_LABEL, type OAuthProviderId } from '@/lib/oauth';
+import { api, employerApi, setTokens } from '@/lib/api';
+import { consumeStoredPortal, consumeStoredState, redirectUriFor, PROVIDER_LABEL, type OAuthProviderId } from '@/lib/oauth';
 import Logo from './Logo';
 
 interface Props {
@@ -20,6 +25,7 @@ export default function OAuthCallback({ provider }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
+  const [backHref, setBackHref] = useState<'/' | '/employer'>('/');
   // Guards against React StrictMode's dev-only double-invoke of effects —
   // without it, the second invocation would find consumeStoredState()
   // already emptied by the first and wrongly report an expired session.
@@ -31,6 +37,11 @@ export default function OAuthCallback({ provider }: Props) {
     handled.current = true;
 
     const label = PROVIDER_LABEL[provider];
+    // Which login page kicked off this flow — read (and cleared) once,
+    // up front, so every early-return below can still route back correctly.
+    const portal = consumeStoredPortal(provider);
+    const backHref = portal === 'employer' ? '/employer' : '/';
+    setBackHref(backHref);
 
     // The provider itself reports a problem (most commonly the user hit
     // "Cancel" on the consent screen) — this is expected, everyday traffic,
@@ -66,12 +77,21 @@ export default function OAuthCallback({ provider }: Props) {
 
     (async () => {
       try {
-        const res = await api<{ accessToken: string; refreshToken: string }>(`/auth/${provider}`, {
-          method: 'POST',
-          body: JSON.stringify({ code, redirectUri: redirectUriFor(provider) }),
-        });
-        setTokens(res.accessToken, res.refreshToken);
-        router.replace('/');
+        const body = JSON.stringify({ code, redirectUri: redirectUriFor(provider) });
+        if (portal === 'employer') {
+          const res = await employerApi.api<{ accessToken: string; refreshToken: string }>(
+            `/auth/employer/${provider}`,
+            { method: 'POST', body },
+          );
+          employerApi.setTokens(res.accessToken, res.refreshToken);
+        } else {
+          const res = await api<{ accessToken: string; refreshToken: string }>(`/auth/${provider}`, {
+            method: 'POST',
+            body,
+          });
+          setTokens(res.accessToken, res.refreshToken);
+        }
+        router.replace(backHref);
       } catch (e) {
         setError((e as Error).message);
       }
@@ -88,7 +108,7 @@ export default function OAuthCallback({ provider }: Props) {
         {error ? (
           <>
             <p className="error">{error}</p>
-            <button onClick={() => router.replace('/')}>Back to login</button>
+            <button onClick={() => router.replace(backHref)}>Back to login</button>
           </>
         ) : (
           <p>Signing you in with {PROVIDER_LABEL[provider]}…</p>

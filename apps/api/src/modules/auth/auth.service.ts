@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -8,7 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { IdentityProvider, Role } from '@prisma/client';
+import { IdentityProvider, Role, User } from '@prisma/client';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GithubOAuthProvider } from './oauth/github-oauth.provider';
@@ -17,6 +18,8 @@ import { ExternalProfile, OAuthCodeExchange } from './oauth/oauth.types';
 import { normalizeEmail } from './normalize-email';
 
 const EMPLOYER_ROLES: Role[] = [Role.EMPLOYER_ADMIN, Role.EMPLOYER_MEMBER];
+
+const NOT_AN_EMPLOYER_MESSAGE = "This account isn't registered as an employer. Contact your administrator.";
 
 /** NestJS has no built-in 429 exception, so we define one. */
 class TooManyRequestsException extends HttpException {
@@ -191,15 +194,55 @@ export class AuthService {
    *     straight into your existing account.
    */
   private async loginWithIdentity(provider: IdentityProvider, profile: ExternalProfile) {
+    const user = await this.resolveIdentityUser(provider, profile);
+    if (user) return this.issueTokens(user.id, user.role, this.publicUser(user));
+
+    const created = await this.createUserWithIdentity(provider, profile);
+    return this.issueTokens(created.id, created.role, this.publicUser(created));
+  }
+
+  async loginEmployerWithGoogle(exchange: OAuthCodeExchange) {
+    const profile = await this.google.exchange(exchange);
+    return this.loginEmployerWithIdentity(IdentityProvider.GOOGLE, profile);
+  }
+
+  async loginEmployerWithGithub(exchange: OAuthCodeExchange) {
+    const profile = await this.github.exchange(exchange);
+    return this.loginEmployerWithIdentity(IdentityProvider.GITHUB, profile);
+  }
+
+  /**
+   * Employer-portal counterpart to loginWithIdentity, mirroring the
+   * candidate/employer split in verifyOtp: employer accounts are provisioned
+   * manually (an OrgMember row plus an EMPLOYER_ADMIN/EMPLOYER_MEMBER role),
+   * never auto-created here. So unlike loginWithIdentity, branch 3 (create a
+   * brand-new User) never runs — resolveIdentityUser only *resolves* an
+   * existing account (steps 1-2 of the shared policy above), and if that
+   * comes back empty, or the resolved account isn't an org member with an
+   * employer role, we reject rather than spin up an orphaned candidate
+   * account or promote someone in place.
+   */
+  private async loginEmployerWithIdentity(provider: IdentityProvider, profile: ExternalProfile) {
+    const user = await this.resolveIdentityUser(provider, profile);
+    if (!user || !EMPLOYER_ROLES.includes(user.role)) {
+      throw new ForbiddenException(NOT_AN_EMPLOYER_MESSAGE);
+    }
+
+    const orgMember = await this.prisma.orgMember.findUnique({ where: { userId: user.id } });
+    if (!orgMember) {
+      throw new ForbiddenException(NOT_AN_EMPLOYER_MESSAGE);
+    }
+
+    return this.issueTokens(user.id, user.role, this.publicUser(user));
+  }
+
+  /** Steps 1-2 of the loginWithIdentity policy above, shared with the employer flow: resolves an existing User by Identity or verified-email auto-link. Returns null if neither matches (candidate flow then creates a new User; employer flow then rejects). */
+  private async resolveIdentityUser(provider: IdentityProvider, profile: ExternalProfile): Promise<User | null> {
     const existingIdentity = await this.prisma.identity.findUnique({
       where: { provider_providerId: { provider, providerId: profile.providerId } },
       include: { user: true },
     });
-
-    if (existingIdentity) {
-      const { user } = existingIdentity;
-      return this.issueTokens(user.id, user.role, this.publicUser(user));
-    }
+    if (existingIdentity) return existingIdentity.user;
 
     const linkTarget = await this.findVerifiedEmailMatch(profile);
     if (linkTarget) {
@@ -214,11 +257,10 @@ export class AuthService {
           emailVerified: profile.emailVerified,
         },
       });
-      return this.issueTokens(linkTarget.id, linkTarget.role, this.publicUser(linkTarget));
+      return linkTarget;
     }
 
-    const created = await this.createUserWithIdentity(provider, profile);
-    return this.issueTokens(created.id, created.role, this.publicUser(created));
+    return null;
   }
 
   /**
