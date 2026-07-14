@@ -423,16 +423,17 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
   background: linear-gradient(160deg, var(--card) 0%, var(--indigo-soft) 165%);
   border: 1px solid var(--ink-12); border-radius: var(--radius);
   box-shadow: var(--shadow-md);
-  padding: var(--space-7); margin-bottom: var(--space-8);
+  padding: var(--space-6); margin-bottom: var(--space-7);
 }
 .copilot-eyebrow {
   font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.08em; font-weight: 700;
   color: var(--indigo); text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px;
 }
 .copilot-eyebrow-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--indigo); box-shadow: 0 0 0 3px var(--indigo-soft); flex-shrink: 0; }
+/* Heading-sized, not hero-sized: a confident single insight, not a banner. */
 .copilot-message {
-  font-family: var(--font-display); font-weight: 700; font-size: var(--text-2xl); line-height: 1.2;
-  color: var(--ink); letter-spacing: -0.01em; max-width: 52ch; margin: var(--space-4) 0 var(--space-5);
+  font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; line-height: 1.3;
+  color: var(--ink); letter-spacing: -0.01em; max-width: 52ch; margin: var(--space-3) 0 var(--space-4);
 }
 .copilot-cta { margin: 0; }
 
@@ -490,7 +491,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 @media (max-width: 720px) {
   main.hub { padding-left: 16px; padding-right: 16px; }
   .status-grid { grid-template-columns: 1fr; }
-  .copilot-panel { padding: var(--space-6); }
-  .copilot-message { font-size: var(--text-xl); }
+  .copilot-panel { padding: var(--space-5); }
+  .copilot-message { font-size: 1.25rem; }
   .appnav-links a:not(.appnav-logout-link) { display: none; }
 }
