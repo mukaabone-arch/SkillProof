@@ -31,17 +31,30 @@ interface JobSkillView {
   skill: { id: string; name: string };
 }
 
+type JobStatus = 'DRAFT' | 'LIVE' | 'CLOSED';
+
 interface Job {
   id: string;
   title: string;
+  description: string;
   employmentType: string;
   location: string | null;
   remote: boolean;
   experienceMin: number | null;
   experienceMax: number | null;
-  status: string;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  status: JobStatus;
   skills: JobSkillView[];
 }
+
+/** GET /jobs already returns every scalar Job column (no `select`, only `include: { skills }`) — description/salary were just never read by the frontend before Edit needed to prefill a form with them. */
+
+const JOB_STATUS_BADGE: Record<JobStatus, { label: string; variant: 'default' | 'verified' | 'neutral' }> = {
+  DRAFT: { label: 'Draft', variant: 'default' },
+  LIVE: { label: 'Live', variant: 'verified' },
+  CLOSED: { label: 'Closed', variant: 'neutral' },
+};
 
 interface JobExtraction {
   title: string | null;
@@ -176,10 +189,14 @@ export default function EmployerJobs() {
   const [error, setError] = useState('');
 
   const [showForm, setShowForm] = useState(false);
+  const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const [form, setForm] = useState<JobForm>(emptyForm);
   const [suggested, setSuggested] = useState<SuggestedSkill[]>([]);
   const [parsing, setParsing] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  const [statusUpdatingJobId, setStatusUpdatingJobId] = useState<string | null>(null);
+  const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
 
   const [matchesForJob, setMatchesForJob] = useState<string | null>(null);
   const [matches, setMatches] = useState<CandidateMatch[]>([]);
@@ -213,10 +230,60 @@ export default function EmployerJobs() {
   }
 
   function openForm() {
+    setEditingJobId(null);
     setShowForm(true);
     setForm(emptyForm);
     setSuggested([]);
     setError('');
+  }
+
+  /** Draft-only entry point (see the card's action row) — prefills the same form used to create a job, but saveJob() PATCHes instead of POSTs once editingJobId is set. */
+  function openEditForm(job: Job) {
+    setEditingJobId(job.id);
+    setForm({
+      title: job.title,
+      description: job.description,
+      employmentType: job.employmentType,
+      location: job.location ?? '',
+      remote: job.remote,
+      experienceMin: job.experienceMin !== null ? String(job.experienceMin) : '',
+      experienceMax: job.experienceMax !== null ? String(job.experienceMax) : '',
+      salaryMin: job.salaryMin !== null ? String(job.salaryMin) : '',
+      salaryMax: job.salaryMax !== null ? String(job.salaryMax) : '',
+      status: job.status,
+    });
+    setSuggested([]);
+    setShowForm(true);
+    setError('');
+  }
+
+  /** Post job (DRAFT→LIVE), Unpublish (LIVE→CLOSED), and Reopen (CLOSED→LIVE) all go through the same generic PATCH /jobs/:id the create form's status dropdown already uses — there's no dedicated publish endpoint, and none is needed since this one has no transition restrictions. */
+  async function setJobStatus(jobId: string, status: JobStatus) {
+    setStatusUpdatingJobId(jobId);
+    setError('');
+    try {
+      await api(`/jobs/${jobId}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+      setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, status } : j)));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setStatusUpdatingJobId(null);
+    }
+  }
+
+  /** Draft-only — the backend rejects this for LIVE/CLOSED jobs (see JobsService.remove); a live job's history is closed, not deleted. */
+  async function deleteDraft(jobId: string) {
+    if (!confirm('Delete this draft job? This cannot be undone.')) return;
+    setDeletingJobId(jobId);
+    setError('');
+    try {
+      await api(`/jobs/${jobId}`, { method: 'DELETE' });
+      setJobs((prev) => prev.filter((j) => j.id !== jobId));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setDeletingJobId(null);
+    }
   }
 
   async function parseWithAi() {
@@ -330,7 +397,7 @@ export default function EmployerJobs() {
     }
   }
 
-  async function createJob() {
+  async function saveJob() {
     if (!form.title.trim() || !form.description.trim()) {
       setError('Title and description are required.');
       return;
@@ -351,10 +418,12 @@ export default function EmployerJobs() {
       if (form.salaryMin !== '') body.salaryMin = Number(form.salaryMin);
       if (form.salaryMax !== '') body.salaryMax = Number(form.salaryMax);
 
-      const job = await api<Job>('/jobs', { method: 'POST', body: JSON.stringify(body) });
+      const jobId = editingJobId
+        ? (await api<{ id: string }>(`/jobs/${editingJobId}`, { method: 'PATCH', body: JSON.stringify(body) })).id
+        : (await api<{ id: string }>('/jobs', { method: 'POST', body: JSON.stringify(body) })).id;
 
       if (suggested.length > 0) {
-        await api(`/jobs/${job.id}/skills`, {
+        await api(`/jobs/${jobId}/skills`, {
           method: 'POST',
           body: JSON.stringify({
             skills: suggested.map((s) => ({
@@ -367,6 +436,7 @@ export default function EmployerJobs() {
       }
 
       setShowForm(false);
+      setEditingJobId(null);
       await refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -378,7 +448,7 @@ export default function EmployerJobs() {
   return (
     <>
       <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
-        <h2 style={{ margin: 0 }}>Post a job</h2>
+        <h2 style={{ margin: 0 }}>{showForm && editingJobId ? 'Edit draft' : 'Post a job'}</h2>
         {!showForm && <button onClick={openForm}>+ New job</button>}
       </div>
 
@@ -528,10 +598,15 @@ export default function EmployerJobs() {
           )}
 
           <div className="row" style={{ margin: 0 }}>
-            <button onClick={createJob} disabled={creating}>
-              {creating ? 'Saving…' : 'Save job'}
+            <button onClick={saveJob} disabled={creating}>
+              {creating ? 'Saving…' : editingJobId ? 'Save changes' : 'Save job'}
             </button>
-            <button onClick={() => setShowForm(false)} disabled={creating}>Cancel</button>
+            <button
+              onClick={() => { setShowForm(false); setEditingJobId(null); }}
+              disabled={creating}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
@@ -542,7 +617,7 @@ export default function EmployerJobs() {
         <div key={j.id} className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
           <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
             <strong>{j.title}</strong>
-            <span className={j.status === 'LIVE' ? 'ok' : 'meta'}>{j.status}</span>
+            <Badge variant={JOB_STATUS_BADGE[j.status].variant}>{JOB_STATUS_BADGE[j.status].label}</Badge>
           </div>
           <div className="meta">
             {j.employmentType.replace('_', ' ')} · {j.remote ? 'Remote' : j.location || 'Location not set'}
@@ -558,13 +633,68 @@ export default function EmployerJobs() {
             </div>
           )}
 
-          <div className="row" style={{ margin: 0, marginTop: 8 }}>
+          {/*
+            Actions are status-driven, not just "the same two buttons for
+            every job": a DRAFT has never been visible to candidates, so it
+            can't have applicants (that button is hidden, not disabled — it
+            has nothing to lead to) and its own "matches" is a preview, not
+            live matching, so it's relabeled rather than left looking like a
+            LIVE job's identical action. "Post job" is the one thing a draft
+            actually needs and is the primary (default-styled) action here;
+            Edit/Delete are secondary/danger so the row doesn't read as three
+            equally-weighted choices.
+          */}
+          <div className="row" style={{ margin: 0, marginTop: 8, flexWrap: 'wrap' }}>
+            {j.status === 'DRAFT' && (
+              <button onClick={() => setJobStatus(j.id, 'LIVE')} disabled={statusUpdatingJobId === j.id}>
+                {statusUpdatingJobId === j.id ? 'Posting…' : 'Post job'}
+              </button>
+            )}
+            {j.status === 'LIVE' && (
+              <button
+                className="btn-secondary"
+                onClick={() => setJobStatus(j.id, 'CLOSED')}
+                disabled={statusUpdatingJobId === j.id}
+              >
+                {statusUpdatingJobId === j.id ? 'Closing…' : 'Unpublish'}
+              </button>
+            )}
+            {j.status === 'CLOSED' && (
+              <button
+                className="btn-secondary"
+                onClick={() => setJobStatus(j.id, 'LIVE')}
+                disabled={statusUpdatingJobId === j.id}
+              >
+                {statusUpdatingJobId === j.id ? 'Reposting…' : 'Reopen'}
+              </button>
+            )}
+
             <button onClick={() => viewMatches(j.id)}>
-              {matchesForJob === j.id ? 'Hide matches' : 'View matches'}
+              {matchesForJob === j.id
+                ? 'Hide matches'
+                : j.status === 'DRAFT'
+                  ? 'Preview candidate pool'
+                  : 'View matches'}
             </button>
-            <button onClick={() => viewApplicants(j.id)}>
-              {applicantsForJob === j.id ? 'Hide applicants' : 'View applicants'}
-            </button>
+
+            {j.status !== 'DRAFT' && (
+              <button onClick={() => viewApplicants(j.id)}>
+                {applicantsForJob === j.id ? 'Hide applicants' : 'View applicants'}
+              </button>
+            )}
+
+            {j.status === 'DRAFT' && (
+              <>
+                <button className="btn-secondary" onClick={() => openEditForm(j)}>Edit</button>
+                <button
+                  className="btn-danger"
+                  onClick={() => deleteDraft(j.id)}
+                  disabled={deletingJobId === j.id}
+                >
+                  {deletingJobId === j.id ? 'Deleting…' : 'Delete draft'}
+                </button>
+              </>
+            )}
           </div>
 
           {matchesForJob === j.id && (

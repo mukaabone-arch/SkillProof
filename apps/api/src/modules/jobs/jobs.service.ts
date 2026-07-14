@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClaimStatus, CredentialVerificationState } from '@prisma/client';
+import { ClaimStatus, CredentialVerificationState, JobStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../llm/llm.service';
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
@@ -28,6 +28,27 @@ export class JobsService {
   async update(orgId: string, jobId: string, dto: UpdateJobDto) {
     await this.getOwnedJob(orgId, jobId);
     return this.prisma.job.update({ where: { id: jobId }, data: dto });
+  }
+
+  /**
+   * Draft-only: a LIVE or CLOSED job may already have Applications
+   * referencing it (or simply shouldn't vanish from an employer's history
+   * once candidates have seen it) — those get "Unpublish"/"Close" instead
+   * (PATCH status), never a hard delete. A DRAFT job can never have
+   * Applications (candidate-jobs.service only ever surfaces LIVE jobs), so
+   * deleting one is always safe once its JobSkill rows are cleared first —
+   * there's no ON DELETE CASCADE on that FK.
+   */
+  async remove(orgId: string, jobId: string) {
+    const job = await this.getOwnedJob(orgId, jobId);
+    if (job.status !== JobStatus.DRAFT) {
+      throw new BadRequestException('Only draft jobs can be deleted — close a live job instead.');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.jobSkill.deleteMany({ where: { jobId } });
+      await tx.job.delete({ where: { id: jobId } });
+    });
+    return { ok: true };
   }
 
   async setSkills(orgId: string, jobId: string, items: JobSkillItemDto[]) {

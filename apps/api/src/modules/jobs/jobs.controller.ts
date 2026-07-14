@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -30,6 +30,12 @@ export class JobsController {
   @Patch(':id')
   update(@Req() req: OrgScopedRequest, @Param('id') id: string, @Body() dto: UpdateJobDto) {
     return this.svc.update(req.orgId, id, dto);
+  }
+
+  /** Draft-only — see JobsService.remove for why LIVE/CLOSED jobs are rejected. */
+  @Delete(':id')
+  remove(@Req() req: OrgScopedRequest, @Param('id') id: string) {
+    return this.svc.remove(req.orgId, id);
   }
 
   @Post(':id/skills')
