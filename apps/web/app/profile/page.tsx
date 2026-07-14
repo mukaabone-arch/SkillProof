@@ -370,7 +370,7 @@ function ProfilePageInner() {
   return (
     <>
       {loggedIn && <CandidateNav onLoggedOut={() => setLoggedIn(false)} />}
-      <main>
+      <main className="profile">
       <h1>Your profile</h1>
       <p>Keep this up to date — employers see it alongside your verified badges.</p>
 
@@ -394,6 +394,10 @@ function ProfilePageInner() {
             <div className="progress-fill" style={{ width: `${completeness}%` }} />
           </div>
           <p className="meta" style={{ marginBottom: 24 }}>{completeness}% complete</p>
+
+          <div className="profile-columns">
+          <section className="ui-card profile-panel">
+          <h2>Profile details</h2>
 
           <div className="field">
             <label htmlFor="fullName">Full name</label>
@@ -508,8 +512,11 @@ function ProfilePageInner() {
             </button>
             {saved && <p className="ok" style={{ margin: 0 }}>✓ Saved</p>}
           </div>
+          </section>
 
-          <h2 style={{ marginTop: 32, marginBottom: 16 }}>Resume</h2>
+          <div className="profile-side-col">
+          <section className="ui-card profile-panel">
+          <h2>Resume</h2>
           <p>
             Upload your resume as a PDF, then have AI pull out the highlights. Nothing is saved
             to your profile until you review and confirm it below.
@@ -626,8 +633,10 @@ function ProfilePageInner() {
               </div>
             </div>
           )}
+          </section>
 
-          <h2 style={{ marginTop: 32, marginBottom: 16 }}>External credentials</h2>
+          <section className="ui-card profile-panel">
+          <h2>External credentials</h2>
           <p>
             Add certifications from other platforms. Credly badge URLs are verified automatically
             by checking the badge is public — these are shown to employers as a separate,
@@ -728,6 +737,9 @@ function ProfilePageInner() {
               </div>
             ))
           )}
+          </section>
+          </div>
+          </div>
         </>
       )}
       </main>

@@ -129,6 +129,8 @@ export default function CandidateJobs() {
   const [location, setLocation] = useState('');
   const [remoteOnly, setRemoteOnly] = useState(false);
   const [browsed, setBrowsed] = useState<JobSummary[]>([]);
+  // null = no search run yet (search-first: the tab no longer auto-loads);
+  // 0 = a search ran and matched nothing.
   const [total, setTotal] = useState<number | null>(null);
   const [browsing, setBrowsing] = useState(false);
   const [browseError, setBrowseError] = useState('');
@@ -158,7 +160,6 @@ export default function CandidateJobs() {
 
   useEffect(() => {
     if (tab === 'matched' && matched.length === 0 && !loadingMatched) loadMatched();
-    if (tab === 'browse' && total === null && !browsing) browse();
     if (tab === 'applications' && applications.length === 0 && !loadingApplications) loadApplications();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
@@ -298,11 +299,21 @@ export default function CandidateJobs() {
           </div>
 
           {browseError && <p className="error">{browseError}</p>}
-          {total !== null && (
+
+          {total === null ? (
+            <EmptyState message="Search openings">
+              <p className="meta" style={{ margin: '4px 0 0' }}>
+                Pick a skill, location, or remote, then press Search.
+              </p>
+            </EmptyState>
+          ) : total === 0 ? (
+            <EmptyState message="No jobs matched your search — try a different skill, location, or turn off Remote only." />
+          ) : (
             <p className="meta" style={{ marginTop: 12 }}>
               {total} job{total === 1 ? '' : 's'} found
             </p>
           )}
+
           {browsed.map((j) => (
             <Link key={j.id} href={`/jobs/${j.id}`} style={{ textDecoration: 'none' }}>
               <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>

@@ -333,7 +333,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 /* ---- profile slice ---- */
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
 .field label { font-size: 0.85rem; font-weight: 600; color: var(--ink); }
-.field input { width: 100%; }
+.field input, .field select { width: 100%; }
 .progress-track {
   background: rgba(20, 27, 45, 0.1); border-radius: 999px; height: 8px;
   overflow: hidden; margin-bottom: 6px;
@@ -341,6 +341,23 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .progress-fill {
   background: var(--indigo); height: 100%; border-radius: 999px;
   transition: width 0.2s ease;
+}
+
+/* Wider container so two columns of fields have room to breathe; the
+   progress bar and intro text above the grid still read fine at this width
+   since they're short lines, not body copy. */
+main.profile { max-width: 1080px; }
+/* Left column: the profile form card. Right column: a flex stack of the
+   Resume card and External credentials card, in that DOM order — collapsing
+   to `1fr` below the breakpoint keeps that same source order (form, then
+   resume, then credentials) as a single mobile stack, no reordering needed. */
+.profile-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-7); align-items: start; }
+.profile-side-col { display: flex; flex-direction: column; gap: var(--space-7); min-width: 0; }
+.profile-panel { min-width: 0; }
+.profile-panel h2 { font-size: var(--text-lg); margin-bottom: var(--space-4); }
+@media (max-width: 900px) {
+  main.profile { max-width: 640px; }
+  .profile-columns { grid-template-columns: 1fr; gap: var(--space-6); }
 }
 
 /* ---- dashboard hub ---- */
