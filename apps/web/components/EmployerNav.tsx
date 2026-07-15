@@ -19,7 +19,7 @@ export default function EmployerNav({ onLoggedOut }: Props) {
   // page-local onLoggedOut callback, so logout reliably lands on the
   // employer login screen regardless of which employer page it's fired from.
   async function handleLogout() {
-    await logout();
+    await employerApi.logout();
     onLoggedOut();
     router.replace('/employer');
   }
