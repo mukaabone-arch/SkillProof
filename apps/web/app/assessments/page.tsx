@@ -4,9 +4,10 @@
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { api, getToken } from '@/lib/api';
+import { api } from '@/lib/api';
 import CandidateNav from '@/components/CandidateNav';
 import { isSafeReturnTo } from '@/lib/returnTo';
+import { useRequireAuth } from '@/lib/useRequireAuth';
 
 interface AssessmentItem {
   id: string;
@@ -23,43 +24,33 @@ function AssessmentsPageInner() {
   const searchParams = useSearchParams();
   const returnTo = searchParams.get('returnTo');
 
+  const ready = useRequireAuth();
   const [items, setItems] = useState<AssessmentItem[]>([]);
   const [error, setError] = useState('');
-  // Resolved after mount so server and client render the same first pass
-  // (prevents the hydration mismatch on the "not logged in" message).
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [ready, setReady] = useState(false);
-  // Light, non-blocking nudge only — assessments stay fully accessible with
-  // or without a profile (free exploration is the design principle).
+  // Light, non-blocking nudge only — an empty profile never blocks taking
+  // an assessment, it's just surfaced as a tip below.
   const [profileEmpty, setProfileEmpty] = useState(false);
 
   useEffect(() => {
-    const hasToken = !!getToken();
-    setLoggedIn(hasToken);
-    setReady(true);
+    if (!ready) return;
     api<AssessmentItem[]>('/assessments')
       .then((items) => setItems(items.filter((a) => a._count.questions > 0)))
       .catch((e) => setError(e.message));
-    if (hasToken) {
-      api<{ completeness: number }>('/profiles/me')
-        .then((p) => setProfileEmpty(p.completeness === 0))
-        .catch(() => undefined);
-    }
-  }, []);
+    api<{ completeness: number }>('/profiles/me')
+      .then((p) => setProfileEmpty(p.completeness === 0))
+      .catch(() => undefined);
+  }, [ready]);
+
+  if (!ready) return null;
 
   return (
     <>
-      {loggedIn && <CandidateNav onLoggedOut={() => setLoggedIn(false)} />}
+      <CandidateNav />
       <main>
         <h1>Assessments</h1>
         <p>Pass an assessment to earn a verified skill badge.</p>
-        {ready && !loggedIn && (
-          <p className="error">
-            You are not logged in — <Link href="/">log in first</Link> to start an attempt.
-          </p>
-        )}
         {error && <p className="error">{error}</p>}
-        {ready && items.length === 0 && !error && (
+        {items.length === 0 && !error && (
           <p>
             No assessments are available just yet — check back soon. In the
             meantime, you can{' '}
@@ -67,13 +58,13 @@ function AssessmentsPageInner() {
             profile to start applying.
           </p>
         )}
-        {loggedIn && profileEmpty && items.length > 0 && (
+        {profileEmpty && items.length > 0 && (
           <p className="meta" style={{ marginTop: -8, marginBottom: 20 }}>
             Tip: completing your profile helps employers find you once you&apos;ve earned a badge —{' '}
             <Link href="/profile">complete your profile →</Link>
           </p>
         )}
-        {loggedIn && isSafeReturnTo(returnTo) && items.length > 0 && (
+        {isSafeReturnTo(returnTo) && items.length > 0 && (
           <p className="meta" style={{ marginTop: -8, marginBottom: 20 }}>
             Pass an assessment to earn a verified badge, then{' '}
             <Link href={returnTo}>return to the job you were applying to →</Link>

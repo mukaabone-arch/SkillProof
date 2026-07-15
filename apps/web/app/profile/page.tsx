@@ -4,9 +4,10 @@
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { api, getToken } from '@/lib/api';
+import { api } from '@/lib/api';
 import CandidateNav from '@/components/CandidateNav';
 import { isSafeReturnTo } from '@/lib/returnTo';
+import { useRequireAuth } from '@/lib/useRequireAuth';
 import { Badge, EmptyState } from '@/components/ui';
 
 /**
@@ -154,10 +155,9 @@ function ProfilePageInner() {
   const searchParams = useSearchParams();
   const returnTo = searchParams.get('returnTo');
 
+  const ready = useRequireAuth();
   const [form, setForm] = useState<FormState | null>(null);
   const [completeness, setCompleteness] = useState(0);
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -182,10 +182,7 @@ function ProfilePageInner() {
   const [deletingCredentialId, setDeletingCredentialId] = useState<string | null>(null);
 
   useEffect(() => {
-    const hasToken = !!getToken();
-    setLoggedIn(hasToken);
-    setReady(true);
-    if (!hasToken) return;
+    if (!ready) return;
     api<Profile>('/profiles/me')
       .then((p) => {
         setForm(toForm(p));
@@ -196,7 +193,7 @@ function ProfilePageInner() {
     api<ExternalCredential[]>('/profiles/me/external-credentials')
       .then(setCredentials)
       .catch(() => undefined);
-  }, []);
+  }, [ready]);
 
   function update<K extends keyof FormState>(key: K, value: string) {
     setForm((f) => (f ? { ...f, [key]: value } : f));
@@ -367,22 +364,18 @@ function ProfilePageInner() {
 
   const credentialUrlError = validateCredentialUrl(credentialUrl.trim());
 
+  if (!ready) return null;
+
   return (
     <>
-      {loggedIn && <CandidateNav onLoggedOut={() => setLoggedIn(false)} />}
+      <CandidateNav />
       <main className="profile">
       <h1>Your profile</h1>
       <p>Keep this up to date — employers see it alongside your verified badges.</p>
 
-      {ready && loggedIn && isSafeReturnTo(returnTo) && (
+      {isSafeReturnTo(returnTo) && (
         <p className="meta" style={{ marginTop: -16 }}>
           Complete your profile, then save to go straight back and apply.
-        </p>
-      )}
-
-      {ready && !loggedIn && (
-        <p className="error">
-          You are not logged in — <Link href="/">log in first</Link> to edit your profile.
         </p>
       )}
 

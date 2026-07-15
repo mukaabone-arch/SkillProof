@@ -14,23 +14,24 @@ const LINKS = [
 ];
 
 interface Props {
-  onLoggedOut: () => void;
+  /** Optional: pages guarded by useRequireAuth don't need local teardown — the redirect below already handles it. */
+  onLoggedOut?: () => void;
 }
 
 export default function CandidateNav({ onLoggedOut }: Props) {
   const pathname = usePathname();
   const router = useRouter();
 
-  // Every page that renders this nav tracks its own "loggedIn" state, and
-  // most of them (/profile, /jobs, /assessments, /resume) live on a route
-  // other than the login page itself — flipping that local state alone just
-  // strands the user on the same page with the nav gone. Navigate explicitly
-  // so logout always lands on the login screen, from any tab, on any route.
-  // Tokens must be cleared (awaited) before navigating so the destination
-  // page's own getToken() check sees the logged-out state on first render.
+  // Some pages that render this nav (e.g. /resume) still track their own
+  // "loggedIn" state, and live on a route other than the login page itself —
+  // flipping that local state alone just strands the user on the same page
+  // with the nav gone. Navigate explicitly so logout always lands on the
+  // login screen, from any tab, on any route. Tokens must be cleared
+  // (awaited) before navigating so the destination page's own getToken()
+  // check sees the logged-out state on first render.
   async function handleLogout() {
     await logout();
-    onLoggedOut();
+    onLoggedOut?.();
     router.replace('/');
   }
 
