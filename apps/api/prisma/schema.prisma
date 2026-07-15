@@ -165,6 +165,7 @@ model User {
   notifications    Notification[]
   reviewedAttempts Attempt[]         @relation("AttemptReviewedBy")
   identities       Identity[]
+  assessmentSessions AssessmentSession[]
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
@@ -579,4 +580,107 @@ model RefreshToken {
   createdAt DateTime  @default(now())
 
   @@index([userId])
+}
+
+// ---------- Conversational AI assessor sessions (RAG Systems L2, text-based) ----------
+
+enum AssessmentSessionStatus {
+  IN_PROGRESS
+  AWAITING_SCORING
+  EXPIRED
+}
+
+/**
+ * The six claims in the RAG Systems L2 rubric (see rag-systems-l2.rubric.ts
+ * in the assessment-sessions module for the probe content per claim). Order
+ * here is cosmetic — CLAIM_ORDER in that file is what actually drives the
+ * ladder walk.
+ */
+enum RagL2Claim {
+  CHUNKING
+  DIAGNOSIS
+  RERANKING
+  CORPUS_CHANGE
+  EVALUATION
+  COST
+}
+
+enum ProbeRung {
+  OPENING
+  FOLLOWUP
+  CONSTRAINT
+}
+
+enum SessionTurnRole {
+  CANDIDATE
+  ASSESSOR
+}
+
+/**
+ * One live conversational assessment. ladderState is the single source of
+ * truth for "where the ladder walk currently is" (see AssessorService's
+ * LadderState type) — a resumed session re-reads it and re-asks exactly the
+ * probe that was outstanding, rather than restarting. pinnedBrief is a
+ * denormalized copy of the scenario text handed to the candidate at session
+ * start, kept separate from the turn transcript so the client can keep it
+ * pinned on screen without re-parsing the opening turn.
+ */
+model AssessmentSession {
+  id             String                  @id @default(uuid())
+  userId         String
+  user           User                    @relation(fields: [userId], references: [id])
+  status         AssessmentSessionStatus @default(IN_PROGRESS)
+  pinnedBrief    String
+  ladderState    Json
+  startedAt      DateTime                @default(now())
+  lastActivityAt DateTime                @default(now())
+  expiresAt      DateTime
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  turns         SessionTurn[]
+  interruptions SessionInterruption[]
+
+  @@index([userId])
+}
+
+/**
+ * One message in the conversation. claimId/probeRung record which ladder
+ * position this turn targets (the probe an ASSESSOR turn is asking, or the
+ * probe a CANDIDATE turn is answering) — both null for reflection-stage
+ * turns, which aren't scored against any claim. superseded marks a turn
+ * that was re-asked after a resume (see AssessmentSessionsService.resume) —
+ * superseded turns are excluded from the conversation history sent to the
+ * model and from the candidate-facing transcript, but kept for audit.
+ */
+model SessionTurn {
+  id         String            @id @default(uuid())
+  sessionId  String
+  session    AssessmentSession @relation(fields: [sessionId], references: [id])
+  role       SessionTurnRole
+  content    String
+  claimId    RagL2Claim?
+  probeRung  ProbeRung?
+  superseded Boolean           @default(false)
+  createdAt  DateTime          @default(now())
+
+  @@index([sessionId])
+}
+
+/**
+ * Audit trail for a session going EXPIRED (idle timeout) and, once resumed,
+ * how that resume was handled. fragmentTurnId points at the ASSESSOR turn
+ * that was outstanding when the session broke — the one marked superseded
+ * and re-asked fresh on resume (see resume() in the service).
+ */
+model SessionInterruption {
+  id             String            @id @default(uuid())
+  sessionId      String
+  session        AssessmentSession @relation(fields: [sessionId], references: [id])
+  occurredAt     DateTime          @default(now())
+  resumedAt      DateTime?
+  fragmentTurnId String?
+  createdAt      DateTime          @default(now())
+
+  @@index([sessionId])
 }
