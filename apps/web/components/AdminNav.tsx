@@ -6,7 +6,10 @@ import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '@/lib/api';
 import Logo from './Logo';
 
-const LINKS = [{ href: '/admin/assessments', label: 'Assessments' }];
+const LINKS = [
+  { href: '/admin/assessments', label: 'Assessments' },
+  { href: '/admin/review', label: 'Session Reviews' },
+];
 
 interface Props {
   onLoggedOut: () => void;

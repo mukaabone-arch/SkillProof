@@ -167,6 +167,7 @@ model User {
   identities       Identity[]
   assessmentSessions AssessmentSession[]
   reviewedClaimVerdicts ClaimVerdict[] @relation("ClaimVerdictReviewedBy")
+  decidedSessions AssessmentSession[] @relation("SessionDecidedBy")
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
@@ -556,12 +557,24 @@ model AttemptAnswer {
   @@unique([attemptId, questionId])
 }
 
+/**
+ * Issued from exactly one of two sources, never both — MCQ attempts
+ * (AssessmentsService.issueBadge) or reviewed conversational sessions
+ * (ReviewService.issueBadge, only via POST /assessment-sessions/:id/decision
+ * ISSUE). Both attemptId and sessionId are nullable rather than a shared
+ * required FK because the two source models are unrelated; each issuance
+ * path only ever sets its own column. No DB-level "exactly one" constraint —
+ * enforced by there being exactly two controlled call sites, same as the
+ * rest of this schema's soft invariants.
+ */
 model Badge {
   id         String     @id @default(uuid())
   userId     String
   user       User       @relation(fields: [userId], references: [id])
-  attemptId  String     @unique
-  attempt    Attempt    @relation(fields: [attemptId], references: [id])
+  attemptId  String?    @unique
+  attempt    Attempt?   @relation(fields: [attemptId], references: [id])
+  sessionId  String?    @unique
+  session    AssessmentSession? @relation(fields: [sessionId], references: [id])
   verifyHash String     @unique
   level      SkillLevel
   issuedAt   DateTime   @default(now())
@@ -590,6 +603,11 @@ enum AssessmentSessionStatus {
   AWAITING_SCORING
   AWAITING_REVIEW
   EXPIRED
+  // Terminal decision outcomes — set only by ReviewService.decide, and only
+  // once every ClaimVerdict has a reviewerVerdict. ISSUE also mints a Badge
+  // (see ReviewService.issueBadge); REJECT never does.
+  ISSUED
+  REJECTED
 }
 
 /**
@@ -649,12 +667,20 @@ model AssessmentSession {
   // POST /assessment-sessions/:id/score rather than vanishing silently.
   scoredAt       DateTime?
   scoringError   String?
+  // Set once by ReviewService.decide (ISSUED or REJECTED) — never touched
+  // again afterward. decisionNote carries the REJECT reason, or an optional
+  // note on ISSUE.
+  decidedAt        DateTime?
+  decidedByUserId  String?
+  decidedByUser    User?     @relation("SessionDecidedBy", fields: [decidedByUserId], references: [id])
+  decisionNote     String?
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
 
   turns         SessionTurn[]
   interruptions SessionInterruption[]
   claimVerdicts ClaimVerdict[]
+  badge         Badge?
 
   @@index([userId])
 }
@@ -705,6 +731,13 @@ enum Verdict {
   PARTIAL
   NOT_EVIDENCED
   ABSTAIN
+  // Reviewer-only — the model never produces this (ScoringService's own
+  // record_verdict tool schema is still restricted to the four values
+  // above). Means the assessor failed to elicit evidence on this claim at
+  // all — a verdict about the session/assessor, not the candidate. Blocks
+  // ISSUE for the gating claims (see ReviewService's level rule) in favor
+  // of offering a re-take, never a rejection.
+  INSUFFICIENT_PROBING
 }
 
 /**
@@ -719,6 +752,9 @@ enum Verdict {
  * signal. modelConfidence is captured for the same calibration purpose and
  * deliberately unused elsewhere — triage keys off bandBoundary/ABSTAIN, not
  * confidence (near-constant in harness runs, not a real judgment signal).
+ * reviewerVerdict/reviewerId/reviewerNote/reviewedAt are write-once — see
+ * ReviewService.reviewClaim's 409 on a second attempt; a mistaken review is
+ * corrected by a second reviewer's note later, never by overwriting.
  */
 model ClaimVerdict {
   id            String            @id @default(uuid())

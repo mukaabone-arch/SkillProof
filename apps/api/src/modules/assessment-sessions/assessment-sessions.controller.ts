@@ -5,7 +5,8 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { AssessmentSessionsService } from './assessment-sessions.service';
 import { ScoringService } from './scoring.service';
-import { PostSessionTurnDto } from './assessment-sessions.dto';
+import { ReviewService } from './review.service';
+import { PostSessionTurnDto, ReviewClaimDto, SessionDecisionDto } from './assessment-sessions.dto';
 
 /** Candidate-facing session summary — never includes ladderState. */
 function toSessionResponse(session: AssessmentSession) {
@@ -24,6 +25,7 @@ export class AssessmentSessionsController {
   constructor(
     private readonly svc: AssessmentSessionsService,
     private readonly scoring: ScoringService,
+    private readonly review: ReviewService,
   ) {}
 
   @Post()
@@ -69,5 +71,34 @@ export class AssessmentSessionsController {
   async retryScore(@Param('id') id: string) {
     const session = await this.scoring.retryScoring(id);
     return { session: toSessionResponse(session) };
+  }
+
+  /** The reviewer's case payload — anti-anchoring enforced inside ReviewService, not here. */
+  @Get(':id/review')
+  @UseGuards(RolesGuard)
+  @Roles(Role.PLATFORM_ADMIN)
+  getReviewCase(@Param('id') id: string) {
+    return this.review.getReviewCase(id);
+  }
+
+  /** Write-once per claim — 409 if already reviewed. Reveals the model's verdict/reason only in this response. */
+  @Post(':id/claims/:claimId/review')
+  @UseGuards(RolesGuard)
+  @Roles(Role.PLATFORM_ADMIN)
+  reviewClaim(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Param('claimId') claimId: string,
+    @Body() dto: ReviewClaimDto,
+  ) {
+    return this.review.reviewClaim(id, claimId, req.user.sub, dto.verdict, dto.note);
+  }
+
+  /** 409 unless every claim has a reviewerVerdict. ISSUE mints a badge through the existing Badge/SkillClaim mechanism. */
+  @Post(':id/decision')
+  @UseGuards(RolesGuard)
+  @Roles(Role.PLATFORM_ADMIN)
+  decide(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: SessionDecisionDto) {
+    return this.review.decide(id, req.user.sub, dto.decision, dto.note);
   }
 }

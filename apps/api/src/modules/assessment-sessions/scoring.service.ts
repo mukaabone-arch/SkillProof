@@ -234,12 +234,14 @@ export class ScoringService {
 
     const rows = sessions.map((s) => {
       const counts = { demonstrated: 0, partial: 0, notEvidenced: 0, abstain: 0, boundary: 0 };
+      let reviewedCount = 0;
       for (const v of s.claimVerdicts) {
         if (v.verdict === Verdict.DEMONSTRATED) counts.demonstrated++;
         else if (v.verdict === Verdict.PARTIAL) counts.partial++;
         else if (v.verdict === Verdict.NOT_EVIDENCED) counts.notEvidenced++;
         else if (v.verdict === Verdict.ABSTAIN) counts.abstain++;
         if (v.bandBoundary) counts.boundary++;
+        if (v.reviewerVerdict !== null) reviewedCount++;
       }
       return {
         sessionId: s.id,
@@ -250,6 +252,11 @@ export class ScoringService {
         counts,
         interruptionCount: s._count.interruptions,
         needsPriorityReview: counts.abstain > 0 || counts.boundary > 0,
+        // Surfaces partially-reviewed cases in the queue (e.g. "3/6 reviewed")
+        // — a case a reviewer started but didn't finish shouldn't look
+        // identical to one nobody has touched yet.
+        reviewedCount,
+        totalClaims: s.claimVerdicts.length,
       };
     });
 
