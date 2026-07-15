@@ -10,7 +10,8 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssessorService, LadderState } from './assessor.service';
-import { CLAIM_ORDER, SCENARIO_BRIEF } from './rag-systems-l2.rubric';
+import { ScoringService } from './scoring.service';
+import { CLAIM_ORDER, RUBRIC_VERSION, SCENARIO_BRIEF } from './rag-systems-l2.rubric';
 
 /**
  * How long a session can sit idle (no candidate turn) before it's
@@ -52,6 +53,7 @@ export class AssessmentSessionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly assessor: AssessorService,
+    private readonly scoring: ScoringService,
   ) {}
 
   /**
@@ -78,6 +80,7 @@ export class AssessmentSessionsService {
         userId,
         status: AssessmentSessionStatus.IN_PROGRESS,
         pinnedBrief: SCENARIO_BRIEF,
+        rubricVersion: RUBRIC_VERSION,
         ladderState: ladderState as unknown as Prisma.InputJsonValue,
         expiresAt: new Date(Date.now() + IDLE_TIMEOUT_MINUTES * 60_000),
         turns: {
@@ -158,6 +161,16 @@ export class AssessmentSessionsService {
         expiresAt: new Date(Date.now() + IDLE_TIMEOUT_MINUTES * 60_000),
       },
     });
+
+    if (completesSession) {
+      // Fire-and-forget: scoreSession persists its own success/failure state
+      // (status -> AWAITING_REVIEW, or scoringError set while staying
+      // AWAITING_SCORING) — this .catch only stops an unhandled rejection
+      // from surfacing, it isn't the error-handling path.
+      this.scoring.scoreSession(sessionId).catch((err: Error) => {
+        this.logger.warn(`Fire-and-forget scoring failed for session ${sessionId}: ${err.message}`);
+      });
+    }
 
     return { candidateTurn: toPublicTurn(candidateTurn), assessorTurn: toPublicTurn(assessorTurn), session };
   }
