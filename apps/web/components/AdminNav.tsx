@@ -2,7 +2,7 @@
 
 /** Persistent nav for the PLATFORM_ADMIN console — parallel to CandidateNav/EmployerNav, scoped to admin-only pages. */
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '@/lib/api';
 import Logo from './Logo';
 
@@ -14,10 +14,15 @@ interface Props {
 
 export default function AdminNav({ onLoggedOut }: Props) {
   const pathname = usePathname();
+  const router = useRouter();
 
+  // See CandidateNav's handleLogout: navigate explicitly rather than relying
+  // on the caller's onLoggedOut to redirect — admins share the candidate OTP
+  // login at '/'.
   async function handleLogout() {
     await logout();
     onLoggedOut();
+    router.replace('/');
   }
 
   return (
