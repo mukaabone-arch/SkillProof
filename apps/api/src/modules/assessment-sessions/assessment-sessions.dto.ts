@@ -1,5 +1,5 @@
 import { Verdict } from '@prisma/client';
-import { IsEnum, IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class PostSessionTurnDto {
   @IsString()
@@ -35,4 +35,15 @@ export class DisputeClaimDto {
   @IsNotEmpty()
   @MaxLength(2000)
   body: string;
+}
+
+/** Body for POST /assessment-sessions/:id/claims/:claimId/dispute/resolve. */
+export class ResolveDisputeDto {
+  @IsBoolean()
+  upheld: boolean;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2000)
+  resolution: string;
 }

@@ -6,7 +6,13 @@ import { Roles } from '../auth/roles.decorator';
 import { AssessmentSessionsService } from './assessment-sessions.service';
 import { ScoringService } from './scoring.service';
 import { ReviewService } from './review.service';
-import { DisputeClaimDto, PostSessionTurnDto, ReviewClaimDto, SessionDecisionDto } from './assessment-sessions.dto';
+import {
+  DisputeClaimDto,
+  PostSessionTurnDto,
+  ResolveDisputeDto,
+  ReviewClaimDto,
+  SessionDecisionDto,
+} from './assessment-sessions.dto';
 
 /** Candidate-facing session summary — never includes ladderState. */
 function toSessionResponse(session: AssessmentSession) {
@@ -127,5 +133,13 @@ export class AssessmentSessionsController {
     @Body() dto: DisputeClaimDto,
   ) {
     return this.svc.disputeClaim(req.user.sub, id, claimId, dto.body);
+  }
+
+  /** Write-once per claim dispute — 409 if already resolved. Reverts the session off DISPUTED once none remain unresolved. */
+  @Post(':id/claims/:claimId/dispute/resolve')
+  @UseGuards(RolesGuard)
+  @Roles(Role.PLATFORM_ADMIN)
+  resolveDispute(@Param('id') id: string, @Param('claimId') claimId: string, @Body() dto: ResolveDisputeDto) {
+    return this.svc.resolveDispute(id, claimId, dto.upheld, dto.resolution);
   }
 }

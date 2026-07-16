@@ -28,16 +28,23 @@ interface MineSession {
 }
 
 /**
- * Below "View result" for a REJECTED session — cooldown-gated unless the
- * decision was INSUFFICIENT_PROBING (immediate, free retake; that's on the
- * assessor, not the candidate). The disabled state here is UX only: the
- * real rule is enforced server-side in POST /assessment-sessions (409 if
- * still inside the window), in case of a stale page or clock skew.
+ * Below "View result" for a REJECTED or DISPUTED session. A DISPUTED session
+ * blocks retake outright (disabled, no date — there's no decided outcome to
+ * cool down from yet). REJECTED is cooldown-gated unless the decision was
+ * INSUFFICIENT_PROBING, or a prior dispute was upheld (both immediate, free
+ * retakes — a fault of the process, not the candidate). The disabled state
+ * here is UX only: the real rule is enforced server-side in
+ * POST /assessment-sessions (409 if still inside the window, or while a
+ * dispute is pending), in case of a stale page or clock skew.
  */
 function RetakeAction({ mine }: { mine: MineSession }) {
   const router = useRouter();
   const [retaking, setRetaking] = useState(false);
   const [error, setError] = useState('');
+
+  if (mine.status === 'DISPUTED') {
+    return <span className="meta">Available after your dispute is resolved</span>;
+  }
 
   const cooldownActive = !mine.insufficientProbing && !!mine.retakeAvailableAt && new Date(mine.retakeAvailableAt).getTime() > Date.now();
 
@@ -87,16 +94,16 @@ function DiscussionAction({ mine }: { mine: MineSession | null | undefined }) {
       </Link>
     );
   }
-  if (mine && (mine.status === 'AWAITING_SCORING' || mine.status === 'AWAITING_REVIEW' || mine.status === 'DISPUTED')) {
+  if (mine && (mine.status === 'AWAITING_SCORING' || mine.status === 'AWAITING_REVIEW')) {
     return <span className="meta">In review</span>;
   }
-  if (mine && (mine.status === 'ISSUED' || mine.status === 'REJECTED')) {
+  if (mine && (mine.status === 'ISSUED' || mine.status === 'REJECTED' || mine.status === 'DISPUTED')) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
         <Link href={`/assessments/discussion/session/${mine.id}/result`}>
           <button>View result</button>
         </Link>
-        {mine.status === 'REJECTED' && <RetakeAction mine={mine} />}
+        {(mine.status === 'REJECTED' || mine.status === 'DISPUTED') && <RetakeAction mine={mine} />}
       </div>
     );
   }

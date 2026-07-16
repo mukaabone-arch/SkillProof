@@ -610,9 +610,9 @@ enum AssessmentSessionStatus {
   REJECTED
   // Set by a candidate disputing a claim on an already-decided (ISSUED or
   // REJECTED) session (see AssessmentSessionsService.disputeClaim). Reappears
-  // in the admin review queue flagged as disputed; nothing here resolves
-  // it automatically — ClaimDispute.resolvedAt/resolution are for a future
-  // admin resolution action.
+  // in the admin review queue flagged as disputed. Resolved by
+  // AssessmentSessionsService.resolveDispute, which reverts the session to
+  // AssessmentSession.preDisputeStatus once no disputes remain unresolved.
   DISPUTED
 }
 
@@ -680,6 +680,13 @@ model AssessmentSession {
   decidedByUserId  String?
   decidedByUser    User?     @relation("SessionDecidedBy", fields: [decidedByUserId], references: [id])
   decisionNote     String?
+  // The status just before a dispute flipped this session to DISPUTED —
+  // cleared once resolveDispute reverts to it (see
+  // AssessmentSessionsService.disputeClaim/resolveDispute). Never touched by
+  // anything but those two methods; decidedAt is never touched by disputing
+  // either, so the original decision timestamp — and the retake cooldown
+  // computed from it — survives a dispute untouched.
+  preDisputeStatus AssessmentSessionStatus?
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
 
@@ -821,6 +828,13 @@ model ClaimDispute {
   createdAt   DateTime          @default(now())
   resolvedAt  DateTime?
   resolution  String?
+  // Set together with resolvedAt/resolution by
+  // AssessmentSessionsService.resolveDispute — null until resolved. An
+  // upheld dispute (the reviewer's verdict was wrong) exempts the session
+  // from the retake cooldown once reverted to REJECTED, the same way
+  // Verdict.INSUFFICIENT_PROBING does: it's a fault of the process, not the
+  // candidate. See isRetakeCooldownExempt.
+  upheld      Boolean?
 
   @@unique([sessionId, claimId])
   @@index([sessionId])

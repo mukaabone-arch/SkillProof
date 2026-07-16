@@ -181,6 +181,7 @@ export default function DiscussionResultPage() {
             {retaking ? 'Starting…' : 'Retake assessment'}
           </button>
         ))}
+      {data.outcome === 'DISPUTED' && <p className="meta">Available after your dispute is resolved.</p>}
 
       {data.badge && (
         <div className="card badge-card">

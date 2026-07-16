@@ -35,6 +35,27 @@ function isInsufficientProbing(claimVerdicts: { claimId: RagL2Claim; reviewerVer
 }
 
 /**
+ * True once any of the session's disputes was resolved in the candidate's
+ * favor — the reviewer's verdict was wrong, which (like INSUFFICIENT_PROBING)
+ * is a fault of the process, not the candidate.
+ */
+function hasUpheldDispute(disputes: { upheld: boolean | null }[]): boolean {
+  return disputes.some((d) => d.upheld === true);
+}
+
+/**
+ * Combines both reasons a REJECTED session's retake cooldown doesn't apply.
+ * Shared by createSession's cooldown check, getMine, and getResult so all
+ * three agree on when a retake is immediate and free.
+ */
+function isRetakeCooldownExempt(
+  claimVerdicts: { claimId: RagL2Claim; reviewerVerdict: Verdict | null }[],
+  disputes: { upheld: boolean | null }[],
+): boolean {
+  return isInsufficientProbing(claimVerdicts) || hasUpheldDispute(disputes);
+}
+
+/**
  * Candidate-facing fallback when a claim has no reviewerNote — never falls
  * back to the model's own `reason` text (that's model-authored content, and
  * the whole point of this surface is "the reviewer verdicts are what
@@ -132,17 +153,29 @@ export class AssessmentSessionsService {
       return { session: enforced, turns: await this.publicTurns(enforced.id) };
     }
 
-    // Retake cooldown — only for a plain REJECTED decision. INSUFFICIENT_PROBING
-    // is exempt (immediate, free retake: that's on the assessor, not the
-    // candidate). The disabled button on the client is UX; this 409 is the
-    // actual rule, in case of a stale page or a directly-hit API call.
-    const lastRejected = await this.prisma.assessmentSession.findFirst({
-      where: { userId, status: AssessmentSessionStatus.REJECTED },
+    // Retake gate — looks at the most recently decided REJECTED-or-DISPUTED
+    // session (disputing never touches decidedAt, so "most recent" and the
+    // cooldown math both still key off the *original* decision). A DISPUTED
+    // session blocks a retake outright: no cooldown math applies while a
+    // dispute is still open, since there's no decided outcome yet to cool
+    // down from. A plain REJECTED decision is cooldown-gated unless exempt —
+    // INSUFFICIENT_PROBING or an upheld dispute (both faults of the process,
+    // not the candidate) grant an immediate, free retake. The disabled
+    // button on the client is UX; this 409 is the actual rule, in case of a
+    // stale page or a directly-hit API call.
+    const lastDecided = await this.prisma.assessmentSession.findFirst({
+      where: { userId, status: { in: [AssessmentSessionStatus.REJECTED, AssessmentSessionStatus.DISPUTED] } },
       orderBy: { decidedAt: 'desc' },
-      include: { claimVerdicts: true },
+      include: { claimVerdicts: true, disputes: true },
     });
-    if (lastRejected?.decidedAt && !isInsufficientProbing(lastRejected.claimVerdicts)) {
-      const retakeAvailableAt = new Date(lastRejected.decidedAt.getTime() + RETAKE_COOLDOWN_DAYS * 86_400_000);
+    if (lastDecided?.status === AssessmentSessionStatus.DISPUTED) {
+      throw new ConflictException({
+        message: 'A dispute on your last session is still under review.',
+        reason: 'DISPUTE_PENDING',
+      });
+    }
+    if (lastDecided?.decidedAt && !isRetakeCooldownExempt(lastDecided.claimVerdicts, lastDecided.disputes)) {
+      const retakeAvailableAt = new Date(lastDecided.decidedAt.getTime() + RETAKE_COOLDOWN_DAYS * 86_400_000);
       if (Date.now() < retakeAvailableAt.getTime()) {
         throw new ConflictException({
           message: `Retake available from ${retakeAvailableAt.toISOString()}`,
@@ -325,13 +358,21 @@ export class AssessmentSessionsService {
     const session = await this.prisma.assessmentSession.findFirst({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      include: { claimVerdicts: true },
+      include: { claimVerdicts: true, disputes: true },
     });
     if (!session) return null;
 
+    // insufficientProbing keeps its narrow, original meaning (drives the
+    // "didn't give you a fair shot" copy specifically) — retakeAvailableAt
+    // below uses the broader isRetakeCooldownExempt so an upheld dispute
+    // also clears the cooldown, just without that specific copy: the client
+    // sees a null retakeAvailableAt and falls through to a plain, enabled
+    // "Retake assessment" button.
     const insufficientProbing = isInsufficientProbing(session.claimVerdicts);
     const retakeAvailableAt =
-      session.status === AssessmentSessionStatus.REJECTED && !insufficientProbing && session.decidedAt
+      session.status === AssessmentSessionStatus.REJECTED &&
+      !isRetakeCooldownExempt(session.claimVerdicts, session.disputes) &&
+      session.decidedAt
         ? new Date(session.decidedAt.getTime() + RETAKE_COOLDOWN_DAYS * 86_400_000)
         : null;
 
@@ -399,9 +440,14 @@ export class AssessmentSessionsService {
       decidedAt: session.decidedAt,
       decisionNote: session.decisionNote,
       // Only meaningful for a plain REJECTED outcome — ISSUED has nothing to
-      // retake, and DISPUTED is still unresolved.
+      // retake, and DISPUTED blocks a retake outright (see createSession),
+      // so there's no date to show while it's still unresolved. null here
+      // also covers an upheld-dispute exemption, same as insufficientProbing
+      // — the client falls through to a plain enabled retake button.
       retakeAvailableAt:
-        session.status === AssessmentSessionStatus.REJECTED && session.decidedAt
+        session.status === AssessmentSessionStatus.REJECTED &&
+        session.decidedAt &&
+        !isRetakeCooldownExempt(session.claimVerdicts, session.disputes)
           ? new Date(session.decidedAt.getTime() + RETAKE_COOLDOWN_DAYS * 86_400_000)
           : null,
       claims,
@@ -440,10 +486,61 @@ export class AssessmentSessionsService {
     });
     await this.prisma.assessmentSession.update({
       where: { id: sessionId },
-      data: { status: AssessmentSessionStatus.DISPUTED },
+      data: {
+        status: AssessmentSessionStatus.DISPUTED,
+        // Only stash on the *first* dispute against this session — a second
+        // dispute (different claim) while already DISPUTED must not
+        // overwrite it with DISPUTED itself.
+        ...(session.status !== AssessmentSessionStatus.DISPUTED ? { preDisputeStatus: session.status } : {}),
+      },
     });
 
     return { claimId: dispute.claimId, disputed: true, createdAt: dispute.createdAt };
+  }
+
+  /**
+   * Admin-only: closes the loop on one claim's dispute (write-once — 409 if
+   * already resolved). Once no disputes remain unresolved on the session,
+   * reverts status back to preDisputeStatus — never to AWAITING_REVIEW/
+   * AWAITING_SCORING, so a decided session is never reopened for rescoring.
+   * decidedAt is never touched here (or anywhere in the dispute flow), so
+   * the retake cooldown computed from it is unaffected by how long the
+   * dispute took to resolve. An upheld dispute doesn't itself change any
+   * ClaimVerdict — it only exempts the reverted-to REJECTED session from
+   * the retake cooldown (see isRetakeCooldownExempt), the same no-fault
+   * treatment as INSUFFICIENT_PROBING.
+   */
+  async resolveDispute(sessionId: string, claimId: string, upheld: boolean, resolution: string) {
+    if (!CLAIM_ORDER.includes(claimId as RagL2Claim)) {
+      throw new BadRequestException(`Unknown claim "${claimId}".`);
+    }
+    const dispute = await this.prisma.claimDispute.findUnique({
+      where: { sessionId_claimId: { sessionId, claimId: claimId as RagL2Claim } },
+    });
+    if (!dispute) {
+      throw new NotFoundException('No dispute found for this claim.');
+    }
+    if (dispute.resolvedAt) {
+      throw new ConflictException('This dispute has already been resolved.');
+    }
+
+    await this.prisma.claimDispute.update({
+      where: { id: dispute.id },
+      data: { resolvedAt: new Date(), resolution, upheld },
+    });
+
+    const session = await this.prisma.assessmentSession.findUniqueOrThrow({ where: { id: sessionId } });
+    const stillUnresolved = await this.prisma.claimDispute.count({
+      where: { sessionId, resolvedAt: null },
+    });
+    if (stillUnresolved === 0 && session.status === AssessmentSessionStatus.DISPUTED && session.preDisputeStatus) {
+      await this.prisma.assessmentSession.update({
+        where: { id: sessionId },
+        data: { status: session.preDisputeStatus, preDisputeStatus: null },
+      });
+    }
+
+    return { claimId: dispute.claimId, upheld, resolvedAt: new Date() };
   }
 
   // ---------- helpers ----------
