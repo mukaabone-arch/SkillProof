@@ -9,6 +9,7 @@ import { AttemptStatus, ClaimStatus, IntegrityEventType, IntegrityStatus, Prisma
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RecordIntegrityEventDto } from './assessments.dto';
+import { SKILL_NAME as SESSION_SKILL_NAME } from '../assessment-sessions/rag-systems-l2.rubric';
 
 /**
  * How many flag-worthy IntegrityEvents an attempt can accumulate before its
@@ -217,7 +218,12 @@ export class AssessmentsService {
     };
   }
 
-  /** Public badge verification: GET /badges/verify/:hash */
+  /**
+   * Public badge verification: GET /badges/verify/:hash. Handles both
+   * issuance paths — MCQ attempts and reviewed conversational sessions (see
+   * ReviewService.issueBadge) — since Badge.attempt/Badge.session are each
+   * optional and exactly one is ever set for a given badge.
+   */
   async verifyBadge(hash: string) {
     const badge = await this.prisma.badge.findUnique({
       where: { verifyHash: hash },
@@ -229,7 +235,7 @@ export class AssessmentsService {
     if (!badge || badge.revokedAt) throw new NotFoundException('Badge not found or revoked');
     return {
       candidate: badge.user.profile?.fullName ?? 'SkillProof candidate',
-      skill: badge.attempt.assessment.skill.name,
+      skill: badge.attempt ? badge.attempt.assessment.skill.name : SESSION_SKILL_NAME,
       level: badge.level,
       issuedAt: badge.issuedAt,
       expiresAt: badge.expiresAt,
@@ -242,8 +248,14 @@ export class AssessmentsService {
        * frontend can only ever render the positive mark or nothing. An
        * INVALIDATED attempt's badge is revoked (see reviewAttempt), so it
        * never reaches this far at all — the whole certificate 404s above.
+       *
+       * Session-issued badges have no equivalent integrity-monitoring
+       * signal today (no proctoring on the conversational flow yet), and a
+       * REJECTed session never reaches ISSUED in the first place — so any
+       * session badge that exists is unconditionally "clean" until a future
+       * revocation path is built for that flow.
        */
-      verifiedClean: badge.attempt.integrityStatus === IntegrityStatus.CLEAN,
+      verifiedClean: badge.attempt ? badge.attempt.integrityStatus === IntegrityStatus.CLEAN : true,
     };
   }
 

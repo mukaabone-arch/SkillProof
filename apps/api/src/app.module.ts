@@ -14,6 +14,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
 import { CandidatesModule } from './modules/candidates/candidates.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
 import { ExternalCredentialsModule } from './modules/external-credentials/external-credentials.module';
+import { AssessmentSessionsModule } from './modules/assessment-sessions/assessment-sessions.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ExternalCredentialsModule } from './modules/external-credentials/extern
     CandidatesModule,
     ApplicationsModule,
     ExternalCredentialsModule,
+    AssessmentSessionsModule,
   ],
 })
 export class AppModule {}

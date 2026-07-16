@@ -165,6 +165,9 @@ model User {
   notifications    Notification[]
   reviewedAttempts Attempt[]         @relation("AttemptReviewedBy")
   identities       Identity[]
+  assessmentSessions AssessmentSession[]
+  reviewedClaimVerdicts ClaimVerdict[] @relation("ClaimVerdictReviewedBy")
+  decidedSessions AssessmentSession[] @relation("SessionDecidedBy")
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
@@ -554,12 +557,24 @@ model AttemptAnswer {
   @@unique([attemptId, questionId])
 }
 
+/**
+ * Issued from exactly one of two sources, never both — MCQ attempts
+ * (AssessmentsService.issueBadge) or reviewed conversational sessions
+ * (ReviewService.issueBadge, only via POST /assessment-sessions/:id/decision
+ * ISSUE). Both attemptId and sessionId are nullable rather than a shared
+ * required FK because the two source models are unrelated; each issuance
+ * path only ever sets its own column. No DB-level "exactly one" constraint —
+ * enforced by there being exactly two controlled call sites, same as the
+ * rest of this schema's soft invariants.
+ */
 model Badge {
   id         String     @id @default(uuid())
   userId     String
   user       User       @relation(fields: [userId], references: [id])
-  attemptId  String     @unique
-  attempt    Attempt    @relation(fields: [attemptId], references: [id])
+  attemptId  String?    @unique
+  attempt    Attempt?   @relation(fields: [attemptId], references: [id])
+  sessionId  String?    @unique
+  session    AssessmentSession? @relation(fields: [sessionId], references: [id])
   verifyHash String     @unique
   level      SkillLevel
   issuedAt   DateTime   @default(now())
@@ -579,4 +594,248 @@ model RefreshToken {
   createdAt DateTime  @default(now())
 
   @@index([userId])
+}
+
+// ---------- Conversational AI assessor sessions (RAG Systems L2, text-based) ----------
+
+enum AssessmentSessionStatus {
+  IN_PROGRESS
+  AWAITING_SCORING
+  AWAITING_REVIEW
+  EXPIRED
+  // Terminal decision outcomes — set only by ReviewService.decide, and only
+  // once every ClaimVerdict has a reviewerVerdict. ISSUE also mints a Badge
+  // (see ReviewService.issueBadge); REJECT never does.
+  ISSUED
+  REJECTED
+  // Set by a candidate disputing a claim on an already-decided (ISSUED or
+  // REJECTED) session (see AssessmentSessionsService.disputeClaim). Reappears
+  // in the admin review queue flagged as disputed. Resolved by
+  // AssessmentSessionsService.resolveDispute, which reverts the session to
+  // AssessmentSession.preDisputeStatus once no disputes remain unresolved.
+  DISPUTED
+}
+
+/**
+ * The six claims in the RAG Systems L2 rubric (see rag-systems-l2.rubric.ts
+ * in the assessment-sessions module for the probe content per claim). Order
+ * here is cosmetic — CLAIM_ORDER in that file is what actually drives the
+ * ladder walk.
+ */
+enum RagL2Claim {
+  CHUNKING
+  DIAGNOSIS
+  RERANKING
+  CORPUS_CHANGE
+  EVALUATION
+  COST
+}
+
+enum ProbeRung {
+  OPENING
+  FOLLOWUP
+  CONSTRAINT
+}
+
+enum SessionTurnRole {
+  CANDIDATE
+  ASSESSOR
+}
+
+/**
+ * One live conversational assessment. ladderState is the single source of
+ * truth for "where the ladder walk currently is" (see AssessorService's
+ * LadderState type) — a resumed session re-reads it and re-asks exactly the
+ * probe that was outstanding, rather than restarting. pinnedBrief is a
+ * denormalized copy of the scenario text handed to the candidate at session
+ * start, kept separate from the turn transcript so the client can keep it
+ * pinned on screen without re-parsing the opening turn.
+ */
+model AssessmentSession {
+  id             String                  @id @default(uuid())
+  userId         String
+  user           User                    @relation(fields: [userId], references: [id])
+  status         AssessmentSessionStatus @default(IN_PROGRESS)
+  pinnedBrief    String
+  ladderState    Json
+  // Copied onto every ClaimVerdict scored from this session (see
+  // ScoringService) — RUBRIC_VERSION in rag-systems-l2.rubric.ts is the
+  // single source of truth; this just pins which version a given session
+  // was run/scored against, since the rubric text itself is not versioned
+  // in the DB.
+  rubricVersion  String                  @default("rag-systems-l2-r2")
+  startedAt      DateTime                @default(now())
+  lastActivityAt DateTime                @default(now())
+  expiresAt      DateTime
+  // Set once ScoringService.scoreSession finishes successfully (status ->
+  // AWAITING_REVIEW). scoringError is populated instead when scoring fails,
+  // so a broken session stays visibly AWAITING_SCORING and retryable via
+  // POST /assessment-sessions/:id/score rather than vanishing silently.
+  scoredAt       DateTime?
+  scoringError   String?
+  // Set once by ReviewService.decide (ISSUED or REJECTED) — never touched
+  // again afterward. decisionNote carries the REJECT reason, or an optional
+  // note on ISSUE.
+  decidedAt        DateTime?
+  decidedByUserId  String?
+  decidedByUser    User?     @relation("SessionDecidedBy", fields: [decidedByUserId], references: [id])
+  decisionNote     String?
+  // The status just before a dispute flipped this session to DISPUTED —
+  // cleared once resolveDispute reverts to it (see
+  // AssessmentSessionsService.disputeClaim/resolveDispute). Never touched by
+  // anything but those two methods; decidedAt is never touched by disputing
+  // either, so the original decision timestamp — and the retake cooldown
+  // computed from it — survives a dispute untouched.
+  preDisputeStatus AssessmentSessionStatus?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  turns         SessionTurn[]
+  interruptions SessionInterruption[]
+  claimVerdicts ClaimVerdict[]
+  disputes      ClaimDispute[]
+  badge         Badge?
+
+  @@index([userId])
+}
+
+/**
+ * One message in the conversation. claimId/probeRung record which ladder
+ * position this turn targets (the probe an ASSESSOR turn is asking, or the
+ * probe a CANDIDATE turn is answering) — both null for reflection-stage
+ * turns, which aren't scored against any claim. superseded marks a turn
+ * that was re-asked after a resume (see AssessmentSessionsService.resume) —
+ * superseded turns are excluded from the conversation history sent to the
+ * model and from the candidate-facing transcript, but kept for audit.
+ */
+model SessionTurn {
+  id         String            @id @default(uuid())
+  sessionId  String
+  session    AssessmentSession @relation(fields: [sessionId], references: [id])
+  role       SessionTurnRole
+  content    String
+  claimId    RagL2Claim?
+  probeRung  ProbeRung?
+  superseded Boolean           @default(false)
+  createdAt  DateTime          @default(now())
+
+  @@index([sessionId])
+}
+
+/**
+ * Audit trail for a session going EXPIRED (idle timeout) and, once resumed,
+ * how that resume was handled. fragmentTurnId points at the ASSESSOR turn
+ * that was outstanding when the session broke — the one marked superseded
+ * and re-asked fresh on resume (see resume() in the service).
+ */
+model SessionInterruption {
+  id             String            @id @default(uuid())
+  sessionId      String
+  session        AssessmentSession @relation(fields: [sessionId], references: [id])
+  occurredAt     DateTime          @default(now())
+  resumedAt      DateTime?
+  fragmentTurnId String?
+  createdAt      DateTime          @default(now())
+
+  @@index([sessionId])
+}
+
+enum Verdict {
+  DEMONSTRATED
+  PARTIAL
+  NOT_EVIDENCED
+  ABSTAIN
+  // Reviewer-only — the model never produces this (ScoringService's own
+  // record_verdict tool schema is still restricted to the four values
+  // above). Means the assessor failed to elicit evidence on this claim at
+  // all — a verdict about the session/assessor, not the candidate. Blocks
+  // ISSUE for the gating claims (see ReviewService's level rule) in favor
+  // of offering a re-take, never a rejection.
+  INSUFFICIENT_PROBING
+}
+
+/**
+ * The AI-scored outcome for one claim in one session (see ScoringService).
+ * The model.../reviewer... column split is deliberate and permanent: the
+ * model's original verdict/bandBoundary/reason/confidence are written once
+ * at scoring time and never touched again — verdict/bandBoundary/reason are
+ * the "working" columns a human reviewer can override via reviewerVerdict
+ * etc. The gap between the model columns and the reviewer columns across
+ * enough sessions is the calibration dataset that eventually justifies
+ * auto-issue; overwriting the model columns on review would destroy that
+ * signal. modelConfidence is captured for the same calibration purpose and
+ * deliberately unused elsewhere — triage keys off bandBoundary/ABSTAIN, not
+ * confidence (near-constant in harness runs, not a real judgment signal).
+ * reviewerVerdict/reviewerId/reviewerNote/reviewedAt are write-once — see
+ * ReviewService.reviewClaim's 409 on a second attempt; a mistaken review is
+ * corrected by a second reviewer's note later, never by overwriting.
+ */
+model ClaimVerdict {
+  id            String            @id @default(uuid())
+  sessionId     String
+  session       AssessmentSession @relation(fields: [sessionId], references: [id])
+  claimId       RagL2Claim
+  rubricVersion String
+
+  // Working columns — start identical to the model's output, but this is
+  // the pair a human reviewer's override should land in eventually (no
+  // reviewer-write path exists yet; that's a future admin action).
+  verdict      Verdict
+  bandBoundary Boolean
+  reason       String
+
+  // Immutable copies of pass 2's original output — never overwritten.
+  modelVerdict      Verdict
+  modelBandBoundary Boolean
+  modelReason       String
+  modelConfidence   Float
+
+  // Extracted evidence (pass 1 output, filtered to this claim) that pass 2
+  // adjudicated from — [{quote, probeContext}], quotes verbatim from the
+  // candidate's own turns. Kept for reviewer audit without re-reading the
+  // whole transcript.
+  spans Json
+
+  reviewerVerdict Verdict?
+  reviewerId      String?
+  reviewerUser    User?     @relation("ClaimVerdictReviewedBy", fields: [reviewerId], references: [id])
+  reviewerNote    String?
+  reviewedAt      DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@unique([sessionId, claimId])
+  @@index([sessionId])
+}
+
+/**
+ * A candidate's dispute of one claim's reviewed verdict, filed from the
+ * results page (see AssessmentSessionsService.disputeClaim) — only possible
+ * once a session is decided (ISSUED/REJECTED), and only once per claim
+ * (@@unique below — a second attempt on the same claim 409s). Filing a
+ * dispute flips the session to DISPUTED, which folds it back into the admin
+ * review queue as a flagged case (see ScoringService.getReviewQueue).
+ * resolvedAt/resolution are nullable and unused by any endpoint yet — they
+ * exist for a future admin resolution action, not wired up in this pass.
+ */
+model ClaimDispute {
+  id          String            @id @default(uuid())
+  sessionId   String
+  session     AssessmentSession @relation(fields: [sessionId], references: [id])
+  claimId     RagL2Claim
+  candidateId String
+  body        String
+  createdAt   DateTime          @default(now())
+  resolvedAt  DateTime?
+  resolution  String?
+  // Set together with resolvedAt/resolution by
+  // AssessmentSessionsService.resolveDispute — null until resolved. An
+  // upheld dispute (the reviewer's verdict was wrong) exempts the session
+  // from the retake cooldown once reverted to REJECTED, the same way
+  // Verdict.INSUFFICIENT_PROBING does: it's a fault of the process, not the
+  // candidate. See isRetakeCooldownExempt.
+  upheld      Boolean?
+
+  @@unique([sessionId, claimId])
+  @@index([sessionId])
 }
