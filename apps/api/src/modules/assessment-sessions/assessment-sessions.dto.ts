@@ -28,3 +28,11 @@ export class SessionDecisionDto {
   @MaxLength(2000)
   note?: string;
 }
+
+/** Body for POST /assessment-sessions/:id/claims/:claimId/dispute. */
+export class DisputeClaimDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2000)
+  body: string;
+}

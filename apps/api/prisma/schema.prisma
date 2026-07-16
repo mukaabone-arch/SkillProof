@@ -608,6 +608,12 @@ enum AssessmentSessionStatus {
   // (see ReviewService.issueBadge); REJECT never does.
   ISSUED
   REJECTED
+  // Set by a candidate disputing a claim on an already-decided (ISSUED or
+  // REJECTED) session (see AssessmentSessionsService.disputeClaim). Reappears
+  // in the admin review queue flagged as disputed; nothing here resolves
+  // it automatically — ClaimDispute.resolvedAt/resolution are for a future
+  // admin resolution action.
+  DISPUTED
 }
 
 /**
@@ -680,6 +686,7 @@ model AssessmentSession {
   turns         SessionTurn[]
   interruptions SessionInterruption[]
   claimVerdicts ClaimVerdict[]
+  disputes      ClaimDispute[]
   badge         Badge?
 
   @@index([userId])
@@ -789,6 +796,31 @@ model ClaimVerdict {
   reviewedAt      DateTime?
 
   createdAt DateTime @default(now())
+
+  @@unique([sessionId, claimId])
+  @@index([sessionId])
+}
+
+/**
+ * A candidate's dispute of one claim's reviewed verdict, filed from the
+ * results page (see AssessmentSessionsService.disputeClaim) — only possible
+ * once a session is decided (ISSUED/REJECTED), and only once per claim
+ * (@@unique below — a second attempt on the same claim 409s). Filing a
+ * dispute flips the session to DISPUTED, which folds it back into the admin
+ * review queue as a flagged case (see ScoringService.getReviewQueue).
+ * resolvedAt/resolution are nullable and unused by any endpoint yet — they
+ * exist for a future admin resolution action, not wired up in this pass.
+ */
+model ClaimDispute {
+  id          String            @id @default(uuid())
+  sessionId   String
+  session     AssessmentSession @relation(fields: [sessionId], references: [id])
+  claimId     RagL2Claim
+  candidateId String
+  body        String
+  createdAt   DateTime          @default(now())
+  resolvedAt  DateTime?
+  resolution  String?
 
   @@unique([sessionId, claimId])
   @@index([sessionId])

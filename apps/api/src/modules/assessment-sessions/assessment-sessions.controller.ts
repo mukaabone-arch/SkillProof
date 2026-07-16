@@ -6,7 +6,7 @@ import { Roles } from '../auth/roles.decorator';
 import { AssessmentSessionsService } from './assessment-sessions.service';
 import { ScoringService } from './scoring.service';
 import { ReviewService } from './review.service';
-import { PostSessionTurnDto, ReviewClaimDto, SessionDecisionDto } from './assessment-sessions.dto';
+import { DisputeClaimDto, PostSessionTurnDto, ReviewClaimDto, SessionDecisionDto } from './assessment-sessions.dto';
 
 /** Candidate-facing session summary — never includes ladderState. */
 function toSessionResponse(session: AssessmentSession) {
@@ -44,6 +44,16 @@ export class AssessmentSessionsController {
   @Roles(Role.PLATFORM_ADMIN)
   reviewQueue() {
     return this.scoring.getReviewQueue();
+  }
+
+  /**
+   * Also must be declared before GET ':id', same reason as review-queue
+   * above. Lets the catalog/pre-session pages ask "do I already have a
+   * session, and what state is it in" without knowing an id up front.
+   */
+  @Get('mine')
+  mine(@Req() req: AuthenticatedRequest) {
+    return this.svc.getMine(req.user.sub);
   }
 
   @Get(':id')
@@ -100,5 +110,22 @@ export class AssessmentSessionsController {
   @Roles(Role.PLATFORM_ADMIN)
   decide(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: SessionDecisionDto) {
     return this.review.decide(id, req.user.sub, dto.decision, dto.note);
+  }
+
+  /** Candidate-scoped, own session only (404 otherwise); 404 until the session is decided. */
+  @Get(':id/result')
+  getResult(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.svc.getResult(req.user.sub, id);
+  }
+
+  /** One dispute per claim — a second attempt on the same claim 409s. Flips the session to DISPUTED. */
+  @Post(':id/claims/:claimId/dispute')
+  disputeClaim(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Param('claimId') claimId: string,
+    @Body() dto: DisputeClaimDto,
+  ) {
+    return this.svc.disputeClaim(req.user.sub, id, claimId, dto.body);
   }
 }

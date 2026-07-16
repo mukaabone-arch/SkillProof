@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   AssessmentSession,
   AssessmentSessionStatus,
@@ -7,11 +7,55 @@ import {
   RagL2Claim,
   SessionTurn,
   SessionTurnRole,
+  Verdict,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssessorService, LadderState } from './assessor.service';
 import { ScoringService } from './scoring.service';
-import { CLAIM_ORDER, RUBRIC_VERSION, SCENARIO_BRIEF } from './rag-systems-l2.rubric';
+import { CLAIM_ORDER, RUBRIC_VERSION, SCENARIO_BRIEF, SKILL_LEVEL, SKILL_NAME } from './rag-systems-l2.rubric';
+
+/**
+ * The level rule (see ReviewService) only gates ISSUE eligibility on claims
+ * 1-5 — COST doesn't gate. Reused here to compute the same "gates" flag and
+ * the same INSUFFICIENT_PROBING special case for the candidate-facing
+ * result payload. Small, deliberate duplication of ReviewService's
+ * LEVEL_RULE_CLAIMS rather than a cross-service import for one constant.
+ */
+const GATING_CLAIMS: RagL2Claim[] = CLAIM_ORDER.slice(0, 5);
+
+/**
+ * True when a decision was blocked-then-rejected because the assessor
+ * failed to elicit evidence on a gating claim — a verdict about the
+ * session, not the candidate. Shared by createSession's cooldown check,
+ * getMine, and getResult so all three agree on when a retake is immediate
+ * and free vs. subject to the cooldown.
+ */
+function isInsufficientProbing(claimVerdicts: { claimId: RagL2Claim; reviewerVerdict: Verdict | null }[]): boolean {
+  return claimVerdicts.some((v) => GATING_CLAIMS.includes(v.claimId) && v.reviewerVerdict === Verdict.INSUFFICIENT_PROBING);
+}
+
+/**
+ * Candidate-facing fallback when a claim has no reviewerNote — never falls
+ * back to the model's own `reason` text (that's model-authored content, and
+ * the whole point of this surface is "the reviewer verdicts are what
+ * render, never the model columns"). A claim the reviewer agreed with the
+ * model on typically has no note at all (only required on a >=2-band
+ * disagreement — see ReviewService.reviewClaim), so this is the common case,
+ * not an edge case.
+ */
+const VERDICT_FALLBACK_SENTENCE: Record<Verdict, string> = {
+  [Verdict.DEMONSTRATED]: 'The reviewer confirmed this was clearly demonstrated.',
+  [Verdict.PARTIAL]: 'The reviewer found this partially demonstrated.',
+  [Verdict.NOT_EVIDENCED]: 'The reviewer did not find this demonstrated in the discussion.',
+  [Verdict.ABSTAIN]: 'The reviewer could not find enough in the conversation to judge this either way.',
+  [Verdict.INSUFFICIENT_PROBING]: 'The conversation did not sufficiently probe this area.',
+};
+
+const DECIDED_STATUSES: AssessmentSessionStatus[] = [
+  AssessmentSessionStatus.ISSUED,
+  AssessmentSessionStatus.REJECTED,
+  AssessmentSessionStatus.DISPUTED,
+];
 
 /**
  * How long a session can sit idle (no candidate turn) before it's
@@ -21,15 +65,31 @@ import { CLAIM_ORDER, RUBRIC_VERSION, SCENARIO_BRIEF } from './rag-systems-l2.ru
  */
 const IDLE_TIMEOUT_MINUTES = Number(process.env.ASSESSMENT_SESSION_IDLE_TIMEOUT_MINUTES) || 15;
 
+/**
+ * How long a candidate must wait after a REJECTED decision before starting a
+ * fresh session — see createSession's cooldown check and getMine/getResult's
+ * retakeAvailableAt. Does not apply when the decision was blocked by
+ * INSUFFICIENT_PROBING (see isInsufficientProbing) — that's on the assessor,
+ * not the candidate, so that retake is immediate and free. Env-overridable
+ * so it can be flipped to 0 for local testing without a code change.
+ */
+const RETAKE_COOLDOWN_DAYS = Number(process.env.ASSESSMENT_RETAKE_COOLDOWN_DAYS) || 14;
+
 export interface PublicTurn {
   id: string;
   role: SessionTurnRole;
   content: string;
+  // Included (not filtered out) so the candidate-facing UI can render a
+  // struck-through "re-asked after a connection drop" fragment — see
+  // publicTurns below. claimId/probeRung are still never exposed here: the
+  // candidate must not be able to see structure or which competency is
+  // being probed.
+  superseded: boolean;
   createdAt: Date;
 }
 
 function toPublicTurn(turn: SessionTurn): PublicTurn {
-  return { id: turn.id, role: turn.role, content: turn.content, createdAt: turn.createdAt };
+  return { id: turn.id, role: turn.role, content: turn.content, superseded: turn.superseded, createdAt: turn.createdAt };
 }
 
 function deriveTarget(state: LadderState): { claimId: RagL2Claim | null; probeRung: ProbeRung | null } {
@@ -70,6 +130,25 @@ export class AssessmentSessionsService {
     if (existing) {
       const enforced = await this.enforceExpiry(existing);
       return { session: enforced, turns: await this.publicTurns(enforced.id) };
+    }
+
+    // Retake cooldown — only for a plain REJECTED decision. INSUFFICIENT_PROBING
+    // is exempt (immediate, free retake: that's on the assessor, not the
+    // candidate). The disabled button on the client is UX; this 409 is the
+    // actual rule, in case of a stale page or a directly-hit API call.
+    const lastRejected = await this.prisma.assessmentSession.findFirst({
+      where: { userId, status: AssessmentSessionStatus.REJECTED },
+      orderBy: { decidedAt: 'desc' },
+      include: { claimVerdicts: true },
+    });
+    if (lastRejected?.decidedAt && !isInsufficientProbing(lastRejected.claimVerdicts)) {
+      const retakeAvailableAt = new Date(lastRejected.decidedAt.getTime() + RETAKE_COOLDOWN_DAYS * 86_400_000);
+      if (Date.now() < retakeAvailableAt.getTime()) {
+        throw new ConflictException({
+          message: `Retake available from ${retakeAvailableAt.toISOString()}`,
+          retakeAvailableAt: retakeAvailableAt.toISOString(),
+        });
+      }
     }
 
     const opening = await this.assessor.generateOpeningTurn();
@@ -233,18 +312,163 @@ export class AssessmentSessionsService {
     return { turn: toPublicTurn(newTurn), session };
   }
 
+  /**
+   * GET /assessment-sessions/mine — the candidate's most recent session
+   * (any status), or null. Lets the pre-session and catalog pages decide
+   * Start vs. Resume vs. "In review" vs. a result link *before* the
+   * candidate commits to an action, without needing to know a session id
+   * up front. This system only ever assesses one skill/level today, so
+   * "most recent" is unambiguous; a multi-skill future would need a
+   * skill/level filter here.
+   */
+  async getMine(userId: string) {
+    const session = await this.prisma.assessmentSession.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      include: { claimVerdicts: true },
+    });
+    if (!session) return null;
+
+    const insufficientProbing = isInsufficientProbing(session.claimVerdicts);
+    const retakeAvailableAt =
+      session.status === AssessmentSessionStatus.REJECTED && !insufficientProbing && session.decidedAt
+        ? new Date(session.decidedAt.getTime() + RETAKE_COOLDOWN_DAYS * 86_400_000)
+        : null;
+
+    return { id: session.id, status: session.status, insufficientProbing, retakeAvailableAt };
+  }
+
+  /**
+   * GET /assessment-sessions/:id/result — candidate-scoped, own session
+   * only (404 otherwise), and only once decided (404 before that — a
+   * candidate must not be able to distinguish AWAITING_SCORING from
+   * AWAITING_REVIEW from this endpoint, since neither carries a result yet).
+   * Renders only the reviewer's own verdicts/reasoning — modelVerdict/
+   * modelReason never leave ReviewService. An INSUFFICIENT_PROBING verdict
+   * on any gating claim short-circuits into a distinct "didn't give you a
+   * fair chance" payload with no per-claim verdicts at all, regardless of
+   * whether the session ended up ISSUED (shouldn't happen — decide() blocks
+   * that) or REJECTED/DISPUTED.
+   */
+  async getResult(userId: string, sessionId: string) {
+    const session = await this.prisma.assessmentSession.findUnique({
+      where: { id: sessionId },
+      include: { claimVerdicts: true, disputes: true, badge: true },
+    });
+    if (!session || session.userId !== userId) throw new NotFoundException('Assessment session not found');
+    if (!DECIDED_STATUSES.includes(session.status)) {
+      throw new NotFoundException('This session has not been decided yet.');
+    }
+
+    if (isInsufficientProbing(session.claimVerdicts)) {
+      return {
+        sessionId: session.id,
+        status: session.status,
+        outcome: 'INSUFFICIENT_PROBING' as const,
+        skill: SKILL_NAME,
+        level: SKILL_LEVEL,
+        // Immediate and free — no cooldown when the assessor is at fault.
+        retakeAvailableAt: null,
+      };
+    }
+
+    const claims = CLAIM_ORDER.map((claimId) => {
+      const v = session.claimVerdicts.find((c) => c.claimId === claimId)!;
+      const dispute = session.disputes.find((d) => d.claimId === claimId) ?? null;
+      const verdict = v.reviewerVerdict as Verdict;
+      return {
+        claimId,
+        verdict,
+        reason: v.reviewerNote?.trim() ? v.reviewerNote : VERDICT_FALLBACK_SENTENCE[verdict],
+        gates: GATING_CLAIMS.includes(claimId),
+        disputed: !!dispute,
+        disputeResolved: dispute?.resolvedAt != null,
+      };
+    });
+
+    return {
+      sessionId: session.id,
+      status: session.status,
+      outcome: (session.status === AssessmentSessionStatus.ISSUED
+        ? 'ISSUED'
+        : session.status === AssessmentSessionStatus.DISPUTED
+          ? 'DISPUTED'
+          : 'REJECTED') as 'ISSUED' | 'REJECTED' | 'DISPUTED',
+      skill: SKILL_NAME,
+      level: SKILL_LEVEL,
+      decidedAt: session.decidedAt,
+      decisionNote: session.decisionNote,
+      // Only meaningful for a plain REJECTED outcome — ISSUED has nothing to
+      // retake, and DISPUTED is still unresolved.
+      retakeAvailableAt:
+        session.status === AssessmentSessionStatus.REJECTED && session.decidedAt
+          ? new Date(session.decidedAt.getTime() + RETAKE_COOLDOWN_DAYS * 86_400_000)
+          : null,
+      claims,
+      badge: session.badge
+        ? { verifyHash: session.badge.verifyHash, level: session.badge.level, expiresAt: session.badge.expiresAt }
+        : null,
+      transcript: await this.publicTurns(sessionId),
+    };
+  }
+
+  /**
+   * POST /assessment-sessions/:id/claims/:claimId/dispute — one dispute per
+   * claim (409 on a second attempt against the same claim; a mistaken or
+   * incomplete dispute needs a human to sort out, same write-once spirit as
+   * ReviewService.reviewClaim). Flips the session to DISPUTED, which folds
+   * it back into the admin review queue as a flagged case.
+   */
+  async disputeClaim(userId: string, sessionId: string, claimId: string, body: string) {
+    const session = await this.getOwnedSession(userId, sessionId);
+    if (!DECIDED_STATUSES.includes(session.status)) {
+      throw new NotFoundException('This session has not been decided yet.');
+    }
+    if (!CLAIM_ORDER.includes(claimId as RagL2Claim)) {
+      throw new BadRequestException(`Unknown claim "${claimId}".`);
+    }
+
+    const existing = await this.prisma.claimDispute.findUnique({
+      where: { sessionId_claimId: { sessionId, claimId: claimId as RagL2Claim } },
+    });
+    if (existing) {
+      throw new ConflictException('You have already disputed this claim.');
+    }
+
+    const dispute = await this.prisma.claimDispute.create({
+      data: { sessionId, claimId: claimId as RagL2Claim, candidateId: userId, body },
+    });
+    await this.prisma.assessmentSession.update({
+      where: { id: sessionId },
+      data: { status: AssessmentSessionStatus.DISPUTED },
+    });
+
+    return { claimId: dispute.claimId, disputed: true, createdAt: dispute.createdAt };
+  }
+
   // ---------- helpers ----------
 
+  /**
+   * 404 (not 403) on a userId mismatch — confirming a session's *existence*
+   * to a non-owner via a 403 is itself a minor information leak. Every
+   * candidate-facing lookup in this service goes through here, so this one
+   * change is what makes "another candidate's token 404s on someone else's
+   * session" true everywhere at once.
+   */
   private async getOwnedSession(userId: string, sessionId: string): Promise<AssessmentSession> {
     const session = await this.prisma.assessmentSession.findUnique({ where: { id: sessionId } });
-    if (!session) throw new NotFoundException('Assessment session not found');
-    if (session.userId !== userId) throw new ForbiddenException();
+    if (!session || session.userId !== userId) throw new NotFoundException('Assessment session not found');
     return session;
   }
 
+  /**
+   * All turns, superseded ones included — the candidate is entitled to see
+   * that a probe was re-asked after a connection drop (struck through in
+   * the UI), just never the claimId/probeRung/reflection structure behind it.
+   */
   private async publicTurns(sessionId: string): Promise<PublicTurn[]> {
     const turns = await this.prisma.sessionTurn.findMany({
-      where: { sessionId, superseded: false },
+      where: { sessionId },
       orderBy: { createdAt: 'asc' },
     });
     return turns.map(toPublicTurn);

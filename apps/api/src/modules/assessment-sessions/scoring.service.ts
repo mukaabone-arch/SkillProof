@@ -228,8 +228,8 @@ export class ScoringService {
    */
   async getReviewQueue() {
     const sessions = await this.prisma.assessmentSession.findMany({
-      where: { status: AssessmentSessionStatus.AWAITING_REVIEW },
-      include: { claimVerdicts: true, _count: { select: { interruptions: true } } },
+      where: { status: { in: [AssessmentSessionStatus.AWAITING_REVIEW, AssessmentSessionStatus.DISPUTED] } },
+      include: { claimVerdicts: true, disputes: true, _count: { select: { interruptions: true } } },
     });
 
     const rows = sessions.map((s) => {
@@ -243,6 +243,10 @@ export class ScoringService {
         if (v.bandBoundary) counts.boundary++;
         if (v.reviewerVerdict !== null) reviewedCount++;
       }
+      // A disputed session is disputed regardless of how it landed here —
+      // either its status is DISPUTED outright, or (defensively) it still
+      // carries dispute rows from before a status change.
+      const disputed = s.status === AssessmentSessionStatus.DISPUTED || s.disputes.length > 0;
       return {
         sessionId: s.id,
         candidateId: s.userId,
@@ -251,7 +255,10 @@ export class ScoringService {
         completedAt: s.scoredAt,
         counts,
         interruptionCount: s._count.interruptions,
-        needsPriorityReview: counts.abstain > 0 || counts.boundary > 0,
+        disputed,
+        // Wired into the existing priority flag, per spec — a disputed case
+        // sorts to the top exactly like an abstain or a band boundary does.
+        needsPriorityReview: counts.abstain > 0 || counts.boundary > 0 || disputed,
         // Surfaces partially-reviewed cases in the queue (e.g. "3/6 reviewed")
         // — a case a reviewer started but didn't finish shouldn't look
         // identical to one nobody has touched yet.
