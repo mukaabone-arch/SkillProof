@@ -12,6 +12,7 @@ interface BadgeInfo {
   candidate: string;
   skill: string;
   level: string;
+  verifiedBy: 'TEST' | 'DISCUSSION';
   issuedAt: string;
   expiresAt: string;
   valid: boolean;
@@ -58,6 +59,9 @@ export default function BadgeVerifyPage() {
           <h1>Verified Skill</h1>
           <p className="cert-skill">{badge.skill} — Level {badge.level}</p>
           <p><strong>{badge.candidate}</strong></p>
+          <p className="meta">
+            {badge.verifiedBy === 'DISCUSSION' ? 'Verified by technical discussion' : 'Verified by written assessment'}
+          </p>
           {badge.verifiedClean && (
             <p style={{ margin: '0 0 16px' }}>
               <Badge variant="verified">✓ Verified clean</Badge>

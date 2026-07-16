@@ -30,6 +30,22 @@ enum SkillLevel {
   L4
 }
 
+/**
+ * How a Badge's level was demonstrated. Precedence (see
+ * BadgeResolverService, apps/api/src/modules/badges/badge-resolver.service.ts)
+ * is DISCUSSION > TEST for the same skill+level: a reviewer watching a
+ * candidate reason through a live conversation is stronger evidence than a
+ * multiple-choice score. Every Badge is a permanent, unrevoked record of its
+ * own issuance regardless of precedence — this enum only affects which
+ * Badge a resolver picks as "the" current one for a given skill+level; nine
+ * out of ten it never even applies since most skill+level pairs will only
+ * ever have one format available.
+ */
+enum BadgeVerificationMethod {
+  TEST
+  DISCUSSION
+}
+
 enum ClaimStatus {
   UNVERIFIED
   VERIFIED
@@ -292,12 +308,18 @@ model Skill {
   domain    Domain   @relation(fields: [domainId], references: [id])
   name      String
   aliases   String[]
+  // One-line summary shown on the skill-grouped assessments catalog card
+  // (see AssessmentsService.getCatalog). Nullable — most seeded skills
+  // predate this field and have no copy written yet; the card just omits
+  // the line rather than showing a placeholder.
+  description String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   claims      SkillClaim[]
   assessments Assessment[]
   jobSkills   JobSkill[]
+  badges      Badge[]
 
   @@unique([domainId, name])
 }
@@ -566,15 +588,26 @@ model AttemptAnswer {
  * path only ever sets its own column. No DB-level "exactly one" constraint —
  * enforced by there being exactly two controlled call sites, same as the
  * rest of this schema's soft invariants.
+ *
+ * Every passing attempt/session mints its own Badge row — this table is a
+ * permanent, immutable log of evidence, never pruned or overwritten. skillId
+ * is stored directly (not just derivable via attempt.assessment.skillId)
+ * because session-issued badges have no other path to their skill at all —
+ * see BadgeResolverService's doc comment for why precedence has to be
+ * resolved at read time across potentially several Badge rows for the same
+ * user+skill+level, rather than by mutating this table.
  */
 model Badge {
   id         String     @id @default(uuid())
   userId     String
   user       User       @relation(fields: [userId], references: [id])
+  skillId    String
+  skill      Skill      @relation(fields: [skillId], references: [id])
   attemptId  String?    @unique
   attempt    Attempt?   @relation(fields: [attemptId], references: [id])
   sessionId  String?    @unique
   session    AssessmentSession? @relation(fields: [sessionId], references: [id])
+  verifiedBy BadgeVerificationMethod
   verifyHash String     @unique
   level      SkillLevel
   issuedAt   DateTime   @default(now())
@@ -582,6 +615,8 @@ model Badge {
   revokedAt  DateTime?
 
   skillClaim SkillClaim?
+
+  @@index([userId, skillId, level])
 }
 
 model RefreshToken {

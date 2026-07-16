@@ -20,6 +20,18 @@ export class AssessmentsController {
     return this.svc.listLive();
   }
 
+  /**
+   * Must be declared before any GET 'assessments/:id'-shaped route (none
+   * exist today, but keep this first if one's ever added) — same
+   * literal-segment-before-param-route ordering rule used elsewhere in this
+   * codebase (see AssessmentSessionsController's review-queue/mine comments).
+   */
+  @Get('assessments/catalog')
+  @UseGuards(JwtAuthGuard)
+  catalog(@Req() req: AuthenticatedRequest) {
+    return this.svc.getCatalog(req.user.sub);
+  }
+
   @Post('assessments/:id/attempts')
   @UseGuards(JwtAuthGuard)
   start(@Req() req: AuthenticatedRequest, @Param('id') id: string) {

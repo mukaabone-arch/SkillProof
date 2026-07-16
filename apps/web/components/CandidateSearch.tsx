@@ -22,6 +22,7 @@ interface VerifiedSkill {
   skillId: string;
   skillName: string;
   level: string;
+  verifiedBy: 'TEST' | 'DISCUSSION';
   verifyHash: string;
 }
 
@@ -193,7 +194,9 @@ export default function CandidateSearch() {
             <div className="row" style={{ flexWrap: 'wrap', margin: 0, marginTop: 4 }}>
               {c.verifiedSkills.map((s) => (
                 <Link key={s.skillId} href={`/badges/${s.verifyHash}`}>
-                  <button>{s.skillName} ({s.level})</button>
+                  <button title={s.verifiedBy === 'DISCUSSION' ? 'Verified by discussion' : 'Verified by test'}>
+                    {s.skillName} ({s.level}) {s.verifiedBy === 'DISCUSSION' ? '💬' : ''}
+                  </button>
                 </Link>
               ))}
             </div>

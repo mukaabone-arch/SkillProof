@@ -14,6 +14,13 @@ export const SKILL_NAME = 'RAG Systems';
 export const SKILL_LEVEL: SkillLevel = SkillLevel.L2;
 
 /**
+ * Advertised session length — display-only (the session itself has no hard
+ * length cap, just the idle-timeout in AssessmentSessionsService). Single
+ * source of truth for the assessments catalog and the pre-session page.
+ */
+export const DISCUSSION_DURATION_MINS = 20;
+
+/**
  * The scenario handed to the candidate verbatim at session start, and
  * returned as-is on AssessmentSession.pinnedBrief. Kept as a constant
  * (never LLM-authored) so the client can rely on its exact wording.

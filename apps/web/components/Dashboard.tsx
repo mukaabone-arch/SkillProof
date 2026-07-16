@@ -25,7 +25,7 @@ interface SkillClaim {
   id: string;
   status: string;
   skill: { name: string };
-  badge: { verifyHash: string } | null;
+  badge: { verifyHash: string; verifiedBy: 'TEST' | 'DISCUSSION' } | null;
 }
 
 interface Me {
@@ -371,7 +371,13 @@ export default function Dashboard({ onLoggedOut }: Props) {
             ) : (
               <div className="signal-chip-row">
                 {shownBadges.map((c) => (
-                  <span key={c.id} className="chip">{c.skill.name}</span>
+                  <span
+                    key={c.id}
+                    className="chip"
+                    title={c.badge!.verifiedBy === 'DISCUSSION' ? 'Verified by discussion' : 'Verified by test'}
+                  >
+                    {c.skill.name} {c.badge!.verifiedBy === 'DISCUSSION' ? '💬' : '✓'}
+                  </span>
                 ))}
                 {shownCredentials.map((c) => (
                   <span key={c.id} className="chip chip-external">{c.name ?? c.issuer}</span>

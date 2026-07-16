@@ -306,10 +306,16 @@ main.auth {
 .assessment-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .assessment-actions { display: flex; gap: 8px; flex-shrink: 0; }
 .assessment-actions .btn { white-space: nowrap; min-width: 128px; padding: 10px 14px; font-size: 0.88rem; }
+/* Plain (unclassed) buttons — the assessments-catalog level rows use these
+   rather than .btn — get the same wrap/no-min-width treatment below 720px
+   so a level with two available formats (test + discussion) never forces
+   horizontal scroll to reach either action. */
+.assessment-actions button:not(.btn) { white-space: nowrap; }
 @media (max-width: 720px) {
   .assessment-row { flex-direction: column; align-items: stretch; gap: 12px; }
   .assessment-actions { flex-wrap: wrap; }
   .assessment-actions .btn { flex: 1; min-width: 0; }
+  .assessment-actions button:not(.btn) { flex: 1 1 auto; min-width: 0; white-space: normal; }
 }
 .question {
   background: #fff; border: 1px solid rgba(20, 27, 45, 0.12); border-radius: 12px;

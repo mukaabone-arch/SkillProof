@@ -86,6 +86,7 @@ export class CandidatesService {
             skillId: c.skillId,
             skillName: c.skill.name,
             level: c.level,
+            verifiedBy: c.badge!.verifiedBy,
             verifyHash: c.badge!.verifyHash,
           })),
       })),

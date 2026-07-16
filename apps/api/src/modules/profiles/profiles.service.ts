@@ -129,6 +129,7 @@ export class ProfilesService {
       .map((c) => ({
         skillName: c.skill.name,
         level: c.level,
+        verifiedBy: c.badge!.verifiedBy,
         verifyUrl: `${verifyBaseUrl}/badges/${c.badge!.verifyHash}`,
       }));
   }

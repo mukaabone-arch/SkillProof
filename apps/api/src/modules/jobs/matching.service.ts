@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClaimStatus, SkillLevel } from '@prisma/client';
+import { BadgeVerificationMethod, ClaimStatus, SkillLevel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../llm/llm.service';
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
@@ -85,10 +85,13 @@ export class MatchingService {
             skillId: m.skillId,
             skillName: m.skillName,
             level: m.candidateLevel as SkillLevel, // matched entries always have a claim
+            verifiedBy: claimRowsBySkillId.get(m.skillId)?.badge?.verifiedBy,
             verifyHash: claimRowsBySkillId.get(m.skillId)?.badge?.verifyHash,
           }))
           .filter(
-            (m): m is { skillId: string; skillName: string; level: SkillLevel; verifyHash: string } =>
+            (
+              m,
+            ): m is { skillId: string; skillName: string; level: SkillLevel; verifiedBy: BadgeVerificationMethod; verifyHash: string } =>
               !!m.verifyHash,
           ),
         missing: result.missing.map((m) => ({

@@ -4,6 +4,7 @@ import { ResumeEducationEntry, ResumeExperienceEntry } from '../../llm/llm.servi
 export interface VerifiedSkillEntry {
   skillName: string;
   level: string;
+  verifiedBy: 'TEST' | 'DISCUSSION';
   verifyUrl: string;
 }
 
@@ -133,7 +134,8 @@ function renderVerifiedSkills(doc: PDFKit.PDFDocument, verifiedSkills: VerifiedS
     // No checkmark glyph — Helvetica's WinAnsi encoding doesn't include one
     // and silently substitutes a stray character. The green "Verified
     // Skills" heading + this bold label already carry the meaning.
-    const label = `${entry.skillName} — Level ${entry.level} (Verified)`;
+    const provenance = entry.verifiedBy === 'DISCUSSION' ? 'verified by discussion' : 'verified by test';
+    const label = `${entry.skillName} — Level ${entry.level} (${provenance})`;
     const y = doc.y;
     doc.fillColor(VERIFIED_GREEN).font('Helvetica-Bold').fontSize(9.5).text(label, { continued: false });
     doc

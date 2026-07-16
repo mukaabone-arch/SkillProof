@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto';
 import {
   AssessmentSessionStatus,
   Badge,
-  ClaimStatus,
+  BadgeVerificationMethod,
   ClaimVerdict,
   RagL2Claim,
   SkillLevel,
@@ -12,6 +12,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { Span } from './scoring.service';
 import { CLAIM_ORDER, SKILL_LEVEL, SKILL_NAME } from './rag-systems-l2.rubric';
+import { BadgeResolverService } from '../badges/badge-resolver.service';
 
 /**
  * Distance on the quality scale, used only for the "two-band-disagreement
@@ -106,7 +107,10 @@ function computeLevelEligibility(claimVerdicts: ClaimVerdict[]): LevelEligibilit
  */
 @Injectable()
 export class ReviewService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly badgeResolver: BadgeResolverService,
+  ) {}
 
   /** GET /assessment-sessions/:id/review — the reviewer's case payload. No candidate name anywhere: session/candidate id only. */
   async getReviewCase(sessionId: string) {
@@ -293,31 +297,27 @@ export class ReviewService {
 
   /**
    * Mirrors AssessmentsService.issueBadge (MCQ path) field-for-field — same
-   * verifyHash generation, same 18-month expiry policy, same SkillClaim
-   * upsert into VERIFIED — just keyed by sessionId instead of attemptId
-   * (see Badge's widened schema). This is the reuse: same tables, same
-   * verification semantics, same public /badges/verify/:hash flow — not a
-   * parallel credential system.
+   * verifyHash generation, same 18-month expiry policy — just keyed by
+   * sessionId instead of attemptId and verifiedBy DISCUSSION instead of
+   * TEST. SkillClaim is synced through BadgeResolverService rather than a
+   * raw upsert, same reuse principle as the MCQ path: same tables, same
+   * verification semantics, same public /badges/verify/:hash flow, same
+   * precedence rule — not a parallel credential system.
    */
   private async issueBadge(userId: string, sessionId: string, skillId: string, level: SkillLevel): Promise<Badge> {
     const badge = await this.prisma.badge.create({
       data: {
         userId,
+        skillId,
         sessionId,
         level,
+        verifiedBy: BadgeVerificationMethod.DISCUSSION,
         verifyHash: randomBytes(12).toString('hex'),
         expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 1.5), // 18 months
       },
     });
 
-    const profile = await this.prisma.candidateProfile.findUnique({ where: { userId } });
-    if (profile) {
-      await this.prisma.skillClaim.upsert({
-        where: { profileId_skillId: { profileId: profile.id, skillId } },
-        update: { status: ClaimStatus.VERIFIED, level, badgeId: badge.id },
-        create: { profileId: profile.id, skillId, level, status: ClaimStatus.VERIFIED, badgeId: badge.id },
-      });
-    }
+    await this.badgeResolver.syncSkillClaim(userId, skillId);
     return badge;
   }
 }

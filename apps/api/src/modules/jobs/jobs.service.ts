@@ -155,6 +155,7 @@ export class JobsService {
             skillId: c.skillId,
             skillName: c.skill.name,
             level: c.level,
+            verifiedBy: c.badge!.verifiedBy,
             verifyHash: c.badge!.verifyHash,
           })),
         externalCredentials: profile.externalCredentials.map((c) => ({

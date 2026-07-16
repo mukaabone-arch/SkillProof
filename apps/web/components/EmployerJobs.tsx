@@ -87,6 +87,7 @@ interface MatchedSkill {
   skillId: string;
   skillName: string;
   level: string;
+  verifiedBy: 'TEST' | 'DISCUSSION';
   verifyHash: string;
 }
 
@@ -120,6 +121,7 @@ interface ApplicantSkill {
   skillId: string;
   skillName: string;
   level: string;
+  verifiedBy: 'TEST' | 'DISCUSSION';
   verifyHash: string;
 }
 
@@ -727,7 +729,9 @@ export default function EmployerJobs() {
                     <div className="row" style={{ flexWrap: 'wrap', margin: 0 }}>
                       {c.matched.map((m) => (
                         <Link key={m.skillId} href={`/badges/${m.verifyHash}`}>
-                          <button>{m.skillName} ({m.level})</button>
+                          <button title={m.verifiedBy === 'DISCUSSION' ? 'Verified by discussion' : 'Verified by test'}>
+                            {m.skillName} ({m.level}) {m.verifiedBy === 'DISCUSSION' ? '💬' : ''}
+                          </button>
                         </Link>
                       ))}
                     </div>
@@ -790,7 +794,9 @@ export default function EmployerJobs() {
                       <div className="row" style={{ flexWrap: 'wrap', margin: 0 }}>
                         {a.verifiedSkills.map((s) => (
                           <Link key={s.skillId} href={`/badges/${s.verifyHash}`}>
-                            <Badge variant="verified">{s.skillName} ({s.level})</Badge>
+                            <Badge variant="verified" title={s.verifiedBy === 'DISCUSSION' ? 'Verified by discussion' : 'Verified by test'}>
+                              {s.skillName} ({s.level}) {s.verifiedBy === 'DISCUSSION' ? '💬' : ''}
+                            </Badge>
                           </Link>
                         ))}
                       </div>

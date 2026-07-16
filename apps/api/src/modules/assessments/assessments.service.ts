@@ -5,11 +5,13 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { AttemptStatus, ClaimStatus, IntegrityEventType, IntegrityStatus, Prisma } from '@prisma/client';
+import { AttemptStatus, BadgeVerificationMethod, IntegrityEventType, IntegrityStatus, Prisma, SkillLevel } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RecordIntegrityEventDto } from './assessments.dto';
-import { SKILL_NAME as SESSION_SKILL_NAME } from '../assessment-sessions/rag-systems-l2.rubric';
+import { BadgeResolverService, LEVEL_ORDER } from '../badges/badge-resolver.service';
+import { AssessmentSessionsService } from '../assessment-sessions/assessment-sessions.service';
+import { DISCUSSION_DURATION_MINS, SKILL_LEVEL as DISCUSSION_LEVEL, SKILL_NAME as DISCUSSION_SKILL_NAME } from '../assessment-sessions/rag-systems-l2.rubric';
 
 /**
  * How many flag-worthy IntegrityEvents an attempt can accumulate before its
@@ -42,7 +44,110 @@ type AttemptWithAssessment = Prisma.AttemptGetPayload<{ include: { assessment: t
 export class AssessmentsService {
   private readonly logger = new Logger(AssessmentsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly badgeResolver: BadgeResolverService,
+    private readonly sessions: AssessmentSessionsService,
+  ) {}
+
+  /**
+   * GET /assessments/catalog — the skill-grouped, level-rowed view backing
+   * the candidate /assessments page. Groups every live MCQ Assessment by
+   * skill+level, folds in the one hardcoded discussion format (RAG Systems
+   * L2 — see rag-systems-l2.rubric.ts) as an additional format at its
+   * skill+level, and resolves each level's earned state through
+   * BadgeResolverService so precedence (discussion > test) is never
+   * reimplemented here. The discussion format's own action/retake state is
+   * exactly AssessmentSessionsService.getMine()'s existing per-user session
+   * lookup — reused as-is, not duplicated, since there is only ever one
+   * discussion flow in play for a given user regardless of which skill+level
+   * row it's folded into.
+   */
+  async getCatalog(userId: string) {
+    const assessments = await this.prisma.assessment.findMany({
+      where: { isLive: true },
+      include: { skill: { include: { domain: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+    const discussionSkill = await this.prisma.skill.findFirst({
+      where: { name: DISCUSSION_SKILL_NAME },
+      include: { domain: true },
+    });
+    const mine = discussionSkill ? await this.sessions.getMine(userId) : null;
+    const discussionState = mine
+      ? {
+          sessionId: mine.id,
+          status: mine.status,
+          insufficientProbing: mine.insufficientProbing,
+          retakeAvailableAt: mine.retakeAvailableAt,
+        }
+      : null;
+
+    interface FormatEntry {
+      type: 'TEST' | 'DISCUSSION';
+      durationMins: number;
+      assessmentId?: string;
+      title?: string;
+    }
+    interface SkillBucket {
+      skillId: string;
+      skillName: string;
+      domainName: string;
+      description: string | null;
+      levels: Map<SkillLevel, FormatEntry[]>;
+    }
+
+    const bySkill = new Map<string, SkillBucket>();
+    function bucketFor(skillId: string, skillName: string, domainName: string, description: string | null): SkillBucket {
+      let b = bySkill.get(skillId);
+      if (!b) {
+        b = { skillId, skillName, domainName, description, levels: new Map() };
+        bySkill.set(skillId, b);
+      }
+      return b;
+    }
+
+    for (const a of assessments) {
+      const b = bucketFor(a.skillId, a.skill.name, a.skill.domain.name, a.skill.description);
+      const formats = b.levels.get(a.targetLevel) ?? [];
+      formats.push({ type: 'TEST', durationMins: a.durationMins, assessmentId: a.id, title: a.title });
+      b.levels.set(a.targetLevel, formats);
+    }
+
+    if (discussionSkill) {
+      const b = bucketFor(discussionSkill.id, discussionSkill.name, discussionSkill.domain.name, discussionSkill.description);
+      const formats = b.levels.get(DISCUSSION_LEVEL) ?? [];
+      formats.push({ type: 'DISCUSSION', durationMins: DISCUSSION_DURATION_MINS });
+      b.levels.set(DISCUSSION_LEVEL, formats);
+    }
+
+    const skills = [];
+    for (const b of bySkill.values()) {
+      const levelMap = await this.badgeResolver.resolveLevelMap(userId, b.skillId);
+      const levels = LEVEL_ORDER.filter((level) => b.levels.has(level)).map((level) => {
+        const formats = b.levels.get(level)!;
+        const badge = levelMap[level];
+        const hasDiscussion = formats.some((f) => f.type === 'DISCUSSION');
+        return {
+          level,
+          formats,
+          earned: badge
+            ? { verifiedBy: badge.verifiedBy, verifyHash: badge.verifyHash, issuedAt: badge.issuedAt }
+            : null,
+          discussion: hasDiscussion ? discussionState : null,
+        };
+      });
+      skills.push({
+        skillId: b.skillId,
+        skillName: b.skillName,
+        domainName: b.domainName,
+        description: b.description,
+        levels,
+      });
+    }
+
+    return skills;
+  }
 
   listLive() {
     return this.prisma.assessment.findMany({
@@ -222,21 +327,25 @@ export class AssessmentsService {
    * Public badge verification: GET /badges/verify/:hash. Handles both
    * issuance paths — MCQ attempts and reviewed conversational sessions (see
    * ReviewService.issueBadge) — since Badge.attempt/Badge.session are each
-   * optional and exactly one is ever set for a given badge.
+   * optional and exactly one is ever set for a given badge. skill is read
+   * directly off Badge.skill now (stored at mint time) rather than via the
+   * attempt's assessment join, which only ever worked for the TEST path.
    */
   async verifyBadge(hash: string) {
     const badge = await this.prisma.badge.findUnique({
       where: { verifyHash: hash },
       include: {
         user: { include: { profile: { select: { fullName: true } } } },
-        attempt: { include: { assessment: { include: { skill: true } } } },
+        skill: true,
+        attempt: true,
       },
     });
     if (!badge || badge.revokedAt) throw new NotFoundException('Badge not found or revoked');
     return {
       candidate: badge.user.profile?.fullName ?? 'SkillProof candidate',
-      skill: badge.attempt ? badge.attempt.assessment.skill.name : SESSION_SKILL_NAME,
+      skill: badge.skill.name,
       level: badge.level,
+      verifiedBy: badge.verifiedBy,
       issuedAt: badge.issuedAt,
       expiresAt: badge.expiresAt,
       valid: badge.expiresAt > new Date(),
@@ -456,28 +565,20 @@ export class AssessmentsService {
     const badge = await this.prisma.badge.create({
       data: {
         userId,
+        skillId,
         attemptId,
         level,
+        verifiedBy: BadgeVerificationMethod.TEST,
         verifyHash: randomBytes(12).toString('hex'),
         expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 1.5), // 18 months
       },
     });
 
-    // Upgrade the candidate's skill claim to VERIFIED
-    const profile = await this.prisma.candidateProfile.findUnique({ where: { userId } });
-    if (profile) {
-      await this.prisma.skillClaim.upsert({
-        where: { profileId_skillId: { profileId: profile.id, skillId } },
-        update: { status: ClaimStatus.VERIFIED, level, badgeId: badge.id },
-        create: {
-          profileId: profile.id,
-          skillId,
-          level,
-          status: ClaimStatus.VERIFIED,
-          badgeId: badge.id,
-        },
-      });
-    }
+    // Recompute SkillClaim from every non-revoked badge this user holds for
+    // this skill — never a raw "point at whatever was just issued" upsert,
+    // so a weaker/lower proof can never displace a stronger one already
+    // held (see BadgeResolverService).
+    await this.badgeResolver.syncSkillClaim(userId, skillId);
     return badge;
   }
 }

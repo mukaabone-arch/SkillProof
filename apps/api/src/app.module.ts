@@ -15,6 +15,7 @@ import { CandidatesModule } from './modules/candidates/candidates.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
 import { ExternalCredentialsModule } from './modules/external-credentials/external-credentials.module';
 import { AssessmentSessionsModule } from './modules/assessment-sessions/assessment-sessions.module';
+import { BadgesModule } from './modules/badges/badges.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { AssessmentSessionsModule } from './modules/assessment-sessions/assessme
     AuthModule,
     UsersModule,
     TaxonomyModule,
+    BadgesModule,
     AssessmentsModule,
     ProfilesModule,
     AdminModule,
