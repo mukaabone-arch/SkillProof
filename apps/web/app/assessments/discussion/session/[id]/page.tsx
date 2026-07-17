@@ -2,10 +2,16 @@
 
 /**
  * The live conversation. No CandidateNav (matches the MCQ take-flow's own
- * chrome-free convention) and deliberately no structural signal anywhere:
- * no progress bar, no claim/probe counter, no score — just the brief, the
- * transcript, and an input. See the header row below for the only two
- * things shown: elapsed time and "recorded, reviewed by a person."
+ * chrome-free convention). Structured as a topbar (progress/counter/timer)
+ * plus a stream of per-topic question cards — each wraps one claim's whole
+ * exchange (opening/followup/constraint) — followed, once that topic is
+ * done, by a gradient-hairline reviewer card carrying LiveClaimFeedback:
+ * informal, live coaching notes, deliberately separate from the official
+ * scored result (hidden until a human reviewer decides the session — see
+ * the result page). The AI interviewer's own turns never reveal claim
+ * names or rubric structure in conversation (see assessor.service.ts's
+ * leak guard); claimId itself is now exposed on turns/feedback purely as
+ * an opaque grouping key for this UI, not as rubric content.
  */
 import { ClipboardEvent, Fragment, KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -24,13 +30,31 @@ interface SessionSummary {
   // session-touching endpoint returns a fresh one of these.
   elapsedSeconds: number;
   idleTimeoutMinutes: number;
+  // Advertised (not enforced) session length — DISCUSSION_DURATION_MINS,
+  // the same single source of truth used in the pre-session copy. Drives
+  // only the cosmetic topbar countdown; the real timeout stays idle-based.
+  advertisedDurationMinutes: number;
+  // Claim count only — never which claim. See computeProgress.
+  progress: { current: number; total: number };
 }
 interface Turn {
   id: string;
   role: 'CANDIDATE' | 'ASSESSOR';
   content: string;
+  // Opaque grouping key for this UI (which topic card a turn belongs to) —
+  // never a rubric label. See PublicTurn's own doc comment.
+  claimId: string | null;
   superseded: boolean;
   createdAt: string;
+}
+interface LiveFeedback {
+  id: string;
+  claimId: string;
+  verdictLabel: string;
+  summary: string;
+  strengths: string[];
+  gaps: string[];
+  helpfulVote: boolean | null;
 }
 
 /**
@@ -110,6 +134,35 @@ function formatElapsed(totalSeconds: number): string {
   return `${hours}:${String(totalMinutes % 60).padStart(2, '0')}`;
 }
 
+/** One render unit: every turn sharing a claimId, in the order they occurred. */
+interface ClaimGroup {
+  claimId: string;
+  items: Turn[];
+}
+
+/**
+ * Turns with a claimId group into that topic's question card; turns
+ * without one (the two reflection-stage turns and the final close message)
+ * fall into trailingTurns and keep the plain, uncarded rendering they've
+ * always had — they aren't scored claims and don't get reviewer treatment.
+ * A claim's turns are always contiguous (the ladder walks CLAIM_ORDER once,
+ * forward only), so grouping by first-seen order is safe.
+ */
+function groupTurns(turns: Turn[]): { groups: ClaimGroup[]; trailing: Turn[] } {
+  const groups: ClaimGroup[] = [];
+  const trailing: Turn[] = [];
+  for (const t of turns) {
+    if (t.claimId === null) {
+      trailing.push(t);
+      continue;
+    }
+    const existing = groups.find((g) => g.claimId === t.claimId);
+    if (existing) existing.items.push(t);
+    else groups.push({ claimId: t.claimId, items: [t] });
+  }
+  return { groups, trailing };
+}
+
 /** ~3 rows to start; grows with content up to a max height, then scrolls internally. */
 const TEXTAREA_MAX_HEIGHT_PX = 240;
 
@@ -118,6 +171,8 @@ export default function DiscussionSessionPage() {
   const router = useRouter();
   const [session, setSession] = useState<SessionSummary | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
+  const [claimFeedback, setClaimFeedback] = useState<LiveFeedback[]>([]);
+  const [openOverrides, setOpenOverrides] = useState<Record<string, boolean>>({});
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [draft, setDraft] = useState('');
@@ -136,14 +191,14 @@ export default function DiscussionSessionPage() {
       return;
     }
     try {
-      let current = await api<{ session: SessionSummary; turns: Turn[] }>(`/assessment-sessions/${id}`);
+      let current = await api<{ session: SessionSummary; turns: Turn[]; claimFeedback: LiveFeedback[] }>(`/assessment-sessions/${id}`);
 
       // Interrupted (idle timeout) — resume before rendering anything, so
       // the candidate only ever sees the re-asked probe as the live state,
       // never a dead-ended EXPIRED screen with nothing to do.
       if (current.session.status === 'EXPIRED') {
         await api(`/assessment-sessions/${id}/resume`, { method: 'POST' });
-        current = await api<{ session: SessionSummary; turns: Turn[] }>(`/assessment-sessions/${id}`);
+        current = await api<{ session: SessionSummary; turns: Turn[]; claimFeedback: LiveFeedback[] }>(`/assessment-sessions/${id}`);
       }
 
       if (DECIDED_STATUSES.includes(current.session.status)) {
@@ -153,6 +208,7 @@ export default function DiscussionSessionPage() {
 
       setSession(current.session);
       setTurns(current.turns);
+      setClaimFeedback(current.claimFeedback);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -284,7 +340,7 @@ export default function DiscussionSessionPage() {
     };
 
     try {
-      const resp = await api<{ candidateTurn: Turn; assessorTurn: Turn; session: SessionSummary }>(
+      const resp = await api<{ candidateTurn: Turn; assessorTurn: Turn; session: SessionSummary; liveFeedback: LiveFeedback | null }>(
         `/assessment-sessions/${id}/turns`,
         { method: 'POST', body: JSON.stringify({ content, signals }) },
       );
@@ -294,6 +350,16 @@ export default function DiscussionSessionPage() {
       }
       setTurns((prev) => [...prev, resp.candidateTurn, resp.assessorTurn]);
       setSession(resp.session);
+      if (resp.liveFeedback) {
+        const fb = resp.liveFeedback;
+        setClaimFeedback((prev) => {
+          const idx = prev.findIndex((f) => f.claimId === fb.claimId);
+          if (idx === -1) return [...prev, fb];
+          const next = [...prev];
+          next[idx] = fb;
+          return next;
+        });
+      }
     } catch (e) {
       setError((e as Error).message);
       setDraft(content); // restore what they typed so nothing is lost
@@ -309,7 +375,7 @@ export default function DiscussionSessionPage() {
 
   function onTextareaKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     // Plain Enter inserts a newline (default textarea behavior — do
-    // nothing). Cmd/Ctrl+Enter sends; the Send button is the only other way.
+    // nothing). Cmd/Ctrl+Enter sends; the Submit button is the only other way.
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       send();
@@ -332,6 +398,145 @@ export default function DiscussionSessionPage() {
     if (confirmed) {
       router.push('/assessments');
     }
+  }
+
+  /** Default-open only the most recently generated note; earlier ones start collapsed until toggled. */
+  function isFeedbackOpen(claimId: string): boolean {
+    if (claimId in openOverrides) return openOverrides[claimId];
+    return claimFeedback.length > 0 && claimFeedback[claimFeedback.length - 1].claimId === claimId;
+  }
+
+  function toggleFeedback(claimId: string) {
+    setOpenOverrides((prev) => ({ ...prev, [claimId]: !isFeedbackOpen(claimId) }));
+  }
+
+  /** Optimistic — a failed vote just leaves the UI toggled; not worth surfacing an error for a low-stakes signal. */
+  async function voteFeedback(claimId: string, helpful: boolean) {
+    setClaimFeedback((prev) => prev.map((f) => (f.claimId === claimId ? { ...f, helpfulVote: helpful } : f)));
+    try {
+      await api(`/assessment-sessions/${id}/claims/${claimId}/feedback-vote`, {
+        method: 'POST',
+        body: JSON.stringify({ helpful }),
+      });
+    } catch {
+      // best-effort, see doc comment above
+    }
+  }
+
+  function focusActiveInput() {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    textareaRef.current?.focus();
+  }
+
+  function renderTurn(t: Turn, index: number) {
+    if (index === 0 && t.role === 'ASSESSOR') {
+      const { framing, question } = splitOpeningTurn(t.content);
+      return (
+        <Fragment key={t.id}>
+          {framing && <div className="discussion-system-note">{framing}</div>}
+          <div className={`discussion-turn discussion-turn-assessor${t.superseded ? ' discussion-turn-superseded' : ''}`}>
+            <AssessorLabel />
+            <div className="discussion-turn-content">{question}</div>
+            {t.superseded && <div className="meta">re-asked after a connection drop</div>}
+          </div>
+        </Fragment>
+      );
+    }
+    return (
+      <div
+        key={t.id}
+        className={`discussion-turn discussion-turn-${t.role.toLowerCase()}${t.superseded ? ' discussion-turn-superseded' : ''}`}
+      >
+        {t.role === 'ASSESSOR' && <AssessorLabel />}
+        <div className="discussion-turn-content">{t.content}</div>
+        {t.superseded && <div className="meta">re-asked after a connection drop</div>}
+      </div>
+    );
+  }
+
+  function renderInputArea() {
+    return (
+      <div className="discussion-input-row">
+        <textarea
+          ref={textareaRef}
+          value={draft}
+          onChange={(e) => onDraftChange(e.target.value)}
+          onKeyDown={onTextareaKeyDown}
+          onPaste={onTextareaPaste}
+          disabled={sending}
+          placeholder="Type your response…"
+          rows={3}
+        />
+        <div className="discussion-send-col">
+          <button onClick={send} disabled={sending || !draft.trim()}>
+            {sending ? 'Submitting…' : 'Submit answer'}
+          </button>
+          <span className="discussion-input-hint">⌘/Ctrl + Enter to submit</span>
+        </div>
+      </div>
+    );
+  }
+
+  function renderReviewerCard(fb: LiveFeedback) {
+    const open = isFeedbackOpen(fb.claimId);
+    return (
+      <section className={`discussion-reviewer${open ? '' : ' closed'}`} key={`fb-${fb.claimId}`} aria-label="Reviewer notes">
+        <div className="discussion-reviewer-inner">
+          <div className="discussion-reviewer-head">
+            <span className="discussion-assessor-mark" aria-hidden="true">✦</span>
+            <h3>Reviewer notes</h3>
+            <button
+              type="button"
+              className="discussion-chev"
+              onClick={() => toggleFeedback(fb.claimId)}
+              aria-expanded={open}
+              aria-label={`${open ? 'Collapse' : 'Expand'} reviewer notes`}
+            >
+              ▲
+            </button>
+          </div>
+          <div className="discussion-reviewer-body">
+            <span className="discussion-verdict">
+              ✓ {fb.verdictLabel} · {fb.summary}
+            </span>
+            <ul className="discussion-points">
+              {fb.strengths.map((s, i) => (
+                <li key={`s-${i}`}>{s}</li>
+              ))}
+              {fb.gaps.map((g, i) => (
+                <li key={`g-${i}`} className="gap">
+                  <em>Gap:</em> {g}
+                </li>
+              ))}
+            </ul>
+            <div className="discussion-feedback-foot">
+              <span className="discussion-feedback-ask">Was this explanation helpful?</span>
+              <div className="discussion-pills">
+                <button
+                  type="button"
+                  className="discussion-pill"
+                  aria-pressed={fb.helpfulVote === true}
+                  onClick={() => voteFeedback(fb.claimId, true)}
+                >
+                  Yes
+                </button>
+                <button
+                  type="button"
+                  className="discussion-pill no"
+                  aria-pressed={fb.helpfulVote === false}
+                  onClick={() => voteFeedback(fb.claimId, false)}
+                >
+                  Not really
+                </button>
+              </div>
+              <button type="button" className="discussion-continue" onClick={focusActiveInput}>
+                Continue →
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
   }
 
   if (!loaded) {
@@ -364,8 +569,38 @@ export default function DiscussionSessionPage() {
     );
   }
 
+  const { groups, trailing } = groupTurns(turns);
+  const remainingCosmetic = Math.max(0, session.advertisedDurationMinutes * 60 - elapsed);
+  const timerWarn = remainingCosmetic < 120;
+  const progressPct = Math.round((session.progress.current / session.progress.total) * 100);
+
   return (
     <main className="discussion-session">
+      <div className="discussion-topbar">
+        <div
+          className="discussion-progress"
+          role="progressbar"
+          aria-valuenow={session.progress.current}
+          aria-valuemin={1}
+          aria-valuemax={session.progress.total}
+          aria-label={`Question ${session.progress.current} of ${session.progress.total}`}
+        >
+          <i style={{ width: `${progressPct}%` }} />
+        </div>
+        <span className="discussion-counter">
+          Q {session.progress.current}/{session.progress.total}
+        </span>
+        <span className={`discussion-timer${timerWarn ? ' warn' : ''}`} aria-live="off">
+          {formatElapsed(remainingCosmetic)}
+        </span>
+        <div className="discussion-topbar-right">
+          <span className="meta">Recorded · reviewed by a person</span>
+          <button type="button" className="discussion-exit-link" onClick={onExit}>
+            Exit
+          </button>
+        </div>
+      </div>
+
       <div
         className={`discussion-brief ${briefExpanded ? 'expanded' : 'collapsed'}`}
         onClick={() => setBriefExpanded((v) => !v)}
@@ -379,44 +614,24 @@ export default function DiscussionSessionPage() {
         )}
       </div>
 
-      <div className="discussion-header-row">
-        <span className="meta">Elapsed {formatElapsed(elapsed)}</span>
-        <div className="discussion-header-right">
-          <span className="meta">Recorded · reviewed by a person</span>
-          <button type="button" className="discussion-exit-link" onClick={onExit}>
-            Exit
-          </button>
-        </div>
-      </div>
-
       {error && <p className="error">{error}</p>}
 
       <div className="discussion-turns">
-        {turns.map((t, index) => {
-          if (index === 0 && t.role === 'ASSESSOR') {
-            const { framing, question } = splitOpeningTurn(t.content);
-            return (
-              <Fragment key={t.id}>
-                {framing && <div className="discussion-system-note">{framing}</div>}
-                <div className={`discussion-turn discussion-turn-assessor${t.superseded ? ' discussion-turn-superseded' : ''}`}>
-                  <AssessorLabel />
-                  <div className="discussion-turn-content">{question}</div>
-                  {t.superseded && <div className="meta">re-asked after a connection drop</div>}
-                </div>
-              </Fragment>
-            );
-          }
+        {groups.map((g, gi) => {
+          const isLastGroup = gi === groups.length - 1 && trailing.length === 0;
+          const fb = claimFeedback.find((f) => f.claimId === g.claimId);
           return (
-            <div
-              key={t.id}
-              className={`discussion-turn discussion-turn-${t.role.toLowerCase()}${t.superseded ? ' discussion-turn-superseded' : ''}`}
-            >
-              {t.role === 'ASSESSOR' && <AssessorLabel />}
-              <div className="discussion-turn-content">{t.content}</div>
-              {t.superseded && <div className="meta">re-asked after a connection drop</div>}
-            </div>
+            <Fragment key={g.claimId}>
+              <div className="discussion-qcard">
+                {g.items.map((t) => renderTurn(t, turns.indexOf(t)))}
+                {isLastGroup && renderInputArea()}
+              </div>
+              {fb && renderReviewerCard(fb)}
+            </Fragment>
           );
         })}
+        {trailing.map((t) => renderTurn(t, turns.indexOf(t)))}
+        {trailing.length > 0 && renderInputArea()}
         {sending && (
           <div className="discussion-turn discussion-turn-assessor discussion-typing">
             <AssessorLabel />
@@ -427,25 +642,6 @@ export default function DiscussionSessionPage() {
           </div>
         )}
         <div ref={bottomRef} />
-      </div>
-
-      <div className="discussion-input-row">
-        <textarea
-          ref={textareaRef}
-          value={draft}
-          onChange={(e) => onDraftChange(e.target.value)}
-          onKeyDown={onTextareaKeyDown}
-          onPaste={onTextareaPaste}
-          disabled={sending}
-          placeholder="Type your response…"
-          rows={3}
-        />
-        <div className="discussion-send-col">
-          <button onClick={send} disabled={sending || !draft.trim()}>
-            Send
-          </button>
-          <span className="discussion-input-hint">⌘/Ctrl + Enter to send</span>
-        </div>
       </div>
     </main>
   );

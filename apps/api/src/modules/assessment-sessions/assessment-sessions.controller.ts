@@ -3,11 +3,14 @@ import { AssessmentSession, Role } from '@prisma/client';
 import { AuthenticatedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { AssessmentSessionsService, IDLE_TIMEOUT_MINUTES } from './assessment-sessions.service';
+import { AssessmentSessionsService, computeProgress, IDLE_TIMEOUT_MINUTES } from './assessment-sessions.service';
+import { LadderState } from './assessor.service';
 import { ScoringService } from './scoring.service';
 import { ReviewService } from './review.service';
+import { DISCUSSION_DURATION_MINS } from './rag-systems-l2.rubric';
 import {
   DisputeClaimDto,
+  LiveFeedbackVoteDto,
   PostSessionTurnDto,
   ResolveDisputeDto,
   ReviewClaimDto,
@@ -15,11 +18,13 @@ import {
 } from './assessment-sessions.dto';
 
 /**
- * Candidate-facing session summary — never includes ladderState.
- * elapsedSeconds is a snapshot (see AssessmentSessionsService.
- * computeElapsedSeconds); idleTimeoutMinutes is the real config value the
- * server actually enforces, surfaced so the exit-confirm copy never has to
- * hardcode a guess that could drift out of sync.
+ * Candidate-facing session summary — never includes ladderState itself,
+ * only the numeric progress derived from it (see computeProgress — just a
+ * count, never which topic). elapsedSeconds is a snapshot (see
+ * AssessmentSessionsService.computeElapsedSeconds); idleTimeoutMinutes and
+ * advertisedDurationMinutes are the real config/rubric values the server
+ * actually uses, surfaced so client copy/countdowns never hardcode a guess
+ * that could drift out of sync.
  */
 function toSessionResponse(session: AssessmentSession, elapsedSeconds: number) {
   return {
@@ -30,6 +35,8 @@ function toSessionResponse(session: AssessmentSession, elapsedSeconds: number) {
     expiresAt: session.expiresAt,
     elapsedSeconds,
     idleTimeoutMinutes: IDLE_TIMEOUT_MINUTES,
+    advertisedDurationMinutes: DISCUSSION_DURATION_MINS,
+    progress: computeProgress(session.ladderState as unknown as LadderState),
   };
 }
 
@@ -44,9 +51,9 @@ export class AssessmentSessionsController {
 
   @Post()
   async create(@Req() req: AuthenticatedRequest) {
-    const { session, turns } = await this.svc.createSession(req.user.sub);
+    const { session, turns, claimFeedback } = await this.svc.createSession(req.user.sub);
     const elapsedSeconds = await this.svc.computeElapsedSeconds(session.id, session.startedAt);
-    return { session: toSessionResponse(session, elapsedSeconds), turns };
+    return { session: toSessionResponse(session, elapsedSeconds), turns, claimFeedback };
   }
 
   /**
@@ -73,16 +80,27 @@ export class AssessmentSessionsController {
 
   @Get(':id')
   async get(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    const { session, turns } = await this.svc.getSession(req.user.sub, id);
+    const { session, turns, claimFeedback } = await this.svc.getSession(req.user.sub, id);
     const elapsedSeconds = await this.svc.computeElapsedSeconds(session.id, session.startedAt);
-    return { session: toSessionResponse(session, elapsedSeconds), turns };
+    return { session: toSessionResponse(session, elapsedSeconds), turns, claimFeedback };
   }
 
   @Post(':id/turns')
   async postTurn(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: PostSessionTurnDto) {
-    const { candidateTurn, assessorTurn, session } = await this.svc.postTurn(req.user.sub, id, dto.content, dto.signals);
+    const { candidateTurn, assessorTurn, session, liveFeedback } = await this.svc.postTurn(req.user.sub, id, dto.content, dto.signals);
     const elapsedSeconds = await this.svc.computeElapsedSeconds(session.id, session.startedAt);
-    return { candidateTurn, assessorTurn, session: toSessionResponse(session, elapsedSeconds) };
+    return { candidateTurn, assessorTurn, session: toSessionResponse(session, elapsedSeconds), liveFeedback };
+  }
+
+  /** Upsertable "was this helpful" vote on one claim's live feedback — 404 if that claim has no feedback yet. */
+  @Post(':id/claims/:claimId/feedback-vote')
+  voteLiveFeedback(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Param('claimId') claimId: string,
+    @Body() dto: LiveFeedbackVoteDto,
+  ) {
+    return this.svc.voteLiveFeedback(req.user.sub, id, claimId, dto.helpful);
   }
 
   @Post(':id/resume')

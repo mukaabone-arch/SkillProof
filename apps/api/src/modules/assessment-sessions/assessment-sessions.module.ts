@@ -6,11 +6,12 @@ import { AssessmentSessionsService } from './assessment-sessions.service';
 import { AssessorService } from './assessor.service';
 import { ScoringService } from './scoring.service';
 import { ReviewService } from './review.service';
+import { LiveFeedbackService } from './live-feedback.service';
 
 @Module({
   imports: [AuthModule, BadgesModule],
   controllers: [AssessmentSessionsController],
-  providers: [AssessmentSessionsService, AssessorService, ScoringService, ReviewService],
+  providers: [AssessmentSessionsService, AssessorService, ScoringService, ReviewService, LiveFeedbackService],
   // AssessmentSessionsService is consumed by AssessmentsModule to compose
   // the skill-grouped catalog endpoint (discussion-format retake/action
   // state folded in alongside MCQ data) — see AssessmentsService.getCatalog.

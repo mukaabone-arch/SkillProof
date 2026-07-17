@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import {
   AssessmentSession,
   AssessmentSessionStatus,
+  LiveClaimFeedback,
   Prisma,
   ProbeRung,
   RagL2Claim,
@@ -12,6 +13,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssessorService, LadderState } from './assessor.service';
 import { ScoringService } from './scoring.service';
+import { LiveFeedbackService } from './live-feedback.service';
 import { CLAIM_ORDER, RUBRIC_VERSION, SCENARIO_BRIEF, SKILL_LEVEL, SKILL_NAME } from './rag-systems-l2.rubric';
 import { TurnSignalsDto } from './assessment-sessions.dto';
 
@@ -105,15 +107,19 @@ export interface PublicTurn {
   content: string;
   // Included (not filtered out) so the candidate-facing UI can render a
   // struck-through "re-asked after a connection drop" fragment — see
-  // publicTurns below. claimId/probeRung are still never exposed here: the
-  // candidate must not be able to see structure or which competency is
-  // being probed.
+  // publicTurns below. probeRung is still never exposed: which rung
+  // (opening/followup/constraint) a turn targeted would reveal the ladder
+  // structure. claimId is the one exception, exposed only so the session
+  // page can group turns into per-topic cards and line them up with
+  // LiveClaimFeedback (which already carries claimId for the same reason)
+  // — it's an opaque enum value, never the claim's rubric label/hints.
+  claimId: RagL2Claim | null;
   superseded: boolean;
   createdAt: Date;
 }
 
 function toPublicTurn(turn: SessionTurn): PublicTurn {
-  return { id: turn.id, role: turn.role, content: turn.content, superseded: turn.superseded, createdAt: turn.createdAt };
+  return { id: turn.id, role: turn.role, content: turn.content, claimId: turn.claimId, superseded: turn.superseded, createdAt: turn.createdAt };
 }
 
 function deriveTarget(state: LadderState): { claimId: RagL2Claim | null; probeRung: ProbeRung | null } {
@@ -121,6 +127,47 @@ function deriveTarget(state: LadderState): { claimId: RagL2Claim | null; probeRu
     return { claimId: CLAIM_ORDER[state.claimIndex], probeRung: state.rung };
   }
   return { claimId: null, probeRung: null };
+}
+
+/**
+ * Candidate-facing shape of a LiveClaimFeedback row — see that model's own
+ * doc comment. strengths/gaps are stored as Json (string[]) and cast back
+ * out here rather than at every call site.
+ */
+export interface PublicLiveFeedback {
+  id: string;
+  claimId: RagL2Claim;
+  verdictLabel: string;
+  summary: string;
+  strengths: string[];
+  gaps: string[];
+  helpfulVote: boolean | null;
+}
+
+function toPublicLiveFeedback(row: LiveClaimFeedback): PublicLiveFeedback {
+  return {
+    id: row.id,
+    claimId: row.claimId,
+    verdictLabel: row.verdictLabel,
+    summary: row.summary,
+    strengths: row.strengths as string[],
+    gaps: row.gaps as string[],
+    helpfulVote: row.helpfulVote,
+  };
+}
+
+/**
+ * Candidate-facing "Q x/6" progress — counts scored claims only. Reflection
+ * questions aren't numbered separately (the session page renders them as
+ * plain follow-up turns, not their own question card), so progress caps at
+ * 6/6 once the ladder leaves the claim stage.
+ */
+export function computeProgress(ladderState: LadderState): { current: number; total: number } {
+  const total = CLAIM_ORDER.length;
+  if (ladderState.stage === 'CLAIM') {
+    return { current: Math.min(ladderState.claimIndex + 1, total), total };
+  }
+  return { current: total, total };
 }
 
 /**
@@ -138,6 +185,7 @@ export class AssessmentSessionsService {
     private readonly prisma: PrismaService,
     private readonly assessor: AssessorService,
     private readonly scoring: ScoringService,
+    private readonly liveFeedback: LiveFeedbackService,
   ) {}
 
   /**
@@ -146,14 +194,14 @@ export class AssessmentSessionsService {
    * one — mirrors AssessmentsService.startAttempt's "one active attempt"
    * pattern. Only a session already at AWAITING_SCORING allows a fresh one.
    */
-  async createSession(userId: string): Promise<{ session: AssessmentSession; turns: PublicTurn[] }> {
+  async createSession(userId: string): Promise<{ session: AssessmentSession; turns: PublicTurn[]; claimFeedback: PublicLiveFeedback[] }> {
     const existing = await this.prisma.assessmentSession.findFirst({
       where: { userId, status: { in: [AssessmentSessionStatus.IN_PROGRESS, AssessmentSessionStatus.EXPIRED] } },
       orderBy: { createdAt: 'desc' },
     });
     if (existing) {
       const enforced = await this.enforceExpiry(existing);
-      return { session: enforced, turns: await this.publicTurns(enforced.id) };
+      return { session: enforced, turns: await this.publicTurns(enforced.id), claimFeedback: await this.publicLiveFeedback(enforced.id) };
     }
 
     // Retake gate — looks at the most recently decided REJECTED-or-DISPUTED
@@ -209,13 +257,16 @@ export class AssessmentSessionsService {
       },
     });
 
-    return { session, turns: await this.publicTurns(session.id) };
+    return { session, turns: await this.publicTurns(session.id), claimFeedback: [] };
   }
 
-  async getSession(userId: string, sessionId: string): Promise<{ session: AssessmentSession; turns: PublicTurn[] }> {
+  async getSession(
+    userId: string,
+    sessionId: string,
+  ): Promise<{ session: AssessmentSession; turns: PublicTurn[]; claimFeedback: PublicLiveFeedback[] }> {
     let session = await this.getOwnedSession(userId, sessionId);
     session = await this.enforceExpiry(session);
-    return { session, turns: await this.publicTurns(session.id) };
+    return { session, turns: await this.publicTurns(session.id), claimFeedback: await this.publicLiveFeedback(session.id) };
   }
 
   /**
@@ -227,7 +278,7 @@ export class AssessmentSessionsService {
     sessionId: string,
     content: string,
     signals?: TurnSignalsDto,
-  ): Promise<{ candidateTurn: PublicTurn; assessorTurn: PublicTurn; session: AssessmentSession }> {
+  ): Promise<{ candidateTurn: PublicTurn; assessorTurn: PublicTurn; session: AssessmentSession; liveFeedback: PublicLiveFeedback | null }> {
     let session = await this.getOwnedSession(userId, sessionId);
     session = await this.enforceExpiry(session);
 
@@ -267,6 +318,38 @@ export class AssessmentSessionsService {
       orderBy: { createdAt: 'asc' },
     });
 
+    // CONSTRAINT is always a claim's last rung, so the candidate turn just
+    // persisted above completes claim.claimId's exchange regardless of
+    // what the ladder moves to next — generate its live coaching note now.
+    // Awaited inline (not fire-and-forget like scoring) since the candidate
+    // needs it in this same response; generateClaimFeedback never throws,
+    // so a failure here just yields liveFeedback: null.
+    let liveFeedback: PublicLiveFeedback | null = null;
+    if (target.probeRung === ProbeRung.CONSTRAINT && target.claimId) {
+      const claimTurns = history.filter((t) => t.claimId === target.claimId);
+      const generated = await this.liveFeedback.generateClaimFeedback(target.claimId, claimTurns);
+      if (generated) {
+        const row = await this.prisma.liveClaimFeedback.upsert({
+          where: { sessionId_claimId: { sessionId, claimId: target.claimId } },
+          create: {
+            sessionId,
+            claimId: target.claimId,
+            verdictLabel: generated.verdictLabel,
+            summary: generated.summary,
+            strengths: generated.strengths as unknown as Prisma.InputJsonValue,
+            gaps: generated.gaps as unknown as Prisma.InputJsonValue,
+          },
+          update: {
+            verdictLabel: generated.verdictLabel,
+            summary: generated.summary,
+            strengths: generated.strengths as unknown as Prisma.InputJsonValue,
+            gaps: generated.gaps as unknown as Prisma.InputJsonValue,
+          },
+        });
+        liveFeedback = toPublicLiveFeedback(row);
+      }
+    }
+
     const { turn, nextLadderState, completesSession } = await this.assessor.generateNextTurn(history, ladderState);
 
     const assessorTurn = await this.prisma.sessionTurn.create({
@@ -299,7 +382,7 @@ export class AssessmentSessionsService {
       });
     }
 
-    return { candidateTurn: toPublicTurn(candidateTurn), assessorTurn: toPublicTurn(assessorTurn), session };
+    return { candidateTurn: toPublicTurn(candidateTurn), assessorTurn: toPublicTurn(assessorTurn), session, liveFeedback };
   }
 
   /**
@@ -559,6 +642,34 @@ export class AssessmentSessionsService {
   }
 
   /**
+   * POST /assessment-sessions/:id/claims/:claimId/feedback-vote —
+   * upsertable "was this helpful" vote on one claim's live feedback.
+   * Unlike ClaimDispute this is a low-stakes UI toggle, not write-once: a
+   * candidate can change their mind. 404 if that claim has no live
+   * feedback yet (e.g. the claim isn't complete, or generation failed).
+   */
+  async voteLiveFeedback(userId: string, sessionId: string, claimId: string, helpful: boolean): Promise<{ claimId: string; helpful: boolean }> {
+    await this.getOwnedSession(userId, sessionId);
+    if (!CLAIM_ORDER.includes(claimId as RagL2Claim)) {
+      throw new BadRequestException(`Unknown claim "${claimId}".`);
+    }
+
+    const existing = await this.prisma.liveClaimFeedback.findUnique({
+      where: { sessionId_claimId: { sessionId, claimId: claimId as RagL2Claim } },
+    });
+    if (!existing) {
+      throw new NotFoundException('No live feedback found for this claim.');
+    }
+
+    await this.prisma.liveClaimFeedback.update({
+      where: { id: existing.id },
+      data: { helpfulVote: helpful, votedAt: new Date() },
+    });
+
+    return { claimId, helpful };
+  }
+
+  /**
    * Active working time as of now: wall clock since startedAt, minus every
    * logged interruption gap (occurredAt -> resumedAt). occurredAt is
    * already anchored to the real idle boundary (enforceExpiry sets it to
@@ -616,6 +727,11 @@ export class AssessmentSessionsService {
       orderBy: { createdAt: 'asc' },
     });
     return turns.map(toPublicTurn);
+  }
+
+  private async publicLiveFeedback(sessionId: string): Promise<PublicLiveFeedback[]> {
+    const rows = await this.prisma.liveClaimFeedback.findMany({ where: { sessionId }, orderBy: { createdAt: 'asc' } });
+    return rows.map(toPublicLiveFeedback);
   }
 
   /**

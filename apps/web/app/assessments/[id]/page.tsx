@@ -51,6 +51,12 @@ export default function TakeAssessmentPage() {
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  // The absolute instant the countdown ticks against — see the countdown
+  // effect below. Kept separate from remainingSeconds (a derived display
+  // value) so drift never accumulates: every tick recomputes fresh from
+  // this anchor and Date.now(), rather than decrementing remainingSeconds
+  // itself, which drifts under tab throttling/backgrounding.
+  const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
   // Gates start(): the attempt is never created until the candidate has
   // explicitly acknowledged the monitoring notice below.
   const [acknowledged, setAcknowledged] = useState(false);
@@ -68,6 +74,7 @@ export default function TakeAssessmentPage() {
       const res = await api<QuestionsResponse>(`/attempts/${attempt.id}/questions`);
       setQuestions(res.questions);
       setRemainingSeconds(res.remainingSeconds);
+      setDeadlineAt(res.deadlineAt);
     } catch (e) { setError((e as Error).message); }
     finally { setLoaded(true); }
   }, [id, router]);
@@ -179,6 +186,7 @@ export default function TakeAssessmentPage() {
     setAnswers({});
     setAttemptId(undefined);
     setRemainingSeconds(null);
+    setDeadlineAt(null);
     setLoaded(false);
     setError('');
     setAckChecked(false);
@@ -188,21 +196,38 @@ export default function TakeAssessmentPage() {
   /**
    * Client-side countdown display only — the server is authoritative
    * (AssessmentsService.enforceDeadline runs on every getQuestions/
-   * submitAnswer call regardless of this timer). At zero we still call
-   * submit() so the UI moves on immediately instead of waiting for the
+   * submitAnswer call regardless of this timer). Recomputed from the
+   * absolute deadlineAt instant and Date.now() on every tick, never by
+   * decrementing remainingSeconds itself — a chained setTimeout doing that
+   * drifts behind real elapsed time whenever the tab is backgrounded or
+   * throttled, since a suspended tab's timers fire late but wall-clock
+   * time keeps moving. At zero we still call submit() (once — see
+   * `stopped`) so the UI moves on immediately instead of waiting for the
    * candidate to notice; if the server already auto-graded it in the
    * background, this just fetches that result.
    */
   useEffect(() => {
-    if (remainingSeconds === null || result || finishedRef.current) return;
-    if (remainingSeconds <= 0) {
-      submit();
-      return;
-    }
-    const timer = setTimeout(() => setRemainingSeconds((s) => (s !== null ? s - 1 : s)), 1000);
-    return () => clearTimeout(timer);
+    if (deadlineAt === null || result || finishedRef.current) return;
+    const deadlineMs = new Date(deadlineAt).getTime();
+    let stopped = false;
+    const tick = () => {
+      if (stopped) return;
+      const secondsLeft = Math.max(0, Math.round((deadlineMs - Date.now()) / 1000));
+      setRemainingSeconds(secondsLeft);
+      if (secondsLeft <= 0) {
+        stopped = true;
+        clearInterval(timer);
+        submit();
+      }
+    };
+    const timer = setInterval(tick, 1000);
+    tick();
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remainingSeconds, result]);
+  }, [deadlineAt, result]);
 
   function formatTime(seconds: number): string {
     const m = Math.floor(seconds / 60);

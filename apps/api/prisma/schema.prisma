@@ -725,11 +725,12 @@ model AssessmentSession {
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
 
-  turns         SessionTurn[]
-  interruptions SessionInterruption[]
-  claimVerdicts ClaimVerdict[]
-  disputes      ClaimDispute[]
-  badge         Badge?
+  turns             SessionTurn[]
+  interruptions     SessionInterruption[]
+  claimVerdicts     ClaimVerdict[]
+  disputes          ClaimDispute[]
+  liveClaimFeedback LiveClaimFeedback[]
+  badge             Badge?
 
   @@index([userId])
 }
@@ -915,6 +916,30 @@ model ClaimDispute {
   // Verdict.INSUFFICIENT_PROBING does: it's a fault of the process, not the
   // candidate. See isRetakeCooldownExempt.
   upheld      Boolean?
+
+  @@unique([sessionId, claimId])
+  @@index([sessionId])
+}
+
+/**
+ * Informal, candidate-facing coaching note for one completed claim — generated once that
+ * claim's ladder walk finishes (see AssessmentSessionsService.postTurn). Deliberately distinct
+ * from ClaimVerdict/ScoringService: this is shown live, is never the official scored verdict,
+ * and is never read by ScoringService or ReviewService. helpfulVote is upsertable (a low-stakes
+ * UI toggle), not write-once like ClaimDispute.
+ */
+model LiveClaimFeedback {
+  id           String            @id @default(uuid())
+  sessionId    String
+  session      AssessmentSession @relation(fields: [sessionId], references: [id])
+  claimId      RagL2Claim
+  verdictLabel String
+  summary      String
+  strengths    Json
+  gaps         Json
+  helpfulVote  Boolean?
+  votedAt      DateTime?
+  createdAt    DateTime          @default(now())
 
   @@unique([sessionId, claimId])
   @@index([sessionId])

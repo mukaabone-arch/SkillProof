@@ -97,6 +97,12 @@ export class DisputeClaimDto {
   body: string;
 }
 
+/** Body for POST /assessment-sessions/:id/claims/:claimId/feedback-vote. */
+export class LiveFeedbackVoteDto {
+  @IsBoolean()
+  helpful: boolean;
+}
+
 /** Body for POST /assessment-sessions/:id/claims/:claimId/dispute/resolve. */
 export class ResolveDisputeDto {
   @IsBoolean()

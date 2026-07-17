@@ -537,57 +537,94 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .review-clear-claims summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
 .transcript-turn { border-bottom: 1px solid var(--ink-12); padding-bottom: 8px; margin-bottom: 8px; }
 
-/* ---- candidate discussion-assessment flow ---- */
+/* ---- candidate discussion-assessment flow ----
+   Dark theme, scoped entirely to .discussion-session — the --dc-* vars
+   below are declared here, not on :root, so nothing outside this page
+   (.card/.meta/.btn etc., all used site-wide) is affected. Matches
+   apps/web/design-refs/assessment-window-mockup.html. */
 .discussion-entry-card { border-left: 3px solid var(--indigo); }
 
 .discussion-session {
+  --dc-bg: #0B0C10; --dc-card: #14161D; --dc-card2: #181B24; --dc-border: #262A35;
+  --dc-text: #E8EAF0; --dc-text2: #9AA1B2; --dc-text3: #6B7280;
+  --dc-indigo: #6366F1; --dc-indigo-soft: #818CF8; --dc-green: #34D399; --dc-amber: #FBBF24; --dc-red: #F87171;
+
+  background: var(--dc-bg); color: var(--dc-text);
   display: flex; flex-direction: column; height: 100vh; max-height: 100vh;
   /* 100dvh accounts for mobile browser chrome/on-screen keyboard, where a
      bare 100vh can leave the input row pushed off-screen; ignored (falls
      back to the 100vh above) on browsers that don't support it. */
   height: 100dvh; max-height: 100dvh;
-  max-width: 720px; margin: 0 auto; padding: 16px;
+  max-width: 720px; margin: 0 auto; padding: 0 16px 16px;
 }
-.discussion-brief {
-  background: var(--indigo-soft); border: 1px solid var(--indigo-soft);
-  border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; cursor: pointer; flex-shrink: 0;
+.discussion-session .meta { color: var(--dc-text2); }
+.discussion-session .error { color: var(--dc-red); }
+/* The global `p { color: var(--ink-60) }` rule (line ~109) directly targets
+   every <p>, and a same-element rule always beats an inherited value
+   regardless of the ancestor's specificity — without this, .discussion-brief's
+   <p> renders dark-on-dark and disappears. */
+.discussion-session p { color: var(--dc-text); }
+
+/* Sticky context bar: progress + counter + timer, never a card. Doesn't
+   need position:sticky/backdrop-blur — .discussion-session is already a
+   fixed-height flex column with only .discussion-turns scrolling
+   internally, so a plain flex-shrink:0 header sits above that scrollable
+   region exactly like the old .discussion-header-row did. */
+.discussion-topbar {
+  display: flex; align-items: center; gap: 14px; flex-shrink: 0;
+  padding: 12px 0; border-bottom: 1px solid var(--dc-border); margin-bottom: 14px;
 }
-.discussion-brief.collapsed { padding: 8px 16px; }
-.discussion-header-row {
-  display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-shrink: 0;
-  gap: 12px;
-}
-.discussion-header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.discussion-progress { flex: 1; height: 4px; background: var(--dc-border); border-radius: 2px; overflow: hidden; }
+.discussion-progress > i { display: block; height: 100%; background: var(--dc-indigo); border-radius: 2px; transition: width 0.4s ease; }
+.discussion-counter { font-family: var(--font-mono); font-size: 12px; color: var(--dc-text2); white-space: nowrap; }
+.discussion-timer { font-family: var(--font-mono); font-size: 12px; color: var(--dc-text); white-space: nowrap; }
+.discussion-timer.warn { color: var(--dc-amber); }
+.discussion-topbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
 /* A quiet text link, not a button — leaving shouldn't be invited, just
    possible. Deliberately muted and small next to the "Recorded" line. */
 .discussion-exit-link {
   background: none; border: none; padding: 0; margin: 0; cursor: pointer;
-  color: var(--ink-30); font-size: 0.8rem; font-weight: 500; text-decoration: underline;
+  color: var(--dc-text3); font-size: 0.8rem; font-weight: 500; text-decoration: underline;
 }
-.discussion-exit-link:hover { color: var(--ink-60); background: none; transform: none; }
-/* justify-content: flex-end bottom-anchors the thread — a short
-   conversation hugs the input like a real chat instead of sitting at the
-   top with dead space below it; once content overflows, this has no visual
-   effect and the container just scrolls normally. */
-.discussion-turns { flex: 1; overflow-y: auto; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; padding-bottom: 8px; }
-.discussion-turn { max-width: 82%; padding: 10px 14px; border-radius: 14px; line-height: 1.45; }
+.discussion-exit-link:hover { color: var(--dc-text2); background: none; transform: none; }
+
+.discussion-brief {
+  background: var(--dc-card2); border: 1px solid var(--dc-border);
+  border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; cursor: pointer; flex-shrink: 0;
+}
+.discussion-brief.collapsed { padding: 8px 16px; }
+
+/* Top-anchored: unlike the old compact chat bubbles, a question card is a
+   large block on its own, so bottom-anchoring (the old flex-end) left a
+   tall dead gap above it instead of below. Auto-scroll-to-bottom (see
+   bottomRef in page.tsx) already keeps the latest card in view as the
+   conversation grows. */
+.discussion-turns { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding-bottom: 8px; }
+
+/* Question card — plain border, the assessment speaking. Wraps one claim's
+   whole exchange (opening/followup/constraint + the candidate's answers),
+   not one raw turn. */
+.discussion-qcard {
+  background: var(--dc-card); border: 1px solid var(--dc-border); border-radius: 14px;
+  padding: 18px; display: flex; flex-direction: column; gap: 12px;
+}
+.discussion-qcard-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 2px; }
+
+.discussion-turn { max-width: 100%; padding: 0; border-radius: 0; line-height: 1.45; background: none; }
 .discussion-turn-content { white-space: pre-wrap; }
-/* White (not --paper-2) so the assessor bubble reads clearly against the
-   --paper page background instead of grey-on-grey; the label row below
-   (mark + name) is what actually signals "someone is speaking here". */
-.discussion-turn-assessor {
-  align-self: flex-start; background: #fff; border: 1px solid var(--ink-12);
-  border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(20, 27, 45, 0.05);
+.discussion-turn-assessor { align-self: stretch; }
+.discussion-turn-candidate {
+  align-self: stretch; background: var(--dc-card2); border: 1px solid var(--dc-border);
+  border-radius: 10px; padding: 10px 14px;
 }
-.discussion-turn-candidate { align-self: flex-end; background: var(--indigo); color: #fff; border-bottom-right-radius: 4px; }
-.discussion-turn-candidate .meta { color: rgba(255, 255, 255, 0.75); }
+.discussion-turn-candidate .meta { color: var(--dc-text2); }
 .discussion-turn-superseded { text-decoration: line-through; opacity: 0.55; }
-/* Small, quiet identity row above an assessor bubble's content — a name and
+/* Small, quiet identity row above an assessor turn's content — a name and
    a plain geometric mark (never a photographic avatar), the calm signal
    that this is the interviewer speaking rather than an unmarked grey block. */
-.discussion-turn-label { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 0.78rem; font-weight: 600; color: var(--ink-60); }
+.discussion-turn-label { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 0.78rem; font-weight: 600; color: var(--dc-text2); }
 .discussion-assessor-mark {
-  width: 18px; height: 18px; border-radius: 50%; background: var(--indigo); color: #fff;
+  width: 18px; height: 18px; border-radius: 50%; background: var(--dc-indigo); color: #fff;
   font-size: 0.65rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
@@ -597,28 +634,78 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
    the assessor "said". */
 .discussion-system-note {
   align-self: center; max-width: 92%; text-align: center; font-size: 0.8rem;
-  color: var(--ink-60); padding: 2px 12px 12px; white-space: pre-wrap;
+  color: var(--dc-text2); padding: 2px 12px 12px; white-space: pre-wrap;
 }
 .discussion-typing { display: flex; flex-direction: column; align-items: flex-start; }
 .discussion-typing-dots { display: flex; align-items: center; gap: 8px; }
+
+/* Reviewer card — gradient hairline: the AI reviewer speaking, and the one
+   bold element on the page. Reserved exclusively for live claim feedback. */
+.discussion-reviewer {
+  position: relative; border: none; padding: 1px; border-radius: 14px;
+  background: linear-gradient(120deg, var(--dc-indigo), var(--dc-green));
+}
+.discussion-reviewer-inner { background: var(--dc-card); border-radius: 13px; padding: 18px; }
+.discussion-reviewer-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.discussion-reviewer-head h3 { font-family: var(--font-display); font-size: 15px; font-weight: 600; flex: 1; margin: 0; }
+.discussion-chev {
+  background: none; border: 1px solid var(--dc-border); border-radius: 50%; width: 28px; height: 28px;
+  color: var(--dc-text2); cursor: pointer; display: grid; place-items: center; flex: 0 0 auto;
+  transition: transform 0.25s ease;
+}
+.discussion-chev:hover { background: none; transform: none; }
+.discussion-reviewer.closed .discussion-chev { transform: rotate(180deg); }
+.discussion-reviewer-body { overflow: hidden; max-height: 800px; transition: max-height 0.3s ease; }
+.discussion-reviewer.closed .discussion-reviewer-body { max-height: 0; }
+.discussion-verdict {
+  display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono);
+  font-size: 12px; padding: 3px 10px; border-radius: 99px; margin-bottom: 12px;
+  background: rgba(52, 211, 153, 0.12); color: var(--dc-green); border: 1px solid rgba(52, 211, 153, 0.35);
+}
+.discussion-points { list-style: none; display: flex; flex-direction: column; gap: 10px; margin: 0 0 14px; padding: 0; }
+.discussion-points li { display: flex; gap: 10px; font-size: 14px; color: var(--dc-text); line-height: 1.45; }
+.discussion-points li::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--dc-green); margin-top: 7px; flex: 0 0 auto; }
+.discussion-points li.gap::before { background: var(--dc-amber); }
+
+.discussion-feedback-foot {
+  border-top: 1px solid var(--dc-border); padding-top: 14px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.discussion-feedback-ask { font-size: 13px; color: var(--dc-text2); }
+.discussion-pills { display: flex; gap: 8px; }
+.discussion-pill {
+  font: inherit; font-size: 13px; border: 1px solid var(--dc-border); background: transparent;
+  color: var(--dc-text2); border-radius: 99px; padding: 6px 14px; cursor: pointer;
+}
+.discussion-pill:hover { background: none; transform: none; border-color: var(--dc-text3); }
+.discussion-pill[aria-pressed='true'] { border-color: var(--dc-green); color: var(--dc-green); background: rgba(52, 211, 153, 0.1); }
+.discussion-pill.no[aria-pressed='true'] { border-color: var(--dc-amber); color: var(--dc-amber); background: rgba(251, 191, 36, 0.1); }
+.discussion-continue {
+  font-weight: 600; font-size: 14px; color: var(--dc-indigo-soft); text-decoration: none;
+  display: inline-flex; align-items: center; gap: 6px; background: none; border: none; padding: 0; cursor: pointer;
+}
+.discussion-continue:hover { background: none; transform: none; text-decoration: underline; }
+.discussion-thanks { font-size: 13px; color: var(--dc-green); }
+
 .discussion-input-row { display: flex; gap: 10px; flex-shrink: 0; padding-top: 12px; align-items: flex-end; }
 .discussion-input-row textarea {
   flex: 1; font: inherit; line-height: 1.45; padding: 10px 14px; border-radius: 12px;
-  border: 1px solid var(--ink-12); resize: none; max-height: 240px; overflow-y: auto;
-  background: #fff; color: var(--ink);
+  border: 1px solid var(--dc-border); resize: none; max-height: 240px; overflow-y: auto;
+  background: var(--dc-card2); color: var(--dc-text);
 }
+.discussion-input-row textarea:focus { outline: 2px solid var(--dc-indigo); outline-offset: 1px; border-color: transparent; }
 .discussion-send-col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; }
-.discussion-input-hint { font-size: 0.7rem; color: var(--ink-30); white-space: nowrap; }
+.discussion-input-hint { font-size: 0.7rem; color: var(--dc-text3); white-space: nowrap; }
 .discussion-end { max-width: 560px; margin: 15vh auto 0; text-align: center; }
 
 @media (max-width: 640px) {
-  .discussion-session { padding: 10px; }
-  .discussion-turn { max-width: 92%; }
-  .discussion-header-row { font-size: 0.8rem; flex-wrap: wrap; row-gap: 4px; }
-  .discussion-input-hint { display: none; } /* Cmd/Ctrl+Enter isn't a mobile affordance — Send is the only action shown */
+  .discussion-session { padding: 0 10px 10px; }
+  .discussion-topbar { font-size: 0.8rem; flex-wrap: wrap; row-gap: 4px; }
+  .discussion-input-hint { display: none; } /* Cmd/Ctrl+Enter isn't a mobile affordance — Submit is the only action shown */
 }
 @media (max-width: 400px) {
-  /* Narrowest phones: "Recorded..." and "Exit" no longer compete for the
-     same line as "Elapsed" — the exit link stays reachable either way. */
-  .discussion-header-right { width: 100%; justify-content: space-between; }
+  .discussion-topbar-right { width: 100%; justify-content: space-between; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .discussion-progress > i, .discussion-chev, .discussion-reviewer-body { transition: none; }
 }
