@@ -754,7 +754,52 @@ model SessionTurn {
   superseded Boolean           @default(false)
   createdAt  DateTime          @default(now())
 
+  // Optional, candidate-turn-only composition telemetry (paste/timing/focus)
+  // — see TurnSignals' own doc comment. Kept as a separate related model
+  // rather than columns here so a plain `sessionTurn.findMany()` (exactly
+  // what ScoringService uses) never brings this data along; it only
+  // surfaces where something explicitly does `include: { signals: true }`,
+  // which the scoring path never does.
+  signals TurnSignals?
+
   @@index([sessionId])
+}
+
+/**
+ * Composition telemetry captured client-side for one CANDIDATE turn —
+ * paste activity, timing, and window-focus behavior while writing that
+ * answer. Neutral context for the human reviewer only (see ReviewService's
+ * signal-summary helpers): never a score, never a flag, never read by
+ * ScoringService's extractor/adjudicator. Every field is nullable — older
+ * sessions predate this table entirely (no row at all), and any client that
+ * fails to report a given metric (or all of them) must not break turn
+ * submission; POST .../turns persists whatever subset arrives, or no row if
+ * the client sent nothing.
+ */
+model TurnSignals {
+  id            String      @id @default(uuid())
+  sessionTurnId String      @unique
+  sessionTurn   SessionTurn @relation(fields: [sessionTurnId], references: [id])
+
+  // Paste activity while composing this turn.
+  pasteCount        Int?
+  pastedCharCount   Int?
+  largestPasteChars Int?
+
+  // Timing: assessor turn rendered -> first keystroke -> send.
+  timeToFirstKeystrokeMs Int?
+  compositionDurationMs  Int?
+  charCount              Int?
+  // Derived (charCount / 5 chars-per-word ÷ compositionDurationMs), stored
+  // rather than recomputed so the reviewer view and any later analysis agree
+  // on the exact same number the client observed.
+  effectiveWpm Float?
+
+  // Window focus while this turn had content or focus.
+  blurCount       Int?
+  blurDurationMs  Int?
+
+  createdAt DateTime @default(now())
 }
 
 /**

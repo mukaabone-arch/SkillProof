@@ -7,7 +7,7 @@
  * transcript, and an input. See the header row below for the only two
  * things shown: elapsed time and "recorded, reviewed by a person."
  */
-import { Fragment, KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { ClipboardEvent, Fragment, KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, getToken } from '@/lib/api';
@@ -25,6 +25,37 @@ interface Turn {
   content: string;
   superseded: boolean;
   createdAt: string;
+}
+
+/**
+ * Composition telemetry for the answer currently being written, sent
+ * alongside its content on submit (see send()) — never surfaced anywhere in
+ * this UI. Reviewer-facing context only, computed and rendered on the admin
+ * case page from what the server persists; nothing here changes what the
+ * candidate sees or how the input behaves. Reset whenever a new assessor
+ * turn renders (see the reset effect below), since each is scoped to one
+ * candidate answer.
+ */
+interface TurnSignalsAccumulator {
+  pasteCount: number;
+  pastedCharCount: number;
+  largestPasteChars: number;
+  blurCount: number;
+  blurDurationMs: number;
+  assessorTurnRenderedAt: number | null;
+  firstKeystrokeAt: number | null;
+}
+
+function freshSignals(): TurnSignalsAccumulator {
+  return {
+    pasteCount: 0,
+    pastedCharCount: 0,
+    largestPasteChars: 0,
+    blurCount: 0,
+    blurDurationMs: 0,
+    assessorTurnRenderedAt: Date.now(),
+    firstKeystrokeAt: null,
+  };
 }
 
 const DECIDED_STATUSES = ['ISSUED', 'REJECTED', 'DISPUTED'];
@@ -84,6 +115,9 @@ export default function DiscussionSessionPage() {
   const [elapsed, setElapsed] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const signalsRef = useRef<TurnSignalsAccumulator>(freshSignals());
+  const draftRef = useRef('');
+  const blurStartedAtRef = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     if (!getToken()) {
@@ -149,16 +183,92 @@ export default function DiscussionSessionPage() {
     el.style.height = `${Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT_PX)}px`;
   }, [draft]);
 
+  // A fresh answer starts whenever the latest turn is the assessor's (the
+  // opening turn on first load, or a new question after each send) — reset
+  // this turn's composition signals and mark when the question rendered, so
+  // timeToFirstKeystrokeMs measures from here.
+  useEffect(() => {
+    if (turns.length === 0) return;
+    if (turns[turns.length - 1].role === 'ASSESSOR') {
+      signalsRef.current = freshSignals();
+    }
+  }, [turns]);
+
+  // Window blur/focus while composing — only counted if the textarea
+  // currently has focus or already has content, so casually tabbing away
+  // before starting an answer doesn't register as anything.
+  useEffect(() => {
+    function onWindowBlur() {
+      const isComposing = document.activeElement === textareaRef.current || draftRef.current.trim().length > 0;
+      if (isComposing && blurStartedAtRef.current === null) {
+        blurStartedAtRef.current = Date.now();
+        signalsRef.current.blurCount += 1;
+      }
+    }
+    function onWindowFocus() {
+      if (blurStartedAtRef.current !== null) {
+        signalsRef.current.blurDurationMs += Date.now() - blurStartedAtRef.current;
+        blurStartedAtRef.current = null;
+      }
+    }
+    window.addEventListener('blur', onWindowBlur);
+    window.addEventListener('focus', onWindowFocus);
+    return () => {
+      window.removeEventListener('blur', onWindowBlur);
+      window.removeEventListener('focus', onWindowFocus);
+    };
+  }, []);
+
+  function onDraftChange(value: string) {
+    setDraft(value);
+    draftRef.current = value;
+    if (signalsRef.current.firstKeystrokeAt === null && value.length > 0) {
+      signalsRef.current.firstKeystrokeAt = Date.now();
+    }
+  }
+
+  // Observe only — never blocks or strips a paste.
+  function onTextareaPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    const text = e.clipboardData.getData('text');
+    if (!text) return;
+    const s = signalsRef.current;
+    s.pasteCount += 1;
+    s.pastedCharCount += text.length;
+    s.largestPasteChars = Math.max(s.largestPasteChars, text.length);
+  }
+
   async function send() {
     const content = draft.trim();
     if (!content || sending || !session) return;
     setSending(true);
     setError('');
     setDraft('');
+    draftRef.current = '';
+
+    const s = signalsRef.current;
+    const sentAt = Date.now();
+    const timeToFirstKeystrokeMs =
+      s.assessorTurnRenderedAt != null && s.firstKeystrokeAt != null ? s.firstKeystrokeAt - s.assessorTurnRenderedAt : undefined;
+    const compositionDurationMs = s.firstKeystrokeAt != null ? sentAt - s.firstKeystrokeAt : undefined;
+    const charCount = content.length;
+    const effectiveWpm =
+      compositionDurationMs && compositionDurationMs > 0 ? charCount / 5 / (compositionDurationMs / 60_000) : undefined;
+    const signals = {
+      pasteCount: s.pasteCount,
+      pastedCharCount: s.pastedCharCount,
+      largestPasteChars: s.largestPasteChars,
+      timeToFirstKeystrokeMs,
+      compositionDurationMs,
+      charCount,
+      effectiveWpm,
+      blurCount: s.blurCount,
+      blurDurationMs: s.blurDurationMs,
+    };
+
     try {
       const resp = await api<{ candidateTurn: Turn; assessorTurn: Turn; session: SessionSummary }>(
         `/assessment-sessions/${id}/turns`,
-        { method: 'POST', body: JSON.stringify({ content }) },
+        { method: 'POST', body: JSON.stringify({ content, signals }) },
       );
       if (DECIDED_STATUSES.includes(resp.session.status)) {
         router.replace(`/assessments/discussion/session/${id}/result`);
@@ -169,6 +279,7 @@ export default function DiscussionSessionPage() {
     } catch (e) {
       setError((e as Error).message);
       setDraft(content); // restore what they typed so nothing is lost
+      draftRef.current = content; // keep the blur-tracking check in sync with the restored draft
       // The session may have expired between page load and this send (e.g.
       // idle too long mid-thought) — resync so the next attempt sees the
       // real state instead of repeating the same failure.
@@ -281,8 +392,9 @@ export default function DiscussionSessionPage() {
         <textarea
           ref={textareaRef}
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => onDraftChange(e.target.value)}
           onKeyDown={onTextareaKeyDown}
+          onPaste={onTextareaPaste}
           disabled={sending}
           placeholder="Type your response…"
           rows={3}

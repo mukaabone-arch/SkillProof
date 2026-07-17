@@ -32,6 +32,21 @@ interface ReviewClaim {
   agree?: boolean;
 }
 
+/**
+ * Composition telemetry for one candidate turn — neutral reviewer context
+ * only (see the server's summarizeSignals/signalFlags). Never a score;
+ * notablePaste/notableWpm/notableBlur just decide whether this turn gets a
+ * small hoverable marker in the transcript below.
+ */
+interface TurnSignalsInfo {
+  largestPasteChars: number | null;
+  effectiveWpm: number | null;
+  blurDurationMs: number | null;
+  notablePaste: boolean;
+  notableWpm: boolean;
+  notableBlur: boolean;
+}
+
 interface TranscriptTurn {
   id: string;
   role: 'CANDIDATE' | 'ASSESSOR';
@@ -41,12 +56,19 @@ interface TranscriptTurn {
   superseded: boolean;
   isReflection: boolean;
   createdAt: string;
+  signals: TurnSignalsInfo | null;
 }
 
 interface Interruption {
   occurredAt: string;
   resumedAt: string | null;
   fragmentTurnId: string | null;
+}
+
+/** Notable-only sentences (see summarizeSignals) — empty + hasData:false renders nothing at all. */
+interface SignalsSummary {
+  lines: string[];
+  hasData: boolean;
 }
 
 interface DecisionPreview {
@@ -71,6 +93,7 @@ interface ReviewCase {
   totalClaims: number;
   decisionPreview: DecisionPreview | null;
   interruptions: Interruption[];
+  signals: SignalsSummary;
   claims: ReviewClaim[];
   transcript: TranscriptTurn[];
 }
@@ -117,6 +140,28 @@ function sortClaimsForReview(claims: ReviewClaim[]): ReviewClaim[] {
 
 function fmtDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString() : '—';
+}
+
+/**
+ * Hover text for a transcript turn's small notable-signal marker — plain
+ * facts only ("480-character paste"), never phrased as an allegation. Null
+ * when nothing on this turn crossed a notable threshold, which is most
+ * turns; the marker itself only renders when this returns non-null.
+ */
+function signalMarkerDetail(signals: TurnSignalsInfo | null): string | null {
+  if (!signals) return null;
+  const parts: string[] = [];
+  if (signals.notablePaste && signals.largestPasteChars != null) {
+    parts.push(`${signals.largestPasteChars}-character paste`);
+  }
+  if (signals.notableWpm && signals.effectiveWpm != null) {
+    parts.push(`${Math.round(signals.effectiveWpm)} wpm`);
+  }
+  if (signals.notableBlur && signals.blurDurationMs != null) {
+    const seconds = Math.round(signals.blurDurationMs / 1000);
+    parts.push(`window unfocused ${seconds}s`);
+  }
+  return parts.length > 0 ? parts.join(' · ') : null;
 }
 
 export default function ReviewCasePage() {
@@ -307,6 +352,21 @@ export default function ReviewCasePage() {
           </div>
         )}
 
+        {/* Same neutral-context spirit as the interruption banner above —
+            notable-only, never a score or flag. Nothing renders at all if
+            there's no signal data to judge from (see summarizeSignals). */}
+        {data.signals.hasData && (
+          <div className="interruption-banner">
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {data.signals.lines.map((line, idx) => (
+                <li key={idx} className="meta">
+                  {line}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {judgementClaims.length > 0 && (
           <div className="hub-section">
             <div className="hub-section-head">
@@ -377,15 +437,24 @@ export default function ReviewCasePage() {
 
         <details className="hint-toggle" open={showTranscript} onToggle={(e) => setShowTranscript((e.target as HTMLDetailsElement).open)}>
           <summary>Full transcript ({data.transcript.length} turns)</summary>
-          {data.transcript.map((t) => (
-            <div key={t.id} className="transcript-turn" style={t.superseded ? { textDecoration: 'line-through', opacity: 0.6 } : undefined}>
-              <div className="meta">
-                {t.role} {t.claimId ? `· ${t.claimId}/${t.probeRung}` : ''} {t.isReflection && '· reflection (unscored context)'}{' '}
-                {t.superseded && '· superseded (re-asked after a break)'}
+          {data.transcript.map((t) => {
+            const marker = signalMarkerDetail(t.signals);
+            return (
+              <div key={t.id} className="transcript-turn" style={t.superseded ? { textDecoration: 'line-through', opacity: 0.6 } : undefined}>
+                <div className="meta">
+                  {t.role} {t.claimId ? `· ${t.claimId}/${t.probeRung}` : ''} {t.isReflection && '· reflection (unscored context)'}{' '}
+                  {t.superseded && '· superseded (re-asked after a break)'}
+                  {marker && (
+                    <span title={marker} style={{ cursor: 'help' }}>
+                      {' '}
+                      · 🔎
+                    </span>
+                  )}
+                </div>
+                <p style={{ margin: '4px 0 12px' }}>{t.content}</p>
               </div>
-              <p style={{ margin: '4px 0 12px' }}>{t.content}</p>
-            </div>
-          ))}
+            );
+          })}
         </details>
       </main>
     </>

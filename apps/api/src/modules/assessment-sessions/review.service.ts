@@ -7,6 +7,7 @@ import {
   ClaimVerdict,
   RagL2Claim,
   SkillLevel,
+  TurnSignals,
   Verdict,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -40,6 +41,90 @@ const BAND_ORDER: Record<Verdict, number> = {
  */
 const LEVEL_RULE_CLAIMS: RagL2Claim[] = CLAIM_ORDER.slice(0, 5);
 const MIN_DEMONSTRATED_FOR_ISSUE = 3;
+
+/**
+ * Thresholds for what's worth mentioning to a human reviewer — not a risk
+ * score and not a per-candidate category. These decide only whether one
+ * particular number is notable enough for a sentence in the neutral context
+ * area (see summarizeSignals); they never gate, warn, block, or feed
+ * ISSUE/REJECT eligibility. Picked as "clearly past ordinary" rather than
+ * "suspicious": a short paste (a term, a URL) or a quick burst of typing is
+ * completely normal and stays unmentioned.
+ */
+const NOTABLE_PASTE_CHARS = 150;
+const NOTABLE_WPM = 130;
+const NOTABLE_BLUR_MS = 20_000;
+
+const NUMBER_WORDS = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'];
+function spellCount(n: number): string {
+  return n < NUMBER_WORDS.length ? NUMBER_WORDS[n] : String(n);
+}
+
+function formatDurationSeconds(ms: number): string {
+  const totalSeconds = Math.round(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return seconds === 0 ? `${minutes}m` : `${minutes}m ${seconds}s`;
+}
+
+type TurnSignalsFlags = { notablePaste: boolean; notableWpm: boolean; notableBlur: boolean };
+
+function signalFlags(s: TurnSignals): TurnSignalsFlags {
+  return {
+    notablePaste: (s.largestPasteChars ?? 0) >= NOTABLE_PASTE_CHARS,
+    notableWpm: (s.effectiveWpm ?? 0) >= NOTABLE_WPM,
+    notableBlur: (s.blurDurationMs ?? 0) >= NOTABLE_BLUR_MS,
+  };
+}
+
+/**
+ * Neutral, notable-only summary of composition signals across a session's
+ * candidate turns — rendered in the reviewer's context area alongside the
+ * interruption log, never near a verdict button and never per-claim. Says
+ * nothing at all if there's no signal data to judge from (an older session,
+ * or a client that reported nothing that turn); says so briefly if there is
+ * data but nothing crossed a notable threshold. Never a score, never a
+ * flag, never a category — sentences a human can weigh against the
+ * transcript, nothing more.
+ */
+function summarizeSignals(turnsWithSignals: { signals: TurnSignals | null }[]): { lines: string[]; hasData: boolean } {
+  const present = turnsWithSignals
+    .map((t) => t.signals)
+    .filter((s): s is TurnSignals => s !== null);
+  if (present.length === 0) return { lines: [], hasData: false };
+
+  const pasteTurns = present.filter((s) => (s.largestPasteChars ?? 0) >= NOTABLE_PASTE_CHARS);
+  const wpmTurns = present.filter((s) => (s.effectiveWpm ?? 0) >= NOTABLE_WPM);
+  const blurTurns = present.filter((s) => (s.blurDurationMs ?? 0) >= NOTABLE_BLUR_MS);
+
+  const lines: string[] = [];
+
+  if (pasteTurns.length === 1) {
+    lines.push(`One turn included a ${pasteTurns[0].largestPasteChars}-character paste.`);
+  } else if (pasteTurns.length > 1) {
+    const largest = Math.max(...pasteTurns.map((s) => s.largestPasteChars ?? 0));
+    lines.push(`${spellCount(pasteTurns.length)} turns included a large paste (largest: ${largest} characters).`);
+  }
+
+  if (wpmTurns.length === 1) {
+    lines.push(`One turn was composed at ${Math.round(wpmTurns[0].effectiveWpm ?? 0)} wpm.`);
+  } else if (wpmTurns.length > 1) {
+    lines.push(`${spellCount(wpmTurns.length)} turns composed at over ${NOTABLE_WPM} wpm.`);
+  }
+
+  if (blurTurns.length === 1) {
+    lines.push(`The window lost focus for ${formatDurationSeconds(blurTurns[0].blurDurationMs ?? 0)} while composing one turn.`);
+  } else if (blurTurns.length > 1) {
+    lines.push(`${spellCount(blurTurns.length)} turns had the window lose focus for a notable stretch.`);
+  }
+
+  if (lines.length === 0) {
+    lines.push('No notable typing or focus signals in this session.');
+  }
+
+  return { lines, hasData: true };
+}
 
 interface LevelEligibility {
   eligible: boolean;
@@ -119,7 +204,11 @@ export class ReviewService {
       include: {
         claimVerdicts: true,
         interruptions: { orderBy: { occurredAt: 'asc' } },
-        turns: { orderBy: { createdAt: 'asc' } },
+        // signals: reviewer context only (see summarizeSignals) — this
+        // include lives here, in the review path, specifically because
+        // ScoringService's own turn queries never do this, so signal data
+        // can't reach the extractor/adjudicator.
+        turns: { orderBy: { createdAt: 'asc' }, include: { signals: true } },
       },
     });
     if (!session) throw new NotFoundException('Assessment session not found');
@@ -154,6 +243,7 @@ export class ReviewService {
 
     const reviewedCount = session.claimVerdicts.filter((v) => v.reviewerVerdict !== null).length;
     const decisionPreview = reviewedCount === CLAIM_ORDER.length ? computeLevelEligibility(session.claimVerdicts) : null;
+    const signalsSummary = summarizeSignals(session.turns);
 
     return {
       sessionId: session.id,
@@ -175,6 +265,11 @@ export class ReviewService {
         resumedAt: i.resumedAt,
         fragmentTurnId: i.fragmentTurnId,
       })),
+      // Neutral context, same spirit as interruptions above — never a score
+      // or a flag, just notable-only sentences (see summarizeSignals) plus
+      // whatever per-turn markers the transcript view below needs to render
+      // a small hoverable indicator on the right turns.
+      signals: signalsSummary,
       claims,
       transcript: session.turns.map((t) => ({
         id: t.id,
@@ -185,6 +280,14 @@ export class ReviewService {
         superseded: t.superseded,
         isReflection: t.claimId === null,
         createdAt: t.createdAt,
+        signals: t.signals
+          ? {
+              largestPasteChars: t.signals.largestPasteChars,
+              effectiveWpm: t.signals.effectiveWpm,
+              blurDurationMs: t.signals.blurDurationMs,
+              ...signalFlags(t.signals),
+            }
+          : null,
       })),
     };
   }

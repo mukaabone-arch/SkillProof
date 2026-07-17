@@ -13,6 +13,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AssessorService, LadderState } from './assessor.service';
 import { ScoringService } from './scoring.service';
 import { CLAIM_ORDER, RUBRIC_VERSION, SCENARIO_BRIEF, SKILL_LEVEL, SKILL_NAME } from './rag-systems-l2.rubric';
+import { TurnSignalsDto } from './assessment-sessions.dto';
 
 /**
  * The level rule (see ReviewService) only gates ISSUE eligibility on claims
@@ -223,6 +224,7 @@ export class AssessmentSessionsService {
     userId: string,
     sessionId: string,
     content: string,
+    signals?: TurnSignalsDto,
   ): Promise<{ candidateTurn: PublicTurn; assessorTurn: PublicTurn; session: AssessmentSession }> {
     let session = await this.getOwnedSession(userId, sessionId);
     session = await this.enforceExpiry(session);
@@ -246,6 +248,17 @@ export class AssessmentSessionsService {
         probeRung: target.probeRung,
       },
     });
+
+    // Best-effort, silent — a client that sends no signals (or a partial
+    // set) is normal and must never affect turn submission. Never read by
+    // AssessorService (the `history` query two lines down is a plain
+    // findMany with no relation include) or by ScoringService — see that
+    // service's own note on this.
+    if (signals && Object.values(signals).some((v) => v !== undefined)) {
+      await this.prisma.turnSignals
+        .create({ data: { sessionTurnId: candidateTurn.id, ...signals } })
+        .catch((err: Error) => this.logger.warn(`Failed to persist turn signals for turn ${candidateTurn.id}: ${err.message}`));
+    }
 
     const history = await this.prisma.sessionTurn.findMany({
       where: { sessionId, superseded: false },

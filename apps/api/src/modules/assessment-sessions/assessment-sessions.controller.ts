@@ -70,7 +70,7 @@ export class AssessmentSessionsController {
 
   @Post(':id/turns')
   async postTurn(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: PostSessionTurnDto) {
-    const { candidateTurn, assessorTurn, session } = await this.svc.postTurn(req.user.sub, id, dto.content);
+    const { candidateTurn, assessorTurn, session } = await this.svc.postTurn(req.user.sub, id, dto.content, dto.signals);
     return { candidateTurn, assessorTurn, session: toSessionResponse(session) };
   }
 
