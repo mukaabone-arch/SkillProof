@@ -1,7 +1,7 @@
 import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { RagL2Claim, ProbeRung, SessionTurn, SessionTurnRole } from '@prisma/client';
-import { CLAIM_HINTS, CLAIM_ORDER, GENERIC_FALLBACKS, REFLECTION_QUESTIONS, SCENARIO_BRIEF } from './rag-systems-l2.rubric';
+import { CLAIM_HINTS, CLAIM_ORDER, GENERIC_FALLBACKS, REFLECTION_QUESTIONS } from './rag-systems-l2.rubric';
 
 const MODEL = 'claude-sonnet-4-6';
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -139,14 +139,24 @@ export class AssessorService {
     this.client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   }
 
-  /** Opening turn: fixed welcome + brief (guaranteed exact wording) + an LLM-phrased first question. */
+  /**
+   * Opening turn: fixed welcome (guaranteed exact wording) + an LLM-phrased
+   * first question, joined by exactly one blank line. The welcome
+   * references the scenario brief rather than repeating it — the brief
+   * already lives pinned in the UI (see the discussion session page), and
+   * that single-blank-line join is also what the frontend splits on to
+   * render the welcome as a quiet system note separate from the actual
+   * first question bubble. Keep this welcome to one paragraph (no internal
+   * blank line) so that split stays unambiguous; the question itself is
+   * already constrained by the guardrail prompt below to one or two
+   * sentences, so it won't introduce one either.
+   */
   async generateOpeningTurn(): Promise<GeneratedTurn> {
     const firstClaim = CLAIM_ORDER[0];
     const hints = CLAIM_HINTS[firstClaim];
 
     const welcome =
-      "Hi, thanks for making time for this. I'm going to be your interviewer for this session — think of it as a conversation, not a quiz. We'll talk through a system design problem together, entirely in writing, and it usually takes around 20 minutes. Nothing here is scored by a machine: a person on our team reviews the conversation afterward before any badge is issued, so just think out loud and treat this like a discussion with a colleague.\n\n" +
-      `Here's what we're working with:\n\n${SCENARIO_BRIEF}`;
+      "Hi, thanks for making time for this. I'm going to be your interviewer for this session — think of it as a conversation, not a quiz. We'll talk through the system design problem pinned above, entirely in writing, and it usually takes around 20 minutes. Nothing here is scored by a machine: a person on our team reviews the conversation afterward before any badge is issued, so just think out loud and treat this like a discussion with a colleague.";
 
     const question = await this.generateGuardedMessage(
       {
@@ -155,7 +165,7 @@ export class AssessorService {
           {
             type: 'text',
             text:
-              `Internal context (never reveal to the candidate): this is the very start of the session. You have just delivered the welcome and the scenario brief. ${hints.opening} ` +
+              `Internal context (never reveal to the candidate): this is the very start of the session. You have just delivered the welcome; the scenario brief is shown to the candidate separately, pinned on screen. ${hints.opening} ` +
               'Write ONLY the question itself — one or two sentences, no greeting (the greeting was already sent).',
           },
         ],
