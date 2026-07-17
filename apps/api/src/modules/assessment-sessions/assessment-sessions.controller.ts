@@ -3,7 +3,7 @@ import { AssessmentSession, Role } from '@prisma/client';
 import { AuthenticatedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { AssessmentSessionsService } from './assessment-sessions.service';
+import { AssessmentSessionsService, IDLE_TIMEOUT_MINUTES } from './assessment-sessions.service';
 import { ScoringService } from './scoring.service';
 import { ReviewService } from './review.service';
 import {
@@ -14,14 +14,22 @@ import {
   SessionDecisionDto,
 } from './assessment-sessions.dto';
 
-/** Candidate-facing session summary — never includes ladderState. */
-function toSessionResponse(session: AssessmentSession) {
+/**
+ * Candidate-facing session summary — never includes ladderState.
+ * elapsedSeconds is a snapshot (see AssessmentSessionsService.
+ * computeElapsedSeconds); idleTimeoutMinutes is the real config value the
+ * server actually enforces, surfaced so the exit-confirm copy never has to
+ * hardcode a guess that could drift out of sync.
+ */
+function toSessionResponse(session: AssessmentSession, elapsedSeconds: number) {
   return {
     id: session.id,
     status: session.status,
     pinnedBrief: session.pinnedBrief,
     startedAt: session.startedAt,
     expiresAt: session.expiresAt,
+    elapsedSeconds,
+    idleTimeoutMinutes: IDLE_TIMEOUT_MINUTES,
   };
 }
 
@@ -37,7 +45,8 @@ export class AssessmentSessionsController {
   @Post()
   async create(@Req() req: AuthenticatedRequest) {
     const { session, turns } = await this.svc.createSession(req.user.sub);
-    return { session: toSessionResponse(session), turns };
+    const elapsedSeconds = await this.svc.computeElapsedSeconds(session.id, session.startedAt);
+    return { session: toSessionResponse(session, elapsedSeconds), turns };
   }
 
   /**
@@ -65,19 +74,22 @@ export class AssessmentSessionsController {
   @Get(':id')
   async get(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const { session, turns } = await this.svc.getSession(req.user.sub, id);
-    return { session: toSessionResponse(session), turns };
+    const elapsedSeconds = await this.svc.computeElapsedSeconds(session.id, session.startedAt);
+    return { session: toSessionResponse(session, elapsedSeconds), turns };
   }
 
   @Post(':id/turns')
   async postTurn(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: PostSessionTurnDto) {
     const { candidateTurn, assessorTurn, session } = await this.svc.postTurn(req.user.sub, id, dto.content, dto.signals);
-    return { candidateTurn, assessorTurn, session: toSessionResponse(session) };
+    const elapsedSeconds = await this.svc.computeElapsedSeconds(session.id, session.startedAt);
+    return { candidateTurn, assessorTurn, session: toSessionResponse(session, elapsedSeconds) };
   }
 
   @Post(':id/resume')
   async resume(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const { turn, session } = await this.svc.resume(req.user.sub, id);
-    return { turn, session: toSessionResponse(session) };
+    const elapsedSeconds = await this.svc.computeElapsedSeconds(session.id, session.startedAt);
+    return { turn, session: toSessionResponse(session, elapsedSeconds) };
   }
 
   /** Retries a session stuck in AWAITING_SCORING (scoringError set) — 409 otherwise. */
@@ -86,7 +98,8 @@ export class AssessmentSessionsController {
   @Roles(Role.PLATFORM_ADMIN)
   async retryScore(@Param('id') id: string) {
     const session = await this.scoring.retryScoring(id);
-    return { session: toSessionResponse(session) };
+    const elapsedSeconds = await this.svc.computeElapsedSeconds(session.id, session.startedAt);
+    return { session: toSessionResponse(session, elapsedSeconds) };
   }
 
   /** The reviewer's case payload — anti-anchoring enforced inside ReviewService, not here. */

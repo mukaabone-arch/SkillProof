@@ -554,8 +554,17 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 }
 .discussion-brief.collapsed { padding: 8px 16px; }
 .discussion-header-row {
-  display: flex; justify-content: space-between; margin-bottom: 12px; flex-shrink: 0;
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-shrink: 0;
+  gap: 12px;
 }
+.discussion-header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+/* A quiet text link, not a button — leaving shouldn't be invited, just
+   possible. Deliberately muted and small next to the "Recorded" line. */
+.discussion-exit-link {
+  background: none; border: none; padding: 0; margin: 0; cursor: pointer;
+  color: var(--ink-30); font-size: 0.8rem; font-weight: 500; text-decoration: underline;
+}
+.discussion-exit-link:hover { color: var(--ink-60); background: none; transform: none; }
 /* justify-content: flex-end bottom-anchors the thread — a short
    conversation hugs the input like a real chat instead of sitting at the
    top with dead space below it; once content overflows, this has no visual
@@ -605,6 +614,11 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 @media (max-width: 640px) {
   .discussion-session { padding: 10px; }
   .discussion-turn { max-width: 92%; }
-  .discussion-header-row { font-size: 0.8rem; }
+  .discussion-header-row { font-size: 0.8rem; flex-wrap: wrap; row-gap: 4px; }
   .discussion-input-hint { display: none; } /* Cmd/Ctrl+Enter isn't a mobile affordance — Send is the only action shown */
+}
+@media (max-width: 400px) {
+  /* Narrowest phones: "Recorded..." and "Exit" no longer compete for the
+     same line as "Elapsed" — the exit link stays reachable either way. */
+  .discussion-header-right { width: 100%; justify-content: space-between; }
 }

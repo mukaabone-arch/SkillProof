@@ -83,9 +83,11 @@ const DECIDED_STATUSES: AssessmentSessionStatus[] = [
  * How long a session can sit idle (no candidate turn) before it's
  * considered interrupted. Deliberately shorter than the ~20 minute
  * end-to-end session length mentioned to candidates — this is an
- * inactivity guard, not a hard session-length cap.
+ * inactivity guard, not a hard session-length cap. Exported so the
+ * controller can surface the real value to the candidate (the exit
+ * confirm's copy) rather than a hardcoded guess drifting out of sync.
  */
-const IDLE_TIMEOUT_MINUTES = Number(process.env.ASSESSMENT_SESSION_IDLE_TIMEOUT_MINUTES) || 15;
+export const IDLE_TIMEOUT_MINUTES = Number(process.env.ASSESSMENT_SESSION_IDLE_TIMEOUT_MINUTES) || 15;
 
 /**
  * How long a candidate must wait after a REJECTED decision before starting a
@@ -554,6 +556,38 @@ export class AssessmentSessionsService {
     }
 
     return { claimId: dispute.claimId, upheld, resolvedAt: new Date() };
+  }
+
+  /**
+   * Active working time as of now: wall clock since startedAt, minus every
+   * logged interruption gap (occurredAt -> resumedAt). occurredAt is
+   * already anchored to the real idle boundary (enforceExpiry sets it to
+   * the session's expiresAt at the moment it lapsed, not to whenever the
+   * check happened to run), so a candidate who doesn't touch the app again
+   * for hours doesn't inflate the gap. An unresumed (open) interruption
+   * subtracts all the way to now, which freezes the count for as long as
+   * the gap stays open — exactly right, since resume-not-restart means the
+   * candidate wasn't doing anything during that stretch.
+   *
+   * Deliberately excludes only *this*: normal thinking/typing time between
+   * turns within an active stretch is real working time and stays counted,
+   * no matter how long a single reply takes, as long as it's under
+   * IDLE_TIMEOUT_MINUTES.
+   *
+   * Returned as a snapshot; the client anchors its own per-second tick to
+   * this value plus wall-clock time elapsed since the response arrived,
+   * rather than recomputing from startedAt (see the session page — that
+   * recomputation is exactly today's bug).
+   */
+  async computeElapsedSeconds(sessionId: string, startedAt: Date): Promise<number> {
+    const interruptions = await this.prisma.sessionInterruption.findMany({ where: { sessionId } });
+    const now = Date.now();
+    const totalMs = now - startedAt.getTime();
+    const gapMs = interruptions.reduce(
+      (sum, i) => sum + ((i.resumedAt?.getTime() ?? now) - i.occurredAt.getTime()),
+      0,
+    );
+    return Math.max(0, Math.round((totalMs - gapMs) / 1000));
   }
 
   // ---------- helpers ----------

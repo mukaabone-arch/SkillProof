@@ -18,6 +18,12 @@ interface SessionSummary {
   pinnedBrief: string;
   startedAt: string;
   expiresAt: string;
+  // Server-computed snapshot (wall clock since startedAt, minus logged
+  // interruption gaps — see AssessmentSessionsService.computeElapsedSeconds)
+  // and the real idle-timeout config value, not a hardcoded guess. Every
+  // session-touching endpoint returns a fresh one of these.
+  elapsedSeconds: number;
+  idleTimeoutMinutes: number;
 }
 interface Turn {
   id: string;
@@ -93,10 +99,15 @@ function splitOpeningTurn(content: string): { framing: string; question: string 
   return { framing: content.slice(0, idx), question: content.slice(idx + 2) };
 }
 
-function formatElapsed(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
+/** mm:ss under an hour, h:mm at or beyond it — never raw minutes. */
+function formatElapsed(totalSeconds: number): string {
+  const clamped = Math.max(0, Math.round(totalSeconds));
+  const totalMinutes = Math.floor(clamped / 60);
+  if (totalMinutes < 60) {
+    return `${totalMinutes}:${String(clamped % 60).padStart(2, '0')}`;
+  }
+  const hours = Math.floor(totalMinutes / 60);
+  return `${hours}:${String(totalMinutes % 60).padStart(2, '0')}`;
 }
 
 /** ~3 rows to start; grows with content up to a max height, then scrolls internally. */
@@ -160,10 +171,17 @@ export default function DiscussionSessionPage() {
     setBriefExpanded(window.matchMedia('(min-width: 641px)').matches);
   }, []);
 
+  // Anchored to the server's elapsedSeconds snapshot (active time only —
+  // wall clock since startedAt minus logged interruption gaps) plus local
+  // wall-clock time elapsed since that snapshot arrived, re-anchoring on
+  // every fresh session response (load, resume, each turn). NOT computed
+  // from startedAt directly — that's what produced the old "641:28" bug for
+  // any session that had ever been interrupted and resumed.
   useEffect(() => {
     if (!session) return;
-    const startMs = new Date(session.startedAt).getTime();
-    const tick = () => setElapsed(Math.max(0, Math.floor((Date.now() - startMs) / 1000)));
+    const baseSeconds = session.elapsedSeconds;
+    const asOf = Date.now();
+    const tick = () => setElapsed(baseSeconds + Math.floor((Date.now() - asOf) / 1000));
     tick();
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
@@ -298,6 +316,24 @@ export default function DiscussionSessionPage() {
     }
   }
 
+  /**
+   * Pure navigation — never touches session state. The session stays
+   * exactly as it is (IN_PROGRESS or EXPIRED); resume-not-restart and the
+   * existing idle-expiry window handle everything else. idleTimeoutMinutes
+   * comes from the server (the real config value, not a guess) so this
+   * copy can't drift out of sync with what actually happens.
+   */
+  function onExit() {
+    if (!session) return;
+    const confirmed = window.confirm(
+      `Leaving won't end your session — it stays open, and you can pick it back up from the Assessments page. ` +
+        `If you're away for more than ${session.idleTimeoutMinutes} minutes, it'll time out, but resuming just continues right where you left off.`,
+    );
+    if (confirmed) {
+      router.push('/assessments');
+    }
+  }
+
   if (!loaded) {
     return (
       <main>
@@ -345,7 +381,12 @@ export default function DiscussionSessionPage() {
 
       <div className="discussion-header-row">
         <span className="meta">Elapsed {formatElapsed(elapsed)}</span>
-        <span className="meta">Recorded · reviewed by a person</span>
+        <div className="discussion-header-right">
+          <span className="meta">Recorded · reviewed by a person</span>
+          <button type="button" className="discussion-exit-link" onClick={onExit}>
+            Exit
+          </button>
+        </div>
       </div>
 
       {error && <p className="error">{error}</p>}
