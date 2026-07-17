@@ -20,6 +20,9 @@ export const SKILL_LEVEL: SkillLevel = SkillLevel.L2;
  */
 export const DISCUSSION_DURATION_MINS = 20;
 
+/** URL slug for the pre-session page (/assessments/discussion/:slug). */
+export const DISCUSSION_SLUG = 'rag-systems-l2';
+
 /**
  * The scenario handed to the candidate verbatim at session start, and
  * returned as-is on AssessmentSession.pinnedBrief. Kept as a constant
