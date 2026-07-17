@@ -11,7 +11,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { RecordIntegrityEventDto } from './assessments.dto';
 import { BadgeResolverService, LEVEL_ORDER } from '../badges/badge-resolver.service';
 import { AssessmentSessionsService } from '../assessment-sessions/assessment-sessions.service';
-import { DISCUSSION_DURATION_MINS, SKILL_LEVEL as DISCUSSION_LEVEL, SKILL_NAME as DISCUSSION_SKILL_NAME } from '../assessment-sessions/rag-systems-l2.rubric';
+import { DISCUSSION_DURATION_MINS, DISCUSSION_SLUG, SKILL_LEVEL as DISCUSSION_LEVEL, SKILL_NAME as DISCUSSION_SKILL_NAME } from '../assessment-sessions/rag-systems-l2.rubric';
+import { CandidateJobsService } from '../jobs/candidate-jobs.service';
+
+/** How many of the candidate's highest-scoring matched jobs count toward a skill's relevanceCount. */
+const RELEVANCE_TOP_JOBS = 5;
 
 /**
  * How many flag-worthy IntegrityEvents an attempt can accumulate before its
@@ -48,6 +52,7 @@ export class AssessmentsService {
     private readonly prisma: PrismaService,
     private readonly badgeResolver: BadgeResolverService,
     private readonly sessions: AssessmentSessionsService,
+    private readonly candidateJobs: CandidateJobsService,
   ) {}
 
   /**
@@ -64,6 +69,17 @@ export class AssessmentsService {
    * row it's folded into.
    */
   async getCatalog(userId: string) {
+    return this.buildSkillBuckets(userId);
+  }
+
+  /**
+   * Shared by getCatalog (the full skill×level×format grid the web
+   * /assessments page renders) and getCandidateSummary (the mobile app's
+   * simplified one-card-per-skill projection) — both need the same
+   * skill/level/format bucketing and badge-precedence resolution; only
+   * what each does with the result differs.
+   */
+  private async buildSkillBuckets(userId: string) {
     const assessments = await this.prisma.assessment.findMany({
       where: { isLive: true },
       include: { skill: { include: { domain: true } } },
@@ -147,6 +163,71 @@ export class AssessmentsService {
     }
 
     return skills;
+  }
+
+  /**
+   * GET /assessments/catalog/summary — one simplified card per skill for
+   * the mobile app, derived from the same buildSkillBuckets grid getCatalog
+   * uses. A skill only appears while it has at least one offered level not
+   * yet earned (by badge precedence — see BadgeResolverService); the card
+   * targets that next unearned level, preferring its TEST format over
+   * DISCUSSION when both exist at that level (matches the catalog page's
+   * own "test, or discussion for stronger evidence" framing — TEST is the
+   * default path). relevanceCount mirrors the recurring-gap heuristic the
+   * Home screen's co-pilot already computes client-side (apps/web
+   * Dashboard.tsx / mobile hero_section.dart): how many of the candidate's
+   * top-N matched jobs list this skill as missing.
+   */
+  async getCandidateSummary(userId: string) {
+    const buckets = await this.buildSkillBuckets(userId);
+    const { jobs: matchedJobs } = await this.candidateJobs.matched(userId);
+    const topJobs = [...matchedJobs].sort((a, b) => b.score - a.score).slice(0, RELEVANCE_TOP_JOBS);
+
+    const skills = [];
+    for (const b of buckets) {
+      const nextLevel = b.levels.find((l) => !l.earned);
+      if (!nextLevel) continue; // every offered level already earned — not "available to verify"
+
+      const format = nextLevel.formats.find((f) => f.type === 'TEST') ?? nextLevel.formats[0];
+      const relevanceCount = topJobs.filter((j) => j.missing.some((m) => m.skillId === b.skillId)).length;
+
+      let state: 'available' | 'in_progress' | 'cooldown' = 'available';
+      let retakeAvailableAt: Date | null = null;
+      if (format.type === 'DISCUSSION') {
+        const d = nextLevel.discussion;
+        if (d?.status === 'IN_PROGRESS' || d?.status === 'EXPIRED') {
+          state = 'in_progress';
+        } else if (d?.retakeAvailableAt) {
+          state = 'cooldown';
+          retakeAvailableAt = d.retakeAvailableAt;
+        }
+      } else {
+        const activeAttempt = await this.prisma.attempt.findFirst({
+          where: {
+            userId,
+            assessmentId: format.assessmentId,
+            status: { in: [AttemptStatus.CREATED, AttemptStatus.IN_PROGRESS] },
+          },
+        });
+        if (activeAttempt) state = 'in_progress';
+      }
+
+      skills.push({
+        skillId: b.skillId,
+        skillName: b.skillName,
+        relevanceCount,
+        badgeLevel: nextLevel.level,
+        estMinutes: format.durationMins,
+        state,
+        retakeAvailableAt,
+        webPath:
+          format.type === 'TEST'
+            ? `/assessments/${format.assessmentId}`
+            : `/assessments/discussion/${DISCUSSION_SLUG}`,
+      });
+    }
+
+    return { skills };
   }
 
   listLive() {

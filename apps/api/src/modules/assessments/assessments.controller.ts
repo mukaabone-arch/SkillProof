@@ -32,6 +32,18 @@ export class AssessmentsController {
     return this.svc.getCatalog(req.user.sub);
   }
 
+  /**
+   * Mobile-only simplified projection of the same catalog — one card per
+   * not-yet-fully-earned skill instead of the full level×format grid. Must
+   * stay before any GET 'assessments/:id'-shaped route for the same reason
+   * as 'assessments/catalog' above (none exist today).
+   */
+  @Get('assessments/catalog/summary')
+  @UseGuards(JwtAuthGuard)
+  catalogSummary(@Req() req: AuthenticatedRequest) {
+    return this.svc.getCandidateSummary(req.user.sub);
+  }
+
   @Post('assessments/:id/attempts')
   @UseGuards(JwtAuthGuard)
   start(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
