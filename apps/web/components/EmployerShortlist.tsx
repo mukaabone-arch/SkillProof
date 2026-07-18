@@ -13,6 +13,7 @@
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { employerApi } from '@/lib/api';
 import { Badge } from '@/components/ui';
 
@@ -80,6 +81,15 @@ const STAGE_BADGE_VARIANT: Record<Stage, 'default' | 'verified' | 'danger' | 'wa
 const STAGE_FILTERS: Stage[] = ['SHORTLISTED', 'INVITED', 'INTERVIEWING', 'OFFER', 'HIRED', 'DECLINED', 'REJECTED', 'CLOSED'];
 const ROUND_STATUSES: RoundStatus[] = ['SCHEDULED', 'COMPLETED', 'PASSED', 'FAILED'];
 
+function isValidStage(value: string | null): value is Stage {
+  return !!value && (STAGE_FILTERS as string[]).includes(value);
+}
+
+interface Job {
+  id: string;
+  title: string;
+}
+
 /** Round `scheduledAt` comes back as an ISO string; datetime-local inputs need `YYYY-MM-DDTHH:mm`. */
 function toDatetimeLocal(iso: string | null): string {
   if (!iso) return '';
@@ -89,8 +99,17 @@ function toDatetimeLocal(iso: string | null): string {
 }
 
 export default function EmployerShortlist() {
+  // Dashboard cards link here as /employer/shortlist?stage=X[&jobId=Y] —
+  // these seed the filters on first render so a card click lands already
+  // filtered, not just on the unfiltered list.
+  const searchParams = useSearchParams();
+  const requestedStage = searchParams.get('stage');
+  const requestedJobId = searchParams.get('jobId');
+
   const [entries, setEntries] = useState<ShortlistEntry[]>([]);
-  const [stageFilter, setStageFilter] = useState('');
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [stageFilter, setStageFilter] = useState(isValidStage(requestedStage) ? requestedStage : '');
+  const [jobFilter, setJobFilter] = useState(requestedJobId ?? '');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -119,16 +138,23 @@ export default function EmployerShortlist() {
   const [editRoundNote, setEditRoundNote] = useState('');
 
   useEffect(() => {
+    api<Job[]>('/jobs').then(setJobs).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stageFilter]);
+  }, [stageFilter, jobFilter]);
 
   async function load() {
     setLoading(true);
     setError('');
     try {
-      const qs = stageFilter ? `?stage=${stageFilter}` : '';
-      const res = await api<ShortlistEntry[]>(`/shortlist${qs}`);
+      const params = new URLSearchParams();
+      if (stageFilter) params.set('stage', stageFilter);
+      if (jobFilter) params.set('jobId', jobFilter);
+      const qs = params.toString();
+      const res = await api<ShortlistEntry[]>(`/shortlist${qs ? `?${qs}` : ''}`);
       setEntries(res);
     } catch (e) {
       setError((e as Error).message);
@@ -305,14 +331,28 @@ export default function EmployerShortlist() {
       <h1>Shortlist</h1>
       <p>Candidates you&apos;ve collected from applicants, search, and matches — and where you drive them through the hiring pipeline.</p>
 
-      <div className="field" style={{ maxWidth: 260 }}>
-        <label htmlFor="stageFilter">Stage</label>
-        <select id="stageFilter" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
-          <option value="">All stages</option>
-          {STAGE_FILTERS.map((s) => (
-            <option key={s} value={s}>{STAGE_LABELS[s]}</option>
-          ))}
-        </select>
+      <div className="row" style={{ margin: 0, flexWrap: 'wrap' }}>
+        <div className="field" style={{ maxWidth: 260 }}>
+          <label htmlFor="stageFilter">Stage</label>
+          <select id="stageFilter" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
+            <option value="">All stages</option>
+            {STAGE_FILTERS.map((s) => (
+              <option key={s} value={s}>{STAGE_LABELS[s]}</option>
+            ))}
+          </select>
+        </div>
+
+        {jobs.length > 0 && (
+          <div className="field" style={{ maxWidth: 260 }}>
+            <label htmlFor="jobFilter">Role</label>
+            <select id="jobFilter" value={jobFilter} onChange={(e) => setJobFilter(e.target.value)}>
+              <option value="">All roles</option>
+              {jobs.map((j) => (
+                <option key={j.id} value={j.id}>{j.title}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {error && <p className="error">{error}</p>}

@@ -18,6 +18,7 @@ import { AssessmentSessionsModule } from './modules/assessment-sessions/assessme
 import { BadgesModule } from './modules/badges/badges.module';
 import { ShortlistModule } from './modules/shortlist/shortlist.module';
 import { InterviewsModule } from './modules/interviews/interviews.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { InterviewsModule } from './modules/interviews/interviews.module';
     AssessmentSessionsModule,
     ShortlistModule,
     InterviewsModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}

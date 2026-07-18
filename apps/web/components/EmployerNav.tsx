@@ -10,6 +10,7 @@ const { logout } = employerApi;
 
 const LINKS = [
   { href: '/employer', label: 'Home' },
+  { href: '/employer/dashboard', label: 'Dashboard' },
   { href: '/employer/shortlist', label: 'Shortlist' },
 ];
 

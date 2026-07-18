@@ -6,7 +6,7 @@
  * middleware. An anonymous visitor is sent back to /employer to log in
  * rather than duplicating EmployerOtpLogin here.
  */
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { employerApi } from '@/lib/api';
 import EmployerNav from '@/components/EmployerNav';
@@ -31,7 +31,9 @@ export default function EmployerShortlistPage() {
   return (
     <>
       <EmployerNav onLoggedOut={() => router.replace('/employer')} />
-      <EmployerShortlist />
+      <Suspense fallback={<main><p className="meta">Loading…</p></main>}>
+        <EmployerShortlist />
+      </Suspense>
     </>
   );
 }
