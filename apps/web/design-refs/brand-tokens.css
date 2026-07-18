@@ -1,0 +1,83 @@
+:root {
+  /* ---- Brand: indigo-violet ---- */
+  --brand-50:  #EEEDFE;
+  --brand-100: #CECBF6;
+  --brand-200: #AFA9EC;
+  --brand-400: #7F77DD;   /* secondary buttons, links, CTAs on dark */
+  --brand-600: #5B4FE0;   /* THE primary: logo, main CTA, active nav */
+  --brand-800: #3C3489;   /* text on brand-50/100 backgrounds */
+  --brand-900: #26215C;   /* dark panels, hero, footer */
+
+  /* ---- Accent: warm coral (rationed) ---- */
+  --accent-50:  #FFF1EC;
+  --accent-100: #FFD9CB;
+  --accent-400: #FF8A65;
+  --accent-600: #E85A3A;  /* verified badges + max ONE standout CTA */
+  --accent-800: #8A2E1A;  /* text on coral backgrounds */
+
+  /* ---- Neutrals ---- */
+  --gray-50:  #F7F7F9;    /* page background */
+  --gray-100: #EBEBF0;    /* borders, dividers */
+  --gray-300: #C7C6D1;    /* disabled, subtle borders */
+  --gray-600: #6E6D7A;    /* secondary text */
+  --gray-900: #18171F;    /* primary text */
+
+  /* ---- Semantic (status only — never for brand/decoration) ---- */
+  --success: #1D9E75;
+  --warning: #BA7517;
+  --error:   #D9483F;
+
+  /* ---- Legacy bridge: old names -> new tokens ----
+     Lets every existing rule keep working on day one; individual
+     call-sites migrate to the new names over time, then this block
+     shrinks. Delete a line only when grep shows zero users left. */
+  --indigo:       var(--brand-600);
+  --indigo-soft:  var(--brand-400);
+  --paper:        var(--gray-50);
+  --paper-2:      var(--gray-100);
+  --ink:          var(--gray-900);
+  --ink-60:       var(--gray-600);
+  --ink-30:       var(--gray-300);
+  --ink-12:       var(--gray-100);
+}:root {
+  /* ---- Brand: indigo-violet ---- */
+  --brand-50:  #EEEDFE;
+  --brand-100: #CECBF6;
+  --brand-200: #AFA9EC;
+  --brand-400: #7F77DD;   /* secondary buttons, links, CTAs on dark */
+  --brand-600: #5B4FE0;   /* THE primary: logo, main CTA, active nav */
+  --brand-800: #3C3489;   /* text on brand-50/100 backgrounds */
+  --brand-900: #26215C;   /* dark panels, hero, footer */
+
+  /* ---- Accent: warm coral (rationed) ---- */
+  --accent-50:  #FFF1EC;
+  --accent-100: #FFD9CB;
+  --accent-400: #FF8A65;
+  --accent-600: #E85A3A;  /* verified badges + max ONE standout CTA */
+  --accent-800: #8A2E1A;  /* text on coral backgrounds */
+
+  /* ---- Neutrals ---- */
+  --gray-50:  #F7F7F9;    /* page background */
+  --gray-100: #EBEBF0;    /* borders, dividers */
+  --gray-300: #C7C6D1;    /* disabled, subtle borders */
+  --gray-600: #6E6D7A;    /* secondary text */
+  --gray-900: #18171F;    /* primary text */
+
+  /* ---- Semantic (status only — never for brand/decoration) ---- */
+  --success: #1D9E75;
+  --warning: #BA7517;
+  --error:   #D9483F;
+
+  /* ---- Legacy bridge: old names -> new tokens ----
+     Lets every existing rule keep working on day one; individual
+     call-sites migrate to the new names over time, then this block
+     shrinks. Delete a line only when grep shows zero users left. */
+  --indigo:       var(--brand-600);
+  --indigo-soft:  var(--brand-400);
+  --paper:        var(--gray-50);
+  --paper-2:      var(--gray-100);
+  --ink:          var(--gray-900);
+  --ink-60:       var(--gray-600);
+  --ink-30:       var(--gray-300);
+  --ink-12:       var(--gray-100);
+}

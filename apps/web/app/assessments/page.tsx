@@ -151,7 +151,7 @@ function LevelRow({ level }: { level: CatalogLevel }) {
       <div className="assessment-row">
         <div className="assessment-info">
           <strong>Level {level.level}</strong>
-          <div className="meta">✓ Earned · verified by discussion</div>
+          <div className="meta assessment-earned">✓ Earned · verified by discussion</div>
         </div>
       </div>
     );
@@ -166,7 +166,7 @@ function LevelRow({ level }: { level: CatalogLevel }) {
       <div className="assessment-row">
         <div className="assessment-info">
           <strong>Level {level.level}</strong>
-          <div className="meta">✓ Earned · verified by test</div>
+          <div className="meta assessment-earned">✓ Earned · verified by test</div>
           {discussionFormat && (
             <div className="meta" style={{ marginTop: 4 }}>
               Prove this by discussion for stronger evidence — a reviewer sees how you reason, not just your score.

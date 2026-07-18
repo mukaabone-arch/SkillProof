@@ -8,39 +8,58 @@
  * from instead of ad hoc pixel values.
  */
 :root {
-  /* ---- Brand primitives (the flAIr future Intelligence logo's own colors) ----
-     Reserved for the logo asset itself (Logo.tsx) and brand-decoration
-     contexts (e.g. the hero/auth-page photo scrims). Green means "verified"
-     everywhere else in the app — --brand-green must never be used for UI
-     state (progress, actions, nav); that's --verified's job exclusively. */
-  --brand-purple: #8b5cf6;
-  --brand-green: #22c55e;
+  /* ---- Brand: indigo-violet ---- */
+  --brand-50:  #EEEDFE;
+  --brand-100: #CECBF6;
+  --brand-200: #AFA9EC;
+  --brand-400: #7F77DD;   /* secondary buttons, links, CTAs on dark */
+  --brand-600: #5B4FE0;   /* THE primary: logo, main CTA, active nav */
+  --brand-800: #3C3489;   /* text on brand-50/100 backgrounds */
+  --brand-900: #26215C;   /* dark panels, hero, footer */
+
+  /* ---- Accent: warm coral (rationed) ---- */
+  --accent-50:  #FFF1EC;
+  --accent-100: #FFD9CB;
+  --accent-400: #FF8A65;
+  --accent-600: #E85A3A;  /* verified badges + max ONE standout CTA */
+  --accent-800: #8A2E1A;  /* text on coral backgrounds */
 
   /* ---- Neutrals ---- */
-  --paper: #f5f6f2;
-  --paper-2: #ecefe7;
-  --ink: #141b2d;
-  --ink-60: rgba(20, 27, 45, 0.62);
-  --ink-30: rgba(20, 27, 45, 0.3);
-  --ink-12: rgba(20, 27, 45, 0.12);
-  --card: #fff;
+  --gray-50:  #F7F7F9;    /* page background */
+  --gray-100: #EBEBF0;    /* borders, dividers */
+  --gray-300: #C7C6D1;    /* disabled, subtle borders */
+  --gray-600: #6E6D7A;    /* secondary text */
+  --gray-900: #18171F;    /* primary text */
 
-  /* ---- Semantic colors ----
-     --indigo is the established primary action/link color across landing,
-     dashboard and auth — NOT the same as --brand-purple above (that's the
-     logo's decorative accent, used in the logo mark and hero/auth scrims).
-     --verified doubles as this app's "success" color — one concept, not two:
-     every badge/checkmark/progress-fill already means "verified === passed
-     === good," so there's no separate --success token to keep in sync. */
-  --indigo: #3240b8;
-  --indigo-dark: #232e8f;
-  --indigo-soft: #e4e7fb;
-  --verified: #0b8a5c;
-  --verified-soft: #ddf0e7;
-  --danger: #b3261e;
-  --danger-soft: #fbe9e7;
-  --warning: #b45309;
-  --warning-soft: #fef3c7;
+  /* ---- Semantic (status only — never for brand/decoration) ---- */
+  --success: #1D9E75;
+  --warning: #BA7517;
+  --error:   #D9483F;
+
+  /* ---- Legacy bridge: old names -> new tokens ----
+     Lets every existing rule keep working on day one; individual
+     call-sites migrate to the new names over time, then this block
+     shrinks. Delete a line only when grep shows zero users left. */
+  --indigo:       var(--brand-600);
+  --indigo-soft:  var(--brand-400);
+  --paper:        var(--gray-50);
+  --paper-2:      var(--gray-100);
+  --ink:          var(--gray-900);
+  --ink-60:       var(--gray-600);
+  --ink-30:       var(--gray-300);
+  --ink-12:       var(--gray-100);
+
+  /* ---- Brand primitives (the flAIr future Intelligence logo's own colors) ----
+     Reserved for the logo asset itself (Logo.tsx, which reads these via
+     var(--brand-purple, #8b5cf6)-style fallbacks) and brand-decoration
+     contexts (the hero/auth-page photo scrim). Re-keyed onto the new
+     system rather than left on the old literal hex: purple becomes the
+     system's actual primary brand hue; green has no equivalent family in
+     the new palette, so it takes the one surviving green-family token. */
+  --brand-purple: var(--brand-600);
+  --brand-green: var(--success);
+
+  --card: #fff; /* cards/surfaces: white, unchanged by this rebrand */
 
   /* ---- Spacing scale (4px base) ---- */
   --space-1: 4px;
@@ -109,7 +128,7 @@ h3 { font-weight: 700; }
 p { color: var(--ink-60); margin-bottom: 24px; }
 input, select, textarea, button {
   font: inherit; padding: 12px 16px; border-radius: 10px;
-  border: 1.5px solid rgba(20, 27, 45, 0.3);
+  border: 1.5px solid var(--gray-300);
 }
 textarea { width: 100%; resize: vertical; }
 button {
@@ -117,15 +136,15 @@ button {
   font-weight: 600; cursor: pointer;
   transition: transform 0.12s ease, background 0.12s ease;
 }
-button:hover:not(:disabled) { background: var(--indigo-dark); transform: translateY(-1px); }
+button:hover:not(:disabled) { background: var(--brand-800); transform: translateY(-1px); }
 a { color: var(--indigo); font-weight: 600; text-decoration: none; }
 a:hover { text-decoration: underline; }
 nav { font-size: 0.95rem; }
 .row { display: flex; gap: 10px; margin-bottom: 16px; }
-.error { color: var(--danger); font-size: 0.9rem; }
-.ok { color: var(--verified); font-weight: 600; }
+.error { color: var(--error); font-size: 0.9rem; }
+.ok { color: var(--success); font-weight: 600; }
 pre {
-  background: #fff; border: 1px solid rgba(20, 27, 45, 0.12);
+  background: var(--card); border: 1px solid var(--gray-100);
   border-radius: 10px; padding: 16px; font-size: 0.8rem; overflow: auto;
 }
 
@@ -134,9 +153,11 @@ pre {
 .eyebrow {
   font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.08em; font-weight: 500;
   color: var(--indigo); text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px;
-  padding: 5px 11px; border-radius: 100px; background: var(--indigo-soft);
+  /* brand-50, not the bridged --indigo-soft (now brand-400, a solid mid-purple) — this wants a
+     light wash under brand-600 text, and brand-400 fails contrast here (1.86:1). */
+  padding: 5px 11px; border-radius: 100px; background: var(--brand-50);
 }
-.eyebrow.verified { color: var(--verified); background: var(--verified-soft); }
+.eyebrow.verified { color: var(--success); background: color-mix(in srgb, var(--success) 12%, white); }
 .btn-ghost {
   display: inline-block; background: transparent; color: var(--ink); font-weight: 600;
   border: 1.5px solid var(--ink-30); border-radius: 10px; padding: 12px 22px; cursor: pointer;
@@ -163,17 +184,17 @@ pre {
 .btn { font: inherit; padding: 12px 16px; border-radius: var(--radius-md); border: none; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform 0.12s ease, background 0.12s ease; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-primary { background: var(--indigo); color: #fff; }
-.btn-primary:hover:not(:disabled) { background: var(--indigo-dark); transform: translateY(-1px); }
+.btn-primary:hover:not(:disabled) { background: var(--brand-800); transform: translateY(-1px); }
 .btn-secondary { background: transparent; color: var(--ink); border: 1.5px solid var(--ink-30); }
 .btn-secondary:hover:not(:disabled) { border-color: var(--ink); }
-.btn-danger { background: transparent; color: var(--danger); border: 1.5px solid var(--danger); }
-.btn-danger:hover:not(:disabled) { background: var(--danger); color: #fff; }
+.btn-danger { background: transparent; color: var(--error); border: 1.5px solid var(--error); }
+.btn-danger:hover:not(:disabled) { background: var(--error); color: #fff; }
 
 .ui-card { background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-lg); padding: var(--space-6); }
 .ui-card-elevated { box-shadow: var(--shadow-md); }
 
-.field-error { color: var(--danger); font-size: var(--text-xs); margin-top: 2px; }
-.field-input-error { border-color: var(--danger) !important; }
+.field-error { color: var(--error); font-size: var(--text-xs); margin-top: 2px; }
+.field-input-error { border-color: var(--error) !important; }
 
 /* Small "?"/"How do I find this?" disclosure next to a field label — an
    inline expandable hint rather than a full tooltip lib, so it works with
@@ -181,7 +202,7 @@ pre {
 .hint-toggle summary { cursor: pointer; font-size: var(--text-xs); font-weight: 600; color: var(--indigo); list-style: none; }
 .hint-toggle summary::-webkit-details-marker { display: none; }
 .hint-toggle summary::marker { content: ''; }
-.hint-toggle[open] summary { color: var(--indigo-dark); }
+.hint-toggle[open] summary { color: var(--brand-800); }
 .hint-popover {
   margin-top: var(--space-2); padding: var(--space-3); background: var(--paper-2);
   border: 1px solid var(--ink-12); border-radius: var(--radius-md);
@@ -193,10 +214,13 @@ pre {
   font-family: var(--font-mono); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.03em;
   padding: 5px 11px; border-radius: var(--radius-full); display: inline-flex; align-items: center; gap: 5px;
 }
-.ui-badge-default { color: var(--indigo); background: var(--indigo-soft); }
-.ui-badge-verified { color: var(--verified); background: var(--verified-soft); }
-.ui-badge-danger { color: var(--danger); background: var(--danger-soft); }
-.ui-badge-warning { color: var(--warning); background: var(--warning-soft); }
+.ui-badge-default { color: var(--indigo); background: var(--brand-50); }
+.ui-badge-verified { color: var(--success); background: color-mix(in srgb, var(--success) 12%, white); }
+.ui-badge-danger { color: var(--error); background: color-mix(in srgb, var(--error) 12%, white); }
+/* --warning fails 4.5:1 AA at this badge's --text-xs (~10.4px) body size (verified: 3.72:1 on white) —
+   darkened via color-mix for the text specifically; the raw token stays fine for the background tint,
+   which only needs the 3:1 UI floor. */
+.ui-badge-warning { color: color-mix(in srgb, var(--warning) 75%, black); background: color-mix(in srgb, var(--warning) 12%, white); }
 .ui-badge-neutral { color: var(--ink-60); background: var(--paper-2); }
 
 .empty-state { text-align: center; padding: var(--space-7) var(--space-4); color: var(--ink-60); }
@@ -236,8 +260,10 @@ main.auth {
   max-width: none; margin: 0; padding: 24px;
   min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: var(--space-7);
+  /* Purple/green stops rebased to brand-600's/success's RGB channels (were the old
+     --brand-purple/--brand-green literal hex as rgba) — same alphas, new hues. */
   background-image:
-    linear-gradient(135deg, rgba(15, 17, 21, 0.85) 0%, rgba(139, 92, 246, 0.45) 45%, rgba(34, 197, 94, 0.4) 100%),
+    linear-gradient(135deg, rgba(15, 17, 21, 0.85) 0%, rgba(91, 79, 224, 0.45) 45%, rgba(29, 158, 117, 0.4) 100%),
     url('/background.jpg');
   background-size: cover;
   background-position: center 40%;
@@ -283,7 +309,7 @@ main.auth {
    translucent card it would otherwise inherit whatever's behind it. The
    Send OTP / Verify button already has an opaque `--indigo` background from
    the global `button{}` rule, so it needs no extra treatment here. */
-.auth-card input { background: #fff; }
+.auth-card input { background: var(--card); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .auth-card { background: rgba(255, 255, 255, 0.92); }
 }
@@ -296,12 +322,18 @@ main.auth {
 
 /* ---- assessment slice ---- */
 .card {
-  background: #fff; border: 1px solid rgba(20, 27, 45, 0.12); border-radius: 12px;
+  background: var(--card); border: 1px solid var(--gray-100); border-radius: 12px;
   padding: 18px 20px; margin-bottom: 14px;
   display: flex; justify-content: space-between; align-items: center; gap: 16px;
 }
 .meta { font-size: 0.85rem; color: var(--ink-60); margin-top: 4px; }
 .assessment-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; width: 100%; }
+/* LOCKED level row — muted, no button (see LevelRow in assessments/page.tsx). Reuses the existing --ink tokens rather than a new color. */
+.assessment-row-locked { opacity: 0.55; }
+/* Coral ration (a): the "✓ Earned" text on the assessments grid. accent-800, not accent-600 —
+   accent-600 fails 4.5:1 AA at this ~13.6px body-text size (verified: 3.53:1); accent-800 passes
+   at 8.44:1. accent-600 stays reserved for non-text UI (the checkmark glyph, .badge-card's border). */
+.assessment-earned { color: var(--accent-800); }
 .assessment-info { min-width: 0; flex: 1; }
 .assessment-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .assessment-actions { display: flex; gap: 8px; flex-shrink: 0; }
@@ -318,19 +350,22 @@ main.auth {
   .assessment-actions button:not(.btn) { flex: 1 1 auto; min-width: 0; white-space: normal; }
 }
 .question {
-  background: #fff; border: 1px solid rgba(20, 27, 45, 0.12); border-radius: 12px;
+  background: var(--card); border: 1px solid var(--gray-100); border-radius: 12px;
   padding: 18px 20px; margin-bottom: 14px;
 }
 .option { display: block; padding: 8px 4px; cursor: pointer; color: var(--ink); }
-.option:hover { background: rgba(50, 64, 184, 0.06); border-radius: 6px; }
+.option:hover { background: color-mix(in srgb, var(--brand-600) 6%, white); border-radius: 6px; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
-.badge-card { border-color: var(--verified); background: #f0faf5; }
+/* Coral ration (a): the earned/verified badge treatment — border + tint background use accent-600
+   directly (non-text UI elements, only need the 3:1 floor); accent-800 for the accompanying
+   checkmark/text (see .assessment-earned below) since accent-600 fails 4.5:1 AA at body-text size. */
+.badge-card { border-color: var(--accent-600); background: color-mix(in srgb, var(--accent-600) 8%, white); }
 .cert {
-  background: #fff; border: 2px solid var(--verified); border-radius: 16px;
+  background: var(--card); border: 2px solid var(--success); border-radius: 16px;
   padding: 40px; text-align: center;
 }
 .cert-mark {
-  width: 56px; height: 56px; border-radius: 50%; background: var(--verified);
+  width: 56px; height: 56px; border-radius: 50%; background: var(--success);
   color: #fff; font-size: 1.6rem; display: flex; align-items: center;
   justify-content: center; margin: 0 auto 16px;
 }
@@ -341,7 +376,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .field label { font-size: 0.85rem; font-weight: 600; color: var(--ink); }
 .field input, .field select { width: 100%; }
 .progress-track {
-  background: rgba(20, 27, 45, 0.1); border-radius: 999px; height: 8px;
+  background: color-mix(in srgb, var(--gray-900) 10%, white); border-radius: 999px; height: 8px;
   overflow: hidden; margin-bottom: 6px;
 }
 .progress-fill {
@@ -369,7 +404,7 @@ main.profile { max-width: 1080px; }
 /* ---- dashboard hub ---- */
 /* Rendered as a sibling before <main>, full-bleed and sticky, independent of any page's max-width. */
 .appnav {
-  position: sticky; top: 0; z-index: 50; background: rgba(245, 246, 242, 0.85);
+  position: sticky; top: 0; z-index: 50; background: rgba(247, 247, 249, 0.85);
   backdrop-filter: blur(10px); border-bottom: 1px solid var(--ink-12);
 }
 .appnav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; max-width: 880px; margin: 0 auto; padding: 0 24px; }
@@ -403,7 +438,7 @@ main.profile { max-width: 1080px; }
 }
 .segmented-progress-dot.done { background: var(--indigo); }
 .segmented-progress-dot.upcoming { background: var(--paper); border: 2.5px solid var(--ink-12); }
-.segmented-progress-dot.active { background: var(--indigo); box-shadow: 0 0 0 5px var(--indigo-soft); }
+.segmented-progress-dot.active { background: var(--indigo); box-shadow: 0 0 0 5px var(--brand-50); }
 .segmented-progress-label { margin-top: var(--space-3); font-size: var(--text-sm); font-weight: 600; color: var(--ink); }
 .segmented-progress-step.upcoming .segmented-progress-label { color: var(--ink-30); }
 .segmented-progress-sublabel { margin-top: 2px; font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.02em; color: var(--ink-60); }
@@ -443,7 +478,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
    hue: same accent family as the rest of the hub, just given more room to
    breathe than a standard .ui-card. */
 .copilot-panel {
-  background: linear-gradient(160deg, var(--card) 0%, var(--indigo-soft) 165%);
+  background: linear-gradient(160deg, var(--card) 0%, var(--brand-50) 165%);
   border: 1px solid var(--ink-12); border-radius: var(--radius);
   box-shadow: var(--shadow-md);
   padding: var(--space-6); margin-bottom: var(--space-7);
@@ -452,7 +487,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
   font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.08em; font-weight: 700;
   color: var(--indigo); text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px;
 }
-.copilot-eyebrow-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--indigo); box-shadow: 0 0 0 3px var(--indigo-soft); flex-shrink: 0; }
+.copilot-eyebrow-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--indigo); box-shadow: 0 0 0 3px var(--brand-50); flex-shrink: 0; }
 /* Heading-sized, not hero-sized: a confident single insight, not a banner. */
 .copilot-message {
   font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; line-height: 1.3;
@@ -466,9 +501,9 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
   padding: 22px 22px 20px; text-decoration: none; color: var(--ink); display: block;
   transition: border-color 0.15s ease, transform 0.12s ease;
 }
-.status-card:hover { border-color: var(--indigo-soft); transform: translateY(-2px); text-decoration: none; }
+.status-card:hover { border-color: var(--brand-50); transform: translateY(-2px); text-decoration: none; }
 .status-stat { font-family: var(--font-display); font-weight: 700; font-size: 2rem; letter-spacing: -0.02em; color: var(--indigo); line-height: 1; margin-bottom: 6px; }
-.status-stat.verified { color: var(--verified); }
+.status-stat.verified { color: var(--success); }
 .status-card-label { font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-30); margin-bottom: 10px; }
 
 /* ---- signal chips ----
@@ -481,10 +516,11 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .signal-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .chip {
   font-family: var(--font-mono); font-size: 0.68rem; padding: 5px 10px; border-radius: 100px;
-  border: 1px solid var(--verified-soft); background: var(--verified-soft); color: var(--verified);
+  border: 1px solid color-mix(in srgb, var(--success) 12%, white);
+  background: color-mix(in srgb, var(--success) 12%, white); color: var(--success);
   display: inline-flex; align-items: center; gap: 5px;
 }
-.chip-external { border-color: var(--indigo-soft); background: var(--indigo-soft); color: var(--indigo); }
+.chip-external { border-color: var(--brand-50); background: var(--brand-50); color: var(--indigo); }
 
 /* ---- match score cards ----
    Confidence is color-coded but stays inside the one-accent system: a
@@ -498,11 +534,11 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
   transition: border-color 0.15s ease, transform 0.12s ease;
 }
 .match-card:last-child { margin-bottom: 0; }
-.match-card:hover { border-color: var(--indigo-soft); transform: translateY(-1px); text-decoration: none; }
+.match-card:hover { border-color: var(--brand-50); transform: translateY(-1px); text-decoration: none; }
 .match-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-2); }
 .match-card-title { font-weight: 700; }
 .match-confidence { font-family: var(--font-mono); font-size: var(--text-xs); font-weight: 700; white-space: nowrap; }
-.match-confidence.strong { color: var(--indigo-dark); }
+.match-confidence.strong { color: var(--brand-800); }
 .match-confidence.weak { color: var(--ink-30); }
 .match-score-track { background: var(--ink-12); border-radius: 999px; height: 7px; overflow: hidden; margin-bottom: var(--space-2); }
 .match-score-fill { height: 100%; border-radius: 999px; transition: width 0.2s ease; }
@@ -527,8 +563,8 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .review-verdict-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 .review-verdict-buttons .btn { min-width: 0; padding: 8px 12px; font-size: 0.85rem; }
 .review-reveal { border-top: 1px solid var(--ink-12); padding-top: 12px; margin-top: 4px; border-radius: 8px; }
-.review-reveal-agree { background: var(--verified-soft); padding: 12px; border-top: none; }
-.review-reveal-disagree { background: var(--warning-soft); padding: 12px; border-top: none; }
+.review-reveal-agree { background: color-mix(in srgb, var(--success) 12%, white); padding: 12px; border-top: none; }
+.review-reveal-disagree { background: color-mix(in srgb, var(--warning) 12%, white); padding: 12px; border-top: none; }
 .review-model-block { margin-top: 8px; }
 .interruption-banner { background: var(--paper-2); border: 1px solid var(--ink-12); border-radius: 10px; padding: 12px 16px; margin-bottom: var(--space-6); font-size: 0.9rem; }
 .interruption-banner ul { margin: 6px 0 0; padding-left: 18px; }
@@ -549,7 +585,10 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .discussion-session {
   --dc-bg: #0B0C10; --dc-card: #14161D; --dc-card2: #181B24; --dc-border: #262A35;
   --dc-text: #E8EAF0; --dc-text2: #9AA1B2; --dc-text3: #6B7280;
-  --dc-indigo: #6366F1; --dc-indigo-soft: #818CF8; --dc-green: #34D399; --dc-amber: #FBBF24;
+  /* Re-keyed onto the new brand system (was #6366F1/#818CF8 literal hex) — var() refs, not
+     duplicated hex, so this stays in sync if brand-400/200 ever change. Everything else in this
+     scoped dark palette is untouched. */
+  --dc-indigo: var(--brand-400); --dc-indigo-soft: var(--brand-200); --dc-green: #34D399; --dc-amber: #FBBF24;
   --dc-amber-red: #F97316; --dc-red: #F87171;
 
   background: var(--dc-bg); color: var(--dc-text);
