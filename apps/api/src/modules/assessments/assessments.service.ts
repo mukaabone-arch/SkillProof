@@ -9,7 +9,7 @@ import { AttemptStatus, BadgeVerificationMethod, IntegrityEventType, IntegritySt
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RecordIntegrityEventDto } from './assessments.dto';
-import { BadgeResolverService, LEVEL_ORDER } from '../badges/badge-resolver.service';
+import { BadgeResolverService, deriveLevelStates, LEVEL_ORDER } from '../badges/badge-resolver.service';
 import { AssessmentSessionsService } from '../assessment-sessions/assessment-sessions.service';
 import { DISCUSSION_DURATION_MINS, DISCUSSION_SLUG, SKILL_LEVEL as DISCUSSION_LEVEL, SKILL_NAME as DISCUSSION_SKILL_NAME } from '../assessment-sessions/rag-systems-l2.rubric';
 import { CandidateJobsService } from '../jobs/candidate-jobs.service';
@@ -140,10 +140,17 @@ export class AssessmentsService {
     const skills = [];
     for (const b of bySkill.values()) {
       const levelMap = await this.badgeResolver.resolveLevelMap(userId, b.skillId);
-      const levels = LEVEL_ORDER.filter((level) => b.levels.has(level)).map((level) => {
+      const offeredLevels = LEVEL_ORDER.filter((level) => b.levels.has(level));
+      // Strict sequential leveling — same derivation assertLevelAvailable
+      // enforces at attempt/session creation, so display and enforcement
+      // can never disagree (see BadgeResolverService.deriveLevelStates).
+      const stateMap = deriveLevelStates(offeredLevels, levelMap);
+      const highestEarnedLevel = [...offeredLevels].reverse().find((l) => stateMap.get(l) === 'EARNED') ?? null;
+      const levels = offeredLevels.map((level, i) => {
         const formats = b.levels.get(level)!;
         const badge = levelMap[level];
         const hasDiscussion = formats.some((f) => f.type === 'DISCUSSION');
+        const state = stateMap.get(level)!;
         return {
           level,
           formats,
@@ -151,6 +158,12 @@ export class AssessmentsService {
             ? { verifiedBy: badge.verifiedBy, verifyHash: badge.verifyHash, issuedAt: badge.issuedAt }
             : null,
           discussion: hasDiscussion ? discussionState : null,
+          state,
+          // This row's own immediate predecessor — not always "the"
+          // currently-available level, since a skill can have several
+          // LOCKED rows stacked above one AVAILABLE one.
+          unlocksAfterLevel: state === 'LOCKED' ? offeredLevels[i - 1] : null,
+          coveredByLevel: state === 'SUBSUMED' ? highestEarnedLevel : null,
         };
       });
       skills.push({
@@ -185,8 +198,11 @@ export class AssessmentsService {
 
     const skills = [];
     for (const b of buckets) {
-      const nextLevel = b.levels.find((l) => !l.earned);
-      if (!nextLevel) continue; // every offered level already earned — not "available to verify"
+      // "Next unearned level" is now specifically the AVAILABLE level —
+      // strict sequential leveling means that's the only one this
+      // candidate could actually start (see BadgeResolverService.deriveLevelStates).
+      const nextLevel = b.levels.find((l) => l.state === 'AVAILABLE');
+      if (!nextLevel) continue; // every offered level already earned, or somehow none available — not "available to verify"
 
       const format = nextLevel.formats.find((f) => f.type === 'TEST') ?? nextLevel.formats[0];
       const relevanceCount = topJobs.filter((j) => j.missing.some((m) => m.skillId === b.skillId)).length;
@@ -217,6 +233,11 @@ export class AssessmentsService {
         skillName: b.skillName,
         relevanceCount,
         badgeLevel: nextLevel.level,
+        // Always 'AVAILABLE' by construction (see the nextLevel filter
+        // above) — exposed for API consistency with the full-grid catalog
+        // rather than left implicit. Named levelState, not state, to avoid
+        // colliding with the attempt/session-progress `state` below.
+        levelState: nextLevel.state,
         estMinutes: format.durationMins,
         state,
         retakeAvailableAt,
@@ -262,6 +283,13 @@ export class AssessmentsService {
       },
     });
     if (active) return active;
+
+    // Strict sequential leveling — a candidate may only attempt the level
+    // immediately after their highest earned level in this skill. Checked
+    // only for genuinely new attempts (after the idempotent active-attempt
+    // return above), so a candidate already mid-attempt from before this
+    // policy existed is never retroactively locked out of finishing it.
+    await this.badgeResolver.assertLevelAvailable(userId, assessment.skillId, assessment.targetLevel);
 
     const pool = await this.prisma.question.findMany({
       where: { assessmentId, isLive: true },

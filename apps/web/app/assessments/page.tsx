@@ -2,11 +2,14 @@
 
 /**
  * Assessment catalog: one card per skill, one row per level (L1-L4), sourced
- * entirely from GET /assessments/catalog. All levels stay open — no
- * gating, no prerequisite on holding a lower level first. Earned state and
- * badge precedence (discussion > test for the same skill+level) are
- * resolved server-side (see BadgeResolverService) — this page only ever
- * renders what the API already decided, never re-derives precedence itself.
+ * entirely from GET /assessments/catalog. Strict sequential leveling: a
+ * candidate may only attempt the level immediately after their highest
+ * earned level in a skill — level.state (EARNED/SUBSUMED/AVAILABLE/LOCKED)
+ * says which, already fully resolved server-side (see
+ * BadgeResolverService.deriveLevelStates). This page only ever renders
+ * what the API already decided — hiding the Start button here is a UX
+ * courtesy, not the enforcement; the server rejects a locked attempt too
+ * (see BadgeResolverService.assertLevelAvailable).
  */
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -18,6 +21,7 @@ import { useRequireAuth } from '@/lib/useRequireAuth';
 
 type SkillLevelName = 'L1' | 'L2' | 'L3' | 'L4';
 type VerificationMethod = 'TEST' | 'DISCUSSION';
+type LevelState = 'EARNED' | 'SUBSUMED' | 'AVAILABLE' | 'LOCKED';
 
 interface CatalogFormat {
   type: VerificationMethod;
@@ -41,6 +45,9 @@ interface CatalogLevel {
   formats: CatalogFormat[];
   earned: CatalogEarned | null;
   discussion: CatalogDiscussionState | null;
+  state: LevelState;
+  unlocksAfterLevel: SkillLevelName | null;
+  coveredByLevel: SkillLevelName | null;
 }
 interface CatalogSkill {
   skillId: string;
@@ -145,6 +152,34 @@ function LevelRow({ level }: { level: CatalogLevel }) {
   const test = level.formats.find((f) => f.type === 'TEST');
   const discussionFormat = level.formats.find((f) => f.type === 'DISCUSSION');
 
+  // Above the level immediately after highest earned — not attemptable yet.
+  // No button at all: hiding it is a UX courtesy, the server rejects the
+  // attempt too (see BadgeResolverService.assertLevelAvailable).
+  if (level.state === 'LOCKED') {
+    return (
+      <div className="assessment-row assessment-row-locked">
+        <div className="assessment-info">
+          <strong>Level {level.level}</strong>
+          <div className="meta">🔒 Unlocks after {level.unlocksAfterLevel}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Below the highest earned level, with no badge of its own — a gap left
+  // by an out-of-order (grandfathered) badge. Covered by the higher badge,
+  // never re-required.
+  if (level.state === 'SUBSUMED') {
+    return (
+      <div className="assessment-row">
+        <div className="assessment-info">
+          <strong>Level {level.level}</strong>
+          <div className="meta">Covered by {level.coveredByLevel} ✓</div>
+        </div>
+      </div>
+    );
+  }
+
   // Strongest evidence already held — terminal, no action at all.
   if (level.earned?.verifiedBy === 'DISCUSSION') {
     return (
@@ -182,7 +217,8 @@ function LevelRow({ level }: { level: CatalogLevel }) {
     );
   }
 
-  // Not earned at all — every available format stays open, independently.
+  // The one AVAILABLE level (LOCKED/SUBSUMED/EARNED are all handled above)
+  // — every offered format stays open, independently.
   return (
     <div className="assessment-row">
       <div className="assessment-info">

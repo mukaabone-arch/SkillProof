@@ -1,9 +1,50 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { Badge, BadgeVerificationMethod, ClaimStatus, SkillLevel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SKILL_LEVEL as DISCUSSION_LEVEL, SKILL_NAME as DISCUSSION_SKILL_NAME } from '../assessment-sessions/rag-systems-l2.rubric';
 
 /** Ascending level order — index comparison decides "highest level held". */
 export const LEVEL_ORDER: SkillLevel[] = [SkillLevel.L1, SkillLevel.L2, SkillLevel.L3, SkillLevel.L4];
+
+/**
+ * Per-level unlock status for strict sequential leveling: a candidate may
+ * only attempt the one level immediately after their highest earned level
+ * in a skill. Computed over a skill's own *offered* levels (see
+ * deriveLevelStates), never the abstract L1-L4 ladder — a skill that only
+ * offers L2 (e.g. RAG Systems today) has L2 AVAILABLE to a fresh candidate,
+ * not permanently LOCKED behind a nonexistent L1.
+ */
+export type LevelState = 'EARNED' | 'SUBSUMED' | 'AVAILABLE' | 'LOCKED';
+
+/**
+ * offeredLevels must already be ascending LEVEL_ORDER order (a skill's
+ * offered levels — see AssessmentsService.buildSkillBuckets, which filters
+ * LEVEL_ORDER down to levels that actually have a live assessment/discussion
+ * format). Priority: an individual badge at a level always wins as EARNED,
+ * even below the highest earned level — SUBSUMED only covers a *gap* left
+ * by an out-of-order badge (grandfathered), never overrides a level that
+ * itself has its own badge. Pure and side-effect-free so it can be
+ * unit-tested directly and reused identically by both the catalog display
+ * (buildSkillBuckets) and attempt/session-creation enforcement
+ * (assertLevelAvailable below) — the two can never disagree.
+ */
+export function deriveLevelStates(
+  offeredLevels: SkillLevel[],
+  levelMap: Partial<Record<SkillLevel, Badge>>,
+): Map<SkillLevel, LevelState> {
+  let highestEarnedIndex = -1;
+  offeredLevels.forEach((level, i) => {
+    if (levelMap[level]) highestEarnedIndex = i;
+  });
+  const states = new Map<SkillLevel, LevelState>();
+  offeredLevels.forEach((level, i) => {
+    if (levelMap[level]) states.set(level, 'EARNED');
+    else if (i < highestEarnedIndex) states.set(level, 'SUBSUMED');
+    else if (i === highestEarnedIndex + 1) states.set(level, 'AVAILABLE');
+    else states.set(level, 'LOCKED');
+  });
+  return states;
+}
 
 const VERIFICATION_PRECEDENCE: Record<BadgeVerificationMethod, number> = {
   [BadgeVerificationMethod.DISCUSSION]: 1,
@@ -76,6 +117,56 @@ export class BadgeResolverService {
       if (badge) return { level, badge };
     }
     return null;
+  }
+
+  /**
+   * A skill's live offered levels (ascending) plus its display name — one
+   * extra pair of queries, fine at attempt/session-start granularity (as
+   * opposed to the bulk catalog path, which already has this from its own
+   * bulk query and never calls this method). Folds in the discussion
+   * format's level exactly like buildSkillBuckets does, so a skill offered
+   * only via the discussion flow (RAG Systems L2 today) isn't missed.
+   */
+  private async getOfferedLevelsAndName(skillId: string): Promise<{ skillName: string; offeredLevels: SkillLevel[] }> {
+    const skill = await this.prisma.skill.findUniqueOrThrow({ where: { id: skillId } });
+    const assessments = await this.prisma.assessment.findMany({
+      where: { skillId, isLive: true },
+      select: { targetLevel: true },
+    });
+    const levels = new Set<SkillLevel>(assessments.map((a) => a.targetLevel));
+    if (skill.name === DISCUSSION_SKILL_NAME) levels.add(DISCUSSION_LEVEL);
+    return { skillName: skill.name, offeredLevels: LEVEL_ORDER.filter((l) => levels.has(l)) };
+  }
+
+  /**
+   * Server-side enforcement of strict sequential leveling — UI hiding the
+   * Start button alone is not enforcement. Throws a plain-string
+   * ForbiddenException (the house style for 403s throughout this codebase;
+   * no other 403 here uses an object payload) unless targetLevel is
+   * currently AVAILABLE for this user. Called from both
+   * AssessmentsService.startAttempt (MCQ) and
+   * AssessmentSessionsService.createSession (discussion) — the one place
+   * this rule is expressed, so the two flows can't drift apart.
+   */
+  async assertLevelAvailable(userId: string, skillId: string, targetLevel: SkillLevel): Promise<void> {
+    const { skillName, offeredLevels } = await this.getOfferedLevelsAndName(skillId);
+    const levelMap = await this.resolveLevelMap(userId, skillId);
+    const states = deriveLevelStates(offeredLevels, levelMap);
+    const state = states.get(targetLevel);
+    if (state === 'AVAILABLE') return;
+
+    if (state === 'EARNED') {
+      throw new ForbiddenException(`You've already earned ${skillName} ${targetLevel}.`);
+    }
+    if (state === 'SUBSUMED') {
+      const coveredBy = [...offeredLevels].reverse().find((l) => states.get(l) === 'EARNED');
+      throw new ForbiddenException(`${skillName} ${targetLevel} is already covered by your ${skillName} ${coveredBy} badge.`);
+    }
+    // LOCKED (or, defensively, a level this skill doesn't even offer).
+    const availableLevel = offeredLevels.find((l) => states.get(l) === 'AVAILABLE');
+    throw new ForbiddenException(
+      availableLevel ? `Complete ${skillName} ${availableLevel} first.` : `${skillName} ${targetLevel} isn't available yet.`,
+    );
   }
 
   /**
