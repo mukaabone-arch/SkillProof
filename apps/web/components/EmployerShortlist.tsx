@@ -3,9 +3,13 @@
 /**
  * The org's shortlist — candidates collected from the applicants list, find-
  * candidates search, and match results (see ShortlistButton, used on all
- * three). SHORTLISTED-stage entries only for now; the hiring-pipeline UI
- * (stage transitions, filtering by stage) is a follow-up, not this pass —
- * see ShortlistStage's doc comment on the API side.
+ * three) — and, now that a candidate is shortlisted, the place to drive
+ * them through the hiring pipeline: invite, run interview rounds, extend an
+ * offer, and record the final outcome. See ShortlistStage's doc comment
+ * (API side) and pipeline-transitions.ts for the full state machine this
+ * UI is a thin front-end for — every action here maps 1:1 to one
+ * transition, and the API is the source of truth (a stale/duplicate click
+ * here just gets a 409, not a broken UI state).
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -22,6 +26,19 @@ interface ShortlistSkill {
   verifyHash: string;
 }
 
+type Stage = 'SHORTLISTED' | 'INVITED' | 'INTERVIEWING' | 'OFFER' | 'HIRED' | 'DECLINED' | 'REJECTED' | 'CLOSED';
+type RoundStatus = 'SCHEDULED' | 'COMPLETED' | 'PASSED' | 'FAILED';
+type CandidateResponse = 'ACCEPTED' | 'DECLINED' | 'NEGOTIATING';
+
+interface InterviewRound {
+  id: string;
+  roundNumber: number;
+  status: RoundStatus;
+  channel: string | null;
+  scheduledAt: string | null;
+  note: string | null;
+}
+
 interface ShortlistEntry {
   id: string;
   candidateId: string;
@@ -29,13 +46,51 @@ interface ShortlistEntry {
   headline: string | null;
   verifiedSkills: ShortlistSkill[];
   job: { id: string; title: string } | null;
-  stage: string;
+  stage: Stage;
   note: string | null;
+  inviteMessage: string | null;
+  rejectReason: string | null;
+  candidateResponse: CandidateResponse | null;
+  rounds: InterviewRound[];
   createdAt: string;
+}
+
+const STAGE_LABELS: Record<Stage, string> = {
+  SHORTLISTED: 'Shortlisted',
+  INVITED: 'Invited — awaiting response',
+  INTERVIEWING: 'Interviewing',
+  OFFER: 'Offer extended',
+  HIRED: 'Hired',
+  DECLINED: 'Candidate declined',
+  REJECTED: 'Rejected',
+  CLOSED: 'Closed',
+};
+
+const STAGE_BADGE_VARIANT: Record<Stage, 'default' | 'verified' | 'danger' | 'warning' | 'neutral'> = {
+  SHORTLISTED: 'neutral',
+  INVITED: 'default',
+  INTERVIEWING: 'default',
+  OFFER: 'warning',
+  HIRED: 'verified',
+  DECLINED: 'neutral',
+  REJECTED: 'danger',
+  CLOSED: 'neutral',
+};
+
+const STAGE_FILTERS: Stage[] = ['SHORTLISTED', 'INVITED', 'INTERVIEWING', 'OFFER', 'HIRED', 'DECLINED', 'REJECTED', 'CLOSED'];
+const ROUND_STATUSES: RoundStatus[] = ['SCHEDULED', 'COMPLETED', 'PASSED', 'FAILED'];
+
+/** Round `scheduledAt` comes back as an ISO string; datetime-local inputs need `YYYY-MM-DDTHH:mm`. */
+function toDatetimeLocal(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export default function EmployerShortlist() {
   const [entries, setEntries] = useState<ShortlistEntry[]>([]);
+  const [stageFilter, setStageFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -44,21 +99,46 @@ export default function EmployerShortlist() {
   const [noteDraft, setNoteDraft] = useState('');
   const [savingNote, setSavingNote] = useState(false);
 
+  const [actionBusyKey, setActionBusyKey] = useState<string | null>(null);
+
+  const [inviteFormId, setInviteFormId] = useState<string | null>(null);
+  const [inviteMessageDraft, setInviteMessageDraft] = useState('');
+
+  const [rejectFormId, setRejectFormId] = useState<string | null>(null);
+  const [rejectReasonDraft, setRejectReasonDraft] = useState('');
+
+  const [addRoundFormId, setAddRoundFormId] = useState<string | null>(null);
+  const [roundChannelDraft, setRoundChannelDraft] = useState('');
+  const [roundScheduledAtDraft, setRoundScheduledAtDraft] = useState('');
+  const [roundNoteDraft, setRoundNoteDraft] = useState('');
+
+  const [editingRoundId, setEditingRoundId] = useState<string | null>(null);
+  const [editRoundStatus, setEditRoundStatus] = useState<RoundStatus>('SCHEDULED');
+  const [editRoundChannel, setEditRoundChannel] = useState('');
+  const [editRoundScheduledAt, setEditRoundScheduledAt] = useState('');
+  const [editRoundNote, setEditRoundNote] = useState('');
+
   useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stageFilter]);
 
   async function load() {
     setLoading(true);
     setError('');
     try {
-      const res = await api<ShortlistEntry[]>('/shortlist?stage=SHORTLISTED');
+      const qs = stageFilter ? `?stage=${stageFilter}` : '';
+      const res = await api<ShortlistEntry[]>(`/shortlist${qs}`);
       setEntries(res);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
     }
+  }
+
+  function replaceEntry(id: string, patch: Partial<ShortlistEntry>) {
+    setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
   }
 
   async function remove(id: string) {
@@ -88,7 +168,7 @@ export default function EmployerShortlist() {
         method: 'PATCH',
         body: JSON.stringify({ note: noteDraft.trim() || null }),
       });
-      setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, note: updated.note } : e)));
+      replaceEntry(id, { note: updated.note });
       setEditingNoteId(null);
     } catch (e) {
       setError((e as Error).message);
@@ -97,17 +177,150 @@ export default function EmployerShortlist() {
     }
   }
 
+  async function sendInvite(id: string) {
+    setActionBusyKey(`invite-${id}`);
+    setError('');
+    try {
+      await api(`/shortlist/${id}/invite`, {
+        method: 'POST',
+        body: JSON.stringify({ message: inviteMessageDraft.trim() || undefined }),
+      });
+      replaceEntry(id, { stage: 'INVITED', inviteMessage: inviteMessageDraft.trim() || null });
+      setInviteFormId(null);
+      setInviteMessageDraft('');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setActionBusyKey(null);
+    }
+  }
+
+  async function extendOffer(id: string) {
+    setActionBusyKey(`offer-${id}`);
+    setError('');
+    try {
+      await api(`/shortlist/${id}/offer`, { method: 'POST' });
+      replaceEntry(id, { stage: 'OFFER' });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setActionBusyKey(null);
+    }
+  }
+
+  async function setOutcome(id: string, outcome: 'HIRED' | 'CLOSED') {
+    if (!confirm(`Mark this candidate as ${outcome === 'HIRED' ? 'hired' : 'closed'}? This is the final pipeline outcome.`)) return;
+    setActionBusyKey(`outcome-${id}`);
+    setError('');
+    try {
+      await api(`/shortlist/${id}/outcome`, { method: 'POST', body: JSON.stringify({ outcome }) });
+      replaceEntry(id, { stage: outcome });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setActionBusyKey(null);
+    }
+  }
+
+  async function sendReject(id: string) {
+    setActionBusyKey(`reject-${id}`);
+    setError('');
+    try {
+      await api(`/shortlist/${id}/reject`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: rejectReasonDraft.trim() || undefined }),
+      });
+      replaceEntry(id, { stage: 'REJECTED', rejectReason: rejectReasonDraft.trim() || null });
+      setRejectFormId(null);
+      setRejectReasonDraft('');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setActionBusyKey(null);
+    }
+  }
+
+  function startAddRound(id: string) {
+    setAddRoundFormId(id);
+    setRoundChannelDraft('');
+    setRoundScheduledAtDraft('');
+    setRoundNoteDraft('');
+  }
+
+  async function saveNewRound(id: string) {
+    setActionBusyKey(`add-round-${id}`);
+    setError('');
+    try {
+      const round = await api<InterviewRound>(`/shortlist/${id}/rounds`, {
+        method: 'POST',
+        body: JSON.stringify({
+          channel: roundChannelDraft.trim() || undefined,
+          scheduledAt: roundScheduledAtDraft ? new Date(roundScheduledAtDraft).toISOString() : undefined,
+          note: roundNoteDraft.trim() || undefined,
+        }),
+      });
+      setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, rounds: [...e.rounds, round] } : e)));
+      setAddRoundFormId(null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setActionBusyKey(null);
+    }
+  }
+
+  function startEditRound(round: InterviewRound) {
+    setEditingRoundId(round.id);
+    setEditRoundStatus(round.status);
+    setEditRoundChannel(round.channel ?? '');
+    setEditRoundScheduledAt(toDatetimeLocal(round.scheduledAt));
+    setEditRoundNote(round.note ?? '');
+  }
+
+  async function saveRoundEdit(entryId: string, roundId: string) {
+    setActionBusyKey(`edit-round-${roundId}`);
+    setError('');
+    try {
+      const updated = await api<InterviewRound>(`/shortlist/${entryId}/rounds/${roundId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: editRoundStatus,
+          channel: editRoundChannel.trim() || undefined,
+          scheduledAt: editRoundScheduledAt ? new Date(editRoundScheduledAt).toISOString() : undefined,
+          note: editRoundNote.trim() || undefined,
+        }),
+      });
+      setEntries((prev) =>
+        prev.map((e) => (e.id === entryId ? { ...e, rounds: e.rounds.map((r) => (r.id === roundId ? updated : r)) } : e)),
+      );
+      setEditingRoundId(null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setActionBusyKey(null);
+    }
+  }
+
   return (
     <main>
       <h1>Shortlist</h1>
-      <p>Candidates you&apos;ve collected from applicants, search, and matches — the starting point for your hiring pipeline.</p>
+      <p>Candidates you&apos;ve collected from applicants, search, and matches — and where you drive them through the hiring pipeline.</p>
+
+      <div className="field" style={{ maxWidth: 260 }}>
+        <label htmlFor="stageFilter">Stage</label>
+        <select id="stageFilter" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
+          <option value="">All stages</option>
+          {STAGE_FILTERS.map((s) => (
+            <option key={s} value={s}>{STAGE_LABELS[s]}</option>
+          ))}
+        </select>
+      </div>
 
       {error && <p className="error">{error}</p>}
       {loading && <p className="meta">Loading…</p>}
 
       {!loading && entries.length === 0 && (
         <p className="meta">
-          Nothing shortlisted yet. Add candidates from a job&apos;s applicants or matches, or from{' '}
+          Nothing here yet. Add candidates from a job&apos;s applicants or matches, or from{' '}
           <Link href="/employer">Find candidates</Link>.
         </p>
       )}
@@ -116,9 +329,12 @@ export default function EmployerShortlist() {
         <div key={e.id} className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
           <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
             <strong>{e.fullName || 'Candidate'}</strong>
-            <button className="btn-danger" onClick={() => remove(e.id)} disabled={removingId === e.id}>
-              {removingId === e.id ? 'Removing…' : 'Remove'}
-            </button>
+            <div className="row" style={{ margin: 0 }}>
+              <Badge variant={STAGE_BADGE_VARIANT[e.stage]}>{STAGE_LABELS[e.stage]}</Badge>
+              <button className="btn-danger" onClick={() => remove(e.id)} disabled={removingId === e.id}>
+                {removingId === e.id ? 'Removing…' : 'Remove'}
+              </button>
+            </div>
           </div>
           {e.headline && <div className="meta">{e.headline}</div>}
           <div className="meta">
@@ -165,6 +381,199 @@ export default function EmployerShortlist() {
               </button>
             </div>
           )}
+
+          {/* ---- Pipeline ---- */}
+          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--ink-12)' }}>
+            {e.stage === 'SHORTLISTED' && (
+              inviteFormId === e.id ? (
+                <div className="field">
+                  <label htmlFor={`invite-${e.id}`}>Invite message (optional)</label>
+                  <textarea
+                    id={`invite-${e.id}`}
+                    rows={2}
+                    value={inviteMessageDraft}
+                    onChange={(ev) => setInviteMessageDraft(ev.target.value)}
+                    placeholder="A short note the candidate will see with the invite…"
+                  />
+                  <div className="row" style={{ margin: 0 }}>
+                    <button onClick={() => sendInvite(e.id)} disabled={actionBusyKey === `invite-${e.id}`}>
+                      {actionBusyKey === `invite-${e.id}` ? 'Sending…' : 'Send invite'}
+                    </button>
+                    <button className="btn-secondary" onClick={() => setInviteFormId(null)}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => { setInviteFormId(e.id); setInviteMessageDraft(''); }}>Invite to interview</button>
+              )
+            )}
+
+            {e.stage === 'INVITED' && (
+              <p className="meta" style={{ margin: 0 }}>
+                Waiting for the candidate to accept or decline{e.inviteMessage ? ` — sent: "${e.inviteMessage}"` : ''}.
+              </p>
+            )}
+
+            {e.stage === 'INTERVIEWING' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div className="meta" style={{ margin: 0 }}>Interview rounds</div>
+                {e.rounds.length === 0 && <p className="meta" style={{ margin: 0 }}>No rounds added yet.</p>}
+                {e.rounds.map((r) => (
+                  <div key={r.id} className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
+                    {editingRoundId === r.id ? (
+                      <>
+                        <div className="field">
+                          <label htmlFor={`round-status-${r.id}`}>Status</label>
+                          <select
+                            id={`round-status-${r.id}`}
+                            value={editRoundStatus}
+                            onChange={(ev) => setEditRoundStatus(ev.target.value as RoundStatus)}
+                          >
+                            {ROUND_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                        <div className="field">
+                          <label htmlFor={`round-channel-${r.id}`}>Channel</label>
+                          <input
+                            id={`round-channel-${r.id}`}
+                            value={editRoundChannel}
+                            onChange={(ev) => setEditRoundChannel(ev.target.value)}
+                            placeholder="Zoom link, phone number, or “we’ll email you”"
+                          />
+                        </div>
+                        <div className="field">
+                          <label htmlFor={`round-time-${r.id}`}>Scheduled at</label>
+                          <input
+                            id={`round-time-${r.id}`}
+                            type="datetime-local"
+                            value={editRoundScheduledAt}
+                            onChange={(ev) => setEditRoundScheduledAt(ev.target.value)}
+                          />
+                        </div>
+                        <div className="field">
+                          <label htmlFor={`round-note-${r.id}`}>Note (internal only)</label>
+                          <textarea
+                            id={`round-note-${r.id}`}
+                            rows={2}
+                            value={editRoundNote}
+                            onChange={(ev) => setEditRoundNote(ev.target.value)}
+                          />
+                        </div>
+                        <div className="row" style={{ margin: 0 }}>
+                          <button onClick={() => saveRoundEdit(e.id, r.id)} disabled={actionBusyKey === `edit-round-${r.id}`}>
+                            {actionBusyKey === `edit-round-${r.id}` ? 'Saving…' : 'Save round'}
+                          </button>
+                          <button className="btn-secondary" onClick={() => setEditingRoundId(null)}>Cancel</button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
+                          <strong>Round {r.roundNumber}</strong>
+                          <Badge variant={r.status === 'PASSED' ? 'verified' : r.status === 'FAILED' ? 'danger' : 'default'}>
+                            {r.status}
+                          </Badge>
+                        </div>
+                        {r.channel && <div className="meta">{r.channel}</div>}
+                        {r.scheduledAt && <div className="meta">{new Date(r.scheduledAt).toLocaleString()}</div>}
+                        {r.note && <div className="meta">Note: {r.note}</div>}
+                        <button className="btn-secondary" onClick={() => startEditRound(r)}>Edit round</button>
+                      </>
+                    )}
+                  </div>
+                ))}
+
+                {addRoundFormId === e.id ? (
+                  <div className="field">
+                    <label htmlFor={`new-round-channel-${e.id}`}>Channel (optional)</label>
+                    <input
+                      id={`new-round-channel-${e.id}`}
+                      value={roundChannelDraft}
+                      onChange={(ev) => setRoundChannelDraft(ev.target.value)}
+                      placeholder="Zoom link, phone number, or “we’ll email you”"
+                    />
+                    <label htmlFor={`new-round-time-${e.id}`}>Scheduled at (optional)</label>
+                    <input
+                      id={`new-round-time-${e.id}`}
+                      type="datetime-local"
+                      value={roundScheduledAtDraft}
+                      onChange={(ev) => setRoundScheduledAtDraft(ev.target.value)}
+                    />
+                    <label htmlFor={`new-round-note-${e.id}`}>Note (internal only, optional)</label>
+                    <textarea
+                      id={`new-round-note-${e.id}`}
+                      rows={2}
+                      value={roundNoteDraft}
+                      onChange={(ev) => setRoundNoteDraft(ev.target.value)}
+                    />
+                    <div className="row" style={{ margin: 0 }}>
+                      <button onClick={() => saveNewRound(e.id)} disabled={actionBusyKey === `add-round-${e.id}`}>
+                        {actionBusyKey === `add-round-${e.id}` ? 'Adding…' : 'Add round'}
+                      </button>
+                      <button className="btn-secondary" onClick={() => setAddRoundFormId(null)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button className="btn-secondary" onClick={() => startAddRound(e.id)}>+ Add round</button>
+                )}
+
+                <button onClick={() => extendOffer(e.id)} disabled={actionBusyKey === `offer-${e.id}`}>
+                  {actionBusyKey === `offer-${e.id}` ? 'Extending…' : 'Extend offer'}
+                </button>
+              </div>
+            )}
+
+            {e.stage === 'OFFER' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <p className="meta" style={{ margin: 0 }}>
+                  Candidate response: {e.candidateResponse ? e.candidateResponse : 'No response yet'}
+                </p>
+                <div className="row" style={{ margin: 0 }}>
+                  <button onClick={() => setOutcome(e.id, 'HIRED')} disabled={actionBusyKey === `outcome-${e.id}`}>
+                    Mark hired
+                  </button>
+                  <button className="btn-secondary" onClick={() => setOutcome(e.id, 'CLOSED')} disabled={actionBusyKey === `outcome-${e.id}`}>
+                    Close (no hire)
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {(e.stage === 'HIRED' || e.stage === 'CLOSED') && e.candidateResponse && (
+              <p className="meta" style={{ margin: 0 }}>Candidate response was: {e.candidateResponse}</p>
+            )}
+
+            {e.stage === 'REJECTED' && e.rejectReason && (
+              <p className="meta" style={{ margin: 0 }}>Reason: {e.rejectReason}</p>
+            )}
+
+            {['SHORTLISTED', 'INVITED', 'INTERVIEWING', 'OFFER'].includes(e.stage) && (
+              rejectFormId === e.id ? (
+                <div className="field" style={{ marginTop: 8 }}>
+                  <label htmlFor={`reject-${e.id}`}>Reason (optional, internal only)</label>
+                  <textarea
+                    id={`reject-${e.id}`}
+                    rows={2}
+                    value={rejectReasonDraft}
+                    onChange={(ev) => setRejectReasonDraft(ev.target.value)}
+                  />
+                  <div className="row" style={{ margin: 0 }}>
+                    <button className="btn-danger" onClick={() => sendReject(e.id)} disabled={actionBusyKey === `reject-${e.id}`}>
+                      {actionBusyKey === `reject-${e.id}` ? 'Rejecting…' : 'Confirm reject'}
+                    </button>
+                    <button className="btn-secondary" onClick={() => setRejectFormId(null)}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  className="btn-danger"
+                  style={{ marginTop: 8 }}
+                  onClick={() => { setRejectFormId(e.id); setRejectReasonDraft(''); }}
+                >
+                  Reject
+                </button>
+              )
+            )}
+          </div>
         </div>
       ))}
     </main>

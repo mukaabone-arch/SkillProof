@@ -8,6 +8,10 @@ const shortlistEntryInclude = {
     include: { skillClaims: { where: { status: ClaimStatus.VERIFIED }, include: { skill: true, badge: true } } },
   },
   job: { select: { id: true, title: true } },
+  // Full visibility for the employer view — unlike GET /interviews/mine
+  // (InterviewsService.present), rounds here include `note` and the whole
+  // history, not just the latest round.
+  rounds: { orderBy: { roundNumber: 'asc' } },
 } satisfies Prisma.ShortlistEntryInclude;
 
 type ShortlistEntryWithRelations = Prisma.ShortlistEntryGetPayload<{ include: typeof shortlistEntryInclude }>;
@@ -55,9 +59,13 @@ export class ShortlistService {
     return this.toView(entry.id);
   }
 
+  /** InterviewRound has no ON DELETE CASCADE on its FK (same convention as JobSkill→Job — see JobsService.remove) — rounds must go first or Postgres rejects the ShortlistEntry delete. */
   async remove(orgId: string, id: string): Promise<{ id: string }> {
     await this.getOwnedEntry(orgId, id);
-    await this.prisma.shortlistEntry.delete({ where: { id } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.interviewRound.deleteMany({ where: { shortlistEntryId: id } });
+      await tx.shortlistEntry.delete({ where: { id } });
+    });
     return { id };
   }
 
@@ -109,8 +117,13 @@ export class ShortlistService {
       job: entry.job,
       stage: entry.stage,
       note: entry.note,
+      inviteMessage: entry.inviteMessage,
+      rejectReason: entry.rejectReason,
+      candidateResponse: entry.candidateResponse,
+      rounds: entry.rounds,
       addedByUserId: entry.addedByUserId,
       createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
     };
   }
 

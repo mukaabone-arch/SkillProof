@@ -138,10 +138,54 @@ enum ShortlistStage {
   CLOSED
 }
 
+/**
+ * The candidate's own write on an OFFER-stage entry — deliberately separate
+ * from ShortlistEntry.stage (which the employer alone advances to HIRED /
+ * CLOSED). See ShortlistEntry.candidateResponse's doc comment for the
+ * two-write rationale: these can legitimately disagree and neither
+ * overwrites the other.
+ */
+enum CandidateOfferResponse {
+  ACCEPTED
+  DECLINED
+  NEGOTIATING
+}
+
+enum InterviewRoundStatus {
+  SCHEDULED
+  COMPLETED
+  PASSED
+  FAILED
+}
+
 enum NotificationType {
   APPLICATION_CONFIRMATION
   APPLICATION_STATUS
   MATCH_DIGEST
+  /**
+   * Candidate: SHORTLISTED → INVITED.
+   */
+  PIPELINE_INVITE
+  /**
+   * Employer: candidate accepted or declined an invite.
+   */
+  PIPELINE_INVITE_RESPONSE
+  /**
+   * Candidate: a new InterviewRound was added.
+   */
+  PIPELINE_ROUND_SCHEDULED
+  /**
+   * Candidate: INTERVIEWING → OFFER.
+   */
+  PIPELINE_OFFER
+  /**
+   * Employer: candidate set candidateResponse on an offer.
+   */
+  PIPELINE_OFFER_RESPONSE
+  /**
+   * Candidate: → REJECTED.
+   */
+  PIPELINE_REJECTED
 }
 
 enum NotificationChannel {
@@ -484,10 +528,65 @@ model ShortlistEntry {
   stage            ShortlistStage   @default(SHORTLISTED)
   note             String?
   createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  /**
+   * Employer-authored, sent with the SHORTLISTED→INVITED transition. Candidate-visible — it's addressed to them.
+   */
+  inviteMessage String?
+  /**
+   * Employer-authored, sent with the →REJECTED transition. Deliberately
+   * NOT exposed on GET /interviews/mine — same "employer-only" treatment as
+   * InterviewRound.note, for the same reason (an internal reason isn't
+   * necessarily something to hand a rejected candidate verbatim).
+   */
+  rejectReason  String?
+
+  /**
+   * The candidate's own write on an OFFER-stage entry — see
+   * CandidateOfferResponse's doc comment. Settable only while stage is
+   * still OFFER (ShortlistPipelineService/InterviewsService both enforce
+   * this); once the employer's outcome write moves stage to HIRED/CLOSED,
+   * this value is frozen as the historical record of what the candidate
+   * said at the time, which may or may not match the outcome. Never
+   * overwritten by, and never overwrites, `stage`.
+   */
+  candidateResponse CandidateOfferResponse?
+
+  rounds InterviewRound[]
 
   @@unique([orgId, candidateId, jobId])
   @@index([orgId, stage])
   @@index([jobId])
+  @@index([candidateId])
+}
+
+/**
+ * One interview round on a ShortlistEntry, employer-driven and repeatable —
+ * there is no fixed count; the employer adds the next round when ready.
+ * roundNumber is server-assigned (see ShortlistPipelineService.addRound),
+ * never client-supplied, so ordering can't be gamed or gapped.
+ */
+model InterviewRound {
+  id               String               @id @default(uuid())
+  shortlistEntryId String
+  shortlistEntry   ShortlistEntry       @relation(fields: [shortlistEntryId], references: [id])
+  roundNumber      Int
+  status           InterviewRoundStatus @default(SCHEDULED)
+  /**
+   * Zoom/Meet link, phone number, "we'll email you" — free text the candidate reads, not validated as a URL.
+   */
+  channel          String?
+  scheduledAt      DateTime?
+  /**
+   * Employer-only — never returned by GET /interviews/mine.
+   */
+  note             String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@unique([shortlistEntryId, roundNumber])
+  @@index([shortlistEntryId])
 }
 
 // ---------- Notifications (spec section: email, step 3e) ----------

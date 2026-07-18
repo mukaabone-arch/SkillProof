@@ -11,6 +11,7 @@ const LINKS = [
   { href: '/profile', label: 'Profile' },
   { href: '/assessments', label: 'Assessments' },
   { href: '/jobs', label: 'Jobs' },
+  { href: '/interviews', label: 'Interviews' },
 ];
 
 interface Props {
