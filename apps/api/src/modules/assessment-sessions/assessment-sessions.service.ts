@@ -3,6 +3,7 @@ import {
   AssessmentSession,
   AssessmentSessionStatus,
   LiveClaimFeedback,
+  LiveFeedbackTone,
   Prisma,
   ProbeRung,
   RagL2Claim,
@@ -13,7 +14,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssessorService, LadderState } from './assessor.service';
 import { ScoringService } from './scoring.service';
-import { LiveFeedbackService } from './live-feedback.service';
+import { LiveFeedbackService, VerdictTone } from './live-feedback.service';
 import { CLAIM_ORDER, RUBRIC_VERSION, SCENARIO_BRIEF, SKILL_LEVEL, SKILL_NAME } from './rag-systems-l2.rubric';
 import { TurnSignalsDto } from './assessment-sessions.dto';
 
@@ -129,6 +130,19 @@ function deriveTarget(state: LadderState): { claimId: RagL2Claim | null; probeRu
   return { claimId: null, probeRung: null };
 }
 
+/** Maps the DB's LiveFeedbackTone enum to the lowercase form LiveFeedbackService's tool schema already speaks — never null in the public shape, so the client never has to special-case a missing tone. */
+function toPublicTone(tone: LiveFeedbackTone | null): VerdictTone {
+  if (tone === LiveFeedbackTone.POSITIVE) return 'positive';
+  if (tone === LiveFeedbackTone.NEEDS_WORK) return 'needs_work';
+  return 'mixed';
+}
+
+function toDbTone(tone: VerdictTone): LiveFeedbackTone {
+  if (tone === 'positive') return LiveFeedbackTone.POSITIVE;
+  if (tone === 'needs_work') return LiveFeedbackTone.NEEDS_WORK;
+  return LiveFeedbackTone.MIXED;
+}
+
 /**
  * Candidate-facing shape of a LiveClaimFeedback row — see that model's own
  * doc comment. strengths/gaps are stored as Json (string[]) and cast back
@@ -138,6 +152,7 @@ export interface PublicLiveFeedback {
   id: string;
   claimId: RagL2Claim;
   verdictLabel: string;
+  verdictTone: VerdictTone;
   summary: string;
   strengths: string[];
   gaps: string[];
@@ -149,6 +164,7 @@ function toPublicLiveFeedback(row: LiveClaimFeedback): PublicLiveFeedback {
     id: row.id,
     claimId: row.claimId,
     verdictLabel: row.verdictLabel,
+    verdictTone: toPublicTone(row.verdictTone),
     summary: row.summary,
     strengths: row.strengths as string[],
     gaps: row.gaps as string[],
@@ -335,12 +351,14 @@ export class AssessmentSessionsService {
             sessionId,
             claimId: target.claimId,
             verdictLabel: generated.verdictLabel,
+            verdictTone: toDbTone(generated.verdictTone),
             summary: generated.summary,
             strengths: generated.strengths as unknown as Prisma.InputJsonValue,
             gaps: generated.gaps as unknown as Prisma.InputJsonValue,
           },
           update: {
             verdictLabel: generated.verdictLabel,
+            verdictTone: toDbTone(generated.verdictTone),
             summary: generated.summary,
             strengths: generated.strengths as unknown as Prisma.InputJsonValue,
             gaps: generated.gaps as unknown as Prisma.InputJsonValue,

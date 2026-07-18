@@ -47,14 +47,31 @@ interface Turn {
   superseded: boolean;
   createdAt: string;
 }
+type VerdictTone = 'positive' | 'mixed' | 'needs_work';
 interface LiveFeedback {
   id: string;
   claimId: string;
   verdictLabel: string;
+  verdictTone: VerdictTone;
   summary: string;
   strengths: string[];
   gaps: string[];
   helpfulVote: boolean | null;
+}
+
+/** Chip color/icon come from the model's own verdictTone, never guessed from verdictLabel text — see LiveFeedbackService. */
+const TONE_META: Record<VerdictTone, { icon: string; className: string }> = {
+  positive: { icon: '✓', className: 'tone-positive' },
+  mixed: { icon: '~', className: 'tone-mixed' },
+  needs_work: { icon: '✕', className: 'tone-needs_work' },
+};
+
+function ChevronIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="18 15 12 9 6 15" />
+    </svg>
+  );
 }
 
 /**
@@ -134,33 +151,19 @@ function formatElapsed(totalSeconds: number): string {
   return `${hours}:${String(totalMinutes % 60).padStart(2, '0')}`;
 }
 
-/** One render unit: every turn sharing a claimId, in the order they occurred. */
-interface ClaimGroup {
-  claimId: string;
-  items: Turn[];
-}
-
 /**
- * Turns with a claimId group into that topic's question card; turns
- * without one (the two reflection-stage turns and the final close message)
- * fall into trailingTurns and keep the plain, uncarded rendering they've
- * always had — they aren't scored claims and don't get reviewer treatment.
- * A claim's turns are always contiguous (the ladder walks CLAIM_ORDER once,
- * forward only), so grouping by first-seen order is safe.
+ * Maps each claimId to the index of its last turn — used to render the
+ * matching reviewer card immediately after a claim's final turn in the
+ * flat thread, without needing to wrap each claim's turns in their own
+ * container. A claim's turns are always contiguous (the ladder walks
+ * CLAIM_ORDER once, forward only), so "last occurrence" is unambiguous.
  */
-function groupTurns(turns: Turn[]): { groups: ClaimGroup[]; trailing: Turn[] } {
-  const groups: ClaimGroup[] = [];
-  const trailing: Turn[] = [];
-  for (const t of turns) {
-    if (t.claimId === null) {
-      trailing.push(t);
-      continue;
-    }
-    const existing = groups.find((g) => g.claimId === t.claimId);
-    if (existing) existing.items.push(t);
-    else groups.push({ claimId: t.claimId, items: [t] });
-  }
-  return { groups, trailing };
+function lastIndexByClaim(turns: Turn[]): Map<string, number> {
+  const map = new Map<string, number>();
+  turns.forEach((t, i) => {
+    if (t.claimId) map.set(t.claimId, i);
+  });
+  return map;
 }
 
 /** ~3 rows to start; grows with content up to a max height, then scrolls internally. */
@@ -423,11 +426,6 @@ export default function DiscussionSessionPage() {
     }
   }
 
-  function focusActiveInput() {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    textareaRef.current?.focus();
-  }
-
   function renderTurn(t: Turn, index: number) {
     if (index === 0 && t.role === 'ASSESSOR') {
       const { framing, question } = splitOpeningTurn(t.content);
@@ -479,6 +477,7 @@ export default function DiscussionSessionPage() {
 
   function renderReviewerCard(fb: LiveFeedback) {
     const open = isFeedbackOpen(fb.claimId);
+    const tone = TONE_META[fb.verdictTone];
     return (
       <section className={`discussion-reviewer${open ? '' : ' closed'}`} key={`fb-${fb.claimId}`} aria-label="Reviewer notes">
         <div className="discussion-reviewer-inner">
@@ -492,12 +491,12 @@ export default function DiscussionSessionPage() {
               aria-expanded={open}
               aria-label={`${open ? 'Collapse' : 'Expand'} reviewer notes`}
             >
-              ▲
+              <ChevronIcon />
             </button>
           </div>
           <div className="discussion-reviewer-body">
-            <span className="discussion-verdict">
-              ✓ {fb.verdictLabel} · {fb.summary}
+            <span className={`discussion-verdict ${tone.className}`}>
+              {tone.icon} {fb.verdictLabel} · {fb.summary}
             </span>
             <ul className="discussion-points">
               {fb.strengths.map((s, i) => (
@@ -529,9 +528,6 @@ export default function DiscussionSessionPage() {
                   Not really
                 </button>
               </div>
-              <button type="button" className="discussion-continue" onClick={focusActiveInput}>
-                Continue →
-              </button>
             </div>
           </div>
         </div>
@@ -569,30 +565,33 @@ export default function DiscussionSessionPage() {
     );
   }
 
-  const { groups, trailing } = groupTurns(turns);
+  const lastIdx = lastIndexByClaim(turns);
   const remainingCosmetic = Math.max(0, session.advertisedDurationMinutes * 60 - elapsed);
   const timerWarn = remainingCosmetic < 120;
   const progressPct = Math.round((session.progress.current / session.progress.total) * 100);
 
   return (
     <main className="discussion-session">
+      <div
+        className="discussion-progress"
+        role="progressbar"
+        aria-valuenow={session.progress.current}
+        aria-valuemin={1}
+        aria-valuemax={session.progress.total}
+        aria-label={`Question ${session.progress.current} of ${session.progress.total}`}
+      >
+        <i style={{ width: `${progressPct}%` }} />
+      </div>
+
       <div className="discussion-topbar">
-        <div
-          className="discussion-progress"
-          role="progressbar"
-          aria-valuenow={session.progress.current}
-          aria-valuemin={1}
-          aria-valuemax={session.progress.total}
-          aria-label={`Question ${session.progress.current} of ${session.progress.total}`}
-        >
-          <i style={{ width: `${progressPct}%` }} />
+        <div className="discussion-topbar-left">
+          <span className="discussion-counter">
+            Q {session.progress.current}/{session.progress.total}
+          </span>
+          <span className={`discussion-timer${timerWarn ? ' warn' : ''}`} aria-live="off">
+            {formatElapsed(remainingCosmetic)}
+          </span>
         </div>
-        <span className="discussion-counter">
-          Q {session.progress.current}/{session.progress.total}
-        </span>
-        <span className={`discussion-timer${timerWarn ? ' warn' : ''}`} aria-live="off">
-          {formatElapsed(remainingCosmetic)}
-        </span>
         <div className="discussion-topbar-right">
           <span className="meta">Recorded · reviewed by a person</span>
           <button type="button" className="discussion-exit-link" onClick={onExit}>
@@ -617,21 +616,17 @@ export default function DiscussionSessionPage() {
       {error && <p className="error">{error}</p>}
 
       <div className="discussion-turns">
-        {groups.map((g, gi) => {
-          const isLastGroup = gi === groups.length - 1 && trailing.length === 0;
-          const fb = claimFeedback.find((f) => f.claimId === g.claimId);
+        {/* Bottom-anchors a short thread without the scrollHeight bug justify-content:flex-end has here — see the CSS comment. */}
+        <div className="discussion-turns-spacer" aria-hidden="true" />
+        {turns.map((t, i) => {
+          const fb = t.claimId && lastIdx.get(t.claimId) === i ? claimFeedback.find((f) => f.claimId === t.claimId) : undefined;
           return (
-            <Fragment key={g.claimId}>
-              <div className="discussion-qcard">
-                {g.items.map((t) => renderTurn(t, turns.indexOf(t)))}
-                {isLastGroup && renderInputArea()}
-              </div>
+            <Fragment key={t.id}>
+              {renderTurn(t, i)}
               {fb && renderReviewerCard(fb)}
             </Fragment>
           );
         })}
-        {trailing.map((t) => renderTurn(t, turns.indexOf(t)))}
-        {trailing.length > 0 && renderInputArea()}
         {sending && (
           <div className="discussion-turn discussion-turn-assessor discussion-typing">
             <AssessorLabel />
@@ -643,6 +638,8 @@ export default function DiscussionSessionPage() {
         )}
         <div ref={bottomRef} />
       </div>
+
+      {renderInputArea()}
     </main>
   );
 }

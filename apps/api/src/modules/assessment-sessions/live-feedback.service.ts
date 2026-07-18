@@ -6,8 +6,12 @@ import { CLAIM_BANDS, CLAIM_HINTS, SKILL_LEVEL } from './rag-systems-l2.rubric';
 const MODEL = 'claude-sonnet-4-6';
 const REQUEST_TIMEOUT_MS = 30_000;
 
+export type VerdictTone = 'positive' | 'mixed' | 'needs_work';
+const VALID_TONES: VerdictTone[] = ['positive', 'mixed', 'needs_work'];
+
 export interface LiveFeedbackResult {
   verdictLabel: string;
+  verdictTone: VerdictTone;
   summary: string;
   strengths: string[];
   gaps: string[];
@@ -22,6 +26,12 @@ const RECORD_LIVE_FEEDBACK_TOOL: Anthropic.Tool = {
       verdict_label: {
         type: 'string',
         description: `A short informal label relative to the ${SKILL_LEVEL} bar for this topic, e.g. "Meets ${SKILL_LEVEL}", "Approaching ${SKILL_LEVEL}", "Needs more depth". Plain language, never the words "score" or "grade".`,
+      },
+      verdict_tone: {
+        type: 'string',
+        enum: VALID_TONES,
+        description:
+          '"positive" if the answer solidly meets the bar, "mixed" if it partially meets it with a real gap, "needs_work" if it falls notably short. Drives the chip color the candidate sees — must agree with verdict_label and gaps, never contradict them (e.g. never "positive" alongside a verdict_label that says "needs more depth").',
       },
       summary: {
         type: 'string',
@@ -42,7 +52,7 @@ const RECORD_LIVE_FEEDBACK_TOOL: Anthropic.Tool = {
         description: '0-2 short, specific sentences on what to focus on next. Empty if the answer was fully solid.',
       },
     },
-    required: ['verdict_label', 'summary', 'strengths', 'gaps'],
+    required: ['verdict_label', 'verdict_tone', 'summary', 'strengths', 'gaps'],
     additionalProperties: false,
   },
 };
@@ -54,7 +64,9 @@ const RECORD_LIVE_FEEDBACK_TOOL: Anthropic.Tool = {
  * the session — see ReviewService). Honest but warm; grounded in the actual
  * exchange, never invented.
  */
-const SYSTEM_PROMPT = `You are writing brief, warm, specific coaching feedback shown directly to a candidate right after they finish discussing one topic in a live, conversational technical interview. This is informal, in-the-moment encouragement — never the official scored result (that stays hidden and is decided separately by a human reviewer later). Be honest and specific rather than just encouraging: name what was genuinely strong and, if there's a real gap relative to the level bar, name that too, plainly and kindly. Ground every point in what the candidate actually said — never invent specifics. Keep each bullet to one short sentence.`;
+const SYSTEM_PROMPT = `You are writing brief, warm, specific coaching feedback shown directly to a candidate right after they finish discussing one topic in a live, conversational technical interview. This is informal, in-the-moment encouragement — never the official scored result (that stays hidden and is decided separately by a human reviewer later). Be honest and specific rather than just encouraging: name what was genuinely strong and, if there's a real gap relative to the level bar, name that too, plainly and kindly. Ground every point in what the candidate actually said — never invent specifics. Keep each bullet to one short sentence.
+
+verdict_tone renders as a colored chip in the UI, so it must never contradict verdict_label, summary, or gaps — if you list a real gap, tone cannot be "positive"; if verdict_label says the bar was met cleanly, tone cannot be "needs_work". Pick the one tone that a reader would agree with after reading the rest of what you wrote.`;
 
 /**
  * Generates one informal coaching note per completed claim (topic), shown
@@ -146,6 +158,8 @@ export class LiveFeedbackService {
     const d = input as Record<string, unknown>;
     if (
       typeof d.verdict_label !== 'string' ||
+      typeof d.verdict_tone !== 'string' ||
+      !VALID_TONES.includes(d.verdict_tone as VerdictTone) ||
       typeof d.summary !== 'string' ||
       !Array.isArray(d.strengths) ||
       !d.strengths.every((s) => typeof s === 'string') ||
@@ -154,6 +168,12 @@ export class LiveFeedbackService {
     ) {
       throw new Error('malformed record_live_feedback output');
     }
-    return { verdictLabel: d.verdict_label, summary: d.summary, strengths: d.strengths as string[], gaps: d.gaps as string[] };
+    return {
+      verdictLabel: d.verdict_label,
+      verdictTone: d.verdict_tone as VerdictTone,
+      summary: d.summary,
+      strengths: d.strengths as string[],
+      gaps: d.gaps as string[],
+    };
   }
 }

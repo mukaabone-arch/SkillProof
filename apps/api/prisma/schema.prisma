@@ -934,6 +934,16 @@ model LiveClaimFeedback {
   session      AssessmentSession @relation(fields: [sessionId], references: [id])
   claimId      RagL2Claim
   verdictLabel String
+  // Drives the verdict chip's color/icon — a structured field, not
+  // something the UI infers from verdictLabel text, so the chip can never
+  // contradict the label (see LiveFeedbackService's tool schema, which
+  // requires the model to set this consistently with the label/gaps it
+  // wrote in the same call). Nullable because it was added after
+  // verdictLabel existed; the migration backfills every pre-existing row
+  // (inferred from label text, defaulting to MIXED) rather than leaving
+  // real gaps, but stays nullable in case a future row somehow lands
+  // without one.
+  verdictTone  LiveFeedbackTone?
   summary      String
   strengths    Json
   gaps         Json
@@ -943,4 +953,10 @@ model LiveClaimFeedback {
 
   @@unique([sessionId, claimId])
   @@index([sessionId])
+}
+
+enum LiveFeedbackTone {
+  POSITIVE
+  MIXED
+  NEEDS_WORK
 }
