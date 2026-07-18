@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { employerApi } from '@/lib/api';
+import ShortlistButton from './ShortlistButton';
 
 const { api } = employerApi;
 
@@ -74,6 +75,13 @@ interface SearchResponse {
   candidates: CandidateResult[];
 }
 
+/** Only the fields needed to build the "already shortlisted" lookup — see ShortlistScreen for the full shape. */
+interface ShortlistEntrySummary {
+  id: string;
+  candidateId: string;
+  job: { id: string; title: string } | null;
+}
+
 const LEVELS = ['L1', 'L2', 'L3', 'L4'];
 
 export default function CandidateSearch() {
@@ -88,8 +96,20 @@ export default function CandidateSearch() {
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState('');
 
+  // candidateId -> shortlist entry id, general (no job) entries only — search
+  // results aren't tied to any one job, so "Shortlist" here always adds a
+  // jobId-less entry (see ShortlistButton's onClick with no jobId passed).
+  const [shortlistMap, setShortlistMap] = useState<Record<string, string>>({});
+
   useEffect(() => {
     api<Domain[]>('/taxonomy').then(setDomains).catch(() => undefined);
+    api<ShortlistEntrySummary[]>('/shortlist')
+      .then((entries) => {
+        const map: Record<string, string> = {};
+        entries.filter((e) => e.job === null).forEach((e) => { map[e.candidateId] = e.id; });
+        setShortlistMap(map);
+      })
+      .catch(() => undefined);
   }, []);
 
   async function search() {
@@ -179,7 +199,20 @@ export default function CandidateSearch() {
           className="card"
           style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}
         >
-          <strong>{c.fullName || 'Candidate'}</strong>
+          <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
+            <strong>{c.fullName || 'Candidate'}</strong>
+            <ShortlistButton
+              candidateId={c.profileId}
+              entryId={shortlistMap[c.profileId] ?? null}
+              onAdded={(entryId) => setShortlistMap((prev) => ({ ...prev, [c.profileId]: entryId }))}
+              onRemoved={() => setShortlistMap((prev) => {
+                const next = { ...prev };
+                delete next[c.profileId];
+                return next;
+              })}
+              onError={setError}
+            />
+          </div>
           {c.roleTitle && (
             <div className="meta">
               {c.roleTitle === 'OTHER' ? c.roleTitleOther || 'Other' : ROLE_TITLE_LABELS[c.roleTitle]}

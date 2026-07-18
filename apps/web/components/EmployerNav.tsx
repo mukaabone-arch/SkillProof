@@ -1,12 +1,17 @@
 'use client';
 
-/** Employer portal header — same treatment as CandidateNav, keeps the existing minimal employer nav as-is. */
+/** Employer portal header — same treatment as CandidateNav, now with real nav links (Home, Shortlist) as the portal grows past one page. */
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { employerApi } from '@/lib/api';
 import Logo from './Logo';
 
 const { logout } = employerApi;
+
+const LINKS = [
+  { href: '/employer', label: 'Home' },
+  { href: '/employer/shortlist', label: 'Shortlist' },
+];
 
 interface Props {
   onLoggedOut: () => void;
@@ -14,6 +19,7 @@ interface Props {
 
 export default function EmployerNav({ onLoggedOut }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
 
   // See CandidateNav's handleLogout: explicit navigation, not just the
   // page-local onLoggedOut callback, so logout reliably lands on the
@@ -32,7 +38,11 @@ export default function EmployerNav({ onLoggedOut }: Props) {
           <span className="brand-product-name">SkillProof</span>
         </Link>
         <div className="appnav-links">
-          <span className="meta" style={{ margin: 0 }}>Employer portal</span>
+          {LINKS.map((l) => (
+            <Link key={l.href} href={l.href} className={pathname === l.href ? 'active' : ''}>
+              {l.label}
+            </Link>
+          ))}
           <button className="appnav-logout" onClick={handleLogout}>Log out</button>
         </div>
       </div>

@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { employerApi } from '@/lib/api';
 import { Badge } from '@/components/ui';
+import ShortlistButton from './ShortlistButton';
 
 const { api } = employerApi;
 
@@ -167,6 +168,12 @@ interface Applicant {
   externalCredentials: ApplicantExternalCredential[];
 }
 
+/** Only the fields needed to build the "already shortlisted" lookup — see ShortlistScreen for the full shape. */
+interface ShortlistEntrySummary {
+  id: string;
+  candidateId: string;
+}
+
 const STATUS_ACTIONS = ['REVIEWED', 'SHORTLISTED', 'REJECTED'];
 
 const EMPLOYMENT_TYPES = ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERNSHIP'];
@@ -204,11 +211,16 @@ export default function EmployerJobs() {
   const [matches, setMatches] = useState<CandidateMatch[]>([]);
   const [loadingMatches, setLoadingMatches] = useState(false);
   const [matchesError, setMatchesError] = useState('');
+  // candidateId -> shortlist entry id, scoped to the job whose matches panel
+  // is currently open — refetched fresh each time the panel opens, same as
+  // `matches` itself (no cross-open caching, matching viewMatches' pattern).
+  const [matchesShortlist, setMatchesShortlist] = useState<Record<string, string>>({});
 
   const [applicantsForJob, setApplicantsForJob] = useState<string | null>(null);
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [loadingApplicants, setLoadingApplicants] = useState(false);
   const [applicantsError, setApplicantsError] = useState('');
+  const [applicantsShortlist, setApplicantsShortlist] = useState<Record<string, string>>({});
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
   const [statusConfirmed, setStatusConfirmed] = useState<string | null>(null);
 
@@ -341,6 +353,13 @@ export default function EmployerJobs() {
     setSuggested((prev) => prev.filter((_, i) => i !== index));
   }
 
+  async function loadShortlistForJob(jobId: string): Promise<Record<string, string>> {
+    const entries = await api<ShortlistEntrySummary[]>(`/shortlist?jobId=${jobId}`);
+    const map: Record<string, string> = {};
+    entries.forEach((e) => { map[e.candidateId] = e.id; });
+    return map;
+  }
+
   async function viewMatches(jobId: string) {
     if (matchesForJob === jobId) {
       setMatchesForJob(null);
@@ -348,11 +367,16 @@ export default function EmployerJobs() {
     }
     setMatchesForJob(jobId);
     setMatches([]);
+    setMatchesShortlist({});
     setMatchesError('');
     setLoadingMatches(true);
     try {
-      const res = await api<MatchesResponse>(`/jobs/${jobId}/matches`);
+      const [res, shortlist] = await Promise.all([
+        api<MatchesResponse>(`/jobs/${jobId}/matches`),
+        loadShortlistForJob(jobId),
+      ]);
       setMatches(res.candidates);
+      setMatchesShortlist(shortlist);
     } catch (e) {
       setMatchesError((e as Error).message);
     } finally {
@@ -367,11 +391,16 @@ export default function EmployerJobs() {
     }
     setApplicantsForJob(jobId);
     setApplicants([]);
+    setApplicantsShortlist({});
     setApplicantsError('');
     setLoadingApplicants(true);
     try {
-      const res = await api<Applicant[]>(`/jobs/${jobId}/applicants`);
+      const [res, shortlist] = await Promise.all([
+        api<Applicant[]>(`/jobs/${jobId}/applicants`),
+        loadShortlistForJob(jobId),
+      ]);
       setApplicants(res);
+      setApplicantsShortlist(shortlist);
     } catch (e) {
       setApplicantsError((e as Error).message);
     } finally {
@@ -714,7 +743,21 @@ export default function EmployerJobs() {
                 >
                   <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
                     <strong>{c.fullName || 'Candidate'}</strong>
-                    <span className="ok">{c.score}</span>
+                    <div className="row" style={{ margin: 0 }}>
+                      <span className="ok">{c.score}</span>
+                      <ShortlistButton
+                        candidateId={c.profileId}
+                        jobId={j.id}
+                        entryId={matchesShortlist[c.profileId] ?? null}
+                        onAdded={(entryId) => setMatchesShortlist((prev) => ({ ...prev, [c.profileId]: entryId }))}
+                        onRemoved={() => setMatchesShortlist((prev) => {
+                          const next = { ...prev };
+                          delete next[c.profileId];
+                          return next;
+                        })}
+                        onError={setMatchesError}
+                      />
+                    </div>
                   </div>
                   <div className="progress-track">
                     <div className="progress-fill" style={{ width: `${c.score}%` }} />
@@ -769,7 +812,21 @@ export default function EmployerJobs() {
                 >
                   <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
                     <strong>{a.fullName || 'Candidate'}</strong>
-                    {a.score !== null && <span className="ok">{a.score}</span>}
+                    <div className="row" style={{ margin: 0 }}>
+                      {a.score !== null && <span className="ok">{a.score}</span>}
+                      <ShortlistButton
+                        candidateId={a.profileId}
+                        jobId={j.id}
+                        entryId={applicantsShortlist[a.profileId] ?? null}
+                        onAdded={(entryId) => setApplicantsShortlist((prev) => ({ ...prev, [a.profileId]: entryId }))}
+                        onRemoved={() => setApplicantsShortlist((prev) => {
+                          const next = { ...prev };
+                          delete next[a.profileId];
+                          return next;
+                        })}
+                        onError={setApplicantsError}
+                      />
+                    </div>
                   </div>
                   {a.profileIncomplete && (
                     <Badge variant="warning" style={{ alignSelf: 'flex-start' }}>Profile incomplete</Badge>

@@ -117,6 +117,27 @@ enum ApplicationStatus {
   WITHDRAWN
 }
 
+/**
+ * Hiring-pipeline stage for a ShortlistEntry. Only SHORTLISTED is set by
+ * anything today (ShortlistService.add always creates at the default) — the
+ * rest exist now so the pipeline feature can PATCH an entry's stage without
+ * a second migration. Distinct from ApplicationStatus.SHORTLISTED: that's a
+ * per-application review status an employer sets on a candidate who applied
+ * to a specific job; this is membership in the org's own shortlist
+ * collection, which a candidate can join without ever applying (e.g. from
+ * candidate search) and which will drive the pipeline UI next.
+ */
+enum ShortlistStage {
+  SHORTLISTED
+  INVITED
+  INTERVIEWING
+  OFFER
+  HIRED
+  DECLINED
+  REJECTED
+  CLOSED
+}
+
 enum NotificationType {
   APPLICATION_CONFIRMATION
   APPLICATION_STATUS
@@ -173,17 +194,18 @@ model User {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
-  profile          CandidateProfile?
-  attempts         Attempt[]
-  badges           Badge[]
-  refreshTokens    RefreshToken[]
-  orgMembership    OrgMember?
-  notifications    Notification[]
-  reviewedAttempts Attempt[]         @relation("AttemptReviewedBy")
-  identities       Identity[]
-  assessmentSessions AssessmentSession[]
-  reviewedClaimVerdicts ClaimVerdict[] @relation("ClaimVerdictReviewedBy")
-  decidedSessions AssessmentSession[] @relation("SessionDecidedBy")
+  profile               CandidateProfile?
+  attempts              Attempt[]
+  badges                Badge[]
+  refreshTokens         RefreshToken[]
+  orgMembership         OrgMember?
+  notifications         Notification[]
+  reviewedAttempts      Attempt[]           @relation("AttemptReviewedBy")
+  identities            Identity[]
+  assessmentSessions    AssessmentSession[]
+  reviewedClaimVerdicts ClaimVerdict[]      @relation("ClaimVerdictReviewedBy")
+  decidedSessions       AssessmentSession[] @relation("SessionDecidedBy")
+  shortlistEntriesAdded ShortlistEntry[]
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
@@ -219,8 +241,9 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members OrgMember[]
-  jobs    Job[]
+  members          OrgMember[]
+  jobs             Job[]
+  shortlistEntries ShortlistEntry[]
 }
 
 model OrgMember {
@@ -252,7 +275,9 @@ enum CandidateRoleTitle {
   RESEARCH_ENGINEER
   DATA_ENGINEER
   AI_PRODUCT_MANAGER
-  /** Free-text fallback — see CandidateProfile.roleTitleOther. */
+  /**
+   * Free-text fallback — see CandidateProfile.roleTitleOther.
+   */
   OTHER
 }
 
@@ -289,6 +314,7 @@ model CandidateProfile {
   skillClaims         SkillClaim[]
   applications        Application[]
   externalCredentials ExternalCredential[]
+  shortlistEntries    ShortlistEntry[]
 }
 
 // ---------- Taxonomy (spec section 4.3) ----------
@@ -303,18 +329,18 @@ model Domain {
 }
 
 model Skill {
-  id        String   @id @default(uuid())
-  domainId  String
-  domain    Domain   @relation(fields: [domainId], references: [id])
-  name      String
-  aliases   String[]
+  id          String   @id @default(uuid())
+  domainId    String
+  domain      Domain   @relation(fields: [domainId], references: [id])
+  name        String
+  aliases     String[]
   // One-line summary shown on the skill-grouped assessments catalog card
   // (see AssessmentsService.getCatalog). Nullable — most seeded skills
   // predate this field and have no copy written yet; the card just omits
   // the line rather than showing a placeholder.
   description String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   claims      SkillClaim[]
   assessments Assessment[]
@@ -396,8 +422,9 @@ model Job {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  skills       JobSkill[]
-  applications Application[]
+  skills           JobSkill[]
+  applications     Application[]
+  shortlistEntries ShortlistEntry[]
 
   @@index([orgId])
 }
@@ -427,6 +454,39 @@ model Application {
   updatedAt          DateTime          @updatedAt
 
   @@unique([candidateProfileId, jobId])
+  @@index([jobId])
+}
+
+// ---------- Shortlist (employer portal — hiring-pipeline entry point) ----------
+
+/**
+ * One candidate an employer org has collected for hiring-pipeline
+ * consideration. jobId is optional: entries created from a job's applicant
+ * list or its match results are tied to that job, but entries created from
+ * the org-wide candidate search aren't about any one opening, so jobId is
+ * null there. @@unique enforces "not shortlisted twice for the same job"
+ * (or twice generally, when jobId is null) at the DB level for any given
+ * non-null jobId; ShortlistService.add is the actual idempotency guarantee
+ * for callers (see its own doc comment) since Postgres treats NULL as
+ * distinct in unique constraints, so the null-jobId case isn't fully
+ * DB-enforced.
+ */
+model ShortlistEntry {
+  id               String           @id @default(uuid())
+  orgId            String
+  organization     Organization     @relation(fields: [orgId], references: [id])
+  candidateId      String
+  candidateProfile CandidateProfile @relation(fields: [candidateId], references: [id])
+  jobId            String?
+  job              Job?             @relation(fields: [jobId], references: [id])
+  addedByUserId    String
+  addedByUser      User             @relation(fields: [addedByUserId], references: [id])
+  stage            ShortlistStage   @default(SHORTLISTED)
+  note             String?
+  createdAt        DateTime         @default(now())
+
+  @@unique([orgId, candidateId, jobId])
+  @@index([orgId, stage])
   @@index([jobId])
 }
 
@@ -588,7 +648,6 @@ model AttemptAnswer {
  * path only ever sets its own column. No DB-level "exactly one" constraint —
  * enforced by there being exactly two controlled call sites, same as the
  * rest of this schema's soft invariants.
- *
  * Every passing attempt/session mints its own Badge row — this table is a
  * permanent, immutable log of evidence, never pruned or overwritten. skillId
  * is stored directly (not just derivable via attempt.assessment.skillId)
@@ -598,19 +657,19 @@ model AttemptAnswer {
  * user+skill+level, rather than by mutating this table.
  */
 model Badge {
-  id         String     @id @default(uuid())
+  id         String                  @id @default(uuid())
   userId     String
-  user       User       @relation(fields: [userId], references: [id])
+  user       User                    @relation(fields: [userId], references: [id])
   skillId    String
-  skill      Skill      @relation(fields: [skillId], references: [id])
-  attemptId  String?    @unique
-  attempt    Attempt?   @relation(fields: [attemptId], references: [id])
-  sessionId  String?    @unique
-  session    AssessmentSession? @relation(fields: [sessionId], references: [id])
+  skill      Skill                   @relation(fields: [skillId], references: [id])
+  attemptId  String?                 @unique
+  attempt    Attempt?                @relation(fields: [attemptId], references: [id])
+  sessionId  String?                 @unique
+  session    AssessmentSession?      @relation(fields: [sessionId], references: [id])
   verifiedBy BadgeVerificationMethod
-  verifyHash String     @unique
+  verifyHash String                  @unique
   level      SkillLevel
-  issuedAt   DateTime   @default(now())
+  issuedAt   DateTime                @default(now())
   expiresAt  DateTime
   revokedAt  DateTime?
 
@@ -687,33 +746,33 @@ enum SessionTurnRole {
  * pinned on screen without re-parsing the opening turn.
  */
 model AssessmentSession {
-  id             String                  @id @default(uuid())
-  userId         String
-  user           User                    @relation(fields: [userId], references: [id])
-  status         AssessmentSessionStatus @default(IN_PROGRESS)
-  pinnedBrief    String
-  ladderState    Json
+  id               String                   @id @default(uuid())
+  userId           String
+  user             User                     @relation(fields: [userId], references: [id])
+  status           AssessmentSessionStatus  @default(IN_PROGRESS)
+  pinnedBrief      String
+  ladderState      Json
   // Copied onto every ClaimVerdict scored from this session (see
   // ScoringService) — RUBRIC_VERSION in rag-systems-l2.rubric.ts is the
   // single source of truth; this just pins which version a given session
   // was run/scored against, since the rubric text itself is not versioned
   // in the DB.
-  rubricVersion  String                  @default("rag-systems-l2-r2")
-  startedAt      DateTime                @default(now())
-  lastActivityAt DateTime                @default(now())
-  expiresAt      DateTime
+  rubricVersion    String                   @default("rag-systems-l2-r2")
+  startedAt        DateTime                 @default(now())
+  lastActivityAt   DateTime                 @default(now())
+  expiresAt        DateTime
   // Set once ScoringService.scoreSession finishes successfully (status ->
   // AWAITING_REVIEW). scoringError is populated instead when scoring fails,
   // so a broken session stays visibly AWAITING_SCORING and retryable via
   // POST /assessment-sessions/:id/score rather than vanishing silently.
-  scoredAt       DateTime?
-  scoringError   String?
+  scoredAt         DateTime?
+  scoringError     String?
   // Set once by ReviewService.decide (ISSUED or REJECTED) — never touched
   // again afterward. decisionNote carries the REJECT reason, or an optional
   // note on ISSUE.
   decidedAt        DateTime?
   decidedByUserId  String?
-  decidedByUser    User?     @relation("SessionDecidedBy", fields: [decidedByUserId], references: [id])
+  decidedByUser    User?                    @relation("SessionDecidedBy", fields: [decidedByUserId], references: [id])
   decisionNote     String?
   // The status just before a dispute flipped this session to DISPUTED —
   // cleared once resolveDispute reverts to it (see
@@ -722,8 +781,8 @@ model AssessmentSession {
   // either, so the original decision timestamp — and the retake cooldown
   // computed from it — survives a dispute untouched.
   preDisputeStatus AssessmentSessionStatus?
-  createdAt      DateTime                @default(now())
-  updatedAt      DateTime                @updatedAt
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
 
   turns             SessionTurn[]
   interruptions     SessionInterruption[]
@@ -794,11 +853,11 @@ model TurnSignals {
   // Derived (charCount / 5 chars-per-word ÷ compositionDurationMs), stored
   // rather than recomputed so the reviewer view and any later analysis agree
   // on the exact same number the client observed.
-  effectiveWpm Float?
+  effectiveWpm           Float?
 
   // Window focus while this turn had content or focus.
-  blurCount       Int?
-  blurDurationMs  Int?
+  blurCount      Int?
+  blurDurationMs Int?
 
   createdAt DateTime @default(now())
 }
