@@ -1,10 +1,10 @@
 'use client';
 
 /** Candidate profile editor: GET/PATCH /profiles/me */
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, apiBlob } from '@/lib/api';
 import CandidateNav from '@/components/CandidateNav';
 import { isSafeReturnTo } from '@/lib/returnTo';
 import { useRequireAuth } from '@/lib/useRequireAuth';
@@ -45,6 +45,7 @@ const ROLE_TITLE_LABELS: Record<CandidateRoleTitle, string> = {
 const ROLE_TITLE_OPTIONS = Object.keys(ROLE_TITLE_LABELS) as CandidateRoleTitle[];
 
 interface Profile {
+  id: string;
   fullName: string | null;
   email: string | null;
   headline: string | null;
@@ -56,6 +57,19 @@ interface Profile {
   linkedinUrl: string | null;
   completeness: number;
   resumeS3Key: string | null;
+  /** Never a raw storage key — the photo itself is only ever fetched
+   * through the authenticated GET /profiles/:id/photo proxy (see
+   * loadPhoto below), never a public URL. */
+  hasPhoto: boolean;
+}
+
+/** First letters of up to the first two words of a name, for the
+ * placeholder avatar shown until a photo is set (or if one fails to
+ * load). Falls back to a generic "?" for a candidate with no name yet. */
+function initials(fullName: string | null | undefined): string {
+  const parts = (fullName ?? '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  return parts.slice(0, 2).map((p) => p[0]!.toUpperCase()).join('');
 }
 
 interface ResumeExtraction {
@@ -168,6 +182,18 @@ function ProfilePageInner() {
   const [uploaded, setUploaded] = useState(false);
   const [uploadError, setUploadError] = useState('');
 
+  const [profileId, setProfileId] = useState<string | null>(null);
+  const [hasPhoto, setHasPhoto] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [removingPhoto, setRemovingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState('');
+  // Tracks the currently-displayed blob: URL so it can be revoked before
+  // creating the next one (or on unmount) without needing photoUrl itself
+  // as an effect dependency.
+  const photoUrlRef = useRef<string | null>(null);
+
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState('');
   const [extraction, setExtraction] = useState<ResumeExtraction | null>(null);
@@ -188,12 +214,78 @@ function ProfilePageInner() {
         setForm(toForm(p));
         setCompleteness(p.completeness);
         setHasResume(!!p.resumeS3Key);
+        setProfileId(p.id);
+        setHasPhoto(p.hasPhoto);
+        if (p.hasPhoto) loadPhoto(p.id);
       })
       .catch((e) => setError(e.message));
     api<ExternalCredential[]>('/profiles/me/external-credentials')
       .then(setCredentials)
       .catch(() => undefined);
   }, [ready]);
+
+  // Revoke the last blob: URL on unmount — createObjectURL'd blobs are
+  // never freed automatically.
+  useEffect(() => {
+    return () => {
+      if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
+    };
+  }, []);
+
+  /**
+   * Fetches the photo bytes through the authenticated proxy (never a
+   * public URL — see GET /profiles/:id/photo) and turns them into a
+   * blob: URL for <img src>. A 404 (no photo, or one just removed) falls
+   * back to the initials placeholder rather than showing an error — that
+   * outcome isn't a failure from the candidate's point of view.
+   */
+  async function loadPhoto(id: string) {
+    try {
+      const blob = await apiBlob(`/profiles/${id}/photo`);
+      const url = URL.createObjectURL(blob);
+      if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
+      photoUrlRef.current = url;
+      setPhotoUrl(url);
+    } catch {
+      if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
+      photoUrlRef.current = null;
+      setPhotoUrl(null);
+    }
+  }
+
+  async function uploadPhoto() {
+    if (!photoFile || !profileId) return;
+    setUploadingPhoto(true);
+    setPhotoError('');
+    try {
+      const body = new FormData();
+      body.append('file', photoFile);
+      await api('/profiles/me/photo', { method: 'POST', body });
+      setHasPhoto(true);
+      setPhotoFile(null);
+      await loadPhoto(profileId);
+    } catch (e) {
+      setPhotoError((e as Error).message);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
+  async function removePhoto() {
+    setRemovingPhoto(true);
+    setPhotoError('');
+    try {
+      await api('/profiles/me/photo', { method: 'DELETE' });
+      setHasPhoto(false);
+      if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
+      photoUrlRef.current = null;
+      setPhotoUrl(null);
+    } catch (e) {
+      setPhotoError((e as Error).message);
+    } finally {
+      setRemovingPhoto(false);
+    }
+  }
 
   function update<K extends keyof FormState>(key: K, value: string) {
     setForm((f) => (f ? { ...f, [key]: value } : f));
@@ -391,6 +483,63 @@ function ProfilePageInner() {
           <div className="profile-columns">
           <section className="ui-card profile-panel">
           <h2>Profile details</h2>
+
+          <div className="field">
+            <label>Photo</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              {photoUrl ? (
+                <img
+                  src={photoUrl}
+                  alt="Your profile photo"
+                  style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                />
+              ) : (
+                <div
+                  aria-hidden="true"
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: '50%',
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'var(--brand-100)',
+                    color: 'var(--brand-800)',
+                    fontSize: 24,
+                    fontWeight: 600,
+                  }}
+                >
+                  {initials(form.fullName)}
+                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 0 }}>
+                <input
+                  id="photoFile"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+                />
+                <div className="row" style={{ margin: 0 }}>
+                  <button onClick={uploadPhoto} disabled={!photoFile || uploadingPhoto}>
+                    {uploadingPhoto ? 'Uploading…' : 'Upload photo'}
+                  </button>
+                  {hasPhoto && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={removePhoto}
+                      disabled={removingPhoto}
+                    >
+                      {removingPhoto ? 'Removing…' : 'Remove'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+            <p className="meta" style={{ margin: 0 }}>JPEG, PNG, or WebP, up to 5MB.</p>
+            {photoError && <p className="error" style={{ margin: 0 }}>{photoError}</p>}
+          </div>
 
           <div className="field">
             <label htmlFor="fullName">Full name</label>

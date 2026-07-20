@@ -1,7 +1,7 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CandidateProfile, ClaimStatus, Prisma } from '@prisma/client';
 import { promises as fs } from 'fs';
-import { join } from 'path';
+import { extname, join } from 'path';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../llm/llm.service';
 import { GenerateResumeDto, UpdateProfileDto } from './profiles.dto';
@@ -13,6 +13,26 @@ type CompletenessFields = Pick<
   'fullName' | 'headline' | 'location' | 'yearsOfExp' | 'githubUrl' | 'linkedinUrl'
 > & { email: string | null };
 
+/** Extension -> Content-Type for reading a stored photo back. Keyed off
+ * the extension ProfilesController.uploadPhoto's fileFilter already wrote
+ * (see PHOTO_EXTENSION_BY_MIME there), so every value here is reachable. */
+const PHOTO_CONTENT_TYPE_BY_EXTENSION: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+};
+
+/** Strips the raw storage key off a CandidateProfile row before it ever
+ * reaches a client, replacing it with a boolean — clients fetch the actual
+ * bytes only through the authenticated GET /profiles/:id/photo proxy,
+ * never by learning the key itself. Used by every response shape that
+ * spreads a raw profile row (getMe, updateMe). */
+function withHasPhoto<T extends { photoKey: string | null }>(profile: T): Omit<T, 'photoKey'> & { hasPhoto: boolean } {
+  const { photoKey, ...rest } = profile;
+  return { ...rest, hasPhoto: photoKey != null };
+}
+
 @Injectable()
 export class ProfilesService {
   constructor(
@@ -22,7 +42,7 @@ export class ProfilesService {
 
   async getMe(userId: string) {
     const [profile, email] = await Promise.all([this.ensureProfile(userId), this.getEmail(userId)]);
-    return { ...profile, email };
+    return { ...withHasPhoto(profile), email };
   }
 
   async updateMe(userId: string, dto: UpdateProfileDto) {
@@ -36,7 +56,7 @@ export class ProfilesService {
       where: { userId },
       data: { ...profileFields, completeness: this.computeCompleteness(merged) },
     });
-    return { ...updated, email: currentEmail };
+    return { ...withHasPhoto(updated), email: currentEmail };
   }
 
   private async getEmail(userId: string): Promise<string | null> {
@@ -143,6 +163,100 @@ export class ProfilesService {
       return await fs.readFile(join(UPLOAD_DIR, profile.resumeS3Key));
     } catch {
       throw new NotFoundException('Stored resume file could not be read. Try re-uploading.');
+    }
+  }
+
+  /**
+   * Records the uploaded image's filename within UPLOAD_DIR, same storage
+   * as resumes (see saveResume). Unlike saveResume, this deletes the
+   * previous file first — a photo is expected to be replaced repeatedly
+   * over a candidate's account lifetime, and letting old ones accumulate
+   * unreferenced on disk was explicitly called out as something to avoid
+   * for this feature (resumes don't have this cleanup; that's an existing
+   * gap out of scope here, not one to introduce for photos too).
+   */
+  async savePhoto(userId: string, filename: string) {
+    const profile = await this.ensureProfile(userId);
+    if (profile.photoKey) {
+      await this.deleteStoredFile(profile.photoKey);
+    }
+    const updated = await this.prisma.candidateProfile.update({
+      where: { userId },
+      data: { photoKey: filename },
+    });
+    return withHasPhoto(updated);
+  }
+
+  async deletePhoto(userId: string) {
+    const profile = await this.ensureProfile(userId);
+    if (profile.photoKey) {
+      await this.deleteStoredFile(profile.photoKey);
+    }
+    const updated = await this.prisma.candidateProfile.update({
+      where: { userId },
+      data: { photoKey: null },
+    });
+    return withHasPhoto(updated);
+  }
+
+  /**
+   * Reads a candidate's photo bytes for GET /profiles/:id/photo. `id` is
+   * CandidateProfile.id (the same id employer-facing views already key
+   * candidates by — CandidateSearch/EmployerShortlist/EmployerJobs all use
+   * profileId/candidateId — so this endpoint can be reached the same way
+   * once Phase 2 opens it up to employers).
+   */
+  async getPhotoForViewing(profileId: string, requesterId: string): Promise<{ buffer: Buffer; contentType: string }> {
+    const profile = await this.prisma.candidateProfile.findUnique({ where: { id: profileId } });
+    if (!profile) throw new NotFoundException();
+
+    this.assertCanViewPhoto(profile, requesterId);
+
+    if (!profile.photoKey) throw new NotFoundException('No photo set for this candidate.');
+
+    try {
+      const buffer = await fs.readFile(join(UPLOAD_DIR, profile.photoKey));
+      return { buffer, contentType: this.contentTypeFor(profile.photoKey) };
+    } catch {
+      throw new NotFoundException('Stored photo could not be read.');
+    }
+  }
+
+  /**
+   * Phase 1 access rule: only the candidate themself may view their own
+   * photo.
+   *
+   * Phase 2 seam: an employer should be able to view a candidate's photo
+   * once they have a legitimate relationship to that candidate — e.g. the
+   * candidate has applied to one of their job postings, or has a
+   * ShortlistEntry linking their org to this profileId (see
+   * ShortlistEntry.candidateId). Add that as an additional check here,
+   * something like:
+   *
+   *   if (requester.role is EMPLOYER_* && an Application or ShortlistEntry
+   *       exists linking requester.orgId to profile.id) return;
+   *
+   * Do NOT simply allow any authenticated user, or any EMPLOYER_* role
+   * regardless of relationship — that would let one employer view photos
+   * of candidates who have never interacted with their org.
+   */
+  private assertCanViewPhoto(profile: CandidateProfile, requesterId: string): void {
+    if (profile.userId === requesterId) return;
+    throw new ForbiddenException();
+  }
+
+  private contentTypeFor(filename: string): string {
+    return PHOTO_CONTENT_TYPE_BY_EXTENSION[extname(filename).toLowerCase()] ?? 'application/octet-stream';
+  }
+
+  /** Best-effort — a file already missing on disk (manual cleanup, an
+   * ephemeral-disk redeploy wipe, see UPLOAD_DIR's doc comment) shouldn't
+   * block clearing or replacing the DB pointer. */
+  private async deleteStoredFile(filename: string): Promise<void> {
+    try {
+      await fs.unlink(join(UPLOAD_DIR, filename));
+    } catch {
+      // Ignored — see doc comment above.
     }
   }
 

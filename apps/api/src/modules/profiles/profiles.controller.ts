@@ -2,8 +2,10 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Header,
+  Param,
   Patch,
   Post,
   Req,
@@ -22,6 +24,17 @@ import { GenerateResumeDto, UpdateProfileDto } from './profiles.dto';
 import { UPLOAD_DIR } from '../../config/upload-dir';
 
 const MAX_RESUME_BYTES = 5 * 1024 * 1024;
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+
+/** Filename extension multer writes to disk for each accepted photo
+ * mimetype. fileFilter below rejects anything else before this callback
+ * ever runs, so every mimetype reaching it is guaranteed to be a key here
+ * — same reasoning as resume's hardcoded `.pdf` above. */
+const PHOTO_EXTENSION_BY_MIME: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+};
 
 @Controller('profiles')
 @UseGuards(JwtAuthGuard)
@@ -84,5 +97,51 @@ export class ProfilesController {
   async generateResume(@Req() req: AuthenticatedRequest, @Body() dto: GenerateResumeDto) {
     const pdf = await this.svc.generateResumePdf(req.user.sub, dto);
     return new StreamableFile(pdf);
+  }
+
+  @Post('me/photo')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => {
+          mkdirSync(UPLOAD_DIR, { recursive: true });
+          cb(null, UPLOAD_DIR);
+        },
+        filename: (_req, file, cb) => cb(null, `${randomUUID()}${PHOTO_EXTENSION_BY_MIME[file.mimetype]}`),
+      }),
+      limits: { fileSize: MAX_PHOTO_BYTES },
+      fileFilter: (_req, file, cb) => {
+        if (!(file.mimetype in PHOTO_EXTENSION_BY_MIME)) {
+          return cb(new BadRequestException('Only JPEG, PNG, or WebP images are accepted'), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  uploadPhoto(@Req() req: AuthenticatedRequest, @UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    // Same filename convention as saveResume — a bare filename resolved
+    // against UPLOAD_DIR wherever it's read back, not a path fragment
+    // baked around a hardcoded prefix.
+    return this.svc.savePhoto(req.user.sub, file.filename);
+  }
+
+  @Delete('me/photo')
+  deletePhoto(@Req() req: AuthenticatedRequest) {
+    return this.svc.deletePhoto(req.user.sub);
+  }
+
+  /**
+   * Proxy-serve only — the stored key is never handed to a client (see
+   * ProfilesService.withHasPhoto), so this is the one path that can ever
+   * turn a photoKey into bytes. `id` is CandidateProfile.id. Phase 1:
+   * scoped to the owner by ProfilesService.assertCanViewPhoto; see that
+   * method's doc comment for the Phase 2 employer-access seam.
+   */
+  @Get(':id/photo')
+  @Header('Cache-Control', 'private, max-age=300')
+  async getPhoto(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    const { buffer, contentType } = await this.svc.getPhotoForViewing(id, req.user.sub);
+    return new StreamableFile(buffer, { type: contentType, disposition: 'inline' });
   }
 }

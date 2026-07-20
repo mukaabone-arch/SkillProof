@@ -18,7 +18,16 @@ export class UsersController {
       },
     });
     if (!user || user.deletedAt) throw new NotFoundException();
-    const { passwordHash, ...safe } = user;
-    return safe;
+    const { passwordHash, profile, ...safe } = user;
+    // photoKey is a storage key, never handed to a client — see
+    // ProfilesService.withHasPhoto for the same rule on /profiles/me.
+    // Clients fetch actual bytes only via GET /profiles/:id/photo.
+    const safeProfile = profile
+      ? (() => {
+          const { photoKey, ...rest } = profile;
+          return { ...rest, hasPhoto: photoKey != null };
+        })()
+      : null;
+    return { ...safe, profile: safeProfile };
   }
 }

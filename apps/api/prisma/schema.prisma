@@ -336,6 +336,17 @@ model CandidateProfile {
   githubUrl          String?
   linkedinUrl        String?
   resumeS3Key        String?
+  /**
+   * Storage key/filename within UPLOAD_DIR, same convention as
+   * resumeS3Key (see that field's doc comment on the "S3" naming being
+   * legacy — still local disk for now). Never exposed to clients directly;
+   * GET /profiles/me and GET /users/me expose a derived `hasPhoto`
+   * boolean instead, and the actual bytes are only ever served through
+   * the authenticated GET /profiles/:id/photo proxy endpoint — never a
+   * public URL or presigned link. See ProfilesService for the
+   * upload/serve/delete logic and its owner-only Phase-1 access check.
+   */
+  photoKey           String?
   completeness       Int       @default(0)
   emailNotifications Boolean   @default(true)
   createdAt          DateTime  @default(now())
