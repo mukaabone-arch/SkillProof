@@ -401,6 +401,29 @@ main.profile { max-width: 1080px; }
   .profile-columns { grid-template-columns: 1fr; gap: var(--space-6); }
 }
 
+/* ---- employer home: two-column layout ----
+   Left/main column (wider, flexible): job posting + "Your jobs", which
+   grows without bound as jobs pile up. Right column (narrower, sidebar):
+   the find-candidates search, a fixed-size self-contained tool — kept in
+   view via position: sticky while the jobs column scrolls past it.
+   Below the breakpoint both collapse to a single column in DOM order
+   (jobs first, then search) with no reordering needed, since an
+   employer's own jobs should read before the candidate search on
+   small screens. */
+main.employer-home { max-width: 1080px; }
+.employer-home-columns { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--space-7); align-items: start; }
+.employer-home-main { min-width: 0; }
+.employer-home-sidebar {
+  min-width: 0;
+  position: sticky;
+  top: calc(64px + var(--space-6)); /* .appnav-inner height + breathing room */
+}
+@media (max-width: 900px) {
+  main.employer-home { max-width: 640px; }
+  .employer-home-columns { grid-template-columns: 1fr; gap: var(--space-6); }
+  .employer-home-sidebar { position: static; }
+}
+
 /* ---- dashboard hub ---- */
 /* Rendered as a sibling before <main>, full-bleed and sticky, independent of any page's max-width. */
 .appnav {

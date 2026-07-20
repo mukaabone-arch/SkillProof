@@ -134,7 +134,7 @@ export default function CandidateSearch() {
 
   return (
     <>
-      <h2 style={{ marginTop: 32, marginBottom: 16 }}>Find candidates</h2>
+      <h2 style={{ marginBottom: 16 }}>Find candidates</h2>
 
       <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
         <div className="field">
