@@ -1,12 +1,19 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { CandidateProfile, ClaimStatus, Prisma } from '@prisma/client';
+import { CandidateProfile, ClaimStatus, Prisma, Role } from '@prisma/client';
 import { promises as fs } from 'fs';
 import { extname, join } from 'path';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../llm/llm.service';
+import { EmployerCandidateAccessService } from '../access/employer-candidate-access.service';
 import { GenerateResumeDto, UpdateProfileDto } from './profiles.dto';
 import { buildResumePdf, VerifiedSkillEntry } from './resume-pdf.builder';
 import { UPLOAD_DIR } from '../../config/upload-dir';
+
+/** JwtAuthGuard's decoded token shape — just enough to decide viewer authorization. */
+interface Requester {
+  sub: string;
+  role: string;
+}
 
 type CompletenessFields = Pick<
   CandidateProfile,
@@ -38,6 +45,7 @@ export class ProfilesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly llm: LlmService,
+    private readonly employerAccess: EmployerCandidateAccessService,
   ) {}
 
   async getMe(userId: string) {
@@ -159,8 +167,35 @@ export class ProfilesService {
     if (!profile.resumeS3Key) {
       throw new BadRequestException('Upload a resume before parsing it.');
     }
+    return this.readResumeFileFromDisk(profile.resumeS3Key);
+  }
+
+  /**
+   * Employer-facing resume read for GET /jobs/:jobId/applicants/:candidateId/resume.
+   * The caller (JobsService) has already run EmployerCandidateAccessService's
+   * employerCanViewCandidate check before reaching here — this method only
+   * answers "does this candidate have a resume on disk," not who's allowed
+   * to ask. 404 (not 400, unlike the owner path above) when there's no
+   * resume — an employer browsing applicants isn't "missing a step," the
+   * candidate just hasn't uploaded one.
+   */
+  async getResumeForCandidate(profileId: string): Promise<{ buffer: Buffer; filename: string }> {
+    const profile = await this.prisma.candidateProfile.findUnique({ where: { id: profileId } });
+    if (!profile?.resumeS3Key) {
+      throw new NotFoundException('This candidate has not uploaded a resume.');
+    }
+    const buffer = await this.readResumeFileFromDisk(profile.resumeS3Key);
+    // Candidate-controlled fullName, sanitized before it ever reaches a
+    // Content-Disposition header — strip everything but word chars/spaces/
+    // dashes so it can't break out of the quoted filename.
+    const safeName = (profile.fullName ?? '').replace(/[^\w \-]+/g, '').trim();
+    return { buffer, filename: `${safeName || 'resume'}.pdf` };
+  }
+
+  /** The only place any resume-serving path touches UPLOAD_DIR — shared by the owner (parse/improve) and employer (getResumeForCandidate) reads. */
+  private async readResumeFileFromDisk(resumeS3Key: string): Promise<Buffer> {
     try {
-      return await fs.readFile(join(UPLOAD_DIR, profile.resumeS3Key));
+      return await fs.readFile(join(UPLOAD_DIR, resumeS3Key));
     } catch {
       throw new NotFoundException('Stored resume file could not be read. Try re-uploading.');
     }
@@ -206,11 +241,11 @@ export class ProfilesService {
    * profileId/candidateId — so this endpoint can be reached the same way
    * once Phase 2 opens it up to employers).
    */
-  async getPhotoForViewing(profileId: string, requesterId: string): Promise<{ buffer: Buffer; contentType: string }> {
+  async getPhotoForViewing(profileId: string, requester: Requester): Promise<{ buffer: Buffer; contentType: string }> {
     const profile = await this.prisma.candidateProfile.findUnique({ where: { id: profileId } });
     if (!profile) throw new NotFoundException();
 
-    this.assertCanViewPhoto(profile, requesterId);
+    await this.assertCanViewPhoto(profile, requester);
 
     if (!profile.photoKey) throw new NotFoundException('No photo set for this candidate.');
 
@@ -223,25 +258,29 @@ export class ProfilesService {
   }
 
   /**
-   * Phase 1 access rule: only the candidate themself may view their own
-   * photo.
+   * Phase 1 access rule was "only the candidate themself." Phase 2 (this
+   * check): an employer may also view it once they have a legitimate
+   * relationship to the candidate — the same employerCanViewCandidate
+   * check gating the resume endpoint (JobsService.getApplicantResume),
+   * not a separate one, so "can this employer see this candidate's private
+   * artifacts" can never disagree between photo and resume.
    *
-   * Phase 2 seam: an employer should be able to view a candidate's photo
-   * once they have a legitimate relationship to that candidate — e.g. the
-   * candidate has applied to one of their job postings, or has a
-   * ShortlistEntry linking their org to this profileId (see
-   * ShortlistEntry.candidateId). Add that as an additional check here,
-   * something like:
-   *
-   *   if (requester.role is EMPLOYER_* && an Application or ShortlistEntry
-   *       exists linking requester.orgId to profile.id) return;
-   *
-   * Do NOT simply allow any authenticated user, or any EMPLOYER_* role
-   * regardless of relationship — that would let one employer view photos
-   * of candidates who have never interacted with their org.
+   * Deliberately NOT "any authenticated user" or "any EMPLOYER_* role
+   * regardless of relationship" — that would let one employer view photos
+   * of candidates who have never interacted with their org. A role check
+   * runs first only as an optimization (skip the relationship query for
+   * non-employers); it is never sufficient on its own.
    */
-  private assertCanViewPhoto(profile: CandidateProfile, requesterId: string): void {
-    if (profile.userId === requesterId) return;
+  private async assertCanViewPhoto(profile: CandidateProfile, requester: Requester): Promise<void> {
+    if (profile.userId === requester.sub) return;
+
+    const isEmployer = requester.role === Role.EMPLOYER_ADMIN || requester.role === Role.EMPLOYER_MEMBER;
+    if (isEmployer) {
+      const membership = await this.prisma.orgMember.findUnique({ where: { userId: requester.sub } });
+      if (membership && (await this.employerAccess.employerCanViewCandidate(membership.organizationId, profile.id))) {
+        return;
+      }
+    }
     throw new ForbiddenException();
   }
 

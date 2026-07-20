@@ -155,6 +155,16 @@ function createApiClient({ access: ACCESS_KEY, refresh: REFRESH_KEY }: ScopeKeys
   return { api, apiBlob, setTokens, setToken, getToken, clearTokens, logout };
 }
 
+/** Triggers a browser save-to-disk for an already-fetched blob (e.g. from apiBlob) — same object-URL/anchor-click mechanism used by resume generation and the photo proxy. */
+export function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 /** Candidate app (and any other main-site page) — unchanged storage keys. */
 const candidateClient = createApiClient({ access: 'sp_token', refresh: 'sp_refresh' });
 export const { api, apiBlob, setTokens, setToken, getToken, clearTokens, logout } = candidateClient;

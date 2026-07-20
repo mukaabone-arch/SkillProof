@@ -13,6 +13,15 @@ import { isProfileReadyToApply } from './profile-readiness';
  */
 const REQUIRE_VERIFIED_BADGE_TO_APPLY = process.env.REQUIRE_VERIFIED_BADGE_TO_APPLY === 'true';
 
+/**
+ * Same one-line-flip pattern as REQUIRE_VERIFIED_BADGE_TO_APPLY, for a
+ * resume. Defaults to false — Q2 of the resume-visibility investigation
+ * found no resume precondition on apply today, and this intentionally
+ * keeps it that way until/unless product decides otherwise; the flag and
+ * check exist so that flip needs no code change when it happens.
+ */
+const REQUIRE_RESUME_TO_APPLY = process.env.REQUIRE_RESUME_TO_APPLY === 'true';
+
 /** Public fields only — no orgId, no status, nothing employer-internal. */
 const JOB_LIST_SELECT = {
   id: true,
@@ -184,6 +193,9 @@ export class CandidateJobsService {
 
     const profile = await this.ensureProfile(userId);
     this.assertProfileReadyToApply(profile);
+    if (REQUIRE_RESUME_TO_APPLY) {
+      this.assertHasResume(profile);
+    }
     if (REQUIRE_VERIFIED_BADGE_TO_APPLY) {
       await this.assertHasVerifiedBadge(profile.id);
     }
@@ -237,6 +249,21 @@ export class CandidateJobsService {
         code: 'PROFILE_INCOMPLETE',
         message:
           'Add your name and either a headline or years of experience before applying, so the employer knows who they’re reviewing.',
+      });
+    }
+  }
+
+  /**
+   * Off by default (REQUIRE_RESUME_TO_APPLY) — see that constant's doc
+   * comment. `code` follows the same machine-readable pattern as
+   * PROFILE_INCOMPLETE/BADGE_REQUIRED so the frontend can show a targeted
+   * prompt if this is ever turned on.
+   */
+  private assertHasResume(profile: { resumeS3Key: string | null }): void {
+    if (!profile.resumeS3Key) {
+      throw new BadRequestException({
+        code: 'RESUME_REQUIRED',
+        message: 'Upload a resume before applying.',
       });
     }
   }

@@ -14,10 +14,11 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { employerApi } from '@/lib/api';
+import { employerApi, downloadBlob } from '@/lib/api';
 import { Badge } from '@/components/ui';
+import CandidateAvatar from './CandidateAvatar';
 
-const { api } = employerApi;
+const { api, apiBlob } = employerApi;
 
 interface ShortlistSkill {
   skillId: string;
@@ -26,6 +27,34 @@ interface ShortlistSkill {
   verifiedBy: 'TEST' | 'DISCUSSION';
   verifyHash: string;
 }
+
+/** Display/filter only — mirrors the API's CandidateRoleTitle enum. Never fed into match scoring. */
+type CandidateRoleTitle =
+  | 'AI_ENGINEER'
+  | 'ML_ENGINEER'
+  | 'PROMPT_ENGINEER'
+  | 'DATA_SCIENTIST'
+  | 'MLOPS_ENGINEER'
+  | 'NLP_ENGINEER'
+  | 'COMPUTER_VISION_ENGINEER'
+  | 'RESEARCH_ENGINEER'
+  | 'DATA_ENGINEER'
+  | 'AI_PRODUCT_MANAGER'
+  | 'OTHER';
+
+const ROLE_TITLE_LABELS: Record<CandidateRoleTitle, string> = {
+  AI_ENGINEER: 'AI Engineer',
+  ML_ENGINEER: 'ML Engineer',
+  PROMPT_ENGINEER: 'Prompt Engineer',
+  DATA_SCIENTIST: 'Data Scientist',
+  MLOPS_ENGINEER: 'MLOps Engineer',
+  NLP_ENGINEER: 'NLP Engineer',
+  COMPUTER_VISION_ENGINEER: 'Computer Vision Engineer',
+  RESEARCH_ENGINEER: 'Research Engineer',
+  DATA_ENGINEER: 'Data Engineer',
+  AI_PRODUCT_MANAGER: 'AI Product Manager',
+  OTHER: 'Other',
+};
 
 type Stage = 'SHORTLISTED' | 'INVITED' | 'INTERVIEWING' | 'OFFER' | 'HIRED' | 'DECLINED' | 'REJECTED' | 'CLOSED';
 type RoundStatus = 'SCHEDULED' | 'COMPLETED' | 'PASSED' | 'FAILED';
@@ -45,6 +74,15 @@ interface ShortlistEntry {
   candidateId: string;
   fullName: string | null;
   headline: string | null;
+  roleTitle: CandidateRoleTitle | null;
+  roleTitleOther: string | null;
+  location: string | null;
+  yearsOfExp: number | null;
+  githubUrl: string | null;
+  linkedinUrl: string | null;
+  /** Bytes only ever fetched through the authenticated proxy endpoints — see CandidateAvatar and viewResume. */
+  hasPhoto: boolean;
+  hasResume: boolean;
   verifiedSkills: ShortlistSkill[];
   job: { id: string; title: string } | null;
   stage: Stage;
@@ -114,6 +152,7 @@ export default function EmployerShortlist() {
   const [error, setError] = useState('');
 
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [resumeDownloadingId, setResumeDownloadingId] = useState<string | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
   const [savingNote, setSavingNote] = useState(false);
@@ -178,6 +217,20 @@ export default function EmployerShortlist() {
       setError((e as Error).message);
     } finally {
       setRemovingId(null);
+    }
+  }
+
+  /** Needs a jobId — resume access is checked against a specific job's applicant list (see GET /jobs/:jobId/applicants/:candidateId/resume), so an entry not tied to any job (general search-sourced) has no route to hit even if hasResume is true. */
+  async function viewResume(jobId: string, candidateId: string) {
+    setResumeDownloadingId(candidateId);
+    setError('');
+    try {
+      const blob = await apiBlob(`/jobs/${jobId}/applicants/${candidateId}/resume`);
+      downloadBlob(blob, 'resume.pdf');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setResumeDownloadingId(null);
     }
   }
 
@@ -367,8 +420,18 @@ export default function EmployerShortlist() {
 
       {entries.map((e) => (
         <div key={e.id} className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
-          <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
-            <strong>{e.fullName || 'Candidate'}</strong>
+          <div className="row" style={{ justifyContent: 'space-between', margin: 0, alignItems: 'flex-start' }}>
+            <div className="row" style={{ margin: 0, alignItems: 'center' }}>
+              <CandidateAvatar profileId={e.candidateId} fullName={e.fullName} hasPhoto={e.hasPhoto} size={44} />
+              <div>
+                <strong>{e.fullName || 'Candidate'}</strong>
+                {e.roleTitle && (
+                  <div className="meta" style={{ margin: 0 }}>
+                    {e.roleTitle === 'OTHER' ? e.roleTitleOther || 'Other' : ROLE_TITLE_LABELS[e.roleTitle]}
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="row" style={{ margin: 0 }}>
               <Badge variant={STAGE_BADGE_VARIANT[e.stage]}>{STAGE_LABELS[e.stage]}</Badge>
               <button className="btn-danger" onClick={() => remove(e.id)} disabled={removingId === e.id}>
@@ -378,9 +441,30 @@ export default function EmployerShortlist() {
           </div>
           {e.headline && <div className="meta">{e.headline}</div>}
           <div className="meta">
+            {e.location || 'Location not set'}
+            {e.yearsOfExp !== null && ` · ${e.yearsOfExp} yrs experience`}
+          </div>
+          <div className="meta">
             {e.job ? `For: ${e.job.title}` : 'General shortlist (not tied to a job)'}
             {' · '}Added {new Date(e.createdAt).toLocaleDateString()}
           </div>
+
+          {(e.githubUrl || e.linkedinUrl || (e.hasResume && e.job)) && (
+            <div className="row" style={{ margin: 0, alignItems: 'center' }}>
+              {e.githubUrl && <a href={e.githubUrl} target="_blank" rel="noopener noreferrer">GitHub</a>}
+              {e.linkedinUrl && <a href={e.linkedinUrl} target="_blank" rel="noopener noreferrer">LinkedIn</a>}
+              {e.hasResume && e.job && (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => viewResume(e.job!.id, e.candidateId)}
+                  disabled={resumeDownloadingId === e.candidateId}
+                >
+                  {resumeDownloadingId === e.candidateId ? 'Downloading…' : 'View resume'}
+                </button>
+              )}
+            </div>
+          )}
 
           {e.verifiedSkills.length > 0 && (
             <div className="row" style={{ flexWrap: 'wrap', margin: 0, marginTop: 4 }}>

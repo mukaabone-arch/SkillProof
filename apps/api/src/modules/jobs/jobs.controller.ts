@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Req, StreamableFile, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -57,5 +57,17 @@ export class JobsController {
   @Get(':id/applicants')
   applicants(@Req() req: OrgScopedRequest, @Param('id') id: string) {
     return this.svc.getApplicants(req.orgId, id);
+  }
+
+  /** Streams the applicant's raw uploaded resume PDF — gated by JobsService.getApplicantResume (employerCanViewCandidate). */
+  @Get(':jobId/applicants/:candidateId/resume')
+  @Header('Content-Type', 'application/pdf')
+  async applicantResume(
+    @Req() req: OrgScopedRequest,
+    @Param('jobId') jobId: string,
+    @Param('candidateId') candidateId: string,
+  ) {
+    const { buffer, filename } = await this.svc.getApplicantResume(req.orgId, jobId, candidateId);
+    return new StreamableFile(buffer, { disposition: `attachment; filename="${filename}"` });
   }
 }

@@ -134,14 +134,14 @@ export class ProfilesController {
   /**
    * Proxy-serve only — the stored key is never handed to a client (see
    * ProfilesService.withHasPhoto), so this is the one path that can ever
-   * turn a photoKey into bytes. `id` is CandidateProfile.id. Phase 1:
-   * scoped to the owner by ProfilesService.assertCanViewPhoto; see that
-   * method's doc comment for the Phase 2 employer-access seam.
+   * turn a photoKey into bytes. `id` is CandidateProfile.id. Viewable by
+   * the owner, or by an employer with a legitimate relationship to the
+   * candidate — see ProfilesService.assertCanViewPhoto.
    */
   @Get(':id/photo')
   @Header('Cache-Control', 'private, max-age=300')
   async getPhoto(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    const { buffer, contentType } = await this.svc.getPhotoForViewing(id, req.user.sub);
+    const { buffer, contentType } = await this.svc.getPhotoForViewing(id, req.user);
     return new StreamableFile(buffer, { type: contentType, disposition: 'inline' });
   }
 }

@@ -105,6 +105,22 @@ export class ShortlistService {
       candidateId: entry.candidateId,
       fullName: entry.candidateProfile.fullName,
       headline: entry.candidateProfile.headline,
+      roleTitle: entry.candidateProfile.roleTitle,
+      roleTitleOther: entry.candidateProfile.roleTitleOther,
+      location: entry.candidateProfile.location,
+      yearsOfExp: entry.candidateProfile.yearsOfExp,
+      githubUrl: entry.candidateProfile.githubUrl,
+      linkedinUrl: entry.candidateProfile.linkedinUrl,
+      // Booleans only, never the raw key — same rule as everywhere else
+      // (ProfilesService.withHasPhoto, JobsService.getApplicants). A "View
+      // resume" affordance built from hasResume still needs a jobId to hit
+      // GET /jobs/:jobId/applicants/:candidateId/resume — see that route's
+      // employerCanViewCandidate check, which entry.job alone doesn't
+      // guarantee (a jobId-less shortlist entry, or one added from search
+      // for someone who never applied, can have hasResume true here but
+      // still 403 there; that's intentional, not a bug in this list).
+      hasPhoto: entry.candidateProfile.photoKey != null,
+      hasResume: entry.candidateProfile.resumeS3Key != null,
       verifiedSkills: entry.candidateProfile.skillClaims
         .filter((c) => c.badge)
         .map((c) => ({
