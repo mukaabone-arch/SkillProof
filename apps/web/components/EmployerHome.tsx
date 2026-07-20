@@ -54,13 +54,18 @@ export default function EmployerHome({ onLoggedOut }: Props) {
   return (
     <>
       <EmployerNav onLoggedOut={onLoggedOut} />
-      <main>
+      <main className="employer-home">
         <h1>Welcome, {org.organization.name}</h1>
         <p>Signed in as {org.role === 'EMPLOYER_ADMIN' ? 'an admin' : 'a member'} of this organization.</p>
 
-        <EmployerJobs />
-
-        <CandidateSearch />
+        <div className="employer-home-columns">
+          <div className="employer-home-main">
+            <EmployerJobs />
+          </div>
+          <div className="employer-home-sidebar">
+            <CandidateSearch />
+          </div>
+        </div>
 
         <p className="app-footer-credit">by flair future Intelligence</p>
       </main>
