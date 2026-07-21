@@ -13,6 +13,7 @@ import { BadgeResolverService, deriveLevelStates, LEVEL_ORDER } from '../badges/
 import { AssessmentSessionsService } from '../assessment-sessions/assessment-sessions.service';
 import { DISCUSSION_DURATION_MINS, DISCUSSION_SLUG, SKILL_LEVEL as DISCUSSION_LEVEL, SKILL_NAME as DISCUSSION_SKILL_NAME } from '../assessment-sessions/rag-systems-l2.rubric';
 import { CandidateJobsService } from '../jobs/candidate-jobs.service';
+import { assertProfileReadyForAssessment } from '../profiles/profile-readiness';
 
 /** How many of the candidate's highest-scoring matched jobs count toward a skill's relevanceCount. */
 const RELEVANCE_TOP_JOBS = 5;
@@ -283,6 +284,21 @@ export class AssessmentsService {
       },
     });
     if (active) return active;
+
+    // Profile-readiness gate — "profile is step one." Same rule as
+    // CandidateJobsService.apply's PROFILE_INCOMPLETE check (name + a
+    // headline or years of experience), not the completeness percentage —
+    // see profile-readiness.ts for why. Checked only for genuinely new
+    // attempts (after the idempotent active-attempt return above), so a
+    // candidate already mid-attempt from before this policy existed is never
+    // retroactively locked out of finishing it. Never touches badge/
+    // SkillClaim issuance, so a badge already earned by an incomplete
+    // profile stays exactly as-is.
+    const profile = await this.prisma.candidateProfile.findUnique({
+      where: { userId },
+      select: { fullName: true, headline: true, yearsOfExp: true },
+    });
+    assertProfileReadyForAssessment(profile ?? { fullName: null, headline: null, yearsOfExp: null });
 
     // Strict sequential leveling — a candidate may only attempt the level
     // immediately after their highest earned level in this skill. Checked

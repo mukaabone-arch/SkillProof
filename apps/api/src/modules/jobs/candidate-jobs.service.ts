@@ -4,7 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
 import { BrowseJobsDto } from './candidate-jobs.dto';
-import { isProfileReadyToApply } from './profile-readiness';
+import { isProfileReadyToApply } from '../profiles/profile-readiness';
 
 /**
  * One-line flip once assessment coverage across the taxonomy is sufficient

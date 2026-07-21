@@ -14,10 +14,11 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, type ApiError } from '@/lib/api';
 import CandidateNav from '@/components/CandidateNav';
 import { isSafeReturnTo } from '@/lib/returnTo';
 import { useRequireAuth } from '@/lib/useRequireAuth';
+import { isProfileReadyForAssessment, missingReadinessFields, readinessGateMessage } from '@/lib/profileReadiness';
 
 type SkillLevelName = 'L1' | 'L2' | 'L3' | 'L4';
 type VerificationMethod = 'TEST' | 'DISCUSSION';
@@ -69,10 +70,12 @@ function DiscussionAction({
   discussion,
   durationMins,
   namedChoice,
+  profileReady,
 }: {
   discussion: CatalogDiscussionState | null;
   durationMins: number;
   namedChoice: boolean;
+  profileReady: boolean;
 }) {
   const router = useRouter();
   const [starting, setStarting] = useState(false);
@@ -85,7 +88,12 @@ function DiscussionAction({
       const created = await api<{ session: { id: string } }>('/assessment-sessions', { method: 'POST' });
       router.push(`/assessments/discussion/session/${created.session.id}`);
     } catch (e) {
-      setError((e as Error).message);
+      // Disabling the button below is the UX courtesy; this catch is the
+      // defense-in-depth path for a stale page or a race with a profile edit
+      // in another tab — the server's PROFILE_INCOMPLETE_FOR_ASSESSMENT
+      // message is already candidate-friendly, so surface it as-is.
+      const body = (e as ApiError).body as { code?: string; message?: string } | undefined;
+      setError(body?.code === 'PROFILE_INCOMPLETE_FOR_ASSESSMENT' && body.message ? body.message : (e as Error).message);
       setStarting(false);
     }
   }
@@ -93,7 +101,7 @@ function DiscussionAction({
   if (!discussion) {
     return (
       <div>
-        <button onClick={start} disabled={starting}>
+        <button onClick={start} disabled={starting || !profileReady} title={profileReady ? undefined : 'Complete your profile to unlock'}>
           {starting ? 'Starting…' : namedChoice ? `Discussion · ${durationMins} min` : 'Start'}
         </button>
         {error && <p className="error">{error}</p>}
@@ -124,7 +132,7 @@ function DiscussionAction({
     }
     return (
       <div>
-        <button onClick={start} disabled={starting}>
+        <button onClick={start} disabled={starting || !profileReady} title={profileReady ? undefined : 'Complete your profile to unlock'}>
           {starting
             ? 'Starting…'
             : discussion.insufficientProbing
@@ -148,7 +156,7 @@ function availabilityText(level: CatalogLevel): string {
   return `test only, ${test!.durationMins} min`;
 }
 
-function LevelRow({ level }: { level: CatalogLevel }) {
+function LevelRow({ level, profileReady }: { level: CatalogLevel; profileReady: boolean }) {
   const test = level.formats.find((f) => f.type === 'TEST');
   const discussionFormat = level.formats.find((f) => f.type === 'DISCUSSION');
 
@@ -210,7 +218,12 @@ function LevelRow({ level }: { level: CatalogLevel }) {
         </div>
         {discussionFormat && (
           <div className="assessment-actions">
-            <DiscussionAction discussion={level.discussion} durationMins={discussionFormat.durationMins} namedChoice={true} />
+            <DiscussionAction
+              discussion={level.discussion}
+              durationMins={discussionFormat.durationMins}
+              namedChoice={true}
+              profileReady={profileReady}
+            />
           </div>
         )}
       </div>
@@ -227,19 +240,30 @@ function LevelRow({ level }: { level: CatalogLevel }) {
       </div>
       <div className="assessment-actions">
         {test && (
-          <Link href={`/assessments/${test.assessmentId}`}>
-            <button>{discussionFormat ? `Test · ${test.durationMins} min` : 'Start'}</button>
-          </Link>
+          profileReady ? (
+            <Link href={`/assessments/${test.assessmentId}`}>
+              <button>{discussionFormat ? `Test · ${test.durationMins} min` : 'Start'}</button>
+            </Link>
+          ) : (
+            <button disabled title="Complete your profile to unlock">
+              {discussionFormat ? `Test · ${test.durationMins} min` : 'Start'}
+            </button>
+          )
         )}
         {discussionFormat && (
-          <DiscussionAction discussion={level.discussion} durationMins={discussionFormat.durationMins} namedChoice={!!test} />
+          <DiscussionAction
+            discussion={level.discussion}
+            durationMins={discussionFormat.durationMins}
+            namedChoice={!!test}
+            profileReady={profileReady}
+          />
         )}
       </div>
     </div>
   );
 }
 
-function SkillCard({ skill }: { skill: CatalogSkill }) {
+function SkillCard({ skill, profileReady }: { skill: CatalogSkill; profileReady: boolean }) {
   return (
     <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
       <div style={{ marginBottom: 10 }}>
@@ -250,7 +274,7 @@ function SkillCard({ skill }: { skill: CatalogSkill }) {
         </div>
       </div>
       {skill.levels.map((level) => (
-        <LevelRow key={level.level} level={level} />
+        <LevelRow key={level.level} level={level} profileReady={profileReady} />
       ))}
     </div>
   );
@@ -263,9 +287,12 @@ function AssessmentsPageInner() {
   const ready = useRequireAuth();
   const [skills, setSkills] = useState<CatalogSkill[]>([]);
   const [error, setError] = useState('');
-  // Light, non-blocking nudge only — an empty profile never blocks taking
-  // an assessment, it's just surfaced as a tip below.
-  const [profileEmpty, setProfileEmpty] = useState(false);
+  const [profile, setProfile] = useState<{
+    completeness: number;
+    fullName: string | null;
+    headline: string | null;
+    yearsOfExp: number | null;
+  } | null>(null);
 
   const load = useCallback(() => {
     api<CatalogSkill[]>('/assessments/catalog')
@@ -276,12 +303,22 @@ function AssessmentsPageInner() {
   useEffect(() => {
     if (!ready) return;
     load();
-    api<{ completeness: number }>('/profiles/me')
-      .then((p) => setProfileEmpty(p.completeness === 0))
+    api<{ completeness: number; fullName: string | null; headline: string | null; yearsOfExp: number | null }>('/profiles/me')
+      .then(setProfile)
       .catch(() => undefined);
   }, [ready, load]);
 
   if (!ready) return null;
+
+  // Light, non-blocking nudge only — an empty profile never blocks taking an
+  // assessment by itself, it's just surfaced as a tip below.
+  const profileEmpty = profile ? profile.completeness === 0 : false;
+  // Real gate: assumed ready until the profile actually loads and says
+  // otherwise, so a ready candidate never sees a flash of disabled buttons —
+  // the server enforces the real rule regardless (PROFILE_INCOMPLETE_FOR_ASSESSMENT).
+  const profileReady = profile ? isProfileReadyForAssessment(profile) : true;
+  const missing = profile ? missingReadinessFields(profile) : [];
+  const gateMessage = readinessGateMessage(missing);
 
   return (
     <>
@@ -298,7 +335,12 @@ function AssessmentsPageInner() {
             profile to start applying.
           </p>
         )}
-        {profileEmpty && skills.length > 0 && (
+        {!profileReady && skills.length > 0 && (
+          <p className="meta" style={{ marginTop: -8, marginBottom: 20 }}>
+            {gateMessage} <Link href="/profile?returnTo=/assessments">Complete your profile →</Link>
+          </p>
+        )}
+        {profileReady && profileEmpty && skills.length > 0 && (
           <p className="meta" style={{ marginTop: -8, marginBottom: 20 }}>
             Tip: completing your profile helps employers find you once you&apos;ve earned a badge —{' '}
             <Link href="/profile">complete your profile →</Link>
@@ -312,7 +354,7 @@ function AssessmentsPageInner() {
         )}
 
         {skills.map((skill) => (
-          <SkillCard key={skill.skillId} skill={skill} />
+          <SkillCard key={skill.skillId} skill={skill} profileReady={profileReady} />
         ))}
       </main>
     </>

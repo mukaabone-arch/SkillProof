@@ -16,6 +16,7 @@ import { AssessorService, LadderState } from './assessor.service';
 import { ScoringService } from './scoring.service';
 import { LiveFeedbackService, VerdictTone } from './live-feedback.service';
 import { BadgeResolverService } from '../badges/badge-resolver.service';
+import { assertProfileReadyForAssessment } from '../profiles/profile-readiness';
 import { CLAIM_ORDER, RUBRIC_VERSION, SCENARIO_BRIEF, SKILL_LEVEL, SKILL_NAME } from './rag-systems-l2.rubric';
 import { TurnSignalsDto } from './assessment-sessions.dto';
 
@@ -221,6 +222,17 @@ export class AssessmentSessionsService {
       const enforced = await this.enforceExpiry(existing);
       return { session: enforced, turns: await this.publicTurns(enforced.id), claimFeedback: await this.publicLiveFeedback(enforced.id) };
     }
+
+    // Profile-readiness gate — "profile is step one," same rule as
+    // AssessmentsService.startAttempt and CandidateJobsService.apply's
+    // PROFILE_INCOMPLETE check (see profile-readiness.ts). Only genuinely
+    // new sessions are gated (after the idempotent existing-session return
+    // above), and this never touches badge/SkillClaim issuance.
+    const profile = await this.prisma.candidateProfile.findUnique({
+      where: { userId },
+      select: { fullName: true, headline: true, yearsOfExp: true },
+    });
+    assertProfileReadyForAssessment(profile ?? { fullName: null, headline: null, yearsOfExp: null });
 
     // Strict sequential leveling — same rule and same shared derivation as
     // AssessmentsService.startAttempt (see BadgeResolverService.assertLevelAvailable),

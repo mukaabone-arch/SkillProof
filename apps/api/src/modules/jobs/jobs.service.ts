@@ -6,7 +6,7 @@ import { ProfilesService } from '../profiles/profiles.service';
 import { EmployerCandidateAccessService } from '../access/employer-candidate-access.service';
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
 import { CreateJobDto, JobSkillItemDto, UpdateJobDto } from './jobs.dto';
-import { isProfileReadyToApply } from './profile-readiness';
+import { isProfileReadyToApply } from '../profiles/profile-readiness';
 
 @Injectable()
 export class JobsService {

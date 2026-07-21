@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, getToken } from '@/lib/api';
+import { api, getToken, type ApiError } from '@/lib/api';
 
 type IntegrityEventType =
   | 'TAB_BLUR'
@@ -30,6 +30,11 @@ interface QuestionsResponse {
   remainingSeconds: number | null;
   deadlineAt: string | null;
 }
+/** Machine-readable code the backend returns when assessment-start preconditions aren't met. */
+interface StartIssueBody {
+  code?: 'PROFILE_INCOMPLETE_FOR_ASSESSMENT';
+  message?: string;
+}
 interface Result {
   status: string;
   scorePercent: number | null;
@@ -48,6 +53,7 @@ export default function TakeAssessmentPage() {
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [result, setResult] = useState<Result>();
   const [error, setError] = useState('');
+  const [startIssue, setStartIssue] = useState<StartIssueBody | null>(null);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -75,7 +81,17 @@ export default function TakeAssessmentPage() {
       setQuestions(res.questions);
       setRemainingSeconds(res.remainingSeconds);
       setDeadlineAt(res.deadlineAt);
-    } catch (e) { setError((e as Error).message); }
+    } catch (e) {
+      // The catalog page disables Start when the profile isn't ready — this
+      // is the defense-in-depth path for reaching this page directly (a
+      // stale tab, a bookmarked URL, a race with a profile edit elsewhere).
+      const body = (e as ApiError).body as StartIssueBody | undefined;
+      if (body?.code === 'PROFILE_INCOMPLETE_FOR_ASSESSMENT') {
+        setStartIssue(body);
+      } else {
+        setError((e as Error).message);
+      }
+    }
     finally { setLoaded(true); }
   }, [id, router]);
 
@@ -331,7 +347,13 @@ export default function TakeAssessmentPage() {
         )}
       </div>
       {error && <p className="error">{error}</p>}
-      {loaded && !error && questions.length === 0 && (
+      {startIssue && (
+        <p className="meta">
+          {startIssue.message}{' '}
+          <Link href={`/profile?returnTo=/assessments/${id}`}>Complete your profile →</Link>
+        </p>
+      )}
+      {loaded && !error && !startIssue && questions.length === 0 && (
         <p>This assessment has no questions yet — check back soon.</p>
       )}
 
