@@ -91,18 +91,17 @@
   --shadow-lg: 0 24px 60px -20px rgba(15, 17, 21, 0.45);
 
   /* ---- Typography ----
-     Fonts match landing.html exactly. Sizes formalize what's already on
-     screen: --text-3xl/-2xl are the landing hero h1/h2 clamps verbatim. */
-  --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
-  --font-body: 'Instrument Sans', system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
-  /* Serif, used only by .auth-headline — a stand-in for Calisto MT (a
-     Microsoft-bundled font with no reliable web-font equivalent). Libre
-     Baskerville was picked over Crimson Pro/Source Serif 4 for its closer
-     old-style-transitional character and because it was drawn specifically
-     for screen legibility at text sizes, same brief as Calisto MT's own
-     on-screen-document origin. */
-  --font-serif: 'Libre Baskerville', Georgia, serif;
+     Strict 2-font system, shared verbatim with mobile's TextTheme
+     (skillproof-mobile lib/theme/app_typography.dart): Space Grotesk for
+     display/headings, Inter for everything else — body, buttons, and the
+     uppercase letter-spaced labels that used to be mono (the tracking and
+     uppercase stay; only the family changed). Fonts match landing.html
+     exactly. Sizes formalize what's already on screen: --text-3xl/-2xl are
+     the landing hero h1/h2 clamps verbatim. Note Space Grotesk tops out at
+     700 — rules that declare font-weight: 800 render at 700 (nearest face),
+     the declared weights are untouched. */
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
   --text-xs: 0.72rem;
   --text-sm: 0.85rem;
   --text-base: 1rem;
@@ -146,12 +145,14 @@ nav { font-size: 0.95rem; }
 pre {
   background: var(--card); border: 1px solid var(--gray-100);
   border-radius: 10px; padding: 16px; font-size: 0.8rem; overflow: auto;
+  /* No monospace anywhere in the system — override the UA's default <pre>/<code> face. */
+  font-family: var(--font-body);
 }
+code { font-family: var(--font-body); }
 
 /* ---- shared design language (matches public/landing.html) ---- */
-.mono { font-family: var(--font-mono); }
 .eyebrow {
-  font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.08em; font-weight: 500;
+  font-family: var(--font-body); font-size: 0.72rem; letter-spacing: 0.08em; font-weight: 500;
   color: var(--indigo); text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px;
   /* brand-50, not the bridged --indigo-soft (now brand-400, a solid mid-purple) — this wants a
      light wash under brand-600 text, and brand-400 fails contrast here (1.86:1). */
@@ -208,10 +209,10 @@ pre {
   border: 1px solid var(--ink-12); border-radius: var(--radius-md);
   font-size: var(--text-xs); color: var(--ink-60);
 }
-.hint-popover code { font-family: var(--font-mono); background: var(--ink-12); padding: 1px 4px; border-radius: 4px; }
+.hint-popover code { font-family: var(--font-body); background: var(--ink-12); padding: 1px 4px; border-radius: 4px; }
 
 .ui-badge {
-  font-family: var(--font-mono); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.03em;
+  font-family: var(--font-body); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.03em;
   padding: 5px 11px; border-radius: var(--radius-full); display: inline-flex; align-items: center; gap: 5px;
 }
 .ui-badge-default { color: var(--indigo); background: var(--brand-50); }
@@ -285,7 +286,7 @@ main.auth {
  * and a phone.
  */
 .auth-headline {
-  font-family: var(--font-serif); font-weight: 700;
+  font-family: var(--font-body); font-weight: 700;
   font-size: clamp(1.6rem, 6vw, 3.25rem); line-height: 1.15; letter-spacing: 0;
   color: #fff; text-align: center; margin: 0;
 }
@@ -464,7 +465,7 @@ main.employer-home { max-width: 1080px; }
 .segmented-progress-dot.active { background: var(--indigo); box-shadow: 0 0 0 5px var(--brand-50); }
 .segmented-progress-label { margin-top: var(--space-3); font-size: var(--text-sm); font-weight: 600; color: var(--ink); }
 .segmented-progress-step.upcoming .segmented-progress-label { color: var(--ink-30); }
-.segmented-progress-sublabel { margin-top: 2px; font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.02em; color: var(--ink-60); }
+.segmented-progress-sublabel { margin-top: 2px; font-family: var(--font-body); font-size: var(--text-xs); letter-spacing: 0.02em; color: var(--ink-60); }
 .segmented-progress-step.upcoming .segmented-progress-sublabel { color: var(--ink-30); }
 @media (max-width: 480px) {
   .segmented-progress-label { font-size: 0.78rem; }
@@ -507,7 +508,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
   padding: var(--space-6); margin-bottom: var(--space-7);
 }
 .copilot-eyebrow {
-  font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.08em; font-weight: 700;
+  font-family: var(--font-body); font-size: var(--text-xs); letter-spacing: 0.08em; font-weight: 700;
   color: var(--indigo); text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px;
 }
 .copilot-eyebrow-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--indigo); box-shadow: 0 0 0 3px var(--brand-50); flex-shrink: 0; }
@@ -527,7 +528,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .status-card:hover { border-color: var(--brand-50); transform: translateY(-2px); text-decoration: none; }
 .status-stat { font-family: var(--font-display); font-weight: 700; font-size: 2rem; letter-spacing: -0.02em; color: var(--indigo); line-height: 1; margin-bottom: 6px; }
 .status-stat.verified { color: var(--success); }
-.status-card-label { font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-30); margin-bottom: 10px; }
+.status-card-label { font-family: var(--font-body); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-30); margin-bottom: 10px; }
 
 /* ---- signal chips ----
    .chip (unchanged, green) is the reserved "SkillProof verified this"
@@ -538,7 +539,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
    platform-verified badge. */
 .signal-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .chip {
-  font-family: var(--font-mono); font-size: 0.68rem; padding: 5px 10px; border-radius: 100px;
+  font-family: var(--font-body); font-size: 0.68rem; padding: 5px 10px; border-radius: 100px;
   border: 1px solid color-mix(in srgb, var(--success) 12%, white);
   background: color-mix(in srgb, var(--success) 12%, white); color: var(--success);
   display: inline-flex; align-items: center; gap: 5px;
@@ -560,7 +561,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .match-card:hover { border-color: var(--brand-50); transform: translateY(-1px); text-decoration: none; }
 .match-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-2); }
 .match-card-title { font-weight: 700; }
-.match-confidence { font-family: var(--font-mono); font-size: var(--text-xs); font-weight: 700; white-space: nowrap; }
+.match-confidence { font-family: var(--font-body); font-size: var(--text-xs); font-weight: 700; white-space: nowrap; }
 .match-confidence.strong { color: var(--brand-800); }
 .match-confidence.weak { color: var(--ink-30); }
 .match-score-track { background: var(--ink-12); border-radius: 999px; height: 7px; overflow: hidden; margin-bottom: var(--space-2); }
@@ -568,7 +569,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .match-score-fill.strong { background: var(--indigo); }
 .match-score-fill.weak { background: var(--ink-30); }
 .match-card-meta { display: flex; justify-content: space-between; gap: var(--space-3); }
-.match-card-gap { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-60); white-space: nowrap; }
+.match-card-gap { font-family: var(--font-body); font-size: var(--text-xs); color: var(--ink-60); white-space: nowrap; }
 
 @media (max-width: 720px) {
   main.hub { padding-left: 16px; padding-right: 16px; }
@@ -650,8 +651,8 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
   padding: 13px 0 12px; border-bottom: 1px solid var(--dc-border); margin-bottom: 10px;
 }
 .discussion-topbar-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.discussion-counter { font-family: var(--font-mono); font-size: 12px; color: var(--dc-text2); white-space: nowrap; flex-shrink: 0; }
-.discussion-timer { font-family: var(--font-mono); font-size: 12px; color: var(--dc-text); white-space: nowrap; flex-shrink: 0; }
+.discussion-counter { font-family: var(--font-body); font-size: 12px; color: var(--dc-text2); white-space: nowrap; flex-shrink: 0; }
+.discussion-timer { font-family: var(--font-body); font-size: 12px; color: var(--dc-text); white-space: nowrap; flex-shrink: 0; }
 .discussion-timer.warn { color: var(--dc-amber); }
 .discussion-topbar-right { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 0 1 auto; }
 /* Truncate before wrapping: at narrow widths this text shrinks and
@@ -751,7 +752,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .discussion-reviewer-body { overflow: hidden; max-height: 800px; transition: max-height 0.3s ease; }
 .discussion-reviewer.closed .discussion-reviewer-body { max-height: 0; }
 .discussion-verdict {
-  display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono);
+  display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-body);
   font-size: 12px; padding: 3px 10px; border-radius: 99px; margin-bottom: 12px;
 }
 /* Tone drives color/icon from LiveClaimFeedback.verdictTone — a structured
