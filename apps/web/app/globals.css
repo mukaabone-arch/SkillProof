@@ -228,6 +228,11 @@ code { font-family: var(--font-body); }
 .empty-state-action { margin-top: var(--space-3); }
 .loading-state { display: flex; align-items: center; gap: var(--space-3); color: var(--ink-60); font-size: var(--text-sm); padding: var(--space-5) 0; }
 .error-state { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+/* Screen-reader-only text — first used by FeatureStrip's journey summary. */
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
 .spinner {
   width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
   border: 2.5px solid var(--ink-12); border-top-color: var(--indigo);
@@ -577,6 +582,92 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
   .copilot-panel { padding: var(--space-5); }
   .copilot-message { font-size: 1.25rem; }
   .appnav-links a:not(.appnav-logout-link) { display: none; }
+}
+
+/* ---- journey feature strip (dashboard footer band) ----
+   Five-stage rail (Verify skills → … → Get hired) with a highlight that
+   travels stage to stage on a 7.5s loop while the rail fills behind it —
+   see components/FeatureStrip.tsx. All motion is pure CSS keyframes; the
+   whole band is decorative (aria-hidden) with a visually-hidden summary.
+   Timing model: 5 stages × 1.5s. Every node runs the same 7.5s keyframes
+   (active during the first 20% of its own timeline) phase-shifted with a
+   1.5s-per-stage animation-delay; the rail fill hits each node's position
+   (0/25/50/75/100% of the line span) at the same instant that node's
+   window opens, so the fill always trails the active node exactly. */
+.fstrip { border-top: 1px solid var(--ink-12); margin-top: var(--space-7); padding: var(--space-5) 0 var(--space-2); }
+.fstrip-rail { position: relative; display: flex; }
+.fstrip-stage {
+  flex: 1; min-width: 0; position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.fstrip-node {
+  width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--card); border: 1.5px solid var(--ink-12); color: var(--ink-60);
+  animation: fstrip-node-active 7.5s ease infinite;
+}
+.fstrip-node svg { width: 16px; height: 16px; display: block; }
+.fstrip-label {
+  font-size: var(--text-xs); font-weight: 600; line-height: 1.25; text-align: center;
+  color: var(--ink-60); opacity: 0.7;
+  animation: fstrip-label-active 7.5s ease infinite;
+}
+/* Stage columns are children 2-6 of the rail (child 1 is the line). */
+.fstrip-stage:nth-child(3) .fstrip-node, .fstrip-stage:nth-child(3) .fstrip-label { animation-delay: 1.5s; }
+.fstrip-stage:nth-child(4) .fstrip-node, .fstrip-stage:nth-child(4) .fstrip-label { animation-delay: 3s; }
+.fstrip-stage:nth-child(5) .fstrip-node, .fstrip-stage:nth-child(5) .fstrip-label { animation-delay: 4.5s; }
+.fstrip-stage:nth-child(6) .fstrip-node, .fstrip-stage:nth-child(6) .fstrip-label { animation-delay: 6s; }
+/* The connecting rail — spans first to last node center (columns are 20%
+   wide, so centers sit at 10% and 90%), vertically centered on the 34px
+   circles. overflow:hidden clips the fill's rounded ends cleanly. */
+.fstrip-line {
+  position: absolute; top: 17px; left: 10%; right: 10%; height: 3px;
+  transform: translateY(-50%); border-radius: var(--radius-full);
+  background: var(--ink-12); overflow: hidden; z-index: 0;
+}
+.fstrip-line-fill {
+  display: block; height: 100%; width: 0; border-radius: inherit;
+  background: var(--indigo);
+  animation: fstrip-fill 7.5s ease-in-out infinite;
+}
+@keyframes fstrip-node-active {
+  0%, 20%, 100% {
+    transform: none; box-shadow: none;
+    background: var(--card); border-color: var(--ink-12); color: var(--ink-60);
+  }
+  3%, 15% {
+    transform: translateY(-3px) scale(1.08); box-shadow: var(--shadow-sm);
+    background: var(--indigo); border-color: var(--indigo); color: #fff;
+  }
+}
+@keyframes fstrip-label-active {
+  0%, 20%, 100% { color: var(--ink-60); opacity: 0.7; }
+  3%, 15% { color: var(--ink); opacity: 1; }
+}
+@keyframes fstrip-fill {
+  0% { width: 0; opacity: 1; }
+  20% { width: 25%; }
+  40% { width: 50%; }
+  60% { width: 75%; }
+  80%, 88% { width: 100%; opacity: 1; }
+  /* Smooth reset: fade the full rail out, snap width back while invisible,
+     fade the (now empty) fill in for the next pass — never a visible jump. */
+  96% { width: 100%; opacity: 0; }
+  97% { width: 0; opacity: 0; }
+  100% { width: 0; opacity: 1; }
+}
+@media (max-width: 480px) {
+  .fstrip-node { width: 28px; height: 28px; }
+  .fstrip-node svg { width: 13px; height: 13px; }
+  .fstrip-line { top: 14px; }
+  .fstrip-label { font-size: 0.62rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fstrip-node, .fstrip-label, .fstrip-line-fill { animation: none; }
+  /* Static "journey complete" state: rail filled, nodes resting in the
+     brand wash (same brand-50-under-indigo pairing as .eyebrow). */
+  .fstrip-line-fill { width: 100%; }
+  .fstrip-node { background: var(--brand-50); border-color: var(--brand-50); color: var(--indigo); }
+  .fstrip-label { opacity: 1; }
 }
 
 /* ---- session review slice (admin/review) ---- */

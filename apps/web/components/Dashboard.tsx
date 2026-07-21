@@ -21,6 +21,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import CandidateNav from './CandidateNav';
 import AdminNav from './AdminNav';
+import FeatureStrip from './FeatureStrip';
 import { EmptyState } from './ui';
 import { SegmentedProgress, SegmentedProgressState } from './ui/SegmentedProgress';
 
@@ -398,6 +399,8 @@ export default function Dashboard({ onLoggedOut }: Props) {
         <p className="hub-resume-link">
           <Link href="/resume">Build a resume PDF from your profile & badges →</Link>
         </p>
+
+        <FeatureStrip />
 
         <p className="app-footer-credit">by flair future Intelligence</p>
       </main>
