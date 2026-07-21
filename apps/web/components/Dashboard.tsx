@@ -3,8 +3,11 @@
 /**
  * Candidate dashboard hub — the home page after login. An AI co-pilot panel
  * leads (one contextual "next move" message computed from the candidate's
- * own verified skills, match scores and skill gaps), then journey progress,
- * status cards, and top job matches. Design: docs/candidate-journey-design-spec.md.
+ * own verified skills, match scores and skill gaps), then journey progress
+ * and status cards. Design: docs/candidate-journey-design-spec.md. Matched
+ * jobs are still fetched — the co-pilot's best-match/recurring-gap logic
+ * reads them — but the list itself lives only on the Jobs tab's Matched
+ * view now, not here.
  *
  * Every value here is derived client-side from existing endpoints — no new
  * backend surface, including the co-pilot message (buildCopilotMessage
@@ -297,7 +300,6 @@ export default function Dashboard({ onLoggedOut }: Props) {
 
   const sortedMatches = [...matched.jobs].sort((a, b) => b.score - a.score);
   const bestUnapplied = sortedMatches.find((j) => !j.alreadyApplied);
-  const topMatches = sortedMatches.slice(0, 3);
 
   // How often each missing skill blocks a top match — surfaced only once it
   // recurs (RECURRING_GAP_MIN_COUNT), so the co-pilot points at an actual
@@ -392,39 +394,6 @@ export default function Dashboard({ onLoggedOut }: Props) {
             <div className="meta">{hasApplied ? statusSummary : 'Browse jobs to get started.'}</div>
           </Link>
         </div>
-
-        {topMatches.length > 0 && (
-          <section className="hub-section">
-            <div className="hub-section-head">
-              <h2>Top matches</h2>
-              <Link href="/jobs?tab=matched">View all →</Link>
-            </div>
-            {topMatches.map((j) => {
-              const strong = j.score >= MATCH_STRONG_THRESHOLD;
-              const topGap = j.missing[0];
-              return (
-                <Link key={j.id} href={`/jobs/${j.id}`} className="match-card">
-                  <div className="match-card-top">
-                    <span className="match-card-title">{j.title}</span>
-                    <span className={`match-confidence ${strong ? 'strong' : 'weak'}`}>
-                      {j.score}% · {strong ? 'Strong match' : 'Developing match'}
-                    </span>
-                  </div>
-                  <div className="match-score-track">
-                    <div className={`match-score-fill ${strong ? 'strong' : 'weak'}`} style={{ width: `${j.score}%` }} />
-                  </div>
-                  <div className="match-card-meta">
-                    <span className="meta" style={{ marginBottom: 0 }}>
-                      {j.orgName}
-                      {j.alreadyApplied ? ' · ✓ Applied' : ''}
-                    </span>
-                    {topGap && <span className="match-card-gap">Add: {topGap.skillName}</span>}
-                  </div>
-                </Link>
-              );
-            })}
-          </section>
-        )}
 
         <p className="hub-resume-link">
           <Link href="/resume">Build a resume PDF from your profile & badges →</Link>
