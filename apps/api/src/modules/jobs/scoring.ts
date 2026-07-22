@@ -5,14 +5,21 @@ import { SkillLevel } from '@prisma/client';
  * explanation layer (LlmService.explainMatch) only narrates this output, it
  * never influences the numbers.
  *
- * Inputs are deliberately limited to verified SkillClaims/Badges and
- * yearsOfExp — see scoreCandidate's signature below. NEVER add
- * CandidateProfile.roleTitle, headline, location, fullName, or any other
- * self-reported/unverified profile text field as a scoring input. roleTitle
- * in particular exists purely for display and employer search/filter (see
- * its doc comment in schema.prisma) — it carries no verification and must
- * never influence a match score, no matter how tempting a "boost exact role
- * matches" feature sounds later.
+ * Inputs are deliberately limited to verified SkillClaims/Badges, verified
+ * Certification skill tags, and yearsOfExp — see scoreCandidate's signature
+ * below. NEVER add CandidateProfile.roleTitle, headline, location, fullName,
+ * or any other self-reported/unverified profile text field as a scoring
+ * input. roleTitle in particular exists purely for display and employer
+ * search/filter (see its doc comment in schema.prisma) — it carries no
+ * verification and must never influence a match score, no matter how
+ * tempting a "boost exact role matches" feature sounds later.
+ *
+ * certifiedSkillIds (added alongside the Certification model) is held to
+ * the exact same bar: only Skill.id values backed by a currently-VERIFIED,
+ * non-expired Certification may ever be passed in — see
+ * MatchingService.getMatches for where that set is built. LINK_PROVIDED and
+ * SELF_REPORTED certification tags must never reach this function; they're
+ * unverified in the same sense roleTitle is, just via a different pathway.
  */
 
 export interface JobSkillRequirement {
@@ -94,6 +101,16 @@ function scoreSkill(requiredLevel: SkillLevel, claim: CandidateSkillClaim | unde
   return meetsLevel ? UNVERIFIED_AT_OR_ABOVE_LEVEL_CREDIT : UNVERIFIED_BELOW_LEVEL_CREDIT;
 }
 
+/**
+ * A verified certification has no L1-L4 level of its own (see
+ * Certification's doc comment) — holding one is treated as satisfying any
+ * required level outright, the same way a curated external credential would
+ * in a human reviewer's judgment. This can only ever raise a skill's credit
+ * fraction, never lower it: it's applied as a floor in scoreCandidate below
+ * a SkillClaim-derived creditFraction, not a replacement for it.
+ */
+const CERTIFIED_CREDIT = 1.0;
+
 const EXPERIENCE_BONUS = 5;
 const EXPERIENCE_PENALTY = 5;
 const WELL_BELOW_YEARS = 2;
@@ -128,10 +145,16 @@ function experienceAdjustment(
  *
  * score = round(clamp(weighted skill percentage + experience adjustment, 0, 100))
  * weighted skill percentage = 100 * (Σ creditFraction·weight) / (Σ weight)
+ *
+ * certifiedSkillIds: Skill.id values backed by a VERIFIED, non-expired
+ * Certification (see this file's header comment) — pass an empty set from
+ * any call site that hasn't fetched certifications, never a set built from
+ * LINK_PROVIDED/SELF_REPORTED rows.
  */
 export function scoreCandidate(
   jobSkills: JobSkillRequirement[],
   claimsBySkillId: Map<string, CandidateSkillClaim>,
+  certifiedSkillIds: ReadonlySet<string>,
   yearsOfExp: number | null,
   experienceMin: number | null,
   experienceMax: number | null,
@@ -143,7 +166,8 @@ export function scoreCandidate(
 
   for (const req of jobSkills) {
     const claim = claimsBySkillId.get(req.skillId);
-    const creditFraction = scoreSkill(req.requiredLevel, claim);
+    const certified = certifiedSkillIds.has(req.skillId);
+    const creditFraction = Math.max(scoreSkill(req.requiredLevel, claim), certified ? CERTIFIED_CREDIT : 0);
     const weight = req.isRequired ? REQUIRED_WEIGHT : OPTIONAL_WEIGHT;
 
     weightedSum += creditFraction * weight;
@@ -155,7 +179,7 @@ export function scoreCandidate(
       requiredLevel: req.requiredLevel,
       isRequired: req.isRequired,
       candidateLevel: claim?.level ?? null,
-      verified: claim?.verified ?? false,
+      verified: (claim?.verified ?? false) || certified,
       creditFraction,
     };
 

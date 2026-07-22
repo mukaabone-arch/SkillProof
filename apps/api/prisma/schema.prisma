@@ -369,6 +369,7 @@ model CandidateProfile {
   skillClaims         SkillClaim[]
   applications        Application[]
   externalCredentials ExternalCredential[]
+  certifications      Certification[]
   shortlistEntries    ShortlistEntry[]
 }
 
@@ -453,6 +454,109 @@ model ExternalCredential {
   expiresAt         DateTime?
   rawMetadata       Json?
   createdAt         DateTime                    @default(now())
+
+  @@unique([profileId, credentialUrl])
+  @@index([profileId])
+}
+
+// ---------- Certifications (multi-issuer, supersedes ExternalCredential for new writes) ----------
+
+/**
+ * Dropdown options for Certification.issuer (spec: UAT feedback asked for
+ * issuers beyond Credly). OTHER pairs with Certification.issuerOther for the
+ * free-text fallback, same convention as CandidateRoleTitle/roleTitleOther.
+ */
+enum CertIssuer {
+  CREDLY
+  COURSERA
+  LINKEDIN_LEARNING
+  PMI
+  PEOPLECERT
+  AWS
+  MICROSOFT
+  GOOGLE
+  SCRUM_ALLIANCE
+  UDEMY
+  EDX
+  NPTEL
+  OTHER
+}
+
+/**
+ * Trust tier — must stay visually distinct in every UI that renders it (see
+ * CertificationsPanel.tsx). VERIFIED is the only tier that ever contributes
+ * to job-match scoring (see scoring.ts's certifiedSkillIds parameter) or the
+ * apply-gate (CandidateJobsService.assertHasVerifiedBadge) — LINK_PROVIDED
+ * and SELF_REPORTED are presentation-only, exactly like ExternalCredential's
+ * PENDING/FAILED states never were allowed to influence scoring.
+ * EXPIRED overrides whichever of the three tiers a row started in once its
+ * expiryDate has passed — see CertificationsService.refreshExpired, which
+ * lazily flips rows to EXPIRED on read rather than relying on a cron job.
+ */
+enum CertVerificationStatus {
+  VERIFIED
+  LINK_PROVIDED
+  SELF_REPORTED
+  EXPIRED
+}
+
+/** How verificationStatus was decided — see CertificationsService.create. */
+enum CertVerificationSource {
+  CREDLY
+  URL
+  MANUAL_UPLOAD
+}
+
+/**
+ * A candidate-submitted certification from any issuer (Credly, Coursera,
+ * LinkedIn Learning, PMI, PeopleCert, plain manual entry, ...) — the
+ * multi-issuer successor to ExternalCredential, which stays in place
+ * read-only for its existing rows (see the 20260722000000_add_certifications
+ * migration's backfill: every VERIFIED ExternalCredential row was copied
+ * here with issuer CREDLY, verificationSource CREDLY, verificationStatus
+ * VERIFIED, so nothing already earned is lost).
+ *
+ * skillTags holds Skill.id values from the *existing* taxonomy (see the
+ * Skill model / GET /taxonomy) — never a parallel/free-text tag set, so a
+ * verified certification's tags can be intersected directly against a job's
+ * skill requirements in scoring.ts. Only VERIFIED rows' tags are ever read
+ * for scoring; LINK_PROVIDED/SELF_REPORTED tags are stored (so they're ready
+ * the moment a row is later verified) but otherwise inert.
+ *
+ * fileUrl stores a bare on-disk filename (UPLOAD_DIR-relative), same
+ * convention as CandidateProfile.photoKey/resumeS3Key — never a public URL.
+ * It's served only through the authenticated GET
+ * /profiles/me/certifications/:id/file proxy, and the API's own JSON
+ * response never echoes this raw column; it exposes a `fileUrl` computed as
+ * that proxy path instead (see CertificationsService.toDto). This keeps the
+ * field name candidates/mobile see stable and matches spec even though the
+ * DB column itself is just a storage key.
+ *
+ * Seam for later: an admin-managed cert-name/issuer → skill-tags mapping
+ * table (to auto-suggest skillTags instead of requiring manual tagging on
+ * every create) can be added without touching this model — it would just
+ * populate the same skillTags array at create time. No such table exists
+ * yet; CertificationsService.suggestSkillTags is the seam, returning []
+ * until one does.
+ */
+model Certification {
+  id                 String                  @id @default(uuid())
+  profileId          String
+  profile            CandidateProfile        @relation(fields: [profileId], references: [id])
+  name               String
+  issuer             CertIssuer
+  issuerOther        String?
+  issueDate          DateTime
+  expiryDate         DateTime?
+  credentialId       String?
+  credentialUrl      String?
+  /** Bare storage key, not a URL — see this model's doc comment. */
+  fileUrl            String?
+  verificationStatus CertVerificationStatus  @default(SELF_REPORTED)
+  verificationSource CertVerificationSource
+  skillTags          String[]                @default([])
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
 
   @@unique([profileId, credentialUrl])
   @@index([profileId])

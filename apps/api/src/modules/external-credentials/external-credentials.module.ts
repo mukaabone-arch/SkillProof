@@ -8,5 +8,9 @@ import { CredlyVerificationService } from './credly-verification.service';
   imports: [AuthModule],
   controllers: [ExternalCredentialsController],
   providers: [ExternalCredentialsService, CredlyVerificationService],
+  // CredlyVerificationService is reused by CertificationsModule, which offers
+  // Credly as one issuer among many in the unified Certification form — see
+  // CertificationsService.determineVerification.
+  exports: [CredlyVerificationService],
 })
 export class ExternalCredentialsModule {}

@@ -1,5 +1,12 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClaimStatus, CredentialVerificationState, JobStatus, NotificationType, Prisma } from '@prisma/client';
+import {
+  CertVerificationStatus,
+  ClaimStatus,
+  CredentialVerificationState,
+  JobStatus,
+  NotificationType,
+  Prisma,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
@@ -115,6 +122,14 @@ export class CandidateJobsService {
       include: {
         skillClaims: { include: { badge: { select: { revokedAt: true } } } },
         applications: { select: { jobId: true } },
+        // See scoring.ts's certifiedSkillIds contract — VERIFIED, non-expired only.
+        certifications: {
+          where: {
+            verificationStatus: CertVerificationStatus.VERIFIED,
+            OR: [{ expiryDate: null }, { expiryDate: { gt: new Date() } }],
+          },
+          select: { skillTags: true },
+        },
       },
     });
 
@@ -126,12 +141,14 @@ export class CandidateJobsService {
         verified: c.status === ClaimStatus.VERIFIED && !!c.badge && !c.badge.revokedAt,
       });
     }
+    const certifiedSkillIds = new Set((profile?.certifications ?? []).flatMap((c) => c.skillTags));
 
-    // Matching is meaningless without at least one verified claim — every
-    // job would score 0 and render as a demoralizing wall of zeros. The
-    // frontend shows a dedicated "earn a badge" empty state for this case,
-    // keyed off an empty list, so short-circuit before scoring anything.
-    const hasVerifiedClaim = [...claimsBySkillId.values()].some((c) => c.verified);
+    // Matching is meaningless without at least one verified claim or
+    // certification — every job would score 0 and render as a demoralizing
+    // wall of zeros. The frontend shows a dedicated "earn a badge" empty
+    // state for this case, keyed off an empty list, so short-circuit before
+    // scoring anything.
+    const hasVerifiedClaim = [...claimsBySkillId.values()].some((c) => c.verified) || certifiedSkillIds.size > 0;
     if (!hasVerifiedClaim) return { jobs: [] };
 
     const applied = new Set((profile?.applications ?? []).map((a) => a.jobId));
@@ -154,6 +171,7 @@ export class CandidateJobsService {
         const result = scoreCandidate(
           jobSkills,
           claimsBySkillId,
+          certifiedSkillIds,
           profile?.yearsOfExp ?? null,
           job.experienceMin,
           job.experienceMax,
@@ -269,14 +287,17 @@ export class CandidateJobsService {
   }
 
   /**
-   * Satisfied by either a verified SkillProof SkillClaim (currently-valid —
-   * an admin-invalidated/revoked one doesn't count) or a verified external
-   * credential (e.g. a Credly badge) that hasn't expired. External
-   * credentials are otherwise kept fully separate from this system — this
-   * gate is their only interaction with it, and they never touch scoring.
+   * Satisfied by any of: a verified SkillProof SkillClaim (currently-valid —
+   * an admin-invalidated/revoked one doesn't count), a verified external
+   * credential from the legacy Credly-only ExternalCredential table, or a
+   * VERIFIED Certification (its multi-issuer successor — see that model's
+   * doc comment in schema.prisma) — either way not expired. Certifications
+   * are otherwise kept out of this system's scoring except via the
+   * certifiedSkillIds path in scoring.ts — this gate and that are the only
+   * two places they're allowed to matter.
    */
   private async assertHasVerifiedBadge(profileId: string): Promise<void> {
-    const [verifiedClaimCount, verifiedCredentialCount] = await Promise.all([
+    const [verifiedClaimCount, verifiedCredentialCount, verifiedCertificationCount] = await Promise.all([
       this.prisma.skillClaim.count({
         where: { profileId, status: ClaimStatus.VERIFIED, badge: { revokedAt: null } },
       }),
@@ -287,8 +308,15 @@ export class CandidateJobsService {
           OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
         },
       }),
+      this.prisma.certification.count({
+        where: {
+          profileId,
+          verificationStatus: CertVerificationStatus.VERIFIED,
+          OR: [{ expiryDate: null }, { expiryDate: { gt: new Date() } }],
+        },
+      }),
     ]);
-    if (verifiedClaimCount === 0 && verifiedCredentialCount === 0) {
+    if (verifiedClaimCount === 0 && verifiedCredentialCount === 0 && verifiedCertificationCount === 0) {
       throw new BadRequestException({
         code: 'BADGE_REQUIRED',
         message: 'Earn at least one verified skill badge before applying — take an assessment to get started.',

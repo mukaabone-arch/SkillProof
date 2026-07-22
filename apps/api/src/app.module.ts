@@ -14,6 +14,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
 import { CandidatesModule } from './modules/candidates/candidates.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
 import { ExternalCredentialsModule } from './modules/external-credentials/external-credentials.module';
+import { CertificationsModule } from './modules/certifications/certifications.module';
 import { AssessmentSessionsModule } from './modules/assessment-sessions/assessment-sessions.module';
 import { BadgesModule } from './modules/badges/badges.module';
 import { ShortlistModule } from './modules/shortlist/shortlist.module';
@@ -38,6 +39,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     CandidatesModule,
     ApplicationsModule,
     ExternalCredentialsModule,
+    CertificationsModule,
     AssessmentSessionsModule,
     ShortlistModule,
     InterviewsModule,

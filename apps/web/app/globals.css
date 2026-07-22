@@ -395,9 +395,9 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
    since they're short lines, not body copy. */
 main.profile { max-width: 1080px; }
 /* Left column: the profile form card. Right column: a flex stack of the
-   Resume card and External credentials card, in that DOM order — collapsing
+   Resume card and Certifications card, in that DOM order — collapsing
    to `1fr` below the breakpoint keeps that same source order (form, then
-   resume, then credentials) as a single mobile stack, no reordering needed. */
+   resume, then certifications) as a single mobile stack, no reordering needed. */
 .profile-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-7); align-items: start; }
 .profile-side-col { display: flex; flex-direction: column; gap: var(--space-7); min-width: 0; }
 .profile-panel { min-width: 0; }
