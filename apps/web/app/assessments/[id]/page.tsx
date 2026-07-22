@@ -9,6 +9,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, getToken, type ApiError } from '@/lib/api';
+import { useEntitlements } from '@/lib/entitlements';
+import { UsageMeter } from '@/components/UsageMeter';
 
 type IntegrityEventType =
   | 'TAB_BLUR'
@@ -35,6 +37,21 @@ interface StartIssueBody {
   code?: 'PROFILE_INCOMPLETE_FOR_ASSESSMENT';
   message?: string;
 }
+/**
+ * The 402 body for a blocked retake — same LIMIT_REACHED shape as the
+ * monthly-quota case (see lib/limitReachedBus.ts), distinguished by
+ * `metric`. retakeCooldownDays carries a real resetsAt (when the wait is
+ * over — and Premium removes it outright); retakesPerSkillLifetime never
+ * does (resetsAt: null) — that cap is permanent regardless of tier, only
+ * its size changes (1 on Free, 3 on Premium), so "upgrade" only ever helps
+ * if there's still headroom under the higher cap.
+ */
+interface RetakeLimitBody {
+  code?: 'LIMIT_REACHED';
+  metric?: 'retakeCooldownDays' | 'retakesPerSkillLifetime' | 'assessments';
+  limit?: number | null;
+  resetsAt?: string | null;
+}
 interface Result {
   status: string;
   scorePercent: number | null;
@@ -42,18 +59,20 @@ interface Result {
   passThreshold: number;
   assessmentTitle: string;
   skillName: string;
-  badge: { verifyHash: string; level: string; expiresAt: string } | null;
+  badge: { verifyHash: string; level: string; expiresAt: string; attemptNumber: number | null } | null;
 }
 
 export default function TakeAssessmentPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { tier, usage, refetch } = useEntitlements();
   const [attemptId, setAttemptId] = useState<string>();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [result, setResult] = useState<Result>();
   const [error, setError] = useState('');
   const [startIssue, setStartIssue] = useState<StartIssueBody | null>(null);
+  const [retakeIssue, setRetakeIssue] = useState<RetakeLimitBody | null>(null);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -81,19 +100,32 @@ export default function TakeAssessmentPage() {
       setQuestions(res.questions);
       setRemainingSeconds(res.remainingSeconds);
       setDeadlineAt(res.deadlineAt);
+      // A genuinely new attempt consumes a unit of the 'assessments' quota
+      // (an idempotent re-open of an already-active attempt is refunded
+      // server-side) — refetch so the meter reflects the real count either way.
+      void refetch();
     } catch (e) {
       // The catalog page disables Start when the profile isn't ready — this
       // is the defense-in-depth path for reaching this page directly (a
       // stale tab, a bookmarked URL, a race with a profile edit elsewhere).
-      const body = (e as ApiError).body as StartIssueBody | undefined;
+      const body = (e as ApiError).body as (StartIssueBody & RetakeLimitBody) | undefined;
       if (body?.code === 'PROFILE_INCOMPLETE_FOR_ASSESSMENT') {
         setStartIssue(body);
+      } else if (body?.code === 'LIMIT_REACHED' && (body.metric === 'retakeCooldownDays' || body.metric === 'retakesPerSkillLifetime')) {
+        // Handled inline here, not by the global LimitReachedModal — see
+        // that component's own doc comment on why it ignores these two
+        // metrics specifically (cooldown-until-date vs. permanent cap read
+        // very differently, and only one is solvable by upgrading).
+        setRetakeIssue(body);
       } else {
         setError((e as Error).message);
       }
+      // Any 4xx here (including the two retake ones above) is refunded
+      // server-side — refetch rather than assume the meter is unaffected.
+      void refetch();
     }
     finally { setLoaded(true); }
-  }, [id, router]);
+  }, [id, router, refetch]);
 
   useEffect(() => {
     if (acknowledged) start();
@@ -273,7 +305,16 @@ export default function TakeAssessmentPage() {
                 <strong>✓ Verified: {result.skillName} ({result.badge.level})</strong>
                 <div className="meta">
                   Valid until {new Date(result.badge.expiresAt).toLocaleDateString()}
+                  {result.badge.attemptNumber !== null && (
+                    <> · Earned on attempt #{result.badge.attemptNumber}</>
+                  )}
                 </div>
+                {result.badge.attemptNumber !== null && result.badge.attemptNumber > 1 && (
+                  <div className="meta">
+                    Employers see this attempt number on your public certificate too — it&apos;s part
+                    of what makes a verified badge credible.
+                  </div>
+                )}
               </div>
               <Link href={`/badges/${result.badge.verifyHash}`}>
                 <button>View your verified certificate</button>
@@ -284,7 +325,9 @@ export default function TakeAssessmentPage() {
           <>
             <p>Review the material and try again — your best attempt counts.</p>
             <p className="meta">
-              No cooldown — you can retry this assessment right away, as many times as you like.
+              Retake availability depends on your plan (a cooldown period, and a lifetime cap per
+              skill) — you&apos;ll see exactly where you stand if you&apos;re not eligible yet.{' '}
+              <Link href="/upgrade">Premium removes the cooldown →</Link>
             </p>
             <div className="row" style={{ margin: 0 }}>
               <button onClick={retry}>Try again</button>
@@ -321,6 +364,14 @@ export default function TakeAssessmentPage() {
             />
             I understand and agree to these conditions.
           </label>
+          {usage && (
+            <UsageMeter
+              label="assessment starts"
+              used={usage.assessments.used}
+              limit={usage.assessments.limit}
+              resetsAt={usage.assessments.resetsAt}
+            />
+          )}
           <button
             onClick={() => setAcknowledged(true)}
             disabled={!ackChecked}
@@ -353,7 +404,41 @@ export default function TakeAssessmentPage() {
           <Link href={`/profile?returnTo=/assessments/${id}`}>Complete your profile →</Link>
         </p>
       )}
-      {loaded && !error && !startIssue && questions.length === 0 && (
+      {retakeIssue && (
+        <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+          {retakeIssue.metric === 'retakeCooldownDays' ? (
+            <>
+              <strong>Retake not available yet</strong>
+              <p style={{ margin: 0 }}>
+                You&apos;re in the cooldown period after your last attempt at this skill
+                {retakeIssue.resetsAt && (
+                  <> — available again on {new Date(retakeIssue.resetsAt).toLocaleDateString()}</>
+                )}
+                .
+              </p>
+              {tier !== 'PREMIUM' && (
+                <p className="meta" style={{ margin: 0 }}>
+                  <Link href="/upgrade">Premium removes retake cooldowns entirely →</Link>
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <strong>Retake limit reached for this skill</strong>
+              <p style={{ margin: 0 }}>
+                You&apos;ve used all {retakeIssue.limit} retake{retakeIssue.limit === 1 ? '' : 's'} allowed for
+                this skill — this cap doesn&apos;t reset.
+              </p>
+              {tier !== 'PREMIUM' && (
+                <p className="meta" style={{ margin: 0 }}>
+                  <Link href="/upgrade">Premium allows more retakes per skill →</Link>
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+      {loaded && !error && !startIssue && !retakeIssue && questions.length === 0 && (
         <p>This assessment has no questions yet — check back soon.</p>
       )}
 

@@ -15,11 +15,37 @@
  * TODO before production: move both tokens to httpOnly cookies via a Next.js
  * route handler proxy, to remove them from JS-readable storage (XSS defense).
  */
+import { emitLimitReached, LimitReachedPayload } from './limitReachedBus';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 /** Thrown by api() on a non-ok response — `body` is the parsed JSON error payload, if any. */
 export interface ApiError extends Error {
   body?: unknown;
+  /** Present only when this was a 402 { code: 'LIMIT_REACHED' } response — see limitReachedBus.ts. Callers rarely need this directly; LimitReachedModal already reacts to the same event. */
+  limitReached?: LimitReachedPayload;
+}
+
+/**
+ * Central 402 handling (per apps/api's entitlements README): every call
+ * site throws through this one path, so nothing has to special-case
+ * { code: 'LIMIT_REACHED' } itself — it just publishes to limitReachedBus,
+ * which the app-wide LimitReachedModal is the sole subscriber of. Never a
+ * generic error toast for this case.
+ */
+function buildApiError(status: number, body: any): ApiError {
+  const err = new Error(body?.message ?? `Request failed: ${status}`) as ApiError;
+  err.body = body;
+  if (status === 402 && body?.code === 'LIMIT_REACHED') {
+    const payload: LimitReachedPayload = {
+      metric: body.metric,
+      limit: body.limit ?? null,
+      resetsAt: body.resetsAt ?? null,
+    };
+    err.limitReached = payload;
+    emitLimitReached(payload);
+  }
+  return err;
 }
 
 interface ScopeKeys {
@@ -120,12 +146,10 @@ function createApiClient({ access: ACCESS_KEY, refresh: REFRESH_KEY }: ScopeKeys
     }
 
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
       // Some endpoints (e.g. bulk import) return structured detail beyond a
       // single message — stash the raw body so callers can read it if needed.
-      const err = new Error(body.message ?? `Request failed: ${res.status}`) as ApiError;
-      err.body = body;
-      throw err;
+      const body = await res.json().catch(() => ({}));
+      throw buildApiError(res.status, body);
     }
     return res.json();
   }
@@ -145,9 +169,7 @@ function createApiClient({ access: ACCESS_KEY, refresh: REFRESH_KEY }: ScopeKeys
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      const err = new Error(body.message ?? `Request failed: ${res.status}`) as ApiError;
-      err.body = body;
-      throw err;
+      throw buildApiError(res.status, body);
     }
     return res.blob();
   }

@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { api, apiBlob, getToken } from '@/lib/api';
 import CandidateNav from '@/components/CandidateNav';
 import { Button, Card, ErrorState, Field, LoadingState } from '@/components/ui';
+import { useEntitlements } from '@/lib/entitlements';
 
 interface ExperienceEntry {
   title: string;
@@ -40,6 +41,7 @@ const emptyEducation: EducationEntry = { degree: '', institution: '', dates: '' 
 type Stage = 'choose' | 'upload' | 'review';
 
 export default function ResumePage() {
+  const { limits } = useEntitlements();
   const [ready, setReady] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [stage, setStage] = useState<Stage>('choose');
@@ -285,6 +287,35 @@ export default function ResumePage() {
             <p className="meta">
               Your verified skill badges are added automatically — no need to list them here.
             </p>
+
+            {limits && (
+              <div className="field">
+                <label>Template &amp; branding</label>
+                {limits.resumeBranding ? (
+                  <p className="meta" style={{ margin: 0 }}>
+                    Your PDF includes a &quot;Verified by SkillProof&quot; footer.{' '}
+                    <Link href="/upgrade">Premium removes this →</Link>
+                  </p>
+                ) : (
+                  <p className="meta" style={{ margin: 0 }}>
+                    Your PDF has no SkillProof branding — Premium benefit.
+                  </p>
+                )}
+                {/*
+                  Deliberately not driven by limits.resumeTemplates here: that
+                  field already lists 4 names for Premium in plans.config.ts,
+                  but only the default layout is actually implemented today
+                  for every tier (see resume-pdf.builder.ts) — showing the
+                  raw entitlements value would promise templates that don't
+                  functionally exist yet for anyone. This note stays
+                  intentionally tier-independent until real templates ship.
+                */}
+                <p className="meta" style={{ margin: 0 }}>
+                  Every plan uses this same layout today — additional templates (compact, academic,
+                  ATS-friendly) are planned as a Premium benefit.
+                </p>
+              </div>
+            )}
 
             <div className="row" style={{ marginTop: 12 }}>
               <Button onClick={generatePdf} disabled={generating}>

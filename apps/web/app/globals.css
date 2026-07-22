@@ -897,3 +897,49 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 @media (prefers-reduced-motion: reduce) {
   .discussion-progress > i, .discussion-chev, .discussion-reviewer-body { transition: none; }
 }
+
+/* ---- subscription tiers: usage meters, locked previews, upgrade modal/page ---- */
+
+/* Reuses .progress-track/.progress-fill (profile-completeness meter) — same
+   visual language for "how much of an allowance is used up". */
+.usage-meter { margin: 10px 0 18px; max-width: 360px; }
+.usage-meter-label { font-size: var(--text-sm); font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+
+/* Locked-state pattern: a real teaser stays fully legible; only the detail
+   underneath is blurred, with a scrim + CTA on top — "visible, specific
+   value" per the product's own framing, never the feature just absent. */
+.locked-preview-teaser { font-weight: 600; color: var(--ink); margin-bottom: 10px; }
+.locked-preview-content { position: relative; border-radius: var(--radius-md); overflow: hidden; }
+.locked-preview-blur { filter: blur(5px); pointer-events: none; user-select: none; }
+.locked-preview-overlay {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--card) 55%, transparent);
+}
+.locked-preview-overlay button {
+  background: var(--indigo); color: #fff; border: none; border-radius: 10px;
+  padding: 10px 18px; font-weight: 600; font-size: var(--text-sm); cursor: pointer;
+}
+
+/* Central 402 upgrade prompt — same glass-free surface as .ui-card, raised
+   above a dimmed page with .shadow-lg, the app's existing "lifted" elevation. */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--gray-900) 55%, transparent); padding: var(--space-4);
+}
+.modal-card {
+  background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); padding: var(--space-6); max-width: 440px; width: 100%;
+}
+
+/* /upgrade comparison table */
+.plan-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6); align-items: start; margin: var(--space-6) 0; }
+.plan-column { background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-lg); padding: var(--space-6); }
+.plan-column.plan-column-current { border-color: var(--indigo); border-width: 2px; }
+.plan-column-price { font-family: var(--font-display); font-size: var(--text-2xl); margin: 8px 0 4px; }
+.plan-column-price-sub { color: var(--ink-60); font-size: var(--text-sm); margin-bottom: var(--space-5); }
+.plan-feature-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.plan-feature-list li { display: flex; align-items: flex-start; gap: 8px; font-size: var(--text-sm); }
+.plan-feature-list .plan-feature-icon { flex-shrink: 0; width: 18px; text-align: center; }
+@media (max-width: 720px) {
+  .plan-columns { grid-template-columns: 1fr; }
+}

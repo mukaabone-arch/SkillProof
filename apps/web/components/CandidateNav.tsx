@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '@/lib/api';
+import { useEntitlements } from '@/lib/entitlements';
 import Logo from './Logo';
 
 const LINKS = [
@@ -22,6 +23,7 @@ interface Props {
 export default function CandidateNav({ onLoggedOut }: Props) {
   const pathname = usePathname();
   const router = useRouter();
+  const { tier } = useEntitlements();
 
   // Some pages that render this nav (e.g. /resume) still track their own
   // "loggedIn" state, and live on a route other than the login page itself —
@@ -53,6 +55,11 @@ export default function CandidateNav({ onLoggedOut }: Props) {
               {l.label}
             </Link>
           ))}
+          {tier === 'FREE' && (
+            <Link href="/upgrade" style={{ color: 'var(--indigo)', fontWeight: 600 }}>
+              Upgrade
+            </Link>
+          )}
           <button className="appnav-logout" onClick={handleLogout}>Log out</button>
         </div>
       </div>
