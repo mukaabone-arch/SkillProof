@@ -38,7 +38,11 @@ export interface PlanLimits {
   gapAnalysis: 'basic' | 'detailed';
   /** Whether SkillProof branding appears on the generated resume PDF. */
   resumeBranding: boolean;
-  /** Resume template ids available to choose from. */
+  /**
+   * Resume template ids available to choose from. Both tiers currently
+   * resolve to ['default'] — see PLANS.PREMIUM's own comment below for why
+   * that's not yet a real differentiator.
+   */
   resumeTemplates: string[];
   /** Whether interview-prep content/features are available. */
   interviewPrep: boolean;
@@ -68,7 +72,16 @@ export const PLANS: Record<SubscriptionTier, PlanLimits> = {
     searchRankBoost: 1,
     gapAnalysis: 'detailed',
     resumeBranding: false,
-    resumeTemplates: ['default', 'compact', 'academic', 'ats'],
+    // Intentionally ['default'] for now, not a typo/oversight: the PDF
+    // generator (resume-pdf.builder.ts) only implements one layout today.
+    // Config must not promise more than enforcement can honor — the
+    // /upgrade page and the entitlement check both read this array
+    // directly, so claiming templates that don't exist would advertise a
+    // capability with nothing behind it. Add real entries here (and the
+    // matching layouts in resume-pdf.builder.ts) when they're built; no
+    // client changes are needed when that happens, since both apps already
+    // just render whatever this array contains.
+    resumeTemplates: ['default'],
     interviewPrep: true,
   },
 };
