@@ -436,7 +436,13 @@ main.employer-home { max-width: 1080px; }
   position: sticky; top: 0; z-index: 50; background: rgba(247, 247, 249, 0.85);
   backdrop-filter: blur(10px); border-bottom: 1px solid var(--ink-12);
 }
-.appnav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; max-width: 880px; margin: 0 auto; padding: 0 24px; }
+/* `gap` is a floor, independent of justify-content: space-between's
+   distributed space — without it, the brand group and the links group
+   touch directly (e.g. "SkillProofDashboard") in the ~721–880px band,
+   where content is wide enough that space-between has no slack left to
+   distribute (below 720px the links are hidden entirely; above ~880px
+   there's enough room regardless). */
+.appnav-inner { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); height: 64px; max-width: 880px; margin: 0 auto; padding: 0 24px; }
 .appnav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
 .appnav-logo:hover { text-decoration: none; }
 .appnav-links { display: flex; gap: 24px; align-items: center; }
