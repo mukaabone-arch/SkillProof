@@ -9,6 +9,7 @@ import {
   CreateQuestionDto,
   ListAttemptsQueryDto,
   ReviewAttemptDto,
+  SetSubscriptionDto,
   UpdateAssessmentDto,
 } from './admin.dto';
 
@@ -69,5 +70,11 @@ export class AdminController {
     @Body() dto: ReviewAttemptDto,
   ) {
     return this.svc.reviewAttempt(id, req.user.sub, dto);
+  }
+
+  /** Foundation work for testing entitlements before any payment provider exists — see EntitlementsModule's README. */
+  @Post('candidates/:candidateProfileId/subscription')
+  setSubscription(@Param('candidateProfileId') candidateProfileId: string, @Body() dto: SetSubscriptionDto) {
+    return this.svc.setSubscription(candidateProfileId, dto);
   }
 }

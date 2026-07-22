@@ -20,6 +20,8 @@ import { BadgesModule } from './modules/badges/badges.module';
 import { ShortlistModule } from './modules/shortlist/shortlist.module';
 import { InterviewsModule } from './modules/interviews/interviews.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { EntitlementsModule } from './modules/entitlements/entitlements.module';
+import { ProfileViewsModule } from './modules/profile-views/profile-views.module';
 
 @Module({
   imports: [
@@ -44,6 +46,8 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     ShortlistModule,
     InterviewsModule,
     DashboardModule,
+    EntitlementsModule,
+    ProfileViewsModule,
   ],
 })
 export class AppModule {}

@@ -3,6 +3,8 @@ import { Role } from '@prisma/client';
 import { AuthenticatedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { EntitlementGuard } from '../entitlements/entitlement.guard';
+import { RequiresEntitlement } from '../entitlements/requires-entitlement.decorator';
 import { CandidateJobsService } from './candidate-jobs.service';
 import { BrowseJobsDto } from './candidate-jobs.dto';
 
@@ -29,6 +31,8 @@ export class CandidateJobsController {
   }
 
   @Post(':id/apply')
+  @UseGuards(EntitlementGuard)
+  @RequiresEntitlement('applications')
   apply(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.svc.apply(req.user.sub, id);
   }

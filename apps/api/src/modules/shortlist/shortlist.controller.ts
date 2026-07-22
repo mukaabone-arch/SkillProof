@@ -70,6 +70,6 @@ export class ShortlistController {
 
   @Post(':id/reject')
   reject(@Req() req: OrgScopedRequest, @Param('id') id: string, @Body() dto: RejectDto) {
-    return this.pipeline.reject(req.orgId, id, dto);
+    return this.pipeline.reject(req.orgId, req.user.sub, id, dto);
   }
 }

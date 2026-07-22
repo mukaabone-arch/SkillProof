@@ -1,9 +1,9 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { OrgMemberGuard } from '../auth/org-member.guard';
+import { OrgMemberGuard, OrgScopedRequest } from '../auth/org-member.guard';
 import { CandidatesService } from './candidates.service';
 import { SearchCandidatesDto } from './candidates.dto';
 
@@ -16,5 +16,11 @@ export class CandidatesController {
   @Get('search')
   search(@Query() dto: SearchCandidatesDto) {
     return this.svc.search(dto);
+  }
+
+  /** Must stay after 'search' — a literal-segment route before any :id-shaped one (same ordering rule used throughout this codebase). */
+  @Get(':id')
+  getById(@Req() req: OrgScopedRequest, @Param('id') id: string) {
+    return this.svc.getById(id, req.user.sub);
   }
 }

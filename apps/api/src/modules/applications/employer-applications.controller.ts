@@ -20,6 +20,6 @@ export class EmployerApplicationsController {
     @Param('id') id: string,
     @Body() dto: UpdateApplicationStatusDto,
   ) {
-    return this.svc.updateStatus(req.orgId, id, dto.status);
+    return this.svc.updateStatus(req.orgId, req.user.sub, id, dto.status);
   }
 }
