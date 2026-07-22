@@ -2,7 +2,9 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { BadgeVerificationMethod, CertVerificationStatus, ClaimStatus, SkillLevel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../llm/llm.service';
-import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
+import { PLANS } from '../../config/plans.config';
+import { EntitlementsService } from '../entitlements/entitlements.service';
+import { CandidateSkillClaim, JobSkillRequirement, compareByMatchRank, scoreCandidate } from './scoring';
 
 /** LLM explanations are the expensive part — only ever generated for the top N. */
 const TOP_N_MATCHES = 10;
@@ -12,6 +14,7 @@ export class MatchingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly llm: LlmService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   async getMatches(orgId: string, jobId: string) {
@@ -105,12 +108,21 @@ export class MatchingService {
             level: m.candidateLevel as SkillLevel, // matched entries always have a claim
             verifiedBy: claimRowsBySkillId.get(m.skillId)?.badge?.verifiedBy,
             verifyHash: claimRowsBySkillId.get(m.skillId)?.badge?.verifyHash,
+            // Employer-facing credibility — "earned on attempt #N" — null for
+            // session-issued badges (see Badge.attemptNumber's doc comment).
+            attemptNumber: claimRowsBySkillId.get(m.skillId)?.badge?.attemptNumber ?? null,
           }))
           .filter(
             (
               m,
-            ): m is { skillId: string; skillName: string; level: SkillLevel; verifiedBy: BadgeVerificationMethod; verifyHash: string } =>
-              !!m.verifyHash,
+            ): m is {
+              skillId: string;
+              skillName: string;
+              level: SkillLevel;
+              verifiedBy: BadgeVerificationMethod;
+              verifyHash: string;
+              attemptNumber: number | null;
+            } => !!m.verifyHash,
           ),
         missing: result.missing.map((m) => ({
           skillId: m.skillId,
@@ -122,8 +134,16 @@ export class MatchingService {
       };
     });
 
-    scored.sort((a, b) => b.score - a.score);
-    const top = scored.slice(0, TOP_N_MATCHES);
+    // searchRankBoost tiebreaker — see scoring.ts's compareByMatchRank doc
+    // comment. tierBoost is purely a sort key, never added to `score` and
+    // never returned to the client.
+    const tiersByProfileId = await this.entitlements.resolveEffectiveTiersForCandidates(
+      scored.map((c) => c.profileId),
+    );
+    const ranked = scored
+      .map((c) => ({ ...c, tierBoost: PLANS[tiersByProfileId.get(c.profileId)!].searchRankBoost }))
+      .sort(compareByMatchRank);
+    const top = ranked.slice(0, TOP_N_MATCHES).map(({ tierBoost, ...rest }) => rest);
 
     const withExplanations = await Promise.all(
       top.map(async (c) => ({

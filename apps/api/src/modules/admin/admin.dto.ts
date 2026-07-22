@@ -1,9 +1,10 @@
-import { IntegrityStatus, ReviewOutcome, SkillLevel } from '@prisma/client';
+import { IntegrityStatus, ReviewOutcome, SkillLevel, SubscriptionStatus, SubscriptionTier } from '@prisma/client';
 import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsDateString,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -162,4 +163,25 @@ export class ReviewAttemptDto {
   @IsString()
   @MaxLength(1000)
   note?: string;
+}
+
+/**
+ * Manual tier assignment — foundation work for testing entitlements before
+ * any payment provider exists. See EntitlementsService.setTierManually.
+ */
+export class SetSubscriptionDto {
+  @IsEnum(SubscriptionTier)
+  tier: SubscriptionTier;
+
+  @IsOptional()
+  @IsEnum(SubscriptionStatus)
+  status?: SubscriptionStatus;
+
+  @IsOptional()
+  @IsDateString()
+  currentPeriodEnd?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  cancelAtPeriodEnd?: boolean;
 }

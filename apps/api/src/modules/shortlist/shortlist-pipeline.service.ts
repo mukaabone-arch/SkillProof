@@ -1,7 +1,8 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { NotificationType, ShortlistStage } from '@prisma/client';
+import { NotificationType, ProfileViewSource, ShortlistStage } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ProfileViewsService } from '../profile-views/profile-views.service';
 import { assertTransition } from './pipeline-transitions';
 import { AddRoundDto, InviteDto, OutcomeDto, RejectDto, UpdateRoundDto } from './shortlist-pipeline.dto';
 
@@ -17,6 +18,7 @@ export class ShortlistPipelineService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly profileViews: ProfileViewsService,
   ) {}
 
   async invite(orgId: string, id: string, dto: InviteDto) {
@@ -125,7 +127,7 @@ export class ShortlistPipelineService {
     return { id };
   }
 
-  async reject(orgId: string, id: string, dto: RejectDto) {
+  async reject(orgId: string, userId: string, id: string, dto: RejectDto) {
     const entry = await this.getOwnedEntry(orgId, id);
     const nextStage = assertTransition(entry.stage, 'reject');
 
@@ -133,6 +135,7 @@ export class ShortlistPipelineService {
       where: { id },
       data: { stage: nextStage, rejectReason: dto.reason },
     });
+    await this.profileViews.record(entry.candidateId, userId, ProfileViewSource.REJECT);
 
     const roleLine = entry.job ? ` for ${entry.job.title}` : '';
     await this.notify(

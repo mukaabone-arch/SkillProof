@@ -199,6 +199,8 @@ export class JobsService {
             level: c.level,
             verifiedBy: c.badge!.verifiedBy,
             verifyHash: c.badge!.verifyHash,
+            // Employer-facing credibility — null for session-issued badges (see Badge.attemptNumber's doc comment).
+            attemptNumber: c.badge!.attemptNumber,
           })),
         externalCredentials: profile.externalCredentials.map((c) => ({
           id: c.id,

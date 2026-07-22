@@ -1,14 +1,16 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { ClaimStatus, IntegrityStatus, Prisma, ReviewOutcome } from '@prisma/client';
+import { ClaimStatus, IntegrityStatus, Prisma, ReviewOutcome, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EntitlementsService } from '../entitlements/entitlements.service';
 import {
   BulkQuestionItemDto,
   CreateAssessmentDto,
   CreateQuestionDto,
   ListAttemptsQueryDto,
   ReviewAttemptDto,
+  SetSubscriptionDto,
   UpdateAssessmentDto,
 } from './admin.dto';
 
@@ -19,7 +21,26 @@ interface BulkItemErrors {
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly entitlements: EntitlementsService,
+  ) {}
+
+  /**
+   * Manual tier assignment — foundation work for testing entitlements
+   * before any payment provider exists (see EntitlementsService's own
+   * module doc comment). `candidateProfileId` is CandidateProfile.id, the
+   * same id every other employer/admin-facing surface keys candidates by.
+   */
+  setSubscription(candidateProfileId: string, dto: SetSubscriptionDto) {
+    return this.entitlements.setTierManually(
+      candidateProfileId,
+      dto.tier,
+      dto.status ?? SubscriptionStatus.ACTIVE,
+      dto.currentPeriodEnd ? new Date(dto.currentPeriodEnd) : null,
+      dto.cancelAtPeriodEnd ?? false,
+    );
+  }
 
   listAssessments() {
     return this.prisma.assessment.findMany({

@@ -8,6 +8,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard, AuthenticatedRequest } from '../auth/jwt-auth.guard';
+import { EntitlementGuard } from '../entitlements/entitlement.guard';
+import { RequiresEntitlement } from '../entitlements/requires-entitlement.decorator';
 import { AssessmentsService } from './assessments.service';
 import { RecordIntegrityEventDto } from './assessments.dto';
 
@@ -45,7 +47,8 @@ export class AssessmentsController {
   }
 
   @Post('assessments/:id/attempts')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, EntitlementGuard)
+  @RequiresEntitlement('assessments')
   start(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.svc.startAttempt(req.user.sub, id);
   }

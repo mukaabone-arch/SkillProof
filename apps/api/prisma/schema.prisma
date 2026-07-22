@@ -250,6 +250,7 @@ model User {
   reviewedClaimVerdicts ClaimVerdict[]      @relation("ClaimVerdictReviewedBy")
   decidedSessions       AssessmentSession[] @relation("SessionDecidedBy")
   shortlistEntriesAdded ShortlistEntry[]
+  profileViewsMade      ProfileView[]
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
@@ -371,6 +372,9 @@ model CandidateProfile {
   externalCredentials ExternalCredential[]
   certifications      Certification[]
   shortlistEntries    ShortlistEntry[]
+  subscription        Subscription?
+  usageCounters       UsageCounter[]
+  profileViews        ProfileView[]
 }
 
 // ---------- Taxonomy (spec section 4.3) ----------
@@ -500,7 +504,9 @@ enum CertVerificationStatus {
   EXPIRED
 }
 
-/** How verificationStatus was decided — see CertificationsService.create. */
+/**
+ * How verificationStatus was decided — see CertificationsService.create.
+ */
 enum CertVerificationSource {
   CREDLY
   URL
@@ -515,14 +521,12 @@ enum CertVerificationSource {
  * migration's backfill: every VERIFIED ExternalCredential row was copied
  * here with issuer CREDLY, verificationSource CREDLY, verificationStatus
  * VERIFIED, so nothing already earned is lost).
- *
  * skillTags holds Skill.id values from the *existing* taxonomy (see the
  * Skill model / GET /taxonomy) — never a parallel/free-text tag set, so a
  * verified certification's tags can be intersected directly against a job's
  * skill requirements in scoring.ts. Only VERIFIED rows' tags are ever read
  * for scoring; LINK_PROVIDED/SELF_REPORTED tags are stored (so they're ready
  * the moment a row is later verified) but otherwise inert.
- *
  * fileUrl stores a bare on-disk filename (UPLOAD_DIR-relative), same
  * convention as CandidateProfile.photoKey/resumeS3Key — never a public URL.
  * It's served only through the authenticated GET
@@ -531,7 +535,6 @@ enum CertVerificationSource {
  * that proxy path instead (see CertificationsService.toDto). This keeps the
  * field name candidates/mobile see stable and matches spec even though the
  * DB column itself is just a storage key.
- *
  * Seam for later: an admin-managed cert-name/issuer → skill-tags mapping
  * table (to auto-suggest skillTags instead of requiring manual tagging on
  * every create) can be added without touching this model — it would just
@@ -540,9 +543,9 @@ enum CertVerificationSource {
  * until one does.
  */
 model Certification {
-  id                 String                  @id @default(uuid())
+  id                 String                 @id @default(uuid())
   profileId          String
-  profile            CandidateProfile        @relation(fields: [profileId], references: [id])
+  profile            CandidateProfile       @relation(fields: [profileId], references: [id])
   name               String
   issuer             CertIssuer
   issuerOther        String?
@@ -550,16 +553,139 @@ model Certification {
   expiryDate         DateTime?
   credentialId       String?
   credentialUrl      String?
-  /** Bare storage key, not a URL — see this model's doc comment. */
+  /**
+   * Bare storage key, not a URL — see this model's doc comment.
+   */
   fileUrl            String?
-  verificationStatus CertVerificationStatus  @default(SELF_REPORTED)
+  verificationStatus CertVerificationStatus @default(SELF_REPORTED)
   verificationSource CertVerificationSource
-  skillTags          String[]                @default([])
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
+  skillTags          String[]               @default([])
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
 
   @@unique([profileId, credentialUrl])
   @@index([profileId])
+}
+
+// ---------- Subscriptions & entitlements (foundation only — no payment
+// provider integration yet; tier is set manually via the admin endpoint.
+// See apps/api/src/config/plans.config.ts for the actual limits/features
+// per tier — never hardcode a limit anywhere else.) ----------
+
+enum SubscriptionTier {
+  FREE
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+/**
+ * One row per candidate who has ever been given a tier — a candidate with
+ * no row here is FREE (see EntitlementsService.resolveSubscription); rows
+ * are never proactively backfilled for existing candidates. tier/status
+ * are set manually today via POST /admin/candidates/:candidateId/subscription
+ * (no payment provider webhook exists yet — provider/providerSubId are
+ * reserved for that integration and unused until then).
+ * PAST_DUE is a grace period, not an immediate downgrade: EntitlementsService
+ * still resolves PREMIUM entitlements for up to 7 days after
+ * currentPeriodEnd (UPI autopay retries are common) before falling back to
+ * FREE — see resolveEffectiveTier's own doc comment for why currentPeriodEnd,
+ * not updatedAt, anchors that window. EXPIRED/CANCELED always resolve FREE
+ * immediately, no grace. None of this ever revokes an already-issued Badge
+ * or a submitted Application — expiry is forward-looking capability only.
+ */
+model Subscription {
+  id                 String             @id @default(uuid())
+  candidateId        String             @unique
+  candidateProfile   CandidateProfile   @relation(fields: [candidateId], references: [id])
+  tier               SubscriptionTier   @default(FREE)
+  status             SubscriptionStatus @default(ACTIVE)
+  currentPeriodStart DateTime           @default(now())
+  currentPeriodEnd   DateTime?
+  /**
+   * Reserved for the future payment provider integration — e.g. "razorpay". Unused (always null) until then.
+   */
+  provider           String?
+  /**
+   * Reserved for the future payment provider's own subscription id. Unused (always null) until then.
+   */
+  providerSubId      String?
+  cancelAtPeriodEnd  Boolean            @default(false)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+}
+
+/**
+ * A monthly, calendar-month-bucketed usage count for one metric (e.g.
+ * "assessments", "applications" — see EntitlementGuard/PLANS.*PerMonth).
+ * periodStart is always the first instant of a UTC calendar month, so a
+ * limit's reset always lands on a real calendar boundary rather than a
+ * rolling 30-day window. Checked and incremented atomically inside a
+ * transaction (EntitlementsService.checkAndIncrement) — see that method's
+ * own doc comment for the concurrency-safety argument, since two
+ * simultaneous requests racing this row is the exact failure mode a hard
+ * usage cap must never allow through.
+ */
+model UsageCounter {
+  id               String           @id @default(uuid())
+  candidateId      String
+  candidateProfile CandidateProfile @relation(fields: [candidateId], references: [id])
+  metric           String
+  periodStart      DateTime
+  count            Int              @default(0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@unique([candidateId, metric, periodStart])
+}
+
+/**
+ * Which employer action produced a ProfileView row — MESSAGE is reserved
+ * for a future messaging feature (none exists in this codebase yet, so
+ * nothing writes it today); the other four each have a real call site
+ * (see ProfileViewsService.record's callers).
+ */
+enum ProfileViewSource {
+  DETAIL_VIEW
+  SHORTLIST
+  REJECT
+  MESSAGE
+  STATUS_CHANGE
+}
+
+/**
+ * One employer's look at one candidate — recorded regardless of the
+ * candidate's tier (an upgrading candidate must see real history
+ * immediately, not just views from after they upgraded); only the
+ * *display* of this data is tier-gated (PLANS.profileViewers:
+ * 'count_only' for FREE, 'full' for PREMIUM — see
+ * ProfileViewsService.getViewersForCandidate).
+ * Deliberately NOT written from list surfaces (GET /candidates/search,
+ * GET /jobs/:id/applicants, GET /jobs/:id/matches) — appearing in a list
+ * isn't a view, and counting it would inflate the very signal this
+ * feature exists to sell. Written from: the single-candidate detail
+ * fetch (DETAIL_VIEW) and employer actions that imply the employer
+ * actually reviewed this candidate (SHORTLIST, REJECT, STATUS_CHANGE).
+ * Deduped to at most one row per (employerId, candidateId, source) per
+ * rolling 24h window (see ProfileViewsService.record) — a candidate
+ * repeatedly rejecting/re-fetching the same profile shouldn't multiply
+ * their own view count.
+ */
+model ProfileView {
+  id               String            @id @default(uuid())
+  candidateId      String
+  candidateProfile CandidateProfile  @relation(fields: [candidateId], references: [id])
+  employerId       String
+  employer         User              @relation(fields: [employerId], references: [id])
+  source           ProfileViewSource
+  viewedAt         DateTime          @default(now())
+
+  @@index([candidateId, viewedAt])
 }
 
 // ---------- Job postings (employer side, step 3b) ----------
@@ -768,18 +894,31 @@ model Question {
 }
 
 model Attempt {
-  id           String        @id @default(uuid())
-  userId       String
-  user         User          @relation(fields: [userId], references: [id])
-  assessmentId String
-  assessment   Assessment    @relation(fields: [assessmentId], references: [id])
-  status       AttemptStatus @default(CREATED)
-  startedAt    DateTime?
-  submittedAt  DateTime?
-  scorePercent Int?
-  passed       Boolean?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id            String        @id @default(uuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  assessmentId  String
+  assessment    Assessment    @relation(fields: [assessmentId], references: [id])
+  status        AttemptStatus @default(CREATED)
+  startedAt     DateTime?
+  submittedAt   DateTime?
+  scorePercent  Int?
+  passed        Boolean?
+  /**
+   * This candidate's ordinal attempt number for the attempt's skill (across
+   * every level of that skill, not just this exact assessment) — 1 for a
+   * skill's very first attempt, 2+ for a retake. Set once at creation by
+   * EntitlementsService.checkRetakeEligibility (the same call that enforces
+   * retakeCooldownDays/retakesPerSkillLifetime — see that method's doc
+   * comment for exactly what counts as a prior attempt), never recomputed
+   * or updated afterward. Copied onto Badge.attemptNumber at issuance so
+   * "earned on attempt #N" survives independently of this row — see that
+   * field's own doc comment for why. Backfilled for pre-existing rows by
+   * the introducing migration using the same per-(user, skill) ordering.
+   */
+  attemptNumber Int           @default(1)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   // Integrity monitoring — aggregate counters kept in sync with IntegrityEvent
   // rows by AssessmentsService (see addIntegrityEvent); never written by the client.
@@ -871,21 +1010,30 @@ model AttemptAnswer {
  * user+skill+level, rather than by mutating this table.
  */
 model Badge {
-  id         String                  @id @default(uuid())
-  userId     String
-  user       User                    @relation(fields: [userId], references: [id])
-  skillId    String
-  skill      Skill                   @relation(fields: [skillId], references: [id])
-  attemptId  String?                 @unique
-  attempt    Attempt?                @relation(fields: [attemptId], references: [id])
-  sessionId  String?                 @unique
-  session    AssessmentSession?      @relation(fields: [sessionId], references: [id])
-  verifiedBy BadgeVerificationMethod
-  verifyHash String                  @unique
-  level      SkillLevel
-  issuedAt   DateTime                @default(now())
-  expiresAt  DateTime
-  revokedAt  DateTime?
+  id            String                  @id @default(uuid())
+  userId        String
+  user          User                    @relation(fields: [userId], references: [id])
+  skillId       String
+  skill         Skill                   @relation(fields: [skillId], references: [id])
+  attemptId     String?                 @unique
+  attempt       Attempt?                @relation(fields: [attemptId], references: [id])
+  sessionId     String?                 @unique
+  session       AssessmentSession?      @relation(fields: [sessionId], references: [id])
+  verifiedBy    BadgeVerificationMethod
+  verifyHash    String                  @unique
+  level         SkillLevel
+  issuedAt      DateTime                @default(now())
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  /**
+   * Copied from Attempt.attemptNumber at issuance (AssessmentsService.issueBadge)
+   * — employer-facing credibility ("earned on attempt #N") depends on this
+   * surviving independently of the Attempt row. Null for session-issued
+   * badges (ReviewService.issueBadge) — the discussion format has its own,
+   * separate retake/cooldown system (AssessmentSession.preDisputeStatus /
+   * ClaimDispute) and isn't in scope for the attemptNumber feature.
+   */
+  attemptNumber Int?
 
   skillClaim SkillClaim?
 

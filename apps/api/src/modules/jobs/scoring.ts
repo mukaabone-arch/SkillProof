@@ -196,3 +196,38 @@ export function scoreCandidate(
 
   return { score, matched, missing };
 }
+
+/**
+ * Employer-facing candidate ranking (MatchingService.getMatches) applies
+ * PLANS[tier].searchRankBoost as a pure tiebreaker, never as points added to
+ * `score` itself — a paying candidate must never outrank a better-matched
+ * one, or employers lose trust in results. Enforced by only ever comparing
+ * tierBoost *within* the same scoreBand: two candidates land in the same
+ * band iff their raw scores are within SCORE_BAND_WIDTH of each other
+ * (rounded down to the same bucket), so the boost can only reorder
+ * candidates who were already roughly equally well-matched — it can never
+ * let a lower-scoring candidate leapfrog a meaningfully better one.
+ */
+export const SCORE_BAND_WIDTH = 10;
+
+/** 0-99 → bands 9,8,...,0 (100 also falls in band 10, kept distinct from 90-99's band 9). */
+export function scoreBand(score: number): number {
+  return Math.floor(score / SCORE_BAND_WIDTH);
+}
+
+/**
+ * Sort comparator for ranking candidates against one job: highest scoreBand
+ * first, then within the same band the highest tierBoost, then within that
+ * the highest raw score. Pass `{ score, tierBoost: 0 }` for any candidate
+ * whose tier isn't PREMIUM (or whenever boosting is disabled) — a boost of 0
+ * is a no-op tiebreaker, falling straight through to raw score.
+ */
+export function compareByMatchRank(a: { score: number; tierBoost: number }, b: { score: number; tierBoost: number }): number {
+  const bandDiff = scoreBand(b.score) - scoreBand(a.score);
+  if (bandDiff !== 0) return bandDiff;
+
+  const boostDiff = b.tierBoost - a.tierBoost;
+  if (boostDiff !== 0) return boostDiff;
+
+  return b.score - a.score;
+}

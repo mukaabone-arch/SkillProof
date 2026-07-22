@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClaimStatus, Prisma, ShortlistStage } from '@prisma/client';
+import { ClaimStatus, Prisma, ProfileViewSource, ShortlistStage } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ProfileViewsService } from '../profile-views/profile-views.service';
 import { AddShortlistEntryDto, UpdateShortlistEntryDto } from './shortlist.dto';
 
 const shortlistEntryInclude = {
@@ -18,7 +19,10 @@ type ShortlistEntryWithRelations = Prisma.ShortlistEntryGetPayload<{ include: ty
 
 @Injectable()
 export class ShortlistService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly profileViews: ProfileViewsService,
+  ) {}
 
   /**
    * Idempotent-ish: adding the same (orgId, candidateId, jobId) triple a
@@ -38,6 +42,8 @@ export class ShortlistService {
    * the same one for null jobId.
    */
   async add(orgId: string, userId: string, dto: AddShortlistEntryDto) {
+    await this.profileViews.record(dto.candidateId, userId, ProfileViewSource.SHORTLIST);
+
     if (dto.jobId) {
       await this.getOwnedJob(orgId, dto.jobId);
       const entry = await this.prisma.shortlistEntry.upsert({
@@ -129,6 +135,8 @@ export class ShortlistService {
           level: c.level,
           verifiedBy: c.badge!.verifiedBy,
           verifyHash: c.badge!.verifyHash,
+          // Employer-facing credibility — null for session-issued badges (see Badge.attemptNumber's doc comment).
+          attemptNumber: c.badge!.attemptNumber,
         })),
       job: entry.job,
       stage: entry.stage,

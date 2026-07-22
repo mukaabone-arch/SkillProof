@@ -14,6 +14,7 @@ import { AssessmentSessionsService } from '../assessment-sessions/assessment-ses
 import { DISCUSSION_DURATION_MINS, DISCUSSION_SLUG, SKILL_LEVEL as DISCUSSION_LEVEL, SKILL_NAME as DISCUSSION_SKILL_NAME } from '../assessment-sessions/rag-systems-l2.rubric';
 import { CandidateJobsService } from '../jobs/candidate-jobs.service';
 import { assertProfileReadyForAssessment } from '../profiles/profile-readiness';
+import { EntitlementsService } from '../entitlements/entitlements.service';
 
 /** How many of the candidate's highest-scoring matched jobs count toward a skill's relevanceCount. */
 const RELEVANCE_TOP_JOBS = 5;
@@ -54,6 +55,7 @@ export class AssessmentsService {
     private readonly badgeResolver: BadgeResolverService,
     private readonly sessions: AssessmentSessionsService,
     private readonly candidateJobs: CandidateJobsService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   /**
@@ -283,7 +285,14 @@ export class AssessmentsService {
         status: { in: [AttemptStatus.CREATED, AttemptStatus.IN_PROGRESS] },
       },
     });
-    if (active) return active;
+    if (active) {
+      // Not a genuinely new use — EntitlementGuard already charged one unit
+      // of the 'assessments' metric before this method ever ran (see
+      // AssessmentsController.start); undo that charge since we're handing
+      // back the same in-progress attempt, not starting another one.
+      await this.entitlements.refund(userId, 'assessments');
+      return active;
+    }
 
     // Profile-readiness gate — "profile is step one." Same rule as
     // CandidateJobsService.apply's PROFILE_INCOMPLETE check (name + a
@@ -307,6 +316,11 @@ export class AssessmentsService {
     // policy existed is never retroactively locked out of finishing it.
     await this.badgeResolver.assertLevelAvailable(userId, assessment.skillId, assessment.targetLevel);
 
+    // Tier-based retake cooldown/lifetime cap — see
+    // EntitlementsService.checkRetakeEligibility. Also gives us this
+    // attempt's ordinal attemptNumber, stamped below.
+    const { attemptNumber } = await this.entitlements.checkRetakeEligibility(userId, assessment.skillId);
+
     const pool = await this.prisma.question.findMany({
       where: { assessmentId, isLive: true },
       select: { id: true },
@@ -325,6 +339,7 @@ export class AssessmentsService {
         assessmentId,
         status: AttemptStatus.IN_PROGRESS,
         startedAt: new Date(),
+        attemptNumber,
       },
     });
 
@@ -433,6 +448,7 @@ export class AssessmentsService {
             verifyHash: full!.badge.verifyHash,
             level: full!.badge.level,
             expiresAt: full!.badge.expiresAt,
+            attemptNumber: full!.badge.attemptNumber,
           }
         : null,
       // Deliberately no integrity fields here — this is the candidate's own
@@ -474,6 +490,8 @@ export class AssessmentsService {
       issuedAt: badge.issuedAt,
       expiresAt: badge.expiresAt,
       valid: badge.expiresAt > new Date(),
+      /** Null for session-issued badges — see Badge.attemptNumber's own doc comment. */
+      attemptNumber: badge.attemptNumber,
       /**
        * A positive-only trust signal — true only when the attempt is
        * currently CLEAN (never flagged, or flagged and then admin-APPROVED,
@@ -579,7 +597,7 @@ export class AssessmentsService {
     });
 
     if (passed) {
-      await this.issueBadge(attempt.userId, graded.id, assessment.skillId, assessment.targetLevel);
+      await this.issueBadge(attempt.userId, graded.id, assessment.skillId, assessment.targetLevel, attempt.attemptNumber);
     }
   }
 
@@ -686,7 +704,7 @@ export class AssessmentsService {
     }
   }
 
-  private async issueBadge(userId: string, attemptId: string, skillId: string, level: any) {
+  private async issueBadge(userId: string, attemptId: string, skillId: string, level: any, attemptNumber: number) {
     const badge = await this.prisma.badge.create({
       data: {
         userId,
@@ -696,6 +714,7 @@ export class AssessmentsService {
         verifiedBy: BadgeVerificationMethod.TEST,
         verifyHash: randomBytes(12).toString('hex'),
         expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 1.5), // 18 months
+        attemptNumber,
       },
     });
 

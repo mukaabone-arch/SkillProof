@@ -1,13 +1,15 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { ApplicationStatus, NotificationType } from '@prisma/client';
+import { ApplicationStatus, NotificationType, ProfileViewSource } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ProfileViewsService } from '../profile-views/profile-views.service';
 
 @Injectable()
 export class ApplicationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly profileViews: ProfileViewsService,
   ) {}
 
   async listMine(userId: string) {
@@ -47,7 +49,7 @@ export class ApplicationsService {
   }
 
   /** Employer-facing: IDOR protection via the job's orgId, same pattern as JobsService.getOwnedJob. */
-  async updateStatus(orgId: string, applicationId: string, status: ApplicationStatus) {
+  async updateStatus(orgId: string, employerUserId: string, applicationId: string, status: ApplicationStatus) {
     const application = await this.prisma.application.findUnique({
       where: { id: applicationId },
       include: {
@@ -63,6 +65,7 @@ export class ApplicationsService {
       data: { status },
       include: { job: { select: { title: true, organization: { select: { name: true } } } } },
     });
+    await this.profileViews.record(application.candidateProfileId, employerUserId, ProfileViewSource.STATUS_CHANGE);
 
     try {
       const subject = `Your application to ${updated.job.title} was updated`;
