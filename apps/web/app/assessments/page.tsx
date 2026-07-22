@@ -19,6 +19,8 @@ import CandidateNav from '@/components/CandidateNav';
 import { isSafeReturnTo } from '@/lib/returnTo';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import { isProfileReadyForAssessment, missingReadinessFields, readinessGateMessage } from '@/lib/profileReadiness';
+import { useEntitlements } from '@/lib/entitlements';
+import { UsageMeter } from '@/components/UsageMeter';
 
 type SkillLevelName = 'L1' | 'L2' | 'L3' | 'L4';
 type VerificationMethod = 'TEST' | 'DISCUSSION';
@@ -285,6 +287,7 @@ function AssessmentsPageInner() {
   const returnTo = searchParams.get('returnTo');
 
   const ready = useRequireAuth();
+  const { usage } = useEntitlements();
   const [skills, setSkills] = useState<CatalogSkill[]>([]);
   const [error, setError] = useState('');
   const [profile, setProfile] = useState<{
@@ -326,6 +329,14 @@ function AssessmentsPageInner() {
       <main>
         <h1>Assessments</h1>
         <p>Pass an assessment to earn a verified skill badge.</p>
+        {usage && (
+          <UsageMeter
+            label="assessment starts"
+            used={usage.assessments.used}
+            limit={usage.assessments.limit}
+            resetsAt={usage.assessments.resetsAt}
+          />
+        )}
         {error && <p className="error">{error}</p>}
         {skills.length === 0 && !error && (
           <p>

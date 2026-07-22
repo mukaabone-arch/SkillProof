@@ -9,6 +9,7 @@ import CandidateNav from '@/components/CandidateNav';
 import { isSafeReturnTo } from '@/lib/returnTo';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import CertificationsPanel from '@/components/CertificationsPanel';
+import ProfileViewersPanel from '@/components/ProfileViewersPanel';
 
 /**
  * Structured role dropdown — display/filter only, mirrors the API's
@@ -674,6 +675,7 @@ function ProfilePageInner() {
           </section>
 
           <CertificationsPanel />
+          <ProfileViewersPanel />
           </div>
           </div>
         </>

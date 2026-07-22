@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { EmptyState } from '@/components/ui';
+import { useEntitlements } from '@/lib/entitlements';
 
 interface Skill {
   id: string;
@@ -92,6 +93,25 @@ interface Me {
 
 type Tab = 'matched' | 'browse' | 'applications';
 
+/**
+ * applicationStatusDetail: false collapses the 5 raw ApplicationStatus
+ * values into 3 coarser buckets — still fully honest (nothing that
+ * happened is hidden), just less granular than Premium's exact status.
+ * The raw `status` is always fetched regardless of tier (GET
+ * /applications/me never withholds it); this is purely a display choice.
+ */
+const COARSE_STATUS: Record<string, string> = {
+  APPLIED: 'Submitted',
+  REVIEWED: 'In review',
+  SHORTLISTED: 'In review',
+  REJECTED: 'Decided',
+  WITHDRAWN: 'Decided',
+};
+
+function displayStatus(status: string, detailed: boolean): string {
+  return detailed ? status : COARSE_STATUS[status] ?? status;
+}
+
 function isValidTab(value: string | null): value is Tab {
   return value === 'matched' || value === 'browse' || value === 'applications';
 }
@@ -124,6 +144,7 @@ export default function CandidateJobs() {
   const requestedTab = searchParams.get('tab');
   const [tab, setTab] = useState<Tab>(isValidTab(requestedTab) ? requestedTab : 'matched');
   const [domains, setDomains] = useState<Domain[]>([]);
+  const { limits } = useEntitlements();
 
   const [skillId, setSkillId] = useState('');
   const [location, setLocation] = useState('');
@@ -340,8 +361,13 @@ export default function CandidateJobs() {
             <div key={a.id} className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
               <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
                 <strong>{a.job.title}</strong>
-                <span className="meta">{a.status}</span>
+                <span className="meta">{displayStatus(a.status, limits?.applicationStatusDetail ?? false)}</span>
               </div>
+              {!limits?.applicationStatusDetail && (
+                <div className="meta" style={{ marginTop: -2 }}>
+                  <Link href="/upgrade">Upgrade</Link> to see the exact status instead of a rough stage.
+                </div>
+              )}
               <div className="meta">
                 {a.job.orgName} · {a.job.employmentType.replace('_', ' ')} ·{' '}
                 {a.job.remote ? 'Remote' : a.job.location || 'Location not set'}
