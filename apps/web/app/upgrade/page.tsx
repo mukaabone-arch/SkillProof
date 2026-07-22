@@ -14,8 +14,10 @@ import { useEntitlements, PlanLimits, SubscriptionTier } from '@/lib/entitlement
 import CandidateNav from '@/components/CandidateNav';
 
 interface PlansResponse {
-  FREE: PlanLimits;
-  PREMIUM: PlanLimits;
+  tiers: {
+    FREE: PlanLimits;
+    PREMIUM: PlanLimits;
+  };
 }
 
 const TIERS: SubscriptionTier[] = ['FREE', 'PREMIUM'];
@@ -137,7 +139,7 @@ export default function UpgradePage() {
                       <li key={row.label}>
                         <span className="plan-feature-icon">·</span>
                         <span>
-                          <strong>{row.label}:</strong> {row.format(plans[tier])}
+                          <strong>{row.label}:</strong> {row.format(plans.tiers[tier])}
                         </span>
                       </li>
                     ))}
