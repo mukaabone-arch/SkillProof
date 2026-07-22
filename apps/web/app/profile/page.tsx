@@ -8,7 +8,7 @@ import { api, apiBlob } from '@/lib/api';
 import CandidateNav from '@/components/CandidateNav';
 import { isSafeReturnTo } from '@/lib/returnTo';
 import { useRequireAuth } from '@/lib/useRequireAuth';
-import { Badge, EmptyState } from '@/components/ui';
+import CertificationsPanel from '@/components/CertificationsPanel';
 
 /**
  * Structured role dropdown — display/filter only, mirrors the API's
@@ -105,51 +105,6 @@ interface FormState {
   linkedinUrl: string;
 }
 
-type CredentialIssuer = 'CREDLY' | 'AWS' | 'GOOGLE' | 'AZURE' | 'NVIDIA' | 'DATABRICKS' | 'IBM' | 'OTHER';
-type CredentialVerificationState = 'PENDING' | 'VERIFIED' | 'FAILED';
-type NameMatchState = 'MATCH' | 'MISMATCH' | 'UNCHECKED';
-
-interface ExternalCredential {
-  id: string;
-  issuer: CredentialIssuer;
-  name: string | null;
-  credentialUrl: string;
-  verificationState: CredentialVerificationState;
-  nameMatchState: NameMatchState;
-  issuedAt: string | null;
-  expiresAt: string | null;
-  /** rawMetadata.holderName is the only place the badge holder's name lives — see NameMatchState. */
-  rawMetadata: { holderName?: string | null } | null;
-}
-
-const ISSUER_LABELS: Record<CredentialIssuer, string> = {
-  CREDLY: 'Credly',
-  AWS: 'AWS',
-  GOOGLE: 'Google',
-  AZURE: 'Microsoft Azure',
-  NVIDIA: 'NVIDIA',
-  DATABRICKS: 'Databricks',
-  IBM: 'IBM',
-  OTHER: 'Unknown issuer',
-};
-
-// Mirrors the backend's CredlyVerificationService badge-URL pattern — kept
-// client-side so we can reject non-badge URLs before ever hitting the API,
-// instead of creating a doomed PENDING record for a link we already know
-// can't verify.
-const CREDLY_BADGE_URL_RE = /^https?:\/\/(?:www\.)?credly\.com\/badges\/[0-9a-fA-F-]{36}(?:[/?#].*)?$/;
-const CREDLY_PROFILE_URL_RE = /^https?:\/\/(?:www\.)?credly\.com\/users\//i;
-
-/** Empty string = valid (or nothing typed yet). */
-function validateCredentialUrl(url: string): string {
-  if (!url) return '';
-  if (CREDLY_BADGE_URL_RE.test(url)) return '';
-  if (CREDLY_PROFILE_URL_RE.test(url)) {
-    return "That looks like a profile URL. Open a specific badge and paste its URL instead.";
-  }
-  return 'Paste the URL of a single Credly badge — it should look like credly.com/badges/<id>.';
-}
-
 function toForm(p: Profile): FormState {
   return {
     fullName: p.fullName ?? '',
@@ -201,12 +156,6 @@ function ProfilePageInner() {
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
 
-  const [credentials, setCredentials] = useState<ExternalCredential[]>([]);
-  const [credentialUrl, setCredentialUrl] = useState('');
-  const [addingCredential, setAddingCredential] = useState(false);
-  const [credentialError, setCredentialError] = useState('');
-  const [deletingCredentialId, setDeletingCredentialId] = useState<string | null>(null);
-
   useEffect(() => {
     if (!ready) return;
     api<Profile>('/profiles/me')
@@ -219,9 +168,6 @@ function ProfilePageInner() {
         if (p.hasPhoto) loadPhoto(p.id);
       })
       .catch((e) => setError(e.message));
-    api<ExternalCredential[]>('/profiles/me/external-credentials')
-      .then(setCredentials)
-      .catch(() => undefined);
   }, [ready]);
 
   // Revoke the last blob: URL on unmount — createObjectURL'd blobs are
@@ -405,56 +351,6 @@ function ProfilePageInner() {
       setApplying(false);
     }
   }
-
-  async function addCredential() {
-    const url = credentialUrl.trim();
-    if (!url || validateCredentialUrl(url)) return;
-    setAddingCredential(true);
-    setCredentialError('');
-    try {
-      const created = await api<ExternalCredential>('/profiles/me/external-credentials', {
-        method: 'POST',
-        body: JSON.stringify({ credentialUrl: url }),
-      });
-      setCredentials((prev) => [created, ...prev]);
-      setCredentialUrl('');
-    } catch (e) {
-      setCredentialError((e as Error).message);
-    } finally {
-      setAddingCredential(false);
-    }
-  }
-
-  async function removeCredential(id: string) {
-    setDeletingCredentialId(id);
-    setCredentialError('');
-    try {
-      await api(`/profiles/me/external-credentials/${id}`, { method: 'DELETE' });
-      setCredentials((prev) => prev.filter((c) => c.id !== id));
-    } catch (e) {
-      setCredentialError((e as Error).message);
-    } finally {
-      setDeletingCredentialId(null);
-    }
-  }
-
-  /**
-   * Deliberately never uses Badge variant="verified" (the reserved
-   * SkillProof-assessed green) — external credentials get the indigo
-   * "default" pill instead, so the two proof tiers stay visually distinct
-   * at a glance everywhere they're shown, here and on the employer side.
-   */
-  function credentialStatus(c: ExternalCredential) {
-    if (c.verificationState === 'VERIFIED') {
-      return <Badge variant="default">Verified via Credly</Badge>;
-    }
-    if (c.verificationState === 'FAILED') {
-      return <Badge variant="danger">Couldn&apos;t verify</Badge>;
-    }
-    return <Badge variant="neutral">Pending</Badge>;
-  }
-
-  const credentialUrlError = validateCredentialUrl(credentialUrl.trim());
 
   if (!ready) return null;
 
@@ -777,109 +673,7 @@ function ProfilePageInner() {
           )}
           </section>
 
-          <section className="ui-card profile-panel">
-          <h2>External credentials</h2>
-          <p>
-            Add certifications from other platforms. Credly badge URLs are verified automatically
-            by checking the badge is public — these are shown to employers as a separate,
-            distinctly-styled tier from your SkillProof-verified skills, and never affect your
-            match score.
-          </p>
-
-          <div className="field">
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <label htmlFor="credentialUrl" style={{ margin: 0, whiteSpace: 'nowrap' }}>Credly badge URL</label>
-              <details className="hint-toggle">
-                <summary>How do I find this?</summary>
-                <div className="hint-popover">
-                  Paste the URL of one specific badge, not your Credly profile — it looks like{' '}
-                  <code>credly.com/badges/&lt;id&gt;</code>.
-                  <br />
-                  To find it: open your Credly profile → click a badge → copy that page&apos;s URL.
-                  Make sure the badge is set to <strong>public</strong> in Credly.
-                </div>
-              </details>
-            </div>
-            <input
-              id="credentialUrl"
-              value={credentialUrl}
-              onChange={(e) => setCredentialUrl(e.target.value)}
-              placeholder="https://www.credly.com/badges/..."
-              className={credentialUrlError ? 'field-input-error' : undefined}
-            />
-            {credentialUrlError && <p className="field-error">{credentialUrlError}</p>}
-          </div>
-          <div className="row">
-            <button
-              onClick={addCredential}
-              disabled={!credentialUrl.trim() || !!credentialUrlError || addingCredential}
-            >
-              {addingCredential ? 'Adding…' : 'Add credential'}
-            </button>
-          </div>
-          {credentialError && <p className="error">{credentialError}</p>}
-
-          {credentials.length === 0 ? (
-            <EmptyState message="No external credentials yet — paste a Credly badge URL above to add one." />
-          ) : (
-            credentials.map((c) => (
-              <div
-                key={c.id}
-                className="card"
-                style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}
-              >
-                {credentialStatus(c)}
-
-                {c.verificationState === 'VERIFIED' && (
-                  <>
-                    <strong>{c.name}</strong>
-                    <div className="meta">{ISSUER_LABELS[c.issuer]}</div>
-                    <div className="meta">
-                      Issued {c.issuedAt ? new Date(c.issuedAt).toLocaleDateString() : 'Unknown'}
-                      {' · '}
-                      {c.expiresAt ? `Expires ${new Date(c.expiresAt).toLocaleDateString()}` : 'No expiration'}
-                    </div>
-                    <a href={c.credentialUrl} target="_blank" rel="noopener noreferrer">
-                      View badge on Credly ↗
-                    </a>
-                    {c.nameMatchState === 'MISMATCH' && (
-                      <p className="meta" style={{ margin: 0 }}>
-                        The name on this badge
-                        {c.rawMetadata?.holderName ? ` (${c.rawMetadata.holderName})` : ''} doesn&apos;t
-                        match your profile name{form.fullName ? ` (${form.fullName})` : ''}. Make sure
-                        this credential is yours; employers may see this flag.
-                      </p>
-                    )}
-                  </>
-                )}
-
-                {c.verificationState === 'FAILED' && (
-                  <p className="meta" style={{ margin: 0 }}>
-                    Couldn&apos;t verify this badge — make sure it&apos;s set to public on Credly,
-                    then remove this and paste the URL again.
-                  </p>
-                )}
-
-                {c.verificationState === 'PENDING' && (
-                  <p className="meta" style={{ margin: 0 }}>
-                    We don&apos;t automatically verify this issuer yet — this link is saved but
-                    unconfirmed.
-                  </p>
-                )}
-
-                {c.verificationState !== 'VERIFIED' && (
-                  <div className="meta" style={{ wordBreak: 'break-all' }}>{c.credentialUrl}</div>
-                )}
-
-                <div className="row" style={{ margin: 0, marginTop: 4 }}>
-                  <button onClick={() => removeCredential(c.id)} disabled={deletingCredentialId === c.id}>
-                    {deletingCredentialId === c.id ? 'Removing…' : 'Remove'}
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-          </section>
+          <CertificationsPanel />
           </div>
           </div>
         </>

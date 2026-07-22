@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { BadgeVerificationMethod, ClaimStatus, SkillLevel } from '@prisma/client';
+import { BadgeVerificationMethod, CertVerificationStatus, ClaimStatus, SkillLevel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../llm/llm.service';
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
@@ -38,6 +38,11 @@ export class MatchingService {
     // if they have >=1 VERIFIED claim somewhere — further narrowed to those
     // with any claim (verified or not) on a skill this job actually asks for,
     // so we don't score the entire candidate pool against an unrelated job.
+    // Deliberately NOT widened to admit candidates whose only proof is a
+    // verified Certification with no SkillClaim at all — that's a separate,
+    // bigger product decision about employer-facing candidate discovery.
+    // certifiedSkillIds below only ever raises the score of a candidate who
+    // already cleared this gate; it never lets someone new into the pool.
     const profiles = await this.prisma.candidateProfile.findMany({
       where: {
         deletedAt: null,
@@ -50,6 +55,17 @@ export class MatchingService {
         skillClaims: {
           where: { skillId: { in: jobSkillIds } },
           include: { skill: true, badge: true },
+        },
+        // Only VERIFIED, non-expired rows, and only tags relevant to this
+        // job — see scoring.ts's certifiedSkillIds contract. LINK_PROVIDED/
+        // SELF_REPORTED certifications must never reach scoreCandidate.
+        certifications: {
+          where: {
+            verificationStatus: CertVerificationStatus.VERIFIED,
+            skillTags: { hasSome: jobSkillIds },
+            OR: [{ expiryDate: null }, { expiryDate: { gt: new Date() } }],
+          },
+          select: { skillTags: true },
         },
       },
     });
@@ -64,10 +80,12 @@ export class MatchingService {
         });
       }
       const claimRowsBySkillId = new Map(profile.skillClaims.map((c) => [c.skillId, c]));
+      const certifiedSkillIds = new Set(profile.certifications.flatMap((c) => c.skillTags));
 
       const result = scoreCandidate(
         jobSkills,
         claimsBySkillId,
+        certifiedSkillIds,
         profile.yearsOfExp,
         job.experienceMin,
         job.experienceMax,

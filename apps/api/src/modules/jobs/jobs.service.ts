@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { ClaimStatus, CredentialVerificationState, JobStatus } from '@prisma/client';
+import { CertVerificationStatus, ClaimStatus, CredentialVerificationState, JobStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../llm/llm.service';
 import { ProfilesService } from '../profiles/profiles.service';
@@ -105,6 +105,11 @@ export class JobsService {
    * entirely (per scoring.ts's separation from the external-credentials
    * system) — only VERIFIED ones are returned, so the employer judges
    * relevance themselves rather than us presenting an unverified claim.
+   * (This list is the older, Credly-only ExternalCredential table; it's
+   * left as-is here deliberately — see Certification's doc comment in
+   * schema.prisma. Certification's own VERIFIED skill tags DO feed the
+   * `score` number below, same as MatchingService, but aren't yet
+   * surfaced as their own list on this card — a separate follow-up.)
    */
   async getApplicants(orgId: string, jobId: string) {
     await this.getOwnedJob(orgId, jobId);
@@ -128,6 +133,16 @@ export class JobsService {
           include: {
             skillClaims: { include: { skill: true, badge: true } },
             externalCredentials: { where: { verificationState: CredentialVerificationState.VERIFIED } },
+            // Score-only — see this method's doc comment. Same VERIFIED/
+            // non-expired/relevant-tags filter as MatchingService.
+            certifications: {
+              where: {
+                verificationStatus: CertVerificationStatus.VERIFIED,
+                skillTags: { hasSome: jobSkills.map((s) => s.skillId) },
+                OR: [{ expiryDate: null }, { expiryDate: { gt: new Date() } }],
+              },
+              select: { skillTags: true },
+            },
           },
         },
       },
@@ -143,11 +158,18 @@ export class JobsService {
           verified: c.status === ClaimStatus.VERIFIED,
         });
       }
+      const certifiedSkillIds = new Set(profile.certifications.flatMap((c) => c.skillTags));
 
       const score =
         jobSkills.length > 0
-          ? scoreCandidate(jobSkills, claimsBySkillId, profile.yearsOfExp, job.experienceMin, job.experienceMax)
-              .score
+          ? scoreCandidate(
+              jobSkills,
+              claimsBySkillId,
+              certifiedSkillIds,
+              profile.yearsOfExp,
+              job.experienceMin,
+              job.experienceMax,
+            ).score
           : null;
 
       return {

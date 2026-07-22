@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { ClaimStatus, JobStatus, NotificationType, Prisma } from '@prisma/client';
+import { CertVerificationStatus, ClaimStatus, JobStatus, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
@@ -68,6 +68,14 @@ export class MatchDigestService {
         yearsOfExp: true,
         skillClaims: { select: { skillId: true, level: true, status: true } },
         applications: { select: { jobId: true } },
+        // See scoring.ts's certifiedSkillIds contract — VERIFIED, non-expired only.
+        certifications: {
+          where: {
+            verificationStatus: CertVerificationStatus.VERIFIED,
+            OR: [{ expiryDate: null }, { expiryDate: { gt: new Date() } }],
+          },
+          select: { skillTags: true },
+        },
       },
     });
     if (candidates.length === 0) return;
@@ -92,6 +100,7 @@ export class MatchDigestService {
           verified: c.status === ClaimStatus.VERIFIED,
         });
       }
+      const certifiedSkillIds = new Set(candidate.certifications.flatMap((c) => c.skillTags));
       const excluded = new Set([
         ...candidate.applications.map((a) => a.jobId),
         ...(alreadyNotified.get(candidate.userId) ?? []),
@@ -99,7 +108,7 @@ export class MatchDigestService {
 
       const matches = liveJobs
         .filter((job) => !excluded.has(job.id))
-        .map((job) => ({ job, result: this.score(job, claimsBySkillId, candidate.yearsOfExp) }))
+        .map((job) => ({ job, result: this.score(job, claimsBySkillId, certifiedSkillIds, candidate.yearsOfExp) }))
         .filter(({ result }) => result.score >= MATCH_THRESHOLD)
         .sort((a, b) => b.result.score - a.result.score);
 
@@ -118,6 +127,7 @@ export class MatchDigestService {
   private score(
     job: DigestJob,
     claimsBySkillId: Map<string, CandidateSkillClaim>,
+    certifiedSkillIds: ReadonlySet<string>,
     yearsOfExp: number | null,
   ) {
     const jobSkills: JobSkillRequirement[] = job.skills.map((s) => ({
@@ -126,7 +136,7 @@ export class MatchDigestService {
       requiredLevel: s.requiredLevel,
       isRequired: s.isRequired,
     }));
-    return scoreCandidate(jobSkills, claimsBySkillId, yearsOfExp, job.experienceMin, job.experienceMax);
+    return scoreCandidate(jobSkills, claimsBySkillId, certifiedSkillIds, yearsOfExp, job.experienceMin, job.experienceMax);
   }
 
   private buildDigestHtml(matches: { job: DigestJob; result: { score: number } }[]): string {
