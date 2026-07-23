@@ -10,6 +10,7 @@ import { isSafeReturnTo } from '@/lib/returnTo';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import CertificationsPanel from '@/components/CertificationsPanel';
 import ProfileViewersPanel from '@/components/ProfileViewersPanel';
+import { LocationAutocomplete, LocationSuggestion } from '@/components/LocationAutocomplete';
 
 /**
  * Structured role dropdown — display/filter only, mirrors the API's
@@ -52,7 +53,24 @@ interface Profile {
   headline: string | null;
   roleTitle: CandidateRoleTitle | null;
   roleTitleOther: string | null;
-  location: string | null;
+  /**
+   * Structured city selection from GET /locations/search — non-null once
+   * the candidate has re-selected from the dropdown; locationCity is the
+   * presence signal (see locationDisplay below). ISO 3166-1 alpha-2 for
+   * locationCountry (e.g. "US"), never a display name.
+   */
+  locationCity: string | null;
+  locationRegion: string | null;
+  locationCountry: string | null;
+  locationPlaceId: string | null;
+  locationLat: number | null;
+  locationLng: number | null;
+  /** Pre-migration free-text value — never dropped. Shown as the current
+   * location until locationCity is set; see locationDisplay. */
+  locationLegacy: string | null;
+  /** Independent of location — a candidate open to remote work shouldn't
+   * be excluded by any future location-based filter/matching. */
+  openToRemote: boolean;
   yearsOfExp: number | null;
   githubUrl: string | null;
   linkedinUrl: string | null;
@@ -62,6 +80,13 @@ interface Profile {
    * through the authenticated GET /profiles/:id/photo proxy (see
    * loadPhoto below), never a public URL. */
   hasPhoto: boolean;
+}
+
+/** Structured-preferred display string, same precedence as the API's own
+ * ProfilesService.formatCandidateLocation — never invented independently. */
+function locationDisplay(p: Pick<Profile, 'locationCity' | 'locationRegion' | 'locationCountry' | 'locationLegacy'>): string {
+  if (p.locationCity) return [p.locationCity, p.locationRegion, p.locationCountry].filter(Boolean).join(', ');
+  return p.locationLegacy ?? '';
 }
 
 /** First letters of up to the first two words of a name, for the
@@ -100,7 +125,19 @@ interface FormState {
   /** Holds a CandidateRoleTitle key or '' — plain string like the other <select>-bound form fields. */
   roleTitle: string;
   roleTitleOther: string;
-  location: string;
+  /** What's shown/typed in the location field — a formatted selection, the
+   * legacy free-text value, or whatever the candidate is currently typing. */
+  locationText: string;
+  /** Non-null only when the candidate picked a suggestion from the dropdown
+   * this session — that's what tells save() to write the structured fields
+   * instead of locationLegacy. Typing (without picking) clears this back
+   * to null, same as a failed search falling back to free text. */
+  locationStructured: LocationSuggestion | null;
+  /** From the server at load — true means this profile already has a
+   * structured city on file, so the "re-select from the dropdown" prompt
+   * never needs to show regardless of what's typed afterward. */
+  hasStructuredLocationOnServer: boolean;
+  openToRemote: boolean;
   yearsOfExp: string;
   githubUrl: string;
   linkedinUrl: string;
@@ -113,7 +150,10 @@ function toForm(p: Profile): FormState {
     headline: p.headline ?? '',
     roleTitle: p.roleTitle ?? '',
     roleTitleOther: p.roleTitleOther ?? '',
-    location: p.location ?? '',
+    locationText: locationDisplay(p),
+    locationStructured: null,
+    hasStructuredLocationOnServer: p.locationCity !== null,
+    openToRemote: p.openToRemote,
     yearsOfExp: p.yearsOfExp !== null && p.yearsOfExp !== undefined ? String(p.yearsOfExp) : '',
     githubUrl: p.githubUrl ?? '',
     linkedinUrl: p.linkedinUrl ?? '',
@@ -253,11 +293,25 @@ function ProfilePageInner() {
         // Only meaningful when roleTitle is OTHER — omitted otherwise so a
         // stale value from a previous OTHER selection doesn't linger unread.
         roleTitleOther: form.roleTitle === 'OTHER' ? form.roleTitleOther || undefined : undefined,
-        location: form.location || undefined,
         githubUrl: form.githubUrl || undefined,
         linkedinUrl: form.linkedinUrl || undefined,
+        openToRemote: form.openToRemote,
       };
       if (form.yearsOfExp !== '') body.yearsOfExp = Number(form.yearsOfExp);
+      if (form.locationStructured) {
+        // A real dropdown pick this session — write the structured fields,
+        // never locationLegacy.
+        body.locationCity = form.locationStructured.city;
+        body.locationRegion = form.locationStructured.region || undefined;
+        body.locationCountry = form.locationStructured.country;
+        body.locationPlaceId = form.locationStructured.placeId;
+        body.locationLat = form.locationStructured.lat ?? undefined;
+        body.locationLng = form.locationStructured.lng ?? undefined;
+      } else {
+        // No structured pick this session (search failed, or the candidate
+        // just hasn't re-selected yet) — free text, never dropped.
+        body.locationLegacy = form.locationText || undefined;
+      }
 
       const updated = await api<Profile>('/profiles/me', {
         method: 'PATCH',
@@ -335,7 +389,11 @@ function ProfilePageInner() {
         headline: review.headline || undefined,
         roleTitle: review.roleTitle || undefined,
         roleTitleOther: review.roleTitle === 'OTHER' ? review.roleTitleOther || undefined : undefined,
-        location: review.location || undefined,
+        // AI-extracted text, never a structured city — same fallback field
+        // free-text location entry writes to (see save() above). The
+        // candidate can re-select from the dropdown afterward like any
+        // other legacy value.
+        locationLegacy: review.location || undefined,
       };
       if (review.yearsOfExp !== '') body.yearsOfExp = Number(review.yearsOfExp);
 
@@ -503,12 +561,51 @@ function ProfilePageInner() {
 
           <div className="field">
             <label htmlFor="location">Location</label>
-            <input
+            <LocationAutocomplete
               id="location"
-              value={form.location}
-              onChange={(e) => update('location', e.target.value)}
-              maxLength={120}
+              value={form.locationText}
+              onChangeText={(text) => {
+                setForm((f) => (f ? { ...f, locationText: text, locationStructured: null } : f));
+                setSaved(false);
+              }}
+              onSelect={(s) => {
+                setForm((f) =>
+                  f
+                    ? {
+                        ...f,
+                        locationText: [s.city, s.region, s.country].filter(Boolean).join(', '),
+                        locationStructured: s,
+                      }
+                    : f,
+                );
+                setSaved(false);
+              }}
+              placeholder="Start typing a city…"
             />
+            {!form.hasStructuredLocationOnServer && !form.locationStructured && form.locationText && (
+              <p className="meta" style={{ margin: 0 }}>
+                This is your previously entered location — pick it from the dropdown above to make it
+                official and unlock location-aware features later.
+              </p>
+            )}
+          </div>
+
+          <div className="field">
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
+              <input
+                type="checkbox"
+                checked={form.openToRemote}
+                onChange={(e) => {
+                  setForm((f) => (f ? { ...f, openToRemote: e.target.checked } : f));
+                  setSaved(false);
+                }}
+                style={{ width: 'auto' }}
+              />
+              Open to remote work
+            </label>
+            <p className="meta" style={{ margin: 0 }}>
+              Keeps you visible to remote roles regardless of your location.
+            </p>
           </div>
 
           <div className="field">
