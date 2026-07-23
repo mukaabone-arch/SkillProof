@@ -6,26 +6,37 @@ import { LocationSearchProvider, LocationSuggestion } from './location-search-pr
  * calls issued to enrich each one below. */
 const MAX_SUGGESTIONS = 5;
 
-interface AutocompletePrediction {
-  place_id: string;
-  structured_formatting?: { main_text?: string };
+interface PlacePrediction {
+  placeId: string;
+  structuredFormat?: { mainText?: { text?: string } };
+}
+interface AutocompleteSuggestion {
+  placePrediction?: PlacePrediction;
 }
 interface AutocompleteResponse {
-  status: string;
-  predictions?: AutocompletePrediction[];
+  suggestions?: AutocompleteSuggestion[];
 }
 
 interface AddressComponent {
-  long_name: string;
-  short_name: string;
+  longText: string;
+  shortText: string;
   types: string[];
 }
 interface DetailsResponse {
-  status: string;
-  result?: {
-    address_components?: AddressComponent[];
-    geometry?: { location?: { lat: number; lng: number } };
-  };
+  location?: { latitude: number; longitude: number };
+  addressComponents?: AddressComponent[];
+}
+
+/** Places API (New) reports failures as a non-2xx HTTP status with this
+ * body shape — unlike the legacy API's 200-with-a-status-field pattern
+ * (REQUEST_DENIED, OVER_QUERY_LIMIT, etc. inside an otherwise-ok response).
+ * `error.message` is the whole reason this rewrite exists: the previous
+ * provider logged only a bare status and discarded this field, which is
+ * what made the legacy API's blanket REQUEST_DENIED (new Cloud projects
+ * can't enable it at all — Google now restricts them to this API) so much
+ * harder to diagnose than it needed to be. */
+interface GoogleApiError {
+  error?: { code?: number; message?: string; status?: string };
 }
 
 function componentByType(components: AddressComponent[] | undefined, type: string): AddressComponent | undefined {
@@ -33,17 +44,35 @@ function componentByType(components: AddressComponent[] | undefined, type: strin
 }
 
 /**
- * Google Places Autocomplete (legacy REST API, not the newer Places API
- * (New)) restricted to city-type results via `types=(cities)`. Autocomplete
- * predictions alone never carry geometry or an ISO country code — that's a
- * hard constraint of the API, not a corner cut here — so each prediction is
- * enriched with one Place Details call (fields=address_component,geometry
- * only, to keep it on Places' cheapest "Basic Data" billing SKU) run in
- * parallel, capped to MAX_SUGGESTIONS. This makes every LocationSuggestion
- * immediately persistable (lat/lng/ISO2 country included) with no second
- * round trip needed when the candidate picks one — LocationSearchService's
- * query-level cache is what keeps the resulting per-keystroke cost down for
- * repeated prefixes, not fewer Details calls per uncached query.
+ * Google Places API (New) — replaces the legacy Places Autocomplete/Details
+ * REST API, which Google now refuses to enable on new Cloud projects
+ * (every legacy call came back REQUEST_DENIED). Restricted to city-type
+ * results via includedPrimaryTypes: ['locality'] (the New API's equivalent
+ * of the legacy `types=(cities)` parameter). Auth moves from a `key` query
+ * parameter to an `X-Goog-Api-Key` header, and every call now requires an
+ * X-Goog-FieldMask header naming exactly the fields wanted — the New API
+ * bills by which fields a Details call's mask includes, so both masks below
+ * request only what's actually used downstream (never `*`).
+ *
+ * Eager enrichment (still here, not moved to a per-selection call): every
+ * returned suggestion gets its own parallel Place Details lookup, same as
+ * the legacy provider. This was reconsidered — Places (New) bills Details
+ * separately from Autocomplete, so enriching suggestions the candidate
+ * never picks is a real, avoidable cost — but resolving only the *selected*
+ * suggestion would mean search() returns predictions with no lat/lng/ISO2
+ * country (the New Autocomplete response carries display text only, see
+ * PlacePrediction; geometry and address components are Details-only in
+ * both API generations). That needs either a second endpoint the client
+ * calls at selection time, or LocationSearchProvider growing a second
+ * method — both are a real interface/API-surface change, and the task
+ * scoping this rewrite is explicitly apps/api-only with the provider
+ * interface held fixed. Lazily resolving would also silently start
+ * persisting null lat/lng/country on every new selection until that wiring
+ * exists, which is worse than the extra cost. So this stays eager, capped
+ * at MAX_SUGGESTIONS, with the narrowest field masks available — the real
+ * fix for the "N speculative calls" cost is LocationSearchService's
+ * existing query-level cache, which already makes every repeat of a prefix
+ * free after the first candidate types it.
  */
 @Injectable()
 export class GooglePlacesLocationProvider implements LocationSearchProvider {
@@ -55,23 +84,41 @@ export class GooglePlacesLocationProvider implements LocationSearchProvider {
       throw new ServiceUnavailableException('Location search is not configured.');
     }
 
-    const autocompleteUrl = new URL('https://maps.googleapis.com/maps/api/place/autocomplete/json');
-    autocompleteUrl.searchParams.set('input', query);
-    autocompleteUrl.searchParams.set('types', '(cities)');
-    autocompleteUrl.searchParams.set('key', apiKey);
-
-    const res = await fetch(autocompleteUrl).catch(() => null);
-    if (!res || !res.ok) {
+    let res: Response;
+    try {
+      res = await fetch('https://places.googleapis.com/v1/places:autocomplete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': apiKey,
+          // Only what resolveDetails' fallback city text needs, plus the
+          // placeId itself — never the whole message.
+          'X-Goog-FieldMask': 'suggestions.placePrediction.placeId,suggestions.placePrediction.structuredFormat',
+        },
+        body: JSON.stringify({
+          input: query,
+          includedPrimaryTypes: ['locality'],
+        }),
+      });
+    } catch (e) {
+      this.logger.warn(`Places Autocomplete (New) request threw: ${(e as Error).message}`);
       throw new ServiceUnavailableException('Location search is temporarily unavailable.');
     }
-    const body = (await res.json()) as AutocompleteResponse;
-    if (body.status === 'ZERO_RESULTS') return [];
-    if (body.status !== 'OK') {
-      this.logger.warn(`Places Autocomplete returned status ${body.status}`);
+
+    const body = (await res.json().catch(() => ({}))) as AutocompleteResponse & GoogleApiError;
+    if (!res.ok) {
+      this.logger.warn(
+        `Places Autocomplete (New) failed: HTTP ${res.status} ${body.error?.status ?? '(no status)'} — ` +
+          `${body.error?.message ?? 'Google returned no error message'}`,
+      );
       throw new ServiceUnavailableException('Location search is temporarily unavailable.');
     }
 
-    const predictions = (body.predictions ?? []).slice(0, MAX_SUGGESTIONS);
+    const predictions = (body.suggestions ?? [])
+      .map((s) => s.placePrediction)
+      .filter((p): p is PlacePrediction => !!p?.placeId)
+      .slice(0, MAX_SUGGESTIONS);
+
     const enriched = await Promise.allSettled(predictions.map((p) => this.resolveDetails(p, apiKey)));
 
     return enriched
@@ -82,37 +129,42 @@ export class GooglePlacesLocationProvider implements LocationSearchProvider {
 
   /** One prediction's Details lookup — returns null (rather than throwing)
    * on any failure, so one bad placeId doesn't drop the whole result set. */
-  private async resolveDetails(prediction: AutocompletePrediction, apiKey: string): Promise<LocationSuggestion | null> {
+  private async resolveDetails(prediction: PlacePrediction, apiKey: string): Promise<LocationSuggestion | null> {
     try {
-      const detailsUrl = new URL('https://maps.googleapis.com/maps/api/place/details/json');
-      detailsUrl.searchParams.set('place_id', prediction.place_id);
-      detailsUrl.searchParams.set('fields', 'address_component,geometry');
-      detailsUrl.searchParams.set('key', apiKey);
+      const res = await fetch(`https://places.googleapis.com/v1/places/${prediction.placeId}`, {
+        headers: {
+          'X-Goog-Api-Key': apiKey,
+          'X-Goog-FieldMask': 'location,addressComponents',
+        },
+      });
+      const body = (await res.json().catch(() => ({}))) as DetailsResponse & GoogleApiError;
+      if (!res.ok) {
+        this.logger.warn(
+          `Places Details (New) failed for ${prediction.placeId}: HTTP ${res.status} ${body.error?.status ?? '(no status)'} — ` +
+            `${body.error?.message ?? 'Google returned no error message'}`,
+        );
+        return null;
+      }
 
-      const res = await fetch(detailsUrl);
-      if (!res.ok) return null;
-      const body = (await res.json()) as DetailsResponse;
-      if (body.status !== 'OK' || !body.result) return null;
-
-      const components = body.result.address_components;
+      const components = body.addressComponents;
       const country = componentByType(components, 'country');
       if (!country) return null; // no country code means this isn't a real, mappable place
 
-      const city = componentByType(components, 'locality')?.long_name ?? prediction.structured_formatting?.main_text;
+      const city = componentByType(components, 'locality')?.longText ?? prediction.structuredFormat?.mainText?.text;
       if (!city) return null;
 
-      const region = componentByType(components, 'administrative_area_level_1')?.long_name ?? null;
-      const location = body.result.geometry?.location;
+      const region = componentByType(components, 'administrative_area_level_1')?.longText ?? null;
 
       return {
-        placeId: prediction.place_id,
+        placeId: prediction.placeId,
         city,
         region,
-        country: country.short_name,
-        lat: location?.lat ?? null,
-        lng: location?.lng ?? null,
+        country: country.shortText,
+        lat: body.location?.latitude ?? null,
+        lng: body.location?.longitude ?? null,
       };
-    } catch {
+    } catch (e) {
+      this.logger.warn(`Places Details (New) request threw for ${prediction.placeId}: ${(e as Error).message}`);
       return null;
     }
   }
