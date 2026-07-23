@@ -24,6 +24,7 @@ import { EntitlementsModule } from './modules/entitlements/entitlements.module';
 import { ProfileViewsModule } from './modules/profile-views/profile-views.module';
 import { PlansModule } from './modules/plans/plans.module';
 import { LocationsModule } from './modules/locations/locations.module';
+import { InterviewQuestionsModule } from './modules/interview-questions/interview-questions.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { LocationsModule } from './modules/locations/locations.module';
     ProfileViewsModule,
     PlansModule,
     LocationsModule,
+    InterviewQuestionsModule,
   ],
 })
 export class AppModule {}
