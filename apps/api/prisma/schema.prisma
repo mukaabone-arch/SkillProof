@@ -251,6 +251,7 @@ model User {
   decidedSessions       AssessmentSession[] @relation("SessionDecidedBy")
   shortlistEntriesAdded ShortlistEntry[]
   profileViewsMade      ProfileView[]
+  interviewSessions     InterviewSession[]
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
@@ -772,6 +773,8 @@ model Application {
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
+  interviewSessions InterviewSession[]
+
   @@unique([candidateProfileId, jobId])
   @@index([jobId])
 }
@@ -940,8 +943,154 @@ model InterviewQuestion {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  turns    InterviewTurn[]
+  feedback InterviewAnswerFeedback[]
+
   @@index([category])
   @@index([active])
+}
+
+enum InterviewSessionStatus {
+  IN_PROGRESS
+  EXPIRED
+  /** All turns done; the batched end-of-session feedback pass hasn't
+   * finished yet (or failed — see feedbackError). */
+  AWAITING_FEEDBACK
+  COMPLETED
+}
+
+/**
+ * The seven ordered phases the orchestrator walks through — see
+ * interview-orchestrator.ts's own doc comment for the transition rules and
+ * per-phase target exchange counts. SCORING is not a conversational
+ * phase (no candidate turn happens in it); it's the terminal marker set
+ * once CLOSING's message is sent, the same role AssessmentSession's
+ * AWAITING_SCORING plays for the technical assessor.
+ */
+enum InterviewSessionPhase {
+  OPENING
+  MOTIVATION
+  BEHAVIORAL
+  INDUSTRY_AWARENESS
+  CANDIDATE_QUESTIONS
+  CLOSING
+  SCORING
+}
+
+enum InterviewTurnRole {
+  CANDIDATE
+  COACH
+}
+
+/**
+ * A mock-interview practice session — coaching, not assessment. This is
+ * deliberately isolated from AssessmentSession/SkillClaim/Badge: nothing in
+ * this model or its relations ever mints a badge or feeds scoring.ts /
+ * matching.service.ts. That separation is what protects the credibility of
+ * verified badges with employers — a candidate practicing behavioral
+ * answers must never be confused, by the data model or by anything
+ * downstream, with a candidate whose skills were actually verified.
+ *
+ * phaseState is the orchestrator's persisted position — see
+ * InterviewOrchestratorState in interview-orchestrator.ts. Never exposed to
+ * the client raw (see InterviewSessionsService.toPublicSession); the phase
+ * name and a coarse progress count are the only pieces of it a candidate
+ * ever sees.
+ */
+model InterviewSession {
+  id            String                 @id @default(uuid())
+  userId        String
+  user          User                   @relation(fields: [userId], references: [id])
+  /**
+   * Set at session creation from the candidate's own most recent
+   * Application (or an applicationId they pass explicitly) — see
+   * InterviewSessionsService.createSession. Null means no application
+   * exists yet; company-grounded touches are skipped in that case, never
+   * faked with a generic placeholder employer.
+   */
+  applicationId String?
+  application   Application?           @relation(fields: [applicationId], references: [id])
+  status        InterviewSessionStatus @default(IN_PROGRESS)
+  phaseState    Json
+  /** Candidate + coach turns combined — checked against the session turn
+   * cap on every postTurn call, independent of the idle-timeout/duration
+   * cap below (see MAX_SESSION_TURNS in interview-sessions.service.ts). */
+  turnCount     Int                    @default(0)
+  startedAt     DateTime               @default(now())
+  lastActivityAt DateTime              @default(now())
+  /** Idle-timeout boundary, same "resume, don't restart" role as
+   * AssessmentSession.expiresAt — not the hard session-duration cap, which
+   * is computed from startedAt instead (see MAX_SESSION_DURATION_MINUTES). */
+  expiresAt     DateTime
+  completedAt   DateTime?
+  /** Set when the batched end-of-session feedback pass fails — session
+   * stays AWAITING_FEEDBACK and retryable rather than silently losing the
+   * transcript. Cleared on a successful retry. */
+  feedbackError String?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  turns    InterviewTurn[]
+  feedback InterviewAnswerFeedback[]
+
+  @@index([userId])
+}
+
+/**
+ * One message in an interview session. questionId is set on both the COACH
+ * turn that asked a bank question and the CANDIDATE turn answering it (same
+ * denormalization AssessmentSessionsService uses for claimId/probeRung) —
+ * null for OPENING/CANDIDATE_QUESTIONS/CLOSING turns and for follow-up
+ * probes, which aren't bank questions themselves.
+ */
+model InterviewTurn {
+  id         String                @id @default(uuid())
+  sessionId  String
+  session    InterviewSession      @relation(fields: [sessionId], references: [id])
+  role       InterviewTurnRole
+  content    String
+  phase      InterviewSessionPhase
+  questionId String?
+  question   InterviewQuestion?    @relation(fields: [questionId], references: [id])
+  /** Re-asked-after-idle fragment, same meaning as SessionTurn.superseded —
+   * dropped from the model's context and the scored transcript, kept
+   * (struck through) in the candidate-facing history. */
+  superseded Boolean               @default(false)
+  createdAt  DateTime              @default(now())
+
+  answerFeedback InterviewAnswerFeedback?
+
+  @@index([sessionId])
+}
+
+/**
+ * One bank question's worth of coaching feedback, written in the single
+ * batched pass at session end (see InterviewFeedbackService) — never
+ * generated per-answer during the live conversation, so nothing about how
+ * the candidate is doing leaks mid-session. missingStarElement names the
+ * weakest/absent STAR component when one is clearly missing — situation,
+ * task, action, or result, as literal lowercase strings matching
+ * InterviewQuestion.expectedElements' own keys — or null when the answer
+ * had complete STAR structure. This is scored against structure and
+ * reasoning quality in the candidate's *own* answer, never against whether
+ * it echoes expectedElements' specific example content — see
+ * InterviewQuestion's own doc comment.
+ */
+model InterviewAnswerFeedback {
+  id              String           @id @default(uuid())
+  sessionId       String
+  session         InterviewSession @relation(fields: [sessionId], references: [id])
+  candidateTurnId String           @unique
+  candidateTurn   InterviewTurn    @relation(fields: [candidateTurnId], references: [id])
+  questionId      String?
+  question        InterviewQuestion? @relation(fields: [questionId], references: [id])
+  missingStarElement String?
+  summary            String
+  strengths          Json
+  improvements       Json
+  createdAt          DateTime @default(now())
+
+  @@index([sessionId])
 }
 
 // ---------- Notifications (spec section: email, step 3e) ----------

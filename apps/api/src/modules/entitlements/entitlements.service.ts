@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { AttemptStatus, Subscription, SubscriptionStatus, SubscriptionTier } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PLANS } from '../../config/plans.config';
-import { CountableMetric } from './requires-entitlement.decorator';
+import { BooleanFeature, CountableMetric } from './requires-entitlement.decorator';
 import { EntitlementLimitException } from './entitlements.errors';
 
 /** PAST_DUE keeps PREMIUM entitlements for this many days after currentPeriodEnd — see resolveEffectiveTier. */
@@ -124,6 +124,24 @@ export class EntitlementsService {
     const used = await this.incrementBounded(candidateId, metric, periodStart, limit);
 
     return { used, limit, resetsAt };
+  }
+
+  /**
+   * The boolean-feature counterpart to checkAndIncrement — no UsageCounter
+   * row, nothing to refund, just a direct PLANS[tier] read. Reuses
+   * EntitlementLimitException (limit/resetsAt both null, since neither
+   * concept applies to a static flag) so every client already handling
+   * LIMIT_REACHED for the countable metrics renders *something* sensible
+   * here too, rather than needing a second error shape wired up for one
+   * feature. EntitlementGuard calls this instead of checkAndIncrement when
+   * @RequiresEntitlement names a BooleanFeature — see that guard.
+   */
+  async assertFeatureEntitled(userId: string, feature: BooleanFeature): Promise<void> {
+    const candidateId = await this.ensureProfileId(userId);
+    const tier = await this.resolveEffectiveTierForProfile(candidateId);
+    if (!PLANS[tier][feature]) {
+      throw new EntitlementLimitException(feature, null, null);
+    }
   }
 
   /**
