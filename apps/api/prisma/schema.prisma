@@ -864,6 +864,86 @@ model InterviewRound {
   @@index([shortlistEntryId])
 }
 
+// ---------- Interview question bank (practice prep — data only, no session/scoring logic) ----------
+
+enum InterviewQuestionCategory {
+  PROBLEM_SOLVING
+  CONFLICT
+  TEAMWORK
+  INITIATIVE
+  MOTIVATION
+  SELF_AWARENESS
+  AMBITION
+  INDUSTRY_AWARENESS
+  CULTURE_FIT
+  COMMUNICATION
+}
+
+/**
+ * One behavioral practice-interview question. Purely a content bank —
+ * nothing here runs a session or scores an answer; a future AI-assessor-
+ * style consumer reads from this table, same relationship this schema
+ * already has between Assessment (content) and AttemptSession (session
+ * logic) elsewhere in this file.
+ *
+ * expectedElements IS NOT A CHECKLIST. It's a STAR-shaped *illustrative
+ * reference point* — one plausible strong answer's shape, written by the
+ * product owner as a calibration example — describing what a strong
+ * answer *tends to* contain. Any consumer that scores a candidate's answer
+ * must evaluate whether their response has complete STAR structure
+ * (a real situation, a clear task, concrete actions, a stated result) and
+ * sound reasoning throughout — never whether it happens to mention the
+ * specific tactics or nouns listed here. A candidate whose situation was
+ * "a supplier went bankrupt" scores identically to one whose situation
+ * matches this row's example verbatim, provided both have the same
+ * structural completeness and reasoning quality. Implementing this as
+ * keyword/substring matching against expectedElements would silently and
+ * incorrectly penalize every candidate whose real experience doesn't
+ * happen to match the specific example on file.
+ */
+model InterviewQuestion {
+  id       String                    @id @default(uuid())
+  text     String
+  category InterviewQuestionCategory
+
+  /** The evaluative intent — what trait(s) this question is actually
+   * probing for (e.g. "agility, emotional control, structured pivoting
+   * without panic"), independent of any specific answer content. */
+  whatToLookFor String
+
+  /**
+   * { situation, task, action, result } — see this model's own doc
+   * comment above for why this is a reference point, not a checklist.
+   * Stored as Json rather than four columns so future categories or
+   * question types can extend the shape without a migration; every seeded
+   * row today uses exactly these four string keys.
+   */
+  expectedElements Json
+
+  /** Optional deeper-probe questions an interviewer/AI assessor can ask
+   * if the candidate's initial answer is thin — empty for a question with
+   * none authored yet, never inferred or auto-generated from the question text. */
+  followUpProbes String[] @default([])
+
+  /** True only for a question that references this specific company's
+   * product, values, or situation by name — false for every generic
+   * behavioral question, including all of INDUSTRY_AWARENESS (which is
+   * deliberately evergreen; see the seed script's own doc comment on why
+   * it never references current events). */
+  isCompanyGrounded Boolean @default(false)
+
+  /** False retires a question from rotation (e.g. it's dated, or a
+   * near-duplicate was added) without deleting history of it having been
+   * asked. Toggled via the admin endpoint, never a hard delete. */
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([active])
+}
+
 // ---------- Notifications (spec section: email, step 3e) ----------
 
 model Notification {
