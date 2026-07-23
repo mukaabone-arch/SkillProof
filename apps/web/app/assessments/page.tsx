@@ -26,6 +26,27 @@ type SkillLevelName = 'L1' | 'L2' | 'L3' | 'L4';
 type VerificationMethod = 'TEST' | 'DISCUSSION';
 type LevelState = 'EARNED' | 'SUBSUMED' | 'AVAILABLE' | 'LOCKED';
 
+/**
+ * Human names for the level codes — first-time candidates have no reason to
+ * know what "L2" means. The code stays visible as a secondary label (existing
+ * users' mental model of "L1/L2/L3" isn't erased, just explained), and each
+ * description makes the ascending rigor legible without a separate legend.
+ */
+const LEVEL_INFO: Record<SkillLevelName, { name: string; description: string }> = {
+  L1: { name: 'Foundational', description: 'Understands the core concepts and can apply them with guidance.' },
+  L2: { name: 'Practitioner', description: 'Applies the skill independently on real work.' },
+  L3: { name: 'Advanced', description: 'Handles complex, ambiguous problems with this skill.' },
+  L4: { name: 'Expert', description: "Deep mastery — can review others' work and set technical direction." },
+};
+
+function LevelHeading({ level }: { level: SkillLevelName }) {
+  return (
+    <strong>
+      {LEVEL_INFO[level].name} <span className="meta" style={{ marginTop: 0 }}>· Level {level}</span>
+    </strong>
+  );
+}
+
 interface CatalogFormat {
   type: VerificationMethod;
   durationMins: number;
@@ -130,7 +151,12 @@ function DiscussionAction({
       !!discussion.retakeAvailableAt &&
       new Date(discussion.retakeAvailableAt).getTime() > Date.now();
     if (cooldownActive) {
-      return <span className="meta">Retake available from {new Date(discussion.retakeAvailableAt!).toLocaleDateString()}</span>;
+      return (
+        <span className="meta">
+          Retakes are limited so badges stay credible to employers — you can try again from{' '}
+          {new Date(discussion.retakeAvailableAt!).toLocaleDateString()}.
+        </span>
+      );
     }
     return (
       <div>
@@ -150,12 +176,26 @@ function DiscussionAction({
   return null;
 }
 
-function availabilityText(level: CatalogLevel): string {
+/**
+ * The not-yet-earned level's own explanation of its format(s) — when both a
+ * test and a discussion are offered, says plainly that either earns the same
+ * badge and why a candidate might pick one over the other, rather than
+ * leaving "test or discussion" as an unexplained choice.
+ */
+function AvailabilityMeta({ level }: { level: CatalogLevel }) {
   const test = level.formats.find((f) => f.type === 'TEST');
   const discussion = level.formats.find((f) => f.type === 'DISCUSSION');
-  if (test && discussion) return `test, ${test.durationMins} min or discussion, ${discussion.durationMins} min`;
-  if (discussion) return `discussion only, ${discussion.durationMins} min`;
-  return `test only, ${test!.durationMins} min`;
+  if (test && discussion) {
+    return (
+      <div className="meta">
+        Not earned yet. Choose a timed test ({test.durationMins} min) or a live discussion (
+        {discussion.durationMins} min) — either earns the same badge; the discussion option also lets a reviewer
+        see your reasoning, not just your answers.
+      </div>
+    );
+  }
+  if (discussion) return <div className="meta">Not earned yet · discussion only, {discussion.durationMins} min</div>;
+  return <div className="meta">Not earned yet · test only, {test!.durationMins} min</div>;
 }
 
 function LevelRow({ level, profileReady }: { level: CatalogLevel; profileReady: boolean }) {
@@ -169,8 +209,11 @@ function LevelRow({ level, profileReady }: { level: CatalogLevel; profileReady: 
     return (
       <div className="assessment-row assessment-row-locked">
         <div className="assessment-info">
-          <strong>Level {level.level}</strong>
-          <div className="meta">🔒 Unlocks after {level.unlocksAfterLevel}</div>
+          <LevelHeading level={level.level} />
+          <div className="meta">{LEVEL_INFO[level.level].description}</div>
+          <div className="meta">
+            🔒 Unlocks after you earn {LEVEL_INFO[level.unlocksAfterLevel!].name} (Level {level.unlocksAfterLevel})
+          </div>
         </div>
       </div>
     );
@@ -183,8 +226,11 @@ function LevelRow({ level, profileReady }: { level: CatalogLevel; profileReady: 
     return (
       <div className="assessment-row">
         <div className="assessment-info">
-          <strong>Level {level.level}</strong>
-          <div className="meta">Covered by {level.coveredByLevel} ✓</div>
+          <LevelHeading level={level.level} />
+          <div className="meta">{LEVEL_INFO[level.level].description}</div>
+          <div className="meta">
+            Covered by your {LEVEL_INFO[level.coveredByLevel!].name} badge (Level {level.coveredByLevel}) ✓
+          </div>
         </div>
       </div>
     );
@@ -195,8 +241,11 @@ function LevelRow({ level, profileReady }: { level: CatalogLevel; profileReady: 
     return (
       <div className="assessment-row">
         <div className="assessment-info">
-          <strong>Level {level.level}</strong>
-          <div className="meta assessment-earned">✓ Earned · verified by discussion</div>
+          <LevelHeading level={level.level} />
+          <div className="meta">{LEVEL_INFO[level.level].description}</div>
+          <div className="meta assessment-earned">
+            ✓ Badge earned — verified by a live discussion review employers can independently confirm.
+          </div>
         </div>
       </div>
     );
@@ -205,61 +254,75 @@ function LevelRow({ level, profileReady }: { level: CatalogLevel; profileReady: 
   // Earned by test — terminal unless a discussion format exists, in which
   // case offer the upgrade path (still cooldown/dispute-aware via
   // DiscussionAction, since starting it is subject to the same rules
-  // whether or not this level is already held by a weaker format).
+  // whether or not this level is already held by a weaker format). The
+  // upgrade action sits on the same header line as the level name, not
+  // centered against the whole (now multi-line) info block below it, so
+  // it's unambiguous which level it belongs to.
   if (level.earned?.verifiedBy === 'TEST') {
     return (
       <div className="assessment-row">
         <div className="assessment-info">
-          <strong>Level {level.level}</strong>
-          <div className="meta assessment-earned">✓ Earned · verified by test</div>
+          <div className="assessment-row-header">
+            <LevelHeading level={level.level} />
+            {discussionFormat && (
+              <div className="assessment-actions">
+                <DiscussionAction
+                  discussion={level.discussion}
+                  durationMins={discussionFormat.durationMins}
+                  namedChoice={true}
+                  profileReady={profileReady}
+                />
+              </div>
+            )}
+          </div>
+          <div className="meta">{LEVEL_INFO[level.level].description}</div>
+          <div className="meta assessment-earned">
+            ✓ Badge earned — verified by an automated test employers can independently confirm.
+          </div>
           {discussionFormat && (
             <div className="meta" style={{ marginTop: 4 }}>
-              Prove this by discussion for stronger evidence — a reviewer sees how you reason, not just your score.
+              Optional: retake this level via a live discussion for stronger evidence — a reviewer sees your
+              reasoning, not just your score. Your test-verified badge stays valid either way.
             </div>
           )}
         </div>
-        {discussionFormat && (
-          <div className="assessment-actions">
-            <DiscussionAction
-              discussion={level.discussion}
-              durationMins={discussionFormat.durationMins}
-              namedChoice={true}
-              profileReady={profileReady}
-            />
-          </div>
-        )}
       </div>
     );
   }
 
   // The one AVAILABLE level (LOCKED/SUBSUMED/EARNED are all handled above)
-  // — every offered format stays open, independently.
+  // — every offered format stays open, independently. Actions sit next to
+  // the level name itself (same header line), not vertically centered
+  // against the info block below, so it's clear which level each button starts.
   return (
     <div className="assessment-row">
       <div className="assessment-info">
-        <strong>Level {level.level}</strong>
-        <div className="meta">Not earned · {availabilityText(level)}</div>
-      </div>
-      <div className="assessment-actions">
-        {test && (
-          profileReady ? (
-            <Link href={`/assessments/${test.assessmentId}`}>
-              <button>{discussionFormat ? `Test · ${test.durationMins} min` : 'Start'}</button>
-            </Link>
-          ) : (
-            <button disabled title="Complete your profile to unlock">
-              {discussionFormat ? `Test · ${test.durationMins} min` : 'Start'}
-            </button>
-          )
-        )}
-        {discussionFormat && (
-          <DiscussionAction
-            discussion={level.discussion}
-            durationMins={discussionFormat.durationMins}
-            namedChoice={!!test}
-            profileReady={profileReady}
-          />
-        )}
+        <div className="assessment-row-header">
+          <LevelHeading level={level.level} />
+          <div className="assessment-actions">
+            {test && (
+              profileReady ? (
+                <Link href={`/assessments/${test.assessmentId}`}>
+                  <button>{discussionFormat ? `Test · ${test.durationMins} min` : 'Start'}</button>
+                </Link>
+              ) : (
+                <button disabled title="Complete your profile to unlock">
+                  {discussionFormat ? `Test · ${test.durationMins} min` : 'Start'}
+                </button>
+              )
+            )}
+            {discussionFormat && (
+              <DiscussionAction
+                discussion={level.discussion}
+                durationMins={discussionFormat.durationMins}
+                namedChoice={!!test}
+                profileReady={profileReady}
+              />
+            )}
+          </div>
+        </div>
+        <div className="meta">{LEVEL_INFO[level.level].description}</div>
+        <AvailabilityMeta level={level} />
       </div>
     </div>
   );
@@ -328,7 +391,14 @@ function AssessmentsPageInner() {
       <CandidateNav />
       <main>
         <h1>Assessments</h1>
-        <p>Pass an assessment to earn a verified skill badge.</p>
+        <p>
+          Pass an assessment to earn a verified skill badge for your profile. Employers can see every badge
+          you&apos;ve earned — and it&apos;s verified badges, not self-reported skills, that drive your job matches.
+        </p>
+        <p>
+          Each skill has up to four levels — Foundational, Practitioner, Advanced, and Expert — each one more
+          rigorous than the last. Employers see exactly which level you&apos;ve reached for every skill.
+        </p>
         {usage && (
           <UsageMeter
             label="assessment starts"
@@ -361,6 +431,16 @@ function AssessmentsPageInner() {
           <p className="meta" style={{ marginTop: -8, marginBottom: 20 }}>
             Pass an assessment to earn a verified badge, then{' '}
             <Link href={returnTo}>return to the job you were applying to →</Link>
+          </p>
+        )}
+        {skills.length > 0 && (
+          // The catalog endpoint always returns the complete set (no
+          // pagination) — whatever renders below is genuinely everything
+          // available, so say so explicitly rather than leaving a candidate
+          // to wonder whether a short list means the page is broken.
+          <p className="meta" style={{ marginTop: -8, marginBottom: 20 }}>
+            Showing the full assessment catalog — {skills.length} skill{skills.length === 1 ? '' : 's'} available
+            right now.
           </p>
         )}
 

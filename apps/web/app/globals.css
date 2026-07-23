@@ -333,7 +333,7 @@ main.auth {
   display: flex; justify-content: space-between; align-items: center; gap: 16px;
 }
 .meta { font-size: 0.85rem; color: var(--ink-60); margin-top: 4px; }
-.assessment-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; width: 100%; }
+.assessment-row { display: flex; align-items: flex-start; gap: 20px; width: 100%; }
 /* LOCKED level row — muted, no button (see LevelRow in assessments/page.tsx). Reuses the existing --ink tokens rather than a new color. */
 .assessment-row-locked { opacity: 0.55; }
 /* Coral ration (a): the "✓ Earned" text on the assessments grid. accent-800, not accent-600 —
@@ -342,6 +342,10 @@ main.auth {
 .assessment-earned { color: var(--accent-800); }
 .assessment-info { min-width: 0; flex: 1; }
 .assessment-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Groups a level's name with its own action(s) on one line, so the button
+   reads as paired with the heading directly above the (now multi-line)
+   description/status text, not vertically centered against that whole block. */
+.assessment-row-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .assessment-actions { display: flex; gap: 8px; flex-shrink: 0; }
 .assessment-actions .btn { white-space: nowrap; min-width: 128px; padding: 10px 14px; font-size: 0.88rem; }
 /* Plain (unclassed) buttons — the assessments-catalog level rows use these
@@ -350,8 +354,7 @@ main.auth {
    horizontal scroll to reach either action. */
 .assessment-actions button:not(.btn) { white-space: nowrap; }
 @media (max-width: 720px) {
-  .assessment-row { flex-direction: column; align-items: stretch; gap: 12px; }
-  .assessment-actions { flex-wrap: wrap; }
+  .assessment-row-header .assessment-actions { width: 100%; flex-wrap: wrap; }
   .assessment-actions .btn { flex: 1; min-width: 0; }
   .assessment-actions button:not(.btn) { flex: 1 1 auto; min-width: 0; white-space: normal; }
 }
