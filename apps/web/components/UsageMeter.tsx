@@ -23,7 +23,10 @@ export function UsageMeter({ label, used, limit, resetsAt }: UsageMeterProps) {
   if (limit === null) return null;
 
   const remaining = Math.max(0, limit - used);
-  const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 100;
+  // Fill represents what's left, not what's been consumed, so it agrees with
+  // the "N left" label above it: a full bar means the whole allowance is
+  // still available, and it drains toward empty (and --warning) as quota is used.
+  const pct = limit > 0 ? Math.min(100, (remaining / limit) * 100) : 100;
   const resetDate = new Date(resetsAt).toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
 
   return (
