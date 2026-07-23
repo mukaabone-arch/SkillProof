@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../llm/llm.service';
 import { PLANS } from '../../config/plans.config';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { formatCandidateLocation } from '../profiles/location-format.util';
 import { CandidateSkillClaim, JobSkillRequirement, compareByMatchRank, scoreCandidate } from './scoring';
 
 /** LLM explanations are the expensive part — only ever generated for the top N. */
@@ -98,7 +99,10 @@ export class MatchingService {
         profileId: profile.id,
         fullName: profile.fullName,
         headline: profile.headline,
-        location: profile.location,
+        // Display only, not matching input — formatCandidateLocation just
+        // keeps this in sync with the structured-location migration; score
+        // above is computed entirely from scoreCandidate, untouched here.
+        location: formatCandidateLocation(profile),
         yearsOfExp: profile.yearsOfExp,
         score: result.score,
         matched: result.matched

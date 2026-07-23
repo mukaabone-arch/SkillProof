@@ -3,12 +3,14 @@ import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsEmail,
   IsEnum,
   IsNumber,
   IsOptional,
   IsString,
   IsUrl,
+  Length,
   Max,
   MaxLength,
   Min,
@@ -47,10 +49,65 @@ export class UpdateProfileDto {
   @MaxLength(160)
   roleTitleOther?: string;
 
+  /**
+   * Structured city selection from GET /locations/search — sent together
+   * as one unit whenever the candidate picks a suggestion from the
+   * dropdown. locationCountry is ISO 3166-1 alpha-2 (e.g. "US"), never a
+   * display name — see LocationSuggestion's own doc comment.
+   */
   @IsOptional()
   @IsString()
   @MaxLength(120)
-  location?: string;
+  locationCity?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  locationRegion?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(2, 2)
+  locationCountry?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  locationPlaceId?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  locationLat?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  locationLng?: number;
+
+  /**
+   * Free text — written when the city dropdown is unusable (the search
+   * service failed, see LocationSearchService) or from an AI resume-parse
+   * suggestion, both of which can only ever produce unstructured text.
+   * Never populated by a real dropdown selection; that always sends the
+   * structured fields above instead. See CandidateProfile.locationLegacy's
+   * own doc comment for why this is never silently dropped either way.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  locationLegacy?: string;
+
+  /**
+   * Independent of location — see CandidateProfile.openToRemote's own doc
+   * comment on why a remote-open candidate must never be excluded by a
+   * future location filter.
+   */
+  @IsOptional()
+  @IsBoolean()
+  openToRemote?: boolean;
 
   @IsOptional()
   @IsNumber()

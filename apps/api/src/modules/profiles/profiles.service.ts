@@ -7,6 +7,7 @@ import { LlmService } from '../../llm/llm.service';
 import { EmployerCandidateAccessService } from '../access/employer-candidate-access.service';
 import { GenerateResumeDto, UpdateProfileDto } from './profiles.dto';
 import { buildResumePdf, VerifiedSkillEntry } from './resume-pdf.builder';
+import { formatCandidateLocation } from './location-format.util';
 import { UPLOAD_DIR } from '../../config/upload-dir';
 
 /** JwtAuthGuard's decoded token shape — just enough to decide viewer authorization. */
@@ -17,7 +18,7 @@ interface Requester {
 
 type CompletenessFields = Pick<
   CandidateProfile,
-  'fullName' | 'headline' | 'location' | 'yearsOfExp' | 'githubUrl' | 'linkedinUrl'
+  'fullName' | 'headline' | 'locationCity' | 'locationLegacy' | 'yearsOfExp' | 'githubUrl' | 'linkedinUrl'
 > & { email: string | null };
 
 /** Extension -> Content-Type for reading a stored photo back. Keyed off
@@ -132,7 +133,7 @@ export class ProfilesService {
     return buildResumePdf({
       fullName: profile.fullName || 'SkillProof Candidate',
       headline: profile.headline,
-      location: profile.location,
+      location: formatCandidateLocation(profile),
       yearsOfExp: profile.yearsOfExp,
       githubUrl: profile.githubUrl,
       linkedinUrl: profile.linkedinUrl,
@@ -310,7 +311,10 @@ export class ProfilesService {
     const fields: unknown[] = [
       profile.fullName,
       profile.headline,
-      profile.location,
+      // Either counts — a candidate who hasn't re-selected a city from the
+      // new dropdown yet still has a real (pre-migration) location on file,
+      // and shouldn't suddenly read as "incomplete" because of it.
+      profile.locationCity ?? profile.locationLegacy,
       profile.yearsOfExp,
       profile.githubUrl,
       profile.linkedinUrl,

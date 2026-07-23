@@ -23,6 +23,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { EntitlementsModule } from './modules/entitlements/entitlements.module';
 import { ProfileViewsModule } from './modules/profile-views/profile-views.module';
 import { PlansModule } from './modules/plans/plans.module';
+import { LocationsModule } from './modules/locations/locations.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { PlansModule } from './modules/plans/plans.module';
     EntitlementsModule,
     ProfileViewsModule,
     PlansModule,
+    LocationsModule,
   ],
 })
 export class AppModule {}

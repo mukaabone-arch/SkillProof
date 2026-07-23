@@ -7,6 +7,7 @@ import { EmployerCandidateAccessService } from '../access/employer-candidate-acc
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
 import { CreateJobDto, JobSkillItemDto, UpdateJobDto } from './jobs.dto';
 import { isProfileReadyToApply } from '../profiles/profile-readiness';
+import { formatCandidateLocation } from '../profiles/location-format.util';
 
 @Injectable()
 export class JobsService {
@@ -181,7 +182,7 @@ export class JobsService {
         headline: profile.headline,
         roleTitle: profile.roleTitle,
         roleTitleOther: profile.roleTitleOther,
-        location: profile.location,
+        location: formatCandidateLocation(profile),
         yearsOfExp: profile.yearsOfExp,
         githubUrl: profile.githubUrl,
         linkedinUrl: profile.linkedinUrl,

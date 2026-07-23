@@ -332,7 +332,41 @@ model CandidateProfile {
   user               User      @relation(fields: [userId], references: [id])
   fullName           String?
   headline           String?
-  location           String?
+  /**
+   * Structured city selection from GET /locations/search (Google Places
+   * Autocomplete, city-restricted — see LocationSearchService). Written
+   * together as one unit whenever the candidate re-selects from the
+   * dropdown; locationCity is the presence signal the rest of the app uses
+   * ("has this candidate structured their location yet"). ISO 3166-1
+   * alpha-2 for locationCountry (e.g. "US", "IN") — never a full country
+   * name, so it sorts/filters consistently regardless of Places' display
+   * locale.
+   */
+  locationCity     String?
+  locationRegion   String?
+  locationCountry  String?
+  locationPlaceId  String?
+  locationLat      Float?
+  locationLng      Float?
+  /**
+   * Pre-migration free-text location value — never silently dropped (see
+   * the add_structured_location migration's backfill). Candidates who
+   * haven't re-selected a city from the new dropdown yet still see this as
+   * their current location; ProfilesService.formatCandidateLocation shows
+   * it only when locationCity is unset. Read-only from the client's point
+   * of view going forward — new saves always populate the structured
+   * fields above, never this column.
+   */
+  locationLegacy     String?
+  /**
+   * Independent of location entirely — a candidate open to remote work
+   * shouldn't be excluded by any future location-based filter/matching just
+   * because their city is far from a role's office. Added now, ahead of
+   * that filtering actually existing, because retrofitting it later would
+   * mean re-deriving "was this candidate open to remote" for every existing
+   * profile with no source data to derive it from.
+   */
+  openToRemote       Boolean   @default(false)
   yearsOfExp         Float?
   githubUrl          String?
   linkedinUrl        String?
