@@ -449,7 +449,7 @@ main.employer-home { max-width: 1080px; }
 .appnav-links a { font-size: 0.9rem; font-weight: 500; color: var(--ink-60); text-decoration: none; }
 .appnav-links a:hover { color: var(--ink); text-decoration: none; }
 .appnav-links a.active { color: var(--indigo); }
-.appnav-logout { background: transparent !important; color: var(--ink-60) !important; font-size: 0.85rem; padding: 8px 14px !important; border: 1px solid var(--ink-12) !important; }
+.appnav-logout { background: transparent !important; color: var(--ink-60) !important; font-size: 0.85rem; padding: 8px 14px !important; border: 1px solid var(--ink-12) !important; white-space: nowrap; }
 .appnav-logout:hover { color: var(--ink) !important; transform: none !important; }
 
 /* ---- segmented journey progress (candidate dashboard) ----
