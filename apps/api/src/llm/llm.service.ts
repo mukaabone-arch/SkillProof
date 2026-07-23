@@ -386,6 +386,53 @@ export class LlmService {
     return this.validateExplanationShape(parsed);
   }
 
+  /**
+   * The one LLM call InterviewSessionsService's follow-up selection ever
+   * makes — see follow-up-heuristics.ts's chooseFollowUp: the rule-based
+   * DETAIL/EXAMPLE/OUTCOME cases use a zero-cost fixed template instead of
+   * calling this at all; this only runs for the narrow LLM_CHOICE case,
+   * where the candidate's answer passes the structural checks by accident
+   * (hedging language can contain example/outcome-shaped words) and a
+   * plain regex can't reliably tell what to ask next. Cheap model — this is
+   * one short follow-up question, not the batched end-of-session feedback
+   * (see InterviewFeedbackService, which uses the larger model).
+   */
+  async generateInterviewFollowUp(questionText: string, answer: string): Promise<string> {
+    this.logger.log('Requesting AI-chosen interview follow-up from Claude');
+
+    const schema = {
+      type: 'object',
+      properties: { followUp: { type: 'string' } },
+      required: ['followUp'],
+      additionalProperties: false,
+    };
+
+    const parsed = await this.callForJson(
+      {
+        max_tokens: 150,
+        system:
+          'You are a warm, concise mock-interview coach. The candidate was just asked a behavioral ' +
+          "interview question and gave an answer that reads as hedging or avoidant — it may use " +
+          'example- or outcome-shaped language without actually describing a real, specific situation ' +
+          'and what happened. Write exactly ONE short, warm, natural follow-up question (a single ' +
+          'sentence) gently asking them to ground their answer in an actual example and what really ' +
+          'happened. Never mention hedging, scoring, evaluation, or that anything seemed off with their ' +
+          "answer — just ask naturally, the way a real interviewer would. Never invent or assume details " +
+          "about their answer that they didn't actually say.",
+        output_config: { format: { type: 'json_schema', schema } },
+        messages: [
+          {
+            role: 'user',
+            content: `Question asked: ${questionText}\n\nCandidate's answer: ${answer}\n\nWrite the follow-up question now.`,
+          },
+        ],
+      },
+      'interview follow-up generator',
+    );
+
+    return this.validateFollowUpShape(parsed);
+  }
+
   /** Shared call path: request → text block → JSON.parse, all failures as BadGatewayException. */
   private async callForJson(
     params: Omit<Anthropic.MessageCreateParamsNonStreaming, 'model'>,
@@ -551,5 +598,12 @@ export class LlmService {
       throw new BadGatewayException('The AI parser returned data that did not match the expected shape.');
     }
     return (data as { explanation: string }).explanation;
+  }
+
+  private validateFollowUpShape(data: unknown): string {
+    if (typeof data !== 'object' || data === null || typeof (data as Record<string, unknown>).followUp !== 'string') {
+      throw new BadGatewayException('The AI parser returned data that did not match the expected shape.');
+    }
+    return (data as { followUp: string }).followUp;
   }
 }
