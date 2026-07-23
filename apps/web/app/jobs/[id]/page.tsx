@@ -56,31 +56,57 @@ interface MatchedResponse {
 /**
  * Gap analysis: basic (all tiers) is just the missing-skill list, already
  * available from GET /jobs/matched. Detailed (Premium, gapAnalysis:
- * 'detailed') additionally ties those gaps to this job's own real salary
- * range — no per-skill $ figures are invented; the only number shown is
- * this job's actual salaryMin/salaryMax, already public on this same page.
+ * 'detailed') additionally ranks those gaps by role impact — how many of
+ * the candidate's OTHER matched roles also require the same skill,
+ * computed client-side from the same /jobs/matched response this page
+ * already fetches (see skillFrequency in JobDetailPage below) — no new
+ * endpoint, no scoring.ts change. A gap blocking several roles is
+ * objectively higher-impact to close than one blocking only this job.
+ * Deliberately NOT salary-band mapping: most job postings don't carry
+ * salary data at all, so there's no real range to map a gap onto — see
+ * plans.config.ts's own comment on PLANS.PREMIUM.gapAnalysis for why.
  */
-function GapAnalysis({ missing, job, detailed }: { missing: SkillGap[]; job: JobDetail; detailed: boolean }) {
+function GapAnalysis({
+  missing,
+  skillFrequency,
+  detailed,
+}: {
+  missing: SkillGap[];
+  skillFrequency: Record<string, number>;
+  detailed: boolean;
+}) {
   if (missing.length === 0) return null;
-  const hasSalary = job.salaryMin !== null || job.salaryMax !== null;
+
+  if (!detailed) {
+    return (
+      <div className="field">
+        <label>Skill gap for this role</label>
+        <p style={{ margin: 0 }}>
+          Missing: {missing.map((m) => `${m.skillName} (${m.requiredLevel})`).join(', ')}
+        </p>
+        <p className="meta" style={{ marginTop: 6 }}>
+          <Link href="/upgrade">Upgrade</Link> to see which of these gaps matter most across your matches.
+        </p>
+      </div>
+    );
+  }
+
+  const ranked = [...missing].sort((a, b) => (skillFrequency[b.skillId] ?? 1) - (skillFrequency[a.skillId] ?? 1));
 
   return (
     <div className="field">
       <label>Skill gap for this role</label>
-      <p style={{ margin: 0 }}>
-        Missing: {missing.map((m) => `${m.skillName} (${m.requiredLevel})`).join(', ')}
-      </p>
-      {detailed && hasSalary && (
-        <p className="meta" style={{ marginTop: 6 }}>
-          Closing these gaps puts you in range for roles paying{' '}
-          {job.salaryMin ?? '?'}–{job.salaryMax ?? '?'} — like this one.
-        </p>
-      )}
-      {!detailed && (
-        <p className="meta" style={{ marginTop: 6 }}>
-          <Link href="/upgrade">Upgrade</Link> to see which salary bands closing these gaps unlocks.
-        </p>
-      )}
+      <ul style={{ margin: 0, paddingLeft: 20 }}>
+        {ranked.map((m) => {
+          const count = skillFrequency[m.skillId] ?? 1;
+          return (
+            <li key={m.skillId}>
+              {m.skillName} ({m.requiredLevel})
+              {count > 1 && <span className="meta"> — needed by {count} of your matched roles</span>}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -93,6 +119,11 @@ export default function JobDetailPage() {
   const [applyError, setApplyError] = useState('');
   const [applyIssue, setApplyIssue] = useState<ApplyIssueBody | null>(null);
   const [missing, setMissing] = useState<SkillGap[]>([]);
+  // skillId -> how many of the candidate's matched jobs also list it as
+  // missing — the "role impact" signal GapAnalysis ranks by on the
+  // detailed tier. Computed from the same /jobs/matched response below,
+  // across every matched job, not just this one.
+  const [skillFrequency, setSkillFrequency] = useState<Record<string, number>>({});
   // Set post-mount, not read via getToken() directly in render — that
   // reads localStorage synchronously, which doesn't exist during server
   // rendering, so calling it in the render body disagrees between server
@@ -109,7 +140,14 @@ export default function JobDetailPage() {
     }
     // Best-effort — no matched entry (e.g. no verified skills yet) just means no gap section renders.
     api<MatchedResponse>('/jobs/matched')
-      .then((res) => setMissing(res.jobs.find((j) => j.id === id)?.missing ?? []))
+      .then((res) => {
+        setMissing(res.jobs.find((j) => j.id === id)?.missing ?? []);
+        const freq: Record<string, number> = {};
+        for (const j of res.jobs) {
+          for (const m of j.missing) freq[m.skillId] = (freq[m.skillId] ?? 0) + 1;
+        }
+        setSkillFrequency(freq);
+      })
       .catch(() => undefined);
   }, [id]);
 
@@ -192,7 +230,7 @@ export default function JobDetailPage() {
         <JobDescription description={job.description} />
       </div>
 
-      {limits && <GapAnalysis missing={missing} job={job} detailed={limits.gapAnalysis === 'detailed'} />}
+      {limits && <GapAnalysis missing={missing} skillFrequency={skillFrequency} detailed={limits.gapAnalysis === 'detailed'} />}
 
       {usage && !job.alreadyApplied && (
         <UsageMeter

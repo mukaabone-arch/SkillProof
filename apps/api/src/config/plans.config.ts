@@ -34,7 +34,11 @@ export interface PlanLimits {
   applicationStatusDetail: boolean;
   /** Tiebreaker boost applied within an existing match-score band — see scoring.ts's scoreBand/compareByMatchRank. Never added to the raw score. */
   searchRankBoost: number;
-  /** Depth of the candidate-facing skill-gap analysis on the jobs/matched view. */
+  /**
+   * Depth of the candidate-facing skill-gap analysis on the jobs/matched
+   * view — see PLANS.PREMIUM's own comment below for what 'detailed'
+   * actually means today (never salary-band mapping, and why).
+   */
   gapAnalysis: 'basic' | 'detailed';
   /** Whether SkillProof branding appears on the generated resume PDF. */
   resumeBranding: boolean;
@@ -70,6 +74,16 @@ export const PLANS: Record<SubscriptionTier, PlanLimits> = {
     profileViewers: 'full',
     applicationStatusDetail: true,
     searchRankBoost: 1,
+    // 'detailed' means missing skills are ranked by role impact — required
+    // for this specific job surfaced ahead of nice-to-have (see
+    // JobDetailPage's GapAnalysis component, which derives this from
+    // job.skills' own isRequired flag) — never salary-band mapping. Job
+    // postings largely lack salary data, so there's no real range to map a
+    // gap onto; claiming that would advertise a capability with nothing
+    // behind it. Config must not promise more than the product delivers —
+    // same rationale as resumeTemplates below. Revisit salary-band mapping
+    // once job salary data coverage is high enough to make it meaningful;
+    // this isn't an oversight until then.
     gapAnalysis: 'detailed',
     resumeBranding: false,
     // Intentionally ['default'] for now, not a typo/oversight: the PDF

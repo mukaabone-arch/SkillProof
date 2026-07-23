@@ -56,7 +56,7 @@ const FEATURE_ROWS: { label: string; format: (l: PlanLimits) => string }[] = [
   },
   {
     label: 'Skill-gap analysis',
-    format: (l) => (l.gapAnalysis === 'detailed' ? 'Detailed, with salary-band mapping' : 'Basic'),
+    format: (l) => (l.gapAnalysis === 'detailed' ? 'Detailed, ranked by role impact' : 'Basic'),
   },
   {
     label: 'Resume branding',
