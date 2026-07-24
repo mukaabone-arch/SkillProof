@@ -1,7 +1,14 @@
 import { BadRequestException, Body, Controller, Param, Post, HttpCode, Req, UseGuards } from '@nestjs/common';
 import { IdentityProvider } from '@prisma/client';
 import { AuthService } from './auth.service';
-import { EmployerRegisterDto, OAuthCodeDto, RequestOtpDto, VerifyOtpDto } from './auth.dto';
+import {
+  EmployerEmailOtpRequestDto,
+  EmployerEmailRegisterDto,
+  EmployerRegisterDto,
+  OAuthCodeDto,
+  RequestOtpDto,
+  VerifyOtpDto,
+} from './auth.dto';
 import { AuthenticatedRequest, JwtAuthGuard } from './jwt-auth.guard';
 
 @Controller('auth')
@@ -25,6 +32,25 @@ export class AuthController {
   @HttpCode(200)
   employerRegister(@Body() dto: EmployerRegisterDto) {
     return this.auth.verifyOtp(dto.phone, dto.otp, dto.orgName);
+  }
+
+  /**
+   * Email counterpart to /auth/otp/request, employer-signup only — phone-OTP
+   * delivery is unimplemented in production (see AuthService's class doc),
+   * so this is the only self-service employer signup path that actually
+   * sends a code today.
+   */
+  @Post('employer/otp/request')
+  @HttpCode(200)
+  requestEmployerEmailOtp(@Body() dto: EmployerEmailOtpRequestDto) {
+    return this.auth.requestEmailOtp(dto.email);
+  }
+
+  /** Email counterpart to /auth/employer/register — see AuthService.verifyEmailOtp. */
+  @Post('employer/otp/verify')
+  @HttpCode(200)
+  employerEmailRegister(@Body() dto: EmployerEmailRegisterDto) {
+    return this.auth.verifyEmailOtp(dto.email, dto.otp, dto.orgName);
   }
 
   /**

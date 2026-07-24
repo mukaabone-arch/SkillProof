@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
   Logger,
   UnauthorizedException,
@@ -12,6 +13,7 @@ import { JwtService } from '@nestjs/jwt';
 import { IdentityProvider, Role, User } from '@prisma/client';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EMAIL_PROVIDER, EmailProvider } from '../notifications/email-provider.interface';
 import { GithubOAuthProvider } from './oauth/github-oauth.provider';
 import { GoogleOAuthProvider } from './oauth/google-oauth.provider';
 import { ExternalProfile, OAuthCodeExchange } from './oauth/oauth.types';
@@ -46,12 +48,17 @@ interface OtpEntry {
  *    database leak cannot be replayed. On /auth/refresh we rotate it (old one
  *    revoked, new one issued) — this limits the damage window if one is stolen.
  *
- * DEV MODE: OTPs are logged to console and always "123456". No SMS is sent.
+ * DEV MODE: OTPs (phone and email) are logged to console and always
+ * "123456". No SMS or email is sent — see requestOtp/requestEmailOtp.
  *
  * PRODUCTION TODO (spec §6.1-B):
  *  1. Move the OTP store from Map to Redis (survives restarts, scales out).
- *  2. Send via MSG91 behind an SmsProvider interface (DLT-registered template).
+ *  2. Phone: send via MSG91 behind an SmsProvider interface (DLT-registered
+ *     template) — still unimplemented, see requestOtp.
  *  3. Keep the rate limits below; add IP-based throttling at the gateway.
+ *
+ * Email OTP (employer signup only, see requestEmailOtp/verifyEmailOtp) is
+ * already live in production via EMAIL_PROVIDER/Resend — no TODO there.
  */
 @Injectable()
 export class AuthService {
@@ -69,11 +76,59 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly google: GoogleOAuthProvider,
     private readonly github: GithubOAuthProvider,
+    @Inject(EMAIL_PROVIDER) private readonly emailProvider: EmailProvider,
   ) {}
 
   async requestOtp(phone: string): Promise<{ message: string }> {
+    const otp = this.issueOtp(phone);
+    const isDev = process.env.NODE_ENV !== 'production';
+
+    if (isDev) {
+      this.logger.log(`[DEV] OTP for ${phone}: ${otp}`);
+    } else {
+      // TODO: await this.smsProvider.sendOtp(phone, otp);
+      this.logger.warn('Production OTP send not implemented yet (MSG91 integration pending).');
+    }
+
+    return { message: 'OTP sent' };
+  }
+
+  /**
+   * Employer-signup counterpart to requestOtp, keyed by (normalized) email
+   * instead of phone — issueOtp below is the exact same rate-limit/expiry/
+   * generation machinery either path uses, just called with a different map
+   * key. Unlike phone (SMS delivery is still unimplemented, see requestOtp
+   * above), this actually delivers: Resend is already live in production for
+   * notification emails (see NotificationsService), so the code goes out for
+   * real via EMAIL_PROVIDER. In dev the code is logged instead of sent, same
+   * convenience requestOtp gives the phone path, so local/dev testing never
+   * depends on a configured Resend API key — and the code is never echoed
+   * back in the API response either way, so the client can't prefill it.
+   */
+  async requestEmailOtp(rawEmail: string): Promise<{ message: string }> {
+    const email = normalizeEmail(rawEmail);
+    const otp = this.issueOtp(email);
+    const isDev = process.env.NODE_ENV !== 'production';
+
+    if (isDev) {
+      this.logger.log(`[DEV] Employer signup OTP for ${email}: ${otp}`);
+    } else {
+      await this.sendOtpEmail(email, otp);
+    }
+
+    return { message: 'OTP sent' };
+  }
+
+  /**
+   * Shared rate-limit/expiry/generation core for both requestOtp (phone) and
+   * requestEmailOtp (email) — otpStore is keyed by whatever identifier the
+   * caller passes in, so the cooldown/max-sends/TTL rules apply identically
+   * regardless of channel. Delivery is entirely the caller's job; this only
+   * ever produces and stores the code.
+   */
+  private issueOtp(key: string): string {
     const now = Date.now();
-    const existing = this.otpStore.get(phone);
+    const existing = this.otpStore.get(key);
 
     if (existing && now - existing.lastSentAt < this.RESEND_COOLDOWN_MS) {
       throw new TooManyRequestsException('Please wait before requesting another OTP.');
@@ -85,7 +140,7 @@ export class AuthService {
     const isDev = process.env.NODE_ENV !== 'production';
     const otp = isDev ? '123456' : Math.floor(100000 + Math.random() * 900000).toString();
 
-    this.otpStore.set(phone, {
+    this.otpStore.set(key, {
       otp,
       expiresAt: now + this.OTP_TTL_MS,
       attempts: 0,
@@ -93,14 +148,34 @@ export class AuthService {
       sentCount: (existing?.sentCount ?? 0) + 1,
     });
 
-    if (isDev) {
-      this.logger.log(`[DEV] OTP for ${phone}: ${otp}`);
-    } else {
-      // TODO: await this.smsProvider.sendOtp(phone, otp);
-      this.logger.warn('Production OTP send not implemented yet (MSG91 integration pending).');
-    }
+    return otp;
+  }
 
-    return { message: 'OTP sent' };
+  /**
+   * Failure here is surfaced to the caller (unlike NotificationsService's
+   * best-effort/never-throws contract) — the candidate has no other way to
+   * get this code, so a silent failure would leave them stuck on the OTP
+   * screen with no path forward. The OTP itself is still consumed from the
+   * rate-limit budget on a failed send (issueOtp already ran); that's an
+   * acceptable trade for keeping this path simple, matching the phone path's
+   * lack of any special-cased retry/rollback on send failure.
+   */
+  private async sendOtpEmail(email: string, otp: string): Promise<void> {
+    const subject = 'Your SkillProof for Employers signup code';
+    const minutes = Math.round(this.OTP_TTL_MS / 60000);
+    const html = `
+      <p>You're signing up for SkillProof for Employers.</p>
+      <p>Your verification code is:</p>
+      <p style="font-size: 28px; font-weight: 700; letter-spacing: 6px; margin: 16px 0;">${otp}</p>
+      <p>This code expires in ${minutes} minutes. If you didn't request this, you can safely ignore this email.</p>
+    `;
+
+    try {
+      await this.emailProvider.send({ to: email, subject, html });
+    } catch (err) {
+      this.logger.error(`Failed to send employer signup OTP email: ${(err as Error).message}`);
+      throw new BadRequestException('Could not send the verification code. Please try again.');
+    }
   }
 
   /**
@@ -117,22 +192,7 @@ export class AuthService {
    * of silently switching roles.
    */
   async verifyOtp(phone: string, otp: string, orgName?: string) {
-    const entry = this.otpStore.get(phone);
-
-    if (!entry || Date.now() > entry.expiresAt) {
-      throw new BadRequestException('OTP expired or not requested. Request a new one.');
-    }
-    if (entry.attempts >= this.MAX_VERIFY_ATTEMPTS) {
-      this.otpStore.delete(phone);
-      throw new TooManyRequestsException('Too many incorrect attempts. Request a new OTP.');
-    }
-
-    entry.attempts += 1;
-    if (entry.otp !== otp) {
-      throw new BadRequestException('Incorrect OTP.');
-    }
-
-    this.otpStore.delete(phone); // single-use
+    this.consumeOtp(phone, otp);
 
     const isEmployerFlow = !!orgName;
     const existing = await this.prisma.user.findUnique({ where: { phone } });
@@ -158,7 +218,7 @@ export class AuthService {
     }
 
     const user = isEmployerFlow
-      ? await this.createEmployer(phone, orgName as string)
+      ? await this.createEmployer(orgName as string, { phone })
       : await this.prisma.user.create({ data: { phone, profile: { create: {} } } });
 
     return this.issueTokens(user.id, user.role, {
@@ -166,6 +226,57 @@ export class AuthService {
       phone: user.phone,
       role: user.role,
     });
+  }
+
+  /**
+   * Email counterpart to verifyOtp, for employer signup/login only — there's
+   * no plain-candidate email flow, so (unlike verifyOtp) orgName is always
+   * required and the cross-flow guard collapses to one direction: a
+   * candidate account can't log in here, but there's no "not an employer
+   * flow" branch to guard the other way. Single-use verification itself
+   * (consumeOtp) is identical to the phone path, just keyed by email.
+   */
+  async verifyEmailOtp(rawEmail: string, otp: string, orgName: string) {
+    const email = normalizeEmail(rawEmail);
+    this.consumeOtp(email, otp);
+
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+
+    if (existing) {
+      if (!EMPLOYER_ROLES.includes(existing.role)) {
+        throw new BadRequestException(
+          'This email is already registered as a candidate. Log in from the candidate app.',
+        );
+      }
+      return this.issueTokens(existing.id, existing.role, this.publicUser(existing));
+    }
+
+    const user = await this.createEmployer(orgName, { email });
+    return this.issueTokens(user.id, user.role, this.publicUser(user));
+  }
+
+  /**
+   * Shared single-use/attempt-capped verification core for both verifyOtp
+   * (phone) and verifyEmailOtp (email) — same otpStore consumeOtp draws
+   * from, keyed by whatever issueOtp stored it under.
+   */
+  private consumeOtp(key: string, otp: string): void {
+    const entry = this.otpStore.get(key);
+
+    if (!entry || Date.now() > entry.expiresAt) {
+      throw new BadRequestException('OTP expired or not requested. Request a new one.');
+    }
+    if (entry.attempts >= this.MAX_VERIFY_ATTEMPTS) {
+      this.otpStore.delete(key);
+      throw new TooManyRequestsException('Too many incorrect attempts. Request a new OTP.');
+    }
+
+    entry.attempts += 1;
+    if (entry.otp !== otp) {
+      throw new BadRequestException('Incorrect OTP.');
+    }
+
+    this.otpStore.delete(key); // single-use
   }
 
   async loginWithGoogle(exchange: OAuthCodeExchange) {
@@ -412,10 +523,14 @@ export class AuthService {
 
   // ---------- helpers ----------
 
-  /** Creates the User, Organization, and OrgMember link atomically. */
-  private async createEmployer(phone: string, orgName: string) {
+  /**
+   * Creates the User, Organization, and OrgMember link atomically — shared
+   * by the phone (verifyOtp) and email (verifyEmailOtp) employer-signup
+   * paths, which only differ in which identifier they create the User with.
+   */
+  private async createEmployer(orgName: string, identity: { phone: string } | { email: string }) {
     return this.prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({ data: { phone, role: Role.EMPLOYER_ADMIN } });
+      const user = await tx.user.create({ data: { ...identity, role: Role.EMPLOYER_ADMIN } });
       const organization = await tx.organization.create({ data: { name: orgName } });
       await tx.orgMember.create({ data: { userId: user.id, organizationId: organization.id } });
       return user;

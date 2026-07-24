@@ -7,6 +7,7 @@ import { RolesGuard } from './roles.guard';
 import { OrgMemberGuard } from './org-member.guard';
 import { GoogleOAuthProvider } from './oauth/google-oauth.provider';
 import { GithubOAuthProvider } from './oauth/github-oauth.provider';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -16,6 +17,8 @@ import { GithubOAuthProvider } from './oauth/github-oauth.provider';
         signOptions: { expiresIn: process.env.JWT_EXPIRES_IN ?? '15m' },
       }),
     }),
+    // EMAIL_PROVIDER, for employer-signup OTP emails — see AuthService.sendOtpEmail.
+    NotificationsModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtAuthGuard, RolesGuard, OrgMemberGuard, GoogleOAuthProvider, GithubOAuthProvider],

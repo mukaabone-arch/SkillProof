@@ -1,21 +1,27 @@
 'use client';
 
 /**
- * Employer phone → OTP → JWT flow, plus Google/GitHub as alternate sign-in
- * methods. Distinct from the candidate OtpLogin:
- * posts to /auth/employer/register, which creates an EMPLOYER_ADMIN user +
- * Organization on a brand-new phone, or just logs in a returning employer
- * (the org name is ignored for existing accounts). In dev, the OTP is
- * always 123456.
+ * Employer signup: Organization name + work email → email OTP → JWT.
+ * Employer accounts have no viable phone path today — apps/api's
+ * AuthService.requestOtp (SMS) just logs a "production send not
+ * implemented yet" warning and delivers nothing, so phone-OTP signup is
+ * currently a dead end for every employer. This posts to the email variant
+ * of the same flow instead — /auth/employer/otp/request and
+ * /auth/employer/otp/verify — which actually sends via Resend (see
+ * AuthService.requestEmailOtp/sendOtpEmail) and, on a brand-new email,
+ * provisions an EMPLOYER_ADMIN user + Organization exactly like the phone
+ * path used to. A returning email just logs in; the org name is ignored
+ * once the account already exists (see AuthService.verifyEmailOtp).
  *
- * The OAuth buttons hit /auth/employer/:provider instead — unlike the OTP
- * path above, that endpoint never provisions a new org/employer on the fly.
- * It only resolves an *existing* account and checks it's already an
- * OrgMember with an employer role; anyone else gets bounced back here with
- * an error (see OAuthCallback and AuthService.loginEmployerWithIdentity).
- * Employer accounts are provisioned manually for now.
+ * The Google/GitHub buttons below are NOT a signup path: /auth/employer/:provider
+ * only resolves an *existing* employer account (see
+ * AuthService.loginEmployerWithIdentity) and never provisions a new org —
+ * anyone without one already gets bounced back here with an error. So
+ * they're framed under "Already have an account?", separated from the
+ * primary signup form above, rather than presented as an equal alternative
+ * a first-time employer might reasonably pick and get rejected by.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { employerApi } from '@/lib/api';
 import { startOAuthLogin } from '@/lib/oauth';
 import Logo from './Logo';
@@ -23,18 +29,28 @@ import { GoogleIcon, GithubIcon } from './OAuthIcons';
 
 const { api, setTokens } = employerApi;
 
+/** Matches AuthService's RESEND_COOLDOWN_MS (60s) — purely a UX countdown; the server enforces the real limit regardless. */
+const RESEND_COOLDOWN_SECONDS = 60;
+
 interface Props {
   onLoggedIn: () => void;
 }
 
 export default function EmployerOtpLogin({ onLoggedIn }: Props) {
-  const [phone, setPhone] = useState('+919999999999');
   const [orgName, setOrgName] = useState('');
-  const [otp, setOtp] = useState('123456');
-  const [stage, setStage] = useState<'phone' | 'otp'>('phone');
+  const [email, setEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [stage, setStage] = useState<'details' | 'otp'>('details');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [oauthError, setOauthError] = useState('');
+  const [resendIn, setResendIn] = useState(0);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const id = setInterval(() => setResendIn((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(id);
+  }, [resendIn]);
 
   function signInWith(provider: 'google' | 'github') {
     setOauthError('');
@@ -45,12 +61,13 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
     }
   }
 
-  async function requestOtp() {
+  async function sendCode() {
     setError('');
     setBusy(true);
     try {
-      await api('/auth/otp/request', { method: 'POST', body: JSON.stringify({ phone }) });
+      await api('/auth/employer/otp/request', { method: 'POST', body: JSON.stringify({ email: email.trim() }) });
       setStage('otp');
+      setResendIn(RESEND_COOLDOWN_SECONDS);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -62,10 +79,10 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
     setError('');
     setBusy(true);
     try {
-      const res = await api<{ accessToken: string; refreshToken: string }>(
-        '/auth/employer/register',
-        { method: 'POST', body: JSON.stringify({ phone, otp, orgName }) },
-      );
+      const res = await api<{ accessToken: string; refreshToken: string }>('/auth/employer/otp/verify', {
+        method: 'POST',
+        body: JSON.stringify({ email: email.trim(), otp, orgName: orgName.trim() }),
+      });
       setTokens(res.accessToken, res.refreshToken);
       onLoggedIn();
     } catch (e) {
@@ -74,6 +91,16 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
       setBusy(false);
     }
   }
+
+  function useAnotherEmail() {
+    setStage('details');
+    setOtp('');
+    setError('');
+    setResendIn(0);
+  }
+
+  const canSend = orgName.trim().length >= 2 && email.trim().length > 0 && !busy;
+  const canVerify = otp.length === 6 && !busy;
 
   return (
     <main className="auth">
@@ -85,9 +112,9 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
             SkillProof <span style={{ color: 'var(--ink-60)', fontWeight: 500 }}>for Employers</span>
           </span>
         </div>
-        <p>Post assessments and find verified candidates. Log in with your phone to get started.</p>
+        <p>Post assessments and find verified candidates. Sign up with your work email to get started.</p>
 
-        {stage === 'phone' && (
+        {stage === 'details' && (
           <>
             <div className="field">
               <label htmlFor="orgName">Organization name</label>
@@ -99,20 +126,58 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
                 maxLength={160}
               />
             </div>
-            <div className="row">
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91..." />
-              <button onClick={requestOtp} disabled={busy || !orgName.trim()}>
-                Send OTP
-              </button>
+            <div className="field">
+              <label htmlFor="email">Work email</label>
+              <input
+                id="email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@company.com"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && canSend) sendCode();
+                }}
+              />
             </div>
+            <button style={{ width: '100%' }} onClick={sendCode} disabled={!canSend}>
+              {busy ? 'Sending code…' : 'Send code'}
+            </button>
           </>
         )}
 
         {stage === 'otp' && (
-          <div className="row">
-            <input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="6-digit OTP" />
-            <button onClick={verify} disabled={busy}>Verify</button>
-          </div>
+          <>
+            <p className="meta">
+              We sent a 6-digit code to <strong>{email}</strong>. Enter it below to continue.
+            </p>
+            <div className="field">
+              <label htmlFor="otp">Verification code</label>
+              <input
+                id="otp"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="123456"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && canVerify) verify();
+                }}
+              />
+            </div>
+            <button style={{ width: '100%' }} onClick={verify} disabled={!canVerify}>
+              {busy ? 'Verifying…' : 'Verify and continue'}
+            </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>
+              <button type="button" className="btn-link" onClick={useAnotherEmail} disabled={busy}>
+                Use a different email
+              </button>
+              <button type="button" className="btn-link" onClick={sendCode} disabled={busy || resendIn > 0}>
+                {resendIn > 0 ? `Resend code in ${resendIn}s` : 'Resend code'}
+              </button>
+            </div>
+          </>
         )}
 
         {error && <p className="error">{error}</p>}
@@ -120,16 +185,29 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
         <div
           style={{
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
-            gap: 12,
-            margin: '20px 0',
-            color: 'var(--ink-30)',
-            fontSize: '0.8rem',
+            gap: 4,
+            margin: '24px 0 14px',
           }}
         >
-          <span style={{ flex: 1, height: 1, background: 'var(--ink-12)' }} />
-          or continue with
-          <span style={{ flex: 1, height: 1, background: 'var(--ink-12)' }} />
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              width: '100%',
+              color: 'var(--ink-30)',
+              fontSize: '0.8rem',
+            }}
+          >
+            <span style={{ flex: 1, height: 1, background: 'var(--ink-12)' }} />
+            Already have an account?
+            <span style={{ flex: 1, height: 1, background: 'var(--ink-12)' }} />
+          </div>
+          <p className="meta" style={{ margin: 0, textAlign: 'center' }}>
+            Sign in below if your organization is already set up on SkillProof.
+          </p>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

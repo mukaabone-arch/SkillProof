@@ -164,6 +164,12 @@ code { font-family: var(--font-body); }
   border: 1.5px solid var(--ink-30); border-radius: 10px; padding: 12px 22px; cursor: pointer;
 }
 .btn-ghost:hover { border-color: var(--ink); background: transparent; transform: none; }
+/* Plain-text button — resets the global button{} indigo-fill default for a
+   low-emphasis action (resend code, switch email) that should read like a
+   link, not a second CTA competing with the primary button above it. */
+.btn-link { background: none; border: none; padding: 0; color: var(--indigo); font-weight: 600; font-size: 0.85rem; cursor: pointer; }
+.btn-link:hover:not(:disabled) { text-decoration: underline; background: none; transform: none; }
+.btn-link:disabled { color: var(--ink-30); cursor: not-allowed; text-decoration: none; }
 
 /* ---- typography scale utilities ----
    Opt-in classes, not applied to bare h1/h2/h3 — existing pages' heading
