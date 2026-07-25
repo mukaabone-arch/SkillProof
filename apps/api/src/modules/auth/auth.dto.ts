@@ -62,6 +62,26 @@ export class EmployerEmailRegisterDto {
 }
 
 /**
+ * Candidate signup/login by email instead of phone — see AuthService's
+ * requestCandidateEmailOtp/verifyCandidateEmailOtp. Mirrors
+ * EmployerEmailOtpRequestDto/EmployerEmailRegisterDto's shape, minus
+ * orgName — candidates have no organization to provision.
+ */
+export class CandidateEmailOtpRequestDto {
+  @IsEmail()
+  email: string;
+}
+
+export class CandidateEmailOtpVerifyDto {
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  @Length(6, 6)
+  otp: string;
+}
+
+/**
  * Authorization-code exchange sent by web (confidential client, no
  * codeVerifier needed) or the mobile app (native SDK / PKCE, so
  * codeVerifier is required there).

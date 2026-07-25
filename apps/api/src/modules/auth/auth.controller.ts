@@ -2,6 +2,8 @@ import { BadRequestException, Body, Controller, Param, Post, HttpCode, Req, UseG
 import { IdentityProvider } from '@prisma/client';
 import { AuthService } from './auth.service';
 import {
+  CandidateEmailOtpRequestDto,
+  CandidateEmailOtpVerifyDto,
   EmployerEmailOtpRequestDto,
   EmployerEmailRegisterDto,
   EmployerRegisterDto,
@@ -25,6 +27,25 @@ export class AuthController {
   @HttpCode(200)
   verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.auth.verifyOtp(dto.phone, dto.otp);
+  }
+
+  /**
+   * Email counterpart to /auth/otp/request for candidates — phone-OTP
+   * delivery is unimplemented in production (see AuthService's class doc),
+   * so this is the self-service candidate signup path that actually sends
+   * a code today. Mirrors /auth/employer/otp/request.
+   */
+  @Post('email/otp/request')
+  @HttpCode(200)
+  requestCandidateEmailOtp(@Body() dto: CandidateEmailOtpRequestDto) {
+    return this.auth.requestCandidateEmailOtp(dto.email);
+  }
+
+  /** Email counterpart to /auth/otp/verify for candidates — see AuthService.verifyCandidateEmailOtp. */
+  @Post('email/otp/verify')
+  @HttpCode(200)
+  verifyCandidateEmailOtp(@Body() dto: CandidateEmailOtpVerifyDto) {
+    return this.auth.verifyCandidateEmailOtp(dto.email, dto.otp);
   }
 
   /** Employer signup/login — reuses the same OTP request flow at /auth/otp/request. */

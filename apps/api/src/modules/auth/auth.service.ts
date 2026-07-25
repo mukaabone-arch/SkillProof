@@ -120,6 +120,46 @@ export class AuthService {
   }
 
   /**
+   * Candidate counterpart to requestEmailOtp (employer) — same issueOtp
+   * machinery (rate limits/expiry/generation), keyed by (normalized) email,
+   * same dev-log/production-send split. Distinct copy from the employer
+   * email (see sendCandidateOtpEmail vs sendOtpEmail) since this is what a
+   * first-time candidate reads, not an employer.
+   */
+  async requestCandidateEmailOtp(rawEmail: string): Promise<{ message: string }> {
+    const email = normalizeEmail(rawEmail);
+    const otp = this.issueOtp(email);
+    const isDev = process.env.NODE_ENV !== 'production';
+
+    if (isDev) {
+      this.logger.log(`[DEV] Candidate signup OTP for ${email}: ${otp}`);
+    } else {
+      await this.sendCandidateOtpEmail(email, otp);
+    }
+
+    return { message: 'OTP sent' };
+  }
+
+  /** Candidate-facing copy for sendOtpEmail's employer version — same delivery/error-propagation contract, see that method's doc comment. */
+  private async sendCandidateOtpEmail(email: string, otp: string): Promise<void> {
+    const subject = 'Your SkillProof verification code';
+    const minutes = Math.round(this.OTP_TTL_MS / 60000);
+    const html = `
+      <p>You're signing up for SkillProof.</p>
+      <p>Your verification code is:</p>
+      <p style="font-size: 28px; font-weight: 700; letter-spacing: 6px; margin: 16px 0;">${otp}</p>
+      <p>This code expires in ${minutes} minutes. If you didn't request this, you can safely ignore this email.</p>
+    `;
+
+    try {
+      await this.emailProvider.send({ to: email, subject, html });
+    } catch (err) {
+      this.logger.error(`Failed to send candidate signup OTP email: ${(err as Error).message}`);
+      throw new BadRequestException('Could not send the verification code. Please try again.');
+    }
+  }
+
+  /**
    * Shared rate-limit/expiry/generation core for both requestOtp (phone) and
    * requestEmailOtp (email) — otpStore is keyed by whatever identifier the
    * caller passes in, so the cooldown/max-sends/TTL rules apply identically
@@ -252,6 +292,37 @@ export class AuthService {
     }
 
     const user = await this.createEmployer(orgName, { email });
+    return this.issueTokens(user.id, user.role, this.publicUser(user));
+  }
+
+  /**
+   * Email counterpart to verifyOtp's plain-candidate branch (orgName
+   * omitted) — same single-use/attempt-capped verification (consumeOtp)
+   * and the same provisioning shape as the phone path: `profile: { create:
+   * {} }`, role left to its schema default of CANDIDATE. Mirrors
+   * verifyEmailOtp's (employer) cross-role guard in the opposite
+   * direction — an email already registered as an employer is rejected
+   * here rather than silently logged in as one. User.email is `@unique`
+   * with a single `role` column, so (matching the phone path's existing
+   * cross-flow guard) one identifier can never hold both roles at once;
+   * this just enforces the same rule email-side.
+   */
+  async verifyCandidateEmailOtp(rawEmail: string, otp: string) {
+    const email = normalizeEmail(rawEmail);
+    this.consumeOtp(email, otp);
+
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+
+    if (existing) {
+      if (EMPLOYER_ROLES.includes(existing.role)) {
+        throw new BadRequestException(
+          'This email is already registered as an employer. Log in from the employer portal.',
+        );
+      }
+      return this.issueTokens(existing.id, existing.role, this.publicUser(existing));
+    }
+
+    const user = await this.prisma.user.create({ data: { email, profile: { create: {} } } });
     return this.issueTokens(user.id, user.role, this.publicUser(user));
   }
 

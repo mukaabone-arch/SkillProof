@@ -285,3 +285,185 @@ describe('AuthService — employer email OTP', () => {
     }
   });
 });
+
+describe('AuthService — candidate email OTP', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+    jest.useRealTimers();
+  });
+
+  describe('requestCandidateEmailOtp', () => {
+    it('dev mode: logs instead of sending, never calls the email provider', async () => {
+      process.env.NODE_ENV = 'test';
+      const { service, emailProvider } = makeService();
+
+      await expect(service.requestCandidateEmailOtp('new@candidate.com')).resolves.toEqual({ message: 'OTP sent' });
+      expect(emailProvider.send).not.toHaveBeenCalled();
+    });
+
+    it('production: sends a 6-digit code via EMAIL_PROVIDER, addressed to the normalized email, with candidate-specific copy', async () => {
+      process.env.NODE_ENV = 'production';
+      const { service, emailProvider } = makeService();
+
+      await service.requestCandidateEmailOtp('Jane@Example.COM');
+
+      expect(emailProvider.send).toHaveBeenCalledTimes(1);
+      const call = emailProvider.send.mock.calls[0][0];
+      expect(call.to).toBe('jane@example.com');
+      expect(call.subject).toBe('Your SkillProof verification code');
+      // Distinct from the employer copy ("SkillProof for Employers") — this
+      // is what a first-time candidate reads.
+      expect(call.subject).not.toContain('Employers');
+      expect(call.html).not.toContain('Employers');
+      expect(call.html).toMatch(/\b\d{6}\b/);
+    });
+
+    it('production: a failed send surfaces as an error, not a silent "OTP sent"', async () => {
+      process.env.NODE_ENV = 'production';
+      const { service, emailProvider } = makeService();
+      emailProvider.send.mockRejectedValueOnce(new Error('Resend outage'));
+
+      await expect(service.requestCandidateEmailOtp('new@candidate.com')).rejects.toThrow(
+        'Could not send the verification code. Please try again.',
+      );
+    });
+
+    it('cooldown: a second request within 60s is rate-limited', async () => {
+      process.env.NODE_ENV = 'test';
+      const { service } = makeService();
+
+      await service.requestCandidateEmailOtp('new@candidate.com');
+      await expect(service.requestCandidateEmailOtp('new@candidate.com')).rejects.toThrow(
+        'Please wait before requesting another OTP.',
+      );
+    });
+
+    it('max sends per window: a 4th request inside the same unexpired OTP blocks even after the cooldown passes', async () => {
+      process.env.NODE_ENV = 'test';
+      jest.useFakeTimers({ now: new Date('2026-01-01T00:00:00.000Z') });
+      const { service } = makeService();
+
+      await service.requestCandidateEmailOtp('new@candidate.com');
+      jest.advanceTimersByTime(61_000);
+      await service.requestCandidateEmailOtp('new@candidate.com');
+      jest.advanceTimersByTime(61_000);
+      await service.requestCandidateEmailOtp('new@candidate.com');
+      jest.advanceTimersByTime(61_000);
+
+      await expect(service.requestCandidateEmailOtp('new@candidate.com')).rejects.toThrow(
+        'Too many OTP requests. Try again later.',
+      );
+    });
+  });
+
+  describe('verifyCandidateEmailOtp', () => {
+    it('brand-new email: creates a plain CANDIDATE with a profile shell, returns tokens', async () => {
+      process.env.NODE_ENV = 'test';
+      const { service, prisma, users } = makeService();
+
+      await service.requestCandidateEmailOtp('new@candidate.com');
+      const result = await service.verifyCandidateEmailOtp('new@candidate.com', DEV_OTP);
+
+      expect(result).toMatchObject({ accessToken: 'signed.jwt.token', refreshToken: expect.any(String) });
+      expect(users).toHaveLength(1);
+      expect(users[0]).toMatchObject({ email: 'new@candidate.com', role: Role.CANDIDATE });
+      // Provisioned via the plain prisma.user.create path (matching the
+      // phone candidate branch exactly), never the org-creating transaction.
+      expect(prisma.user.create).toHaveBeenCalledWith({ data: { email: 'new@candidate.com', profile: { create: {} } } });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('email is normalized/case-insensitive between request and verify', async () => {
+      process.env.NODE_ENV = 'test';
+      const { service, users } = makeService();
+
+      await service.requestCandidateEmailOtp('Jane@Example.COM');
+      await service.verifyCandidateEmailOtp('jane@example.com', DEV_OTP);
+
+      expect(users[0].email).toBe('jane@example.com');
+    });
+
+    it('wrong code: rejects and does not create a user', async () => {
+      process.env.NODE_ENV = 'test';
+      const { service, users } = makeService();
+
+      await service.requestCandidateEmailOtp('new@candidate.com');
+      await expect(service.verifyCandidateEmailOtp('new@candidate.com', '000000')).rejects.toThrow('Incorrect OTP.');
+      expect(users).toHaveLength(0);
+    });
+
+    it('too many wrong attempts: locks out before the correct code is ever accepted', async () => {
+      process.env.NODE_ENV = 'test';
+      const { service } = makeService();
+
+      await service.requestCandidateEmailOtp('new@candidate.com');
+      for (let i = 0; i < 5; i++) {
+        await expect(service.verifyCandidateEmailOtp('new@candidate.com', '000000')).rejects.toThrow();
+      }
+      await expect(service.verifyCandidateEmailOtp('new@candidate.com', DEV_OTP)).rejects.toThrow(
+        'Too many incorrect attempts. Request a new OTP.',
+      );
+    });
+
+    it('returning candidate: logs in, does not create a second profile/user', async () => {
+      process.env.NODE_ENV = 'test';
+      const existing: UserRow = { id: 'user-1', phone: null, email: 'returning@candidate.com', role: Role.CANDIDATE };
+      const { service, prisma, users } = makeService([existing]);
+
+      await service.requestCandidateEmailOtp('returning@candidate.com');
+      const result = await service.verifyCandidateEmailOtp('returning@candidate.com', DEV_OTP);
+
+      expect(result).toMatchObject({ accessToken: 'signed.jwt.token' });
+      expect(users).toHaveLength(1); // no duplicate created
+      expect(prisma.user.create).not.toHaveBeenCalled();
+    });
+
+    it('single-use: the same code cannot be verified twice', async () => {
+      process.env.NODE_ENV = 'test';
+      const { service } = makeService();
+
+      await service.requestCandidateEmailOtp('new@candidate.com');
+      await service.verifyCandidateEmailOtp('new@candidate.com', DEV_OTP);
+      await expect(service.verifyCandidateEmailOtp('new@candidate.com', DEV_OTP)).rejects.toThrow(
+        'OTP expired or not requested. Request a new one.',
+      );
+    });
+  });
+
+  describe('role separation from the employer email path', () => {
+    it('an email already registered as an employer is rejected here, not silently logged in as a candidate', async () => {
+      process.env.NODE_ENV = 'test';
+      const existingEmployer: UserRow = { id: 'user-1', phone: null, email: 'owner@acme.com', role: Role.EMPLOYER_ADMIN };
+      const { service, prisma } = makeService([existingEmployer]);
+
+      await service.requestCandidateEmailOtp('owner@acme.com');
+      await expect(service.verifyCandidateEmailOtp('owner@acme.com', DEV_OTP)).rejects.toThrow(
+        'This email is already registered as an employer. Log in from the employer portal.',
+      );
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('a brand-new candidate signup never creates an Organization', async () => {
+      process.env.NODE_ENV = 'test';
+      const { service, prisma } = makeService();
+
+      await service.requestCandidateEmailOtp('new@candidate.com');
+      await service.verifyCandidateEmailOtp('new@candidate.com', DEV_OTP);
+
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('the reverse guard still holds: an email registered as a candidate is rejected by the employer verify path', async () => {
+      process.env.NODE_ENV = 'test';
+      const existingCandidate: UserRow = { id: 'user-1', phone: null, email: 'candidate@acme.com', role: Role.CANDIDATE };
+      const { service } = makeService([existingCandidate]);
+
+      await service.requestEmailOtp('candidate@acme.com');
+      await expect(service.verifyEmailOtp('candidate@acme.com', DEV_OTP, 'Acme Inc.')).rejects.toThrow(
+        'This email is already registered as a candidate. Log in from the candidate app.',
+      );
+    });
+  });
+});
