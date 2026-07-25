@@ -13,19 +13,25 @@
  * path used to. A returning email just logs in; the org name is ignored
  * once the account already exists (see AuthService.verifyEmailOtp).
  *
- * The Google/GitHub buttons below are NOT a signup path: /auth/employer/:provider
+ * The Google button below is NOT a signup path: /auth/employer/:provider
  * only resolves an *existing* employer account (see
  * AuthService.loginEmployerWithIdentity) and never provisions a new org —
  * anyone without one already gets bounced back here with an error. So
- * they're framed under "Already have an account?", separated from the
- * primary signup form above, rather than presented as an equal alternative
- * a first-time employer might reasonably pick and get rejected by.
+ * it's framed under "Already have an account?", separated from the primary
+ * signup form above, rather than presented as an equal alternative a
+ * first-time employer might reasonably pick and get rejected by.
+ *
+ * GitHub sign-in is deliberately not offered here — a developer identity
+ * doesn't fit this portal's audience (recruiters, HR, hiring managers).
+ * Google stays as the one corporate-appropriate OAuth option. The backend
+ * route (/auth/employer/github) is untouched by this — this is a UI-only
+ * decision, not a signal that the route itself is going away.
  */
 import { useEffect, useState } from 'react';
 import { employerApi } from '@/lib/api';
 import { startOAuthLogin } from '@/lib/oauth';
 import Logo from './Logo';
-import { GoogleIcon, GithubIcon } from './OAuthIcons';
+import { GoogleIcon } from './OAuthIcons';
 
 const { api, setTokens } = employerApi;
 
@@ -52,10 +58,10 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
     return () => clearInterval(id);
   }, [resendIn]);
 
-  function signInWith(provider: 'google' | 'github') {
+  function signInWithGoogle() {
     setOauthError('');
     try {
-      startOAuthLogin(provider, 'employer');
+      startOAuthLogin('google', 'employer');
     } catch (e) {
       setOauthError((e as Error).message);
     }
@@ -103,7 +109,7 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
   const canVerify = otp.length === 6 && !busy;
 
   return (
-    <main className="auth">
+    <main className="auth auth-gradient">
       <h1 className="auth-headline">Global AI Talent Hub</h1>
       <div className="auth-card">
         <div className="brand-lockup-hero">
@@ -188,7 +194,7 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
             flexDirection: 'column',
             alignItems: 'center',
             gap: 4,
-            margin: '24px 0 14px',
+            margin: '20px 0 12px',
           }}
         >
           <div
@@ -206,28 +212,13 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
             <span style={{ flex: 1, height: 1, background: 'var(--ink-12)' }} />
           </div>
           <p className="meta" style={{ margin: 0, textAlign: 'center' }}>
-            Sign in below if your organization is already set up on SkillProof.
+            Sign in with Google if your organization is already set up on SkillProof.
           </p>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            style={{ width: '100%' }}
-            onClick={() => signInWith('google')}
-          >
-            <GoogleIcon /> Sign in with Google
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            style={{ width: '100%' }}
-            onClick={() => signInWith('github')}
-          >
-            <GithubIcon /> Sign in with GitHub
-          </button>
-        </div>
+        <button type="button" className="btn btn-secondary" style={{ width: '100%' }} onClick={signInWithGoogle}>
+          <GoogleIcon /> Sign in with Google
+        </button>
 
         {oauthError && <p className="error">{oauthError}</p>}
       </div>
