@@ -43,7 +43,7 @@ export default function Home() {
     resolveRole();
   }, [resolveRole]);
 
-  if (status === 'loading') return <main><p>Loading…</p></main>;
+  if (status === 'loading') return <main className="app-loading"><p>Loading…</p></main>;
   if (status === 'anon') return <OtpLogin onLoggedIn={resolveRole} />;
   return <Dashboard onLoggedOut={() => setStatus('anon')} />;
 }

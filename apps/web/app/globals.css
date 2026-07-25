@@ -252,6 +252,26 @@ code { font-family: var(--font-body); }
 .empty-state { text-align: center; padding: var(--space-7) var(--space-4); color: var(--ink-60); }
 .empty-state-action { margin-top: var(--space-3); }
 .loading-state { display: flex; align-items: center; gap: var(--space-3); color: var(--ink-60); font-size: var(--text-sm); padding: var(--space-5) 0; }
+/* Full-page role-resolution loading state (app/page.tsx, app/employer/page.tsx)
+   between the OAuth callback landing back on '/' or '/employer' and the
+   dashboard painting — distinct from .loading-state above, which is an
+   inline row within an already-rendered page. A bare <main> here (no
+   background class at all) was a plain white flash sandwiched between the
+   callback's colored .auth-gradient screen and the dashboard's own
+   (also white) background — jarring specifically because of what comes
+   right before it, even though it matches the destination page. A soft
+   brand-tinted neutral (--brand-50, already used for .eyebrow's wash)
+   reads as a gentle step down from the gradient rather than a hard cut to
+   white, without being bold enough to itself flash against the plain
+   white dashboard that follows half a beat later. Text stays the default
+   --ink-60 (unchanged) — contrast against --brand-50 is essentially the
+   same as the existing --paper background it's already proven against
+   app-wide, so no separate legibility fix was needed here. */
+.app-loading {
+  max-width: none; margin: 0; padding: 24px;
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: var(--brand-50);
+}
 .error-state { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
 /* Screen-reader-only text — first used by FeatureStrip's journey summary. */
 .visually-hidden {
@@ -333,6 +353,18 @@ main.auth.auth-gradient {
 }
 .auth-gradient .auth-divider-label {
   color: var(--auth-text-tertiary);
+}
+/* Text sitting directly on the raw gradient with no .auth-card underneath
+   it at all — specifically the OAuth callback routes' Suspense fallback
+   ("Loading…", shown for the instant before OAuthCallback's own
+   card-wrapped markup hydrates). --auth-text-secondary/-tertiary above
+   assume the light glass card is behind them; used here instead they'd be
+   dark-on-dark. White, like .auth-headline, is the correct match for
+   anything landing straight on the gradient. `>` scopes this to a direct
+   child specifically so it can never accidentally catch the (deliberately
+   ink-toned) text nested inside .auth-card on the same pages. */
+.auth-gradient > p {
+  color: #fff;
 }
 /*
  * Headline above the login card. Contrast: solid white, reaffirmed here —

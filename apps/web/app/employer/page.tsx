@@ -20,7 +20,7 @@ export default function EmployerPage() {
     setStatus(getToken() ? 'authed' : 'anon');
   }, []);
 
-  if (status === 'loading') return <main><p>Loading…</p></main>;
+  if (status === 'loading') return <main className="app-loading"><p>Loading…</p></main>;
   if (status === 'anon') return <EmployerOtpLogin onLoggedIn={() => setStatus('authed')} />;
   return <EmployerHome onLoggedOut={() => setStatus('anon')} />;
 }

@@ -99,7 +99,7 @@ export default function OAuthCallback({ provider }: Props) {
   }, [provider, router, searchParams]);
 
   return (
-    <main className="auth">
+    <main className="auth auth-gradient">
       <div className="auth-card">
         <div className="brand-lockup-hero">
           <Logo className="brand-logo-hero" />
@@ -111,7 +111,7 @@ export default function OAuthCallback({ provider }: Props) {
             <button onClick={() => router.replace(backHref)}>Back to login</button>
           </>
         ) : (
-          <p>Signing you in with {PROVIDER_LABEL[provider]}…</p>
+          <p className="auth-subtitle">Signing you in with {PROVIDER_LABEL[provider]}…</p>
         )}
       </div>
     </main>
