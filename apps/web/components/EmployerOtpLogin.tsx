@@ -115,10 +115,10 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
         <div className="brand-lockup-hero">
           <Logo className="brand-logo-hero" />
           <span className="brand-product-name">
-            SkillProof <span style={{ color: 'var(--ink-60)', fontWeight: 500 }}>for Employers</span>
+            SkillProof <span style={{ color: 'var(--auth-text-secondary)', fontWeight: 500 }}>for Employers</span>
           </span>
         </div>
-        <p>Post assessments and find verified candidates. Sign up with your work email to get started.</p>
+        <p className="auth-subtitle">Post assessments and find verified candidates. Sign up with your work email to get started.</p>
 
         {stage === 'details' && (
           <>
@@ -198,12 +198,12 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
           }}
         >
           <div
+            className="auth-divider-label"
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 12,
               width: '100%',
-              color: 'var(--ink-30)',
               fontSize: '0.8rem',
             }}
           >

@@ -104,7 +104,7 @@ export default function OtpLogin({ onLoggedIn }: Props) {
           <Logo className="brand-logo-hero" />
           <span className="brand-product-name">SkillProof</span>
         </div>
-        <p>Verified AI-skill assessments. Sign in with your email to get started.</p>
+        <p className="auth-subtitle">Verified AI-skill assessments. Sign in with your email to get started.</p>
 
         {stage === 'email' && (
           <div className="field">
@@ -163,12 +163,12 @@ export default function OtpLogin({ onLoggedIn }: Props) {
         {error && <p className="error">{error}</p>}
 
         <div
+          className="auth-divider-label"
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 12,
             margin: '20px 0',
-            color: 'var(--ink-30)',
             fontSize: '0.8rem',
           }}
         >

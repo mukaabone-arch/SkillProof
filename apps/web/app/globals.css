@@ -49,6 +49,25 @@
   --ink-30:       var(--gray-300);
   --ink-12:       var(--gray-100);
 
+  /* ---- Auth-gradient card text (OtpLogin.tsx / EmployerOtpLogin.tsx only) ----
+     --ink-60/--ink-30 above are flat grays tuned for text on the plain
+     paper background; on .auth-card's translucent glass surface — now
+     sitting over the flat .auth-gradient indigo instead of the old busy
+     photo — they read as too faint. These are ink itself at fixed alpha
+     (not flat grays), so contrast scales with whatever's actually behind
+     the glass rather than assuming one fixed backdrop; verified >=4.5:1
+     (AA, normal text) even at the card's lightest point (nearest the
+     gradient's --brand-600 end). Two levels, both darker than --ink-60:
+     -secondary for copy that should read clearly (the intro paragraph,
+     the OTP-sent/resend context line); -tertiary for the "or continue
+     with" / "Already have an account?" divider label, which stays a
+     notch more de-emphasized. Reference by name (var(--auth-text-secondary))
+     rather than reusing --ink-60/--ink-30 directly, so it's clear at the
+     call site this is the gradient-card-specific override, not a global
+     token change. */
+  --auth-text-secondary: rgba(24, 23, 31, 0.82);
+  --auth-text-tertiary:  rgba(24, 23, 31, 0.7);
+
   /* ---- Brand primitives (the flAIr future Intelligence logo's own colors) ----
      Reserved for the logo asset itself (Logo.tsx, which reads these via
      var(--brand-purple, #8b5cf6)-style fallbacks) and brand-decoration
@@ -300,6 +319,20 @@ main.auth {
    own. */
 main.auth.auth-gradient {
   background-image: linear-gradient(135deg, var(--brand-900) 0%, var(--brand-800) 45%, var(--brand-600) 100%);
+}
+/* Secondary/tertiary text on the two gradient auth pages — see
+   --auth-text-secondary/--auth-text-tertiary's own doc comment above for
+   why these use ink-alpha rather than the flat --ink-60/--ink-30 the rest
+   of the app keeps using on plain light surfaces. Scoped to .auth-gradient
+   so nothing outside these two pages is affected. .meta is the one
+   app-wide class in the mix (used for the OTP-sent/resend-context line);
+   overridden here only within .auth-gradient, untouched everywhere else. */
+.auth-gradient .auth-subtitle,
+.auth-gradient .meta {
+  color: var(--auth-text-secondary);
+}
+.auth-gradient .auth-divider-label {
+  color: var(--auth-text-tertiary);
 }
 /*
  * Headline above the login card. Contrast: solid white, reaffirmed here —
