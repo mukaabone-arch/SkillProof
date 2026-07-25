@@ -266,10 +266,13 @@ code { font-family: var(--font-body); }
 /* ---- auth pages only (OTP login/signup) — never applied to app pages ----
    `main.auth` opts a page into the shared auth-page layout (centered card,
    full-height flex column); the bare `main` selector everywhere else stays
-   untouched. The candidate login page (OtpLogin.tsx) keeps the original
-   hero-photo treatment below — a brand-tinted dark scrim sits between the
-   image and the card so the card's own contrast doesn't depend on which
-   part of the (busy, high-contrast) photo lands behind it. */
+   untouched. Only the OAuth callback/loading pages (OAuthCallback.tsx and
+   app/auth/{google,github}/callback) still use the plain hero-photo
+   treatment below — a brand-tinted dark scrim sits between the image and
+   the card so the card's own contrast doesn't depend on which part of the
+   (busy, high-contrast) photo lands behind it. Both login pages
+   (OtpLogin.tsx, EmployerOtpLogin.tsx) have moved to the gradient variant
+   below instead. */
 main.auth {
   max-width: none; margin: 0; padding: 24px;
   min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -283,16 +286,18 @@ main.auth {
   background-position: center 40%;
   background-repeat: no-repeat;
 }
-/* Employer login/signup only (EmployerOtpLogin.tsx adds this alongside
-   .auth) — the stock-photo hero above is busy and competes with the card,
-   which doesn't suit this portal's more corporate audience. A flat,
-   on-brand indigo gradient instead: pure CSS, no image asset, monotonically
-   darkest (--brand-900) to lightest (--brand-600) so white headline/card
-   text stays comfortably above the 3:1 (large text) / readable floor
-   everywhere in the gradient, not just at one end — verified worst-case
-   (white on --brand-600) is 5.77:1, well past AA. Candidate login is
-   unaffected — this is additive (`.auth.auth-gradient`), never overrides
-   plain `.auth` on its own. */
+/* Both login pages (OtpLogin.tsx and EmployerOtpLogin.tsx add this
+   alongside .auth) — the stock-photo hero above is busy and competes with
+   the card, and for the employer portal specifically didn't suit its more
+   corporate audience; applied to the candidate page too for visual
+   consistency between the two. A flat, on-brand indigo gradient instead:
+   pure CSS, no image asset, monotonically darkest (--brand-900) to
+   lightest (--brand-600) so white headline/card text stays comfortably
+   above the 3:1 (large text) / readable floor everywhere in the gradient,
+   not just at one end — verified worst-case (white on --brand-600) is
+   5.77:1, well past AA. The OAuth callback pages are unaffected — this is
+   additive (`.auth.auth-gradient`), never overrides plain `.auth` on its
+   own. */
 main.auth.auth-gradient {
   background-image: linear-gradient(135deg, var(--brand-900) 0%, var(--brand-800) 45%, var(--brand-600) 100%);
 }

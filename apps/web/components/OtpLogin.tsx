@@ -97,7 +97,7 @@ export default function OtpLogin({ onLoggedIn }: Props) {
   const canVerify = otp.length === 6 && !busy;
 
   return (
-    <main className="auth">
+    <main className="auth auth-gradient">
       <h1 className="auth-headline">Global AI Talent Hub</h1>
       <div className="auth-card">
         <div className="brand-lockup-hero">
