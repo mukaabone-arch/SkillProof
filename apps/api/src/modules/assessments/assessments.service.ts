@@ -271,7 +271,20 @@ export class AssessmentsService {
    * used for grading, for the per-question timing signal, and to reject
    * answers to questions this attempt was never shown.
    */
-  async startAttempt(userId: string, assessmentId: string) {
+  /**
+   * `skipLevelAndRetakeChecks` exists for exactly one caller:
+   * AssessmentRequestsService, starting an employer-paid, employer-targeted
+   * verification — sequential leveling and the candidate's own retake
+   * cooldown/lifetime cap are self-serve-progression rules that don't apply
+   * to a specific paid request the employer already chose the level for.
+   * The normal candidate-initiated path (AssessmentsController.start, the
+   * only other caller) never passes this, so its behavior is byte-for-byte
+   * unchanged. Entitlement charging isn't a concern either way — that
+   * happens at the controller/guard level (@RequiresEntitlement), which an
+   * employer-triggered start never goes through since it calls this method
+   * directly, not the guarded route.
+   */
+  async startAttempt(userId: string, assessmentId: string, options?: { skipLevelAndRetakeChecks?: boolean }) {
     const assessment = await this.prisma.assessment.findUnique({
       where: { id: assessmentId },
     });
@@ -289,7 +302,10 @@ export class AssessmentsService {
       // Not a genuinely new use — EntitlementGuard already charged one unit
       // of the 'assessments' metric before this method ever ran (see
       // AssessmentsController.start); undo that charge since we're handing
-      // back the same in-progress attempt, not starting another one.
+      // back the same in-progress attempt, not starting another one. A
+      // no-op refund when skipLevelAndRetakeChecks is set (nothing was ever
+      // charged on that path), same as EntitlementsService.refund already
+      // tolerates elsewhere (bounded at 0, safe to call speculatively).
       await this.entitlements.refund(userId, 'assessments');
       return active;
     }
@@ -302,24 +318,34 @@ export class AssessmentsService {
     // candidate already mid-attempt from before this policy existed is never
     // retroactively locked out of finishing it. Never touches badge/
     // SkillClaim issuance, so a badge already earned by an incomplete
-    // profile stays exactly as-is.
+    // profile stays exactly as-is. Applies regardless of
+    // skipLevelAndRetakeChecks — an employer-triggered badge still needs a
+    // real, identifiable candidate behind it.
     const profile = await this.prisma.candidateProfile.findUnique({
       where: { userId },
       select: { fullName: true, headline: true, yearsOfExp: true },
     });
     assertProfileReadyForAssessment(profile ?? { fullName: null, headline: null, yearsOfExp: null });
 
-    // Strict sequential leveling — a candidate may only attempt the level
-    // immediately after their highest earned level in this skill. Checked
-    // only for genuinely new attempts (after the idempotent active-attempt
-    // return above), so a candidate already mid-attempt from before this
-    // policy existed is never retroactively locked out of finishing it.
-    await this.badgeResolver.assertLevelAvailable(userId, assessment.skillId, assessment.targetLevel);
+    let attemptNumber: number;
+    if (options?.skipLevelAndRetakeChecks) {
+      const priorGraded = await this.prisma.attempt.count({
+        where: { userId, status: AttemptStatus.GRADED, assessment: { skillId: assessment.skillId } },
+      });
+      attemptNumber = priorGraded + 1;
+    } else {
+      // Strict sequential leveling — a candidate may only attempt the level
+      // immediately after their highest earned level in this skill. Checked
+      // only for genuinely new attempts (after the idempotent active-attempt
+      // return above), so a candidate already mid-attempt from before this
+      // policy existed is never retroactively locked out of finishing it.
+      await this.badgeResolver.assertLevelAvailable(userId, assessment.skillId, assessment.targetLevel);
 
-    // Tier-based retake cooldown/lifetime cap — see
-    // EntitlementsService.checkRetakeEligibility. Also gives us this
-    // attempt's ordinal attemptNumber, stamped below.
-    const { attemptNumber } = await this.entitlements.checkRetakeEligibility(userId, assessment.skillId);
+      // Tier-based retake cooldown/lifetime cap — see
+      // EntitlementsService.checkRetakeEligibility. Also gives us this
+      // attempt's ordinal attemptNumber, stamped below.
+      ({ attemptNumber } = await this.entitlements.checkRetakeEligibility(userId, assessment.skillId));
+    }
 
     const pool = await this.prisma.question.findMany({
       where: { assessmentId, isLive: true },

@@ -11,6 +11,7 @@
 import { useState } from 'react';
 import Script from 'next/script';
 import { api } from '@/lib/api';
+import { type RazorpayCheckoutResponse } from '@/lib/razorpay';
 
 interface CreateOrderResponse {
   orderId: string;
@@ -21,36 +22,6 @@ interface CreateOrderResponse {
 
 interface VerifyResponse {
   verified: boolean;
-}
-
-/** The subset of Razorpay Checkout's success-handler payload this flow needs — see payments.dto.ts's VerifyPaymentDto for the matching backend shape. */
-interface RazorpayCheckoutResponse {
-  razorpay_order_id: string;
-  razorpay_payment_id: string;
-  razorpay_signature: string;
-}
-
-interface RazorpayCheckoutOptions {
-  key: string;
-  amount: number;
-  currency: string;
-  order_id: string;
-  name: string;
-  description?: string;
-  handler: (response: RazorpayCheckoutResponse) => void;
-  modal?: { ondismiss?: () => void };
-  theme?: { color?: string };
-}
-
-interface RazorpayCheckoutInstance {
-  open: () => void;
-}
-
-/** Loaded by the <Script> tag below onto window — no npm package for the client SDK, Razorpay only ships the hosted checkout.js. */
-declare global {
-  interface Window {
-    Razorpay?: new (options: RazorpayCheckoutOptions) => RazorpayCheckoutInstance;
-  }
 }
 
 type Status = 'idle' | 'creating-order' | 'awaiting-payment' | 'verifying' | 'verified' | 'failed' | 'error';

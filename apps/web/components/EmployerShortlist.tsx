@@ -17,6 +17,7 @@ import { useSearchParams } from 'next/navigation';
 import { employerApi, downloadBlob } from '@/lib/api';
 import { Badge } from '@/components/ui';
 import CandidateAvatar from './CandidateAvatar';
+import AssessCandidateAction from './AssessCandidateAction';
 
 const { api, apiBlob } = employerApi;
 
@@ -477,6 +478,8 @@ export default function EmployerShortlist() {
               ))}
             </div>
           )}
+
+          <AssessCandidateAction candidateId={e.candidateId} />
 
           {editingNoteId === e.id ? (
             <div className="field" style={{ marginTop: 4 }}>
