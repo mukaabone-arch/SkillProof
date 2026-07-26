@@ -55,6 +55,13 @@ declare global {
 
 type Status = 'idle' | 'creating-order' | 'awaiting-payment' | 'verifying' | 'verified' | 'failed' | 'error';
 
+interface PaymentStatusResponse {
+  status: string;
+  amount: number;
+  method: string;
+  captured: boolean;
+}
+
 export default function PaymentTestPage() {
   const [scriptReady, setScriptReady] = useState(false);
   const [status, setStatus] = useState<Status>('idle');
@@ -123,6 +130,89 @@ export default function PaymentTestPage() {
     }
   }
 
+  // ---------- STEP 0: manual-capture (authorize now, capture later) proof ----------
+  // Separate from the flow above — that one auto-captures on Checkout
+  // success like a normal payment. This one authorizes only (Checkout
+  // succeeds, funds are held, nothing is charged yet) and leaves capture as
+  // a distinct, manual step, so the authorized -> captured transition can
+  // actually be observed via a real test-mode payment before
+  // employer-triggered-assessment's authorize/candidate-start-capture/
+  // expiry-void design is built on top of it.
+  const [authOrder, setAuthOrder] = useState<CreateOrderResponse | null>(null);
+  const [authPaymentId, setAuthPaymentId] = useState('');
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authMessage, setAuthMessage] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatusResponse | null>(null);
+
+  async function startAuthOnlyPayment() {
+    setAuthMessage('');
+    setPaymentStatus(null);
+    setAuthPaymentId('');
+    setAuthBusy(true);
+    try {
+      const order = await api<CreateOrderResponse>('/payments/test/create-auth-order', { method: 'POST' });
+      setAuthOrder(order);
+
+      if (!scriptReady || !window.Razorpay) {
+        setAuthMessage('Razorpay Checkout script has not loaded yet — wait a moment and try again.');
+        setAuthBusy(false);
+        return;
+      }
+
+      const checkout = new window.Razorpay({
+        key: order.keyId,
+        amount: order.amount,
+        currency: order.currency,
+        order_id: order.orderId,
+        name: 'SkillProof (test — auth only)',
+        description: 'Authorize-only test — funds are held, NOT captured, until you click Capture below.',
+        theme: { color: '#5B4FE0' },
+        modal: {
+          ondismiss: () => {
+            setAuthBusy(false);
+            setAuthMessage((m) => m || 'Checkout closed before authorizing.');
+          },
+        },
+        handler: (response) => {
+          setAuthPaymentId(response.razorpay_payment_id);
+          setAuthMessage('Authorized. Funds are held, not charged. Check status, then capture (or leave it — it auto-releases after 5 days).');
+          setAuthBusy(false);
+        },
+      });
+      checkout.open();
+    } catch (e) {
+      setAuthBusy(false);
+      setAuthMessage((e as Error).message);
+    }
+  }
+
+  async function checkPaymentStatus() {
+    if (!authPaymentId) return;
+    setAuthBusy(true);
+    try {
+      const result = await api<PaymentStatusResponse>(`/payments/test/status/${authPaymentId}`);
+      setPaymentStatus(result);
+    } catch (e) {
+      setAuthMessage((e as Error).message);
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function captureAuthorizedPayment() {
+    if (!authPaymentId) return;
+    setAuthBusy(true);
+    try {
+      await api('/payments/test/capture', { method: 'POST', body: JSON.stringify({ paymentId: authPaymentId }) });
+      await checkPaymentStatus();
+      setAuthMessage('Captured — funds actually charged now.');
+    } catch (e) {
+      setAuthMessage((e as Error).message);
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
   return (
     <>
       <Script
@@ -151,6 +241,43 @@ export default function PaymentTestPage() {
         {status === 'failed' && <p className="error">✗ {message}</p>}
         {status === 'error' && <p className="error">Error: {message}</p>}
         {status === 'idle' && message && <p className="meta">{message}</p>}
+
+        <hr style={{ margin: '32px 0' }} />
+
+        <h2>STEP 0: authorize-then-capture-later check</h2>
+        <p>
+          For employer-triggered-assessment: proves a payment can be authorized (held, not charged) at Checkout,
+          then captured separately later via a server-side API call — the mechanism the real feature&apos;s
+          candidate-start capture and 5-day expiry-void depend on. Try this with different test payment methods
+          (card vs. UPI) to see whether both actually hold rather than auto-capturing.
+        </p>
+
+        <button onClick={startAuthOnlyPayment} disabled={authBusy}>
+          {authBusy && !authPaymentId ? 'Working…' : 'Authorize ₹100 (do not capture)'}
+        </button>
+
+        {authPaymentId && (
+          <div style={{ marginTop: 16 }}>
+            <p className="meta">Payment id: {authPaymentId}</p>
+            <div className="row">
+              <button onClick={checkPaymentStatus} disabled={authBusy}>
+                Check status
+              </button>
+              <button onClick={captureAuthorizedPayment} disabled={authBusy}>
+                Capture now
+              </button>
+            </div>
+          </div>
+        )}
+
+        {paymentStatus && (
+          <p className={paymentStatus.status === 'authorized' ? 'meta' : 'ok'}>
+            status: <strong>{paymentStatus.status}</strong> · captured: <strong>{String(paymentStatus.captured)}</strong> ·
+            method: {paymentStatus.method} · amount: {(paymentStatus.amount / 100).toFixed(2)} {authOrder?.currency}
+          </p>
+        )}
+
+        {authMessage && <p className="meta">{authMessage}</p>}
       </main>
     </>
   );

@@ -81,4 +81,73 @@ export class PaymentsService {
 
     return { verified };
   }
+
+  // ---------- STEP 0 verification harness (feat/employer-triggered-assessment) ----------
+  // Not part of the throwaway checkout above — these three prove manual
+  // capture (authorize now, capture later, auto-refund if never captured)
+  // actually works for this account before the employer-triggered-
+  // assessment feature is built on top of it. See docs/razorpay-manual-capture.md
+  // (if present) or the STEP 0 report for what's already confirmed from
+  // Razorpay's docs; a real test-mode transaction through these three
+  // endpoints is what confirms it for real. Delete this section once that's
+  // done and the real AssessmentRequest flow has its own capture logic.
+
+  /**
+   * Same fixed test order as createTestOrder, except `payment.capture:
+   * 'manual'` — Checkout will authorize the payment (hold the funds) but
+   * NOT auto-capture it. manual_expiry_period is Razorpay's own maximum
+   * (7200 minutes = exactly 5 days, confirmed via their capture-settings
+   * API docs) — the same window the real feature's 5-day candidate
+   * response window is built around. If nothing captures it before then,
+   * Razorpay auto-refunds it on its own; there is no explicit "void" API
+   * to call.
+   */
+  async createAuthOnlyOrder(): Promise<{ orderId: string; keyId: string; amount: number; currency: string }> {
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    if (!keyId || !process.env.RAZORPAY_KEY_SECRET) {
+      throw new BadRequestException(
+        'Razorpay is not configured — set RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET (test-mode keys from the Razorpay dashboard).',
+      );
+    }
+
+    const order = await this.client.orders.create({
+      amount: TEST_AMOUNT_PAISE,
+      currency: TEST_CURRENCY,
+      receipt: `authtest_${Date.now()}`,
+      payment: {
+        capture: 'manual',
+        // automatic_expiry_period is only meaningful when capture:
+        // 'automatic' — the SDK's types require it regardless, so this is
+        // a placeholder at its documented minimum, never actually used.
+        capture_options: { automatic_expiry_period: 12, manual_expiry_period: 7200, refund_speed: 'normal' },
+      },
+    });
+
+    return { orderId: order.id, keyId, amount: TEST_AMOUNT_PAISE, currency: TEST_CURRENCY };
+  }
+
+  /** Fetches the payment's live status straight from Razorpay — this is what proves "authorized" really means held-not-charged, and "captured" really means the capture call took effect. */
+  async getPaymentStatus(paymentId: string): Promise<{ status: string; amount: number; method: string; captured: boolean }> {
+    const payment = await this.client.payments.fetch(paymentId);
+    return {
+      status: payment.status,
+      amount: Number(payment.amount),
+      method: payment.method,
+      captured: payment.captured,
+    };
+  }
+
+  /**
+   * Captures a previously-authorized payment — the same call the real
+   * feature will make at candidate-start. amount/currency must match what
+   * was authorized; Razorpay rejects a capture attempt on anything already
+   * captured, refunded, or past its manual_expiry_period, which is exactly
+   * the double-capture/late-capture protection the real feature depends on
+   * (see the STEP 0 report for how AssessmentRequest builds idempotency on
+   * top of that rather than reimplementing it).
+   */
+  async captureTestPayment(paymentId: string): Promise<{ status: string; captured: boolean }> {
+    const payment = await this.client.payments.capture(paymentId, TEST_AMOUNT_PAISE, TEST_CURRENCY);
+    return { status: payment.status, captured: payment.captured };
+  }
 }

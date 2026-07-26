@@ -1,6 +1,6 @@
-import { Body, Controller, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
-import { VerifyPaymentDto } from './payments.dto';
+import { CapturePaymentDto, VerifyPaymentDto } from './payments.dto';
 
 /**
  * Throwaway Razorpay test-mode plumbing (`feat/razorpay-test`) — proves
@@ -25,5 +25,29 @@ export class PaymentsController {
   @HttpCode(200)
   verify(@Body() dto: VerifyPaymentDto) {
     return this.payments.verifyTestPayment(dto.razorpay_order_id, dto.razorpay_payment_id, dto.razorpay_signature);
+  }
+
+  // ---------- STEP 0 verification harness (feat/employer-triggered-assessment) ----------
+  // Proves authorize-now/capture-later actually works for this account via
+  // a real test-mode transaction — see PaymentsService's own doc comment
+  // on this section, and the STEP 0 report. Not part of the original
+  // razorpay-test connectivity check above; delete once the real
+  // AssessmentRequest capture flow replaces it.
+
+  @Post('create-auth-order')
+  @HttpCode(200)
+  createAuthOrder() {
+    return this.payments.createAuthOnlyOrder();
+  }
+
+  @Get('status/:paymentId')
+  status(@Param('paymentId') paymentId: string) {
+    return this.payments.getPaymentStatus(paymentId);
+  }
+
+  @Post('capture')
+  @HttpCode(200)
+  capture(@Body() dto: CapturePaymentDto) {
+    return this.payments.captureTestPayment(dto.paymentId);
   }
 }
