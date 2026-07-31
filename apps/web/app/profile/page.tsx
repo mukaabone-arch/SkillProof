@@ -658,9 +658,6 @@ function ProfilePageInner() {
             Upload your resume as a PDF, then have AI pull out the highlights. Nothing is saved
             to your profile until you review and confirm it below.
           </p>
-          <p style={{ marginTop: -12 }}>
-            Want a polished, downloadable resume instead? <Link href="/resume">Build one →</Link>
-          </p>
 
           <div className="field">
             <label htmlFor="resumeFile">PDF resume (max 5MB)</label>
@@ -770,6 +767,18 @@ function ProfilePageInner() {
               </div>
             </div>
           )}
+          </section>
+
+          <section className="ui-card profile-panel">
+            <h2>Build a resume PDF</h2>
+            <p>
+              Turn your profile and verified badges into a clean, one-page PDF — or upload an
+              existing resume and have AI rewrite it. Either way, you review and edit everything
+              before downloading.
+            </p>
+            <Link href="/resume">
+              <button>Build your resume →</button>
+            </Link>
           </section>
 
           <CertificationsPanel />

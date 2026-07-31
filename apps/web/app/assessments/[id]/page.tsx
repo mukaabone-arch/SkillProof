@@ -65,7 +65,7 @@ interface Result {
 export default function TakeAssessmentPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { tier, usage, refetch } = useEntitlements();
+  const { tier, limits, usage, refetch } = useEntitlements();
   const [attemptId, setAttemptId] = useState<string>();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, number>>({});
@@ -323,14 +323,40 @@ export default function TakeAssessmentPage() {
           </>
         ) : (
           <>
-            <p>Review the material and try again — your best attempt counts.</p>
-            <p className="meta">
-              Retake availability depends on your plan (a cooldown period, and a lifetime cap per
-              skill) — you&apos;ll see exactly where you stand if you&apos;re not eligible yet.{' '}
-              <Link href="/upgrade">Premium removes the cooldown →</Link>
-            </p>
+            <p>Didn&apos;t clear the bar this time.</p>
+            {/*
+              Contextual, not certain: this page only knows the tier's
+              cooldown/cap policy (limits.retakeCooldownDays/
+              retakesPerSkillLifetime, already fetched app-wide by
+              EntitlementsProvider — no new call), not how many prior
+              attempts this candidate has burned on this specific skill, so
+              it can't honestly claim "you're out of retakes" as a fact.
+              "Try again" below still calls the real start endpoint and
+              surfaces the authoritative retakeIssue (see the acknowledgment
+              screen above) if this really was the last one.
+            */}
+            {limits && limits.retakeCooldownDays === 0 ? (
+              <p className="meta">
+                No cooldown on your plan — you can retake {result.skillName} whenever you&apos;re ready.
+              </p>
+            ) : limits ? (
+              <p className="meta">
+                Retakes on your plan have a cooldown — you&apos;ll likely be eligible for {result.skillName}{' '}
+                again around{' '}
+                {new Date(Date.now() + limits.retakeCooldownDays * 24 * 60 * 60 * 1000).toLocaleDateString()}.
+                Retakes are also capped at {limits.retakesPerSkillLifetime} per skill, lifetime, so if this
+                was your last one for {result.skillName},{' '}
+                <Link href="/assessments">another skill</Link> is the better use of the wait.{' '}
+                <Link href="/upgrade">Premium removes the cooldown →</Link>
+              </p>
+            ) : null}
             <div className="row" style={{ margin: 0 }}>
               <button onClick={retry}>Try again</button>
+              {limits && limits.retakeCooldownDays > 0 && (
+                <Link href="/assessments">
+                  <button className="btn-secondary">Explore other skills</button>
+                </Link>
+              )}
             </div>
           </>
         )}
