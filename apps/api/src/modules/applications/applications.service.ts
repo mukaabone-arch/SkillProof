@@ -1,7 +1,9 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ApplicationStatus, NotificationType, ProfileViewSource } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { WEB_BASE_URL } from '../../config/web-base-url';
 import { NotificationsService } from '../notifications/notifications.service';
+import { renderNotificationEmail } from '../notifications/notification-email.template';
 import { ProfileViewsService } from '../profile-views/profile-views.service';
 
 @Injectable()
@@ -69,9 +71,11 @@ export class ApplicationsService {
 
     try {
       const subject = `Your application to ${updated.job.title} was updated`;
-      const html =
+      const html = renderNotificationEmail(
         `<p>Your application to <strong>${updated.job.title}</strong> at ` +
-        `<strong>${updated.job.organization.name}</strong> is now <strong>${status}</strong>.</p>`;
+          `<strong>${updated.job.organization.name}</strong> is now <strong>${status}</strong>.</p>`,
+        { label: 'View your applications', url: `${WEB_BASE_URL}/jobs?tab=applications` },
+      );
       await this.notifications.sendEmail(
         application.candidateProfile.userId,
         NotificationType.APPLICATION_STATUS,
