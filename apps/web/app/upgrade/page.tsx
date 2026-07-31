@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react';
 import { api, getToken as getStoredToken } from '@/lib/api';
 import { useEntitlements, PlanLimits, SubscriptionTier } from '@/lib/entitlements';
 import CandidateNav from '@/components/CandidateNav';
+import { ErrorState } from '@/components/ui';
 
 interface PlansResponse {
   tiers: {
@@ -115,7 +116,7 @@ export default function UpgradePage() {
           Every row below is read straight from the same limits the API enforces — this page can&apos;t
           say something that isn&apos;t actually true of your account.
         </p>
-        {error && <p className="error">{error}</p>}
+        {error && <ErrorState message={error} />}
 
         {plans && (
           <div className="plan-columns">

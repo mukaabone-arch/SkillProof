@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import { EmptyState } from '@/components/ui';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui';
 import { useEntitlements } from '@/lib/entitlements';
 
 interface Skill {
@@ -241,8 +241,8 @@ export default function CandidateJobs() {
 
       {tab === 'matched' && (
         <>
-          {loadingMatched && <p className="meta">Scoring jobs against your verified skills…</p>}
-          {matchedError && <p className="error">{matchedError}</p>}
+          {loadingMatched && <LoadingState message="Scoring jobs against your verified skills…" />}
+          {matchedError && <ErrorState message={matchedError} />}
           {!loadingMatched && !matchedError && matched.length === 0 && (
             hasVerifiedSkills === false ? (
               <EmptyState
@@ -319,7 +319,7 @@ export default function CandidateJobs() {
             </button>
           </div>
 
-          {browseError && <p className="error">{browseError}</p>}
+          {browseError && <ErrorState message={browseError} />}
 
           {total === null ? (
             <EmptyState message="Search openings">
@@ -352,10 +352,10 @@ export default function CandidateJobs() {
 
       {tab === 'applications' && (
         <>
-          {loadingApplications && <p className="meta">Loading your applications…</p>}
-          {applicationsError && <p className="error">{applicationsError}</p>}
+          {loadingApplications && <LoadingState message="Loading your applications…" />}
+          {applicationsError && <ErrorState message={applicationsError} />}
           {!loadingApplications && !applicationsError && applications.length === 0 && (
-            <p>You haven&apos;t applied to any jobs yet.</p>
+            <EmptyState message="You haven't applied to any jobs yet." />
           )}
           {applications.map((a) => (
             <div key={a.id} className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>

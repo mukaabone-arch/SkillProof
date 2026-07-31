@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api, type ApiError } from '@/lib/api';
 import CandidateNav from '@/components/CandidateNav';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui';
 import { isSafeReturnTo } from '@/lib/returnTo';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import { isProfileReadyForAssessment, missingReadinessFields, readinessGateMessage } from '@/lib/profileReadiness';
@@ -127,7 +128,7 @@ function DiscussionAction({
         <button onClick={start} disabled={starting || !profileReady} title={profileReady ? undefined : 'Complete your profile to unlock'}>
           {starting ? 'Starting…' : namedChoice ? `Discussion · ${durationMins} min` : 'Start'}
         </button>
-        {error && <p className="error">{error}</p>}
+        {error && <ErrorState message={error} />}
       </div>
     );
   }
@@ -167,7 +168,7 @@ function DiscussionAction({
               ? "This session didn't give you a fair shot — retake now"
               : 'Retake assessment'}
         </button>
-        {error && <p className="error">{error}</p>}
+        {error && <ErrorState message={error} />}
       </div>
     );
   }
@@ -407,14 +408,14 @@ function AssessmentsPageInner() {
             resetsAt={usage.assessments.resetsAt}
           />
         )}
-        {error && <p className="error">{error}</p>}
+        {error && <ErrorState message={error} />}
         {skills.length === 0 && !error && (
-          <p>
-            No assessments are available just yet — check back soon. In the
-            meantime, you can{' '}
-            <Link href="/profile">add a verified credential</Link> on your
-            profile to start applying.
-          </p>
+          <EmptyState message="No assessments are available just yet — check back soon.">
+            <p className="meta" style={{ margin: '4px 0 0' }}>
+              In the meantime, you can <Link href="/profile">add a verified credential</Link> on your
+              profile to start applying.
+            </p>
+          </EmptyState>
         )}
         {!profileReady && skills.length > 0 && (
           <p className="meta" style={{ marginTop: -8, marginBottom: 20 }}>
@@ -454,7 +455,7 @@ function AssessmentsPageInner() {
 
 export default function AssessmentsPage() {
   return (
-    <Suspense fallback={<main><p>Loading…</p></main>}>
+    <Suspense fallback={<main><LoadingState /></main>}>
       <AssessmentsPageInner />
     </Suspense>
   );

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api, getToken, type ApiError } from '@/lib/api';
-import { JobDescription } from '@/components/ui';
+import { ErrorState, JobDescription, LoadingState } from '@/components/ui';
 import { useEntitlements } from '@/lib/entitlements';
 import { UsageMeter } from '@/components/UsageMeter';
 
@@ -183,8 +183,12 @@ export default function JobDetailPage() {
     }
   }
 
-  if (loggedIn === null) return <main><p>Loading job…</p></main>;
+  if (loggedIn === null) return <main><LoadingState message="Loading job…" /></main>;
 
+  // Not migrated to ErrorState: its message is typed as a plain string, and
+  // this one carries an embedded <Link> — stringifying it would drop the
+  // link entirely (same reason app/resume/page.tsx's identical message
+  // is left as a raw paragraph too).
   if (!loggedIn) {
     return (
       <main>
@@ -195,8 +199,8 @@ export default function JobDetailPage() {
     );
   }
 
-  if (error) return <main><p className="error">{error}</p></main>;
-  if (!job) return <main><p>Loading job…</p></main>;
+  if (error) return <main><ErrorState message={error} /></main>;
+  if (!job) return <main><LoadingState message="Loading job…" /></main>;
 
   return (
     <main>
@@ -260,7 +264,7 @@ export default function JobDetailPage() {
           <Link href={`/assessments?returnTo=/jobs/${id}`}>Take an assessment →</Link>
         </p>
       )}
-      {applyError && <p className="error">{applyError}</p>}
+      {applyError && <ErrorState message={applyError} />}
     </main>
   );
 }

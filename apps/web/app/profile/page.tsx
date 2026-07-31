@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api, apiBlob } from '@/lib/api';
 import CandidateNav from '@/components/CandidateNav';
+import { ErrorState, LoadingState } from '@/components/ui';
 import { isSafeReturnTo } from '@/lib/returnTo';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import CertificationsPanel from '@/components/CertificationsPanel';
@@ -426,7 +427,7 @@ function ProfilePageInner() {
         </p>
       )}
 
-      {error && <p className="error">{error}</p>}
+      {error && <ErrorState message={error} />}
 
       {form && (
         <>
@@ -493,7 +494,7 @@ function ProfilePageInner() {
               </div>
             </div>
             <p className="meta" style={{ margin: 0 }}>JPEG, PNG, or WebP, up to 5MB.</p>
-            {photoError && <p className="error" style={{ margin: 0 }}>{photoError}</p>}
+            {photoError && <ErrorState message={photoError} />}
           </div>
 
           <div className="field">
@@ -680,8 +681,8 @@ function ProfilePageInner() {
             </button>
           </div>
           {uploaded && <p className="ok">✓ Resume uploaded</p>}
-          {uploadError && <p className="error">{uploadError}</p>}
-          {parseError && <p className="error">{parseError}</p>}
+          {uploadError && <ErrorState message={uploadError} />}
+          {parseError && <ErrorState message={parseError} />}
 
           {review && (
             <div
@@ -784,7 +785,7 @@ function ProfilePageInner() {
 
 export default function ProfilePage() {
   return (
-    <Suspense fallback={<main><p>Loading…</p></main>}>
+    <Suspense fallback={<main><LoadingState /></main>}>
       <ProfilePageInner />
     </Suspense>
   );

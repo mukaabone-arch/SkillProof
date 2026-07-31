@@ -11,6 +11,7 @@
  */
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui';
 
 type Stage = 'SHORTLISTED' | 'INVITED' | 'INTERVIEWING' | 'OFFER' | 'HIRED' | 'DECLINED' | 'REJECTED' | 'CLOSED';
 type RoundStatus = 'SCHEDULED' | 'COMPLETED' | 'PASSED' | 'FAILED';
@@ -107,13 +108,11 @@ export default function CandidateInterviews() {
 
   return (
     <>
-      {loading && <p className="meta">Loading…</p>}
-      {error && <p className="error">{error}</p>}
+      {loading && <LoadingState />}
+      {error && <ErrorState message={error} />}
 
       {!loading && !error && interviews.length === 0 && (
-        <p>
-          No active interview pipelines yet. When an employer invites you after shortlisting you, it&apos;ll show up here.
-        </p>
+        <EmptyState message="No active interview pipelines yet. When an employer invites you after shortlisting you, it'll show up here." />
       )}
 
       {interviews.map((i) => (

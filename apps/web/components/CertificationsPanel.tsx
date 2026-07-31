@@ -12,7 +12,7 @@
  */
 import { useEffect, useState } from 'react';
 import { api, apiBlob } from '@/lib/api';
-import { Badge, EmptyState } from '@/components/ui';
+import { Badge, EmptyState, ErrorState } from '@/components/ui';
 
 type CertIssuer =
   | 'CREDLY'
@@ -475,7 +475,7 @@ export default function CertificationsPanel() {
           </div>
 
           {proofError && <p className="field-error">{proofError}</p>}
-          {submitError && <p className="error">{submitError}</p>}
+          {submitError && <ErrorState message={submitError} />}
 
           <div className="row" style={{ marginTop: 4, marginBottom: 0 }}>
             <button onClick={submit} disabled={!formValid || submitting}>
@@ -486,7 +486,7 @@ export default function CertificationsPanel() {
         </div>
       )}
 
-      {fileViewError && <p className="error">{fileViewError}</p>}
+      {fileViewError && <ErrorState message={fileViewError} />}
 
       {certifications.length === 0 ? (
         <EmptyState message="No certifications yet — add one above." />

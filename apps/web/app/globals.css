@@ -206,7 +206,10 @@ code { font-family: var(--font-body); }
    .btn-primary/.btn-secondary render identically to the pre-existing bare
    `button` default and `.btn-ghost` (kept for any direct callers); .btn-danger,
    .ui-card, .ui-badge-*, and the empty/loading/error states are additions
-   that complete the system. Nothing here is wired into a page yet. */
+   that complete the system. Adopted across most candidate surfaces as of
+   the ui-primitives-adoption pass — the bespoke flex-row `.card` (below,
+   in the assessment slice) is a deliberate exception, not an oversight:
+   see that class's own usage for why it isn't `Card`/.ui-card. */
 .btn { font: inherit; padding: 12px 16px; border-radius: var(--radius-md); border: none; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform 0.12s ease, background 0.12s ease; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-primary { background: var(--indigo); color: #fff; }
@@ -418,6 +421,19 @@ main.auth.auth-gradient {
 }
 
 /* ---- assessment slice ---- */
+/* Deliberately not unified with .ui-card/<Card> (ui-primitives-adoption
+   pass): every call site relies on the display:flex row below, either as-is
+   (icon+text with an action pinned to the far end, e.g. the discussion
+   result page's .badge-card) or overridden inline to a column with its own
+   `gap` (job/interview/certification cards throughout). .ui-card has no
+   `display:flex` at all, and its padding (--space-6, 24px all around) and
+   radius (--radius-lg, 14px) both differ from this class's 18px/20px and
+   12px — so routing any of those cards through Card would either collapse
+   their layout entirely or require re-adding this exact flex styling
+   inline while still landing on visibly different padding/radius. Two
+   genuinely different tools: this one is a flex-row building block, Card is
+   a plain padding box for stacked block content (see its use in
+   app/resume/page.tsx). */
 .card {
   background: var(--card); border: 1px solid var(--gray-100); border-radius: 12px;
   padding: 18px 20px; margin-bottom: 14px;

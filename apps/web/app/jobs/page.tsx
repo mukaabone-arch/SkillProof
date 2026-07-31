@@ -4,6 +4,7 @@
 import { Suspense } from 'react';
 import CandidateNav from '@/components/CandidateNav';
 import CandidateJobs from '@/components/CandidateJobs';
+import { LoadingState } from '@/components/ui';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 
 export default function JobsPage() {
@@ -17,7 +18,7 @@ export default function JobsPage() {
         <h1>Jobs</h1>
         <p>Browse live openings, see how you match up, and track your applications.</p>
 
-        <Suspense fallback={<p className="meta">Loading…</p>}>
+        <Suspense fallback={<LoadingState />}>
           <CandidateJobs />
         </Suspense>
       </main>

@@ -23,7 +23,7 @@ import { api } from '@/lib/api';
 import CandidateNav from './CandidateNav';
 import AdminNav from './AdminNav';
 import FeatureStrip from './FeatureStrip';
-import { EmptyState } from './ui';
+import { EmptyState, ErrorState, LoadingState } from './ui';
 import { SegmentedProgress, SegmentedProgressState } from './ui/SegmentedProgress';
 
 interface SkillClaim {
@@ -413,7 +413,7 @@ export default function Dashboard({ onLoggedOut }: Props) {
       <>
         <CandidateNav onLoggedOut={onLoggedOut} />
         <main className="hub">
-          <p className="error">{error}</p>
+          <ErrorState message={error} />
         </main>
       </>
     );
@@ -423,7 +423,7 @@ export default function Dashboard({ onLoggedOut }: Props) {
       <>
         <CandidateNav onLoggedOut={onLoggedOut} />
         <main className="hub">
-          <p>Loading your dashboard…</p>
+          <LoadingState message="Loading your dashboard…" />
         </main>
       </>
     );
