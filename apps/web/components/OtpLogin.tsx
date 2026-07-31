@@ -104,7 +104,12 @@ export default function OtpLogin({ onLoggedIn }: Props) {
           <Logo className="brand-logo-hero" />
           <span className="brand-product-name">SkillProof</span>
         </div>
-        <p className="auth-subtitle">Verified AI-skill assessments. Sign in with your email to get started.</p>
+        <p className="auth-subtitle" style={{ marginBottom: 4 }}>
+          Prove your AI skills, get matched to roles that want them.
+        </p>
+        <p className="meta" style={{ marginBottom: 20 }}>
+          Sign in with your email to get started.
+        </p>
 
         {stage === 'email' && (
           <div className="field">

@@ -118,7 +118,12 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
             SkillProof <span style={{ color: 'var(--auth-text-secondary)', fontWeight: 500 }}>for Employers</span>
           </span>
         </div>
-        <p className="auth-subtitle">Post assessments and find verified candidates. Sign up with your work email to get started.</p>
+        <p className="auth-subtitle" style={{ marginBottom: 4 }}>
+          Hire on proven skills, not keywords.
+        </p>
+        <p className="meta" style={{ marginBottom: 20 }}>
+          Sign up with your work email to get started.
+        </p>
 
         {stage === 'details' && (
           <>
