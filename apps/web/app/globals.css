@@ -576,6 +576,17 @@ main.employer-home { max-width: 1080px; }
   .segmented-progress-label { font-size: 0.78rem; }
   .segmented-progress-sublabel { font-size: 0.62rem; }
 }
+/* Five stages (the full profile→hired arc) get tight fast below ~420px —
+   the sublabel ("Complete" / "In progress" / "Not started") is the least
+   essential line (the dot color already carries that), so it's the first
+   thing to go; the stage labels themselves stay, just smaller and free to
+   wrap to two lines, so no stage is ever dropped from view. */
+@media (max-width: 420px) {
+  .segmented-progress-label { font-size: 0.68rem; line-height: 1.15; }
+  .segmented-progress-sublabel { display: none; }
+  .segmented-progress-dot { width: 18px; height: 18px; }
+  .segmented-progress-track { top: 7.5px; }
+}
 
 /* Kept for any other page still referencing it; the dashboard hub itself
    now uses .copilot-panel below instead. */

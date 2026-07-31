@@ -3,11 +3,12 @@
 /**
  * Candidate dashboard hub — the home page after login. An AI co-pilot panel
  * leads (one contextual "next move" message computed from the candidate's
- * own verified skills, match scores and skill gaps), then journey progress
- * and status cards. Design: docs/candidate-journey-design-spec.md. Matched
- * jobs are still fetched — the co-pilot's best-match/recurring-gap logic
- * reads them — but the list itself lives only on the Jobs tab's Matched
- * view now, not here.
+ * own verified skills, match scores, skill gaps, and — once they exist —
+ * live interview pipelines and pending assessment reviews), then journey
+ * progress and status cards. Design: docs/candidate-journey-design-spec.md.
+ * Matched jobs are still fetched — the co-pilot's best-match/recurring-gap
+ * logic reads them — but the list itself lives only on the Jobs tab's
+ * Matched view now, not here.
  *
  * Every value here is derived client-side from existing endpoints — no new
  * backend surface, including the co-pilot message (buildCopilotMessage
@@ -81,6 +82,38 @@ interface ExternalCredential {
   verificationState: string;
 }
 
+/** Mirrors the candidate-facing shape InterviewsService.present returns from GET /interviews/mine — see components/CandidateInterviews.tsx for the fuller version this is a subset of. */
+type PipelineStage = 'SHORTLISTED' | 'INVITED' | 'INTERVIEWING' | 'OFFER' | 'HIRED' | 'DECLINED' | 'REJECTED' | 'CLOSED';
+type CandidateResponse = 'ACCEPTED' | 'DECLINED' | 'NEGOTIATING';
+interface InterviewRound {
+  roundNumber: number;
+  status: string;
+  channel: string | null;
+  scheduledAt: string | null;
+}
+interface Interview {
+  id: string;
+  orgName: string;
+  job: { id: string; title: string } | null;
+  stage: PipelineStage;
+  currentRound: InterviewRound | null;
+  candidateResponse: CandidateResponse | null;
+}
+
+/**
+ * GET /assessment-sessions/mine — only ever the candidate's single most
+ * recent discussion-assessment session (any status), or null; see that
+ * endpoint's own doc comment. Only `status` matters here (is it
+ * AWAITING_SCORING/AWAITING_REVIEW right now); skill/level aren't part of
+ * the payload because this system only assesses one skill/level today
+ * (RAG Systems L2 — see DISCUSSION_SKILL_NAME/LEVEL below, and the same
+ * hardcoding already done in app/assessments/discussion/[slug]/page.tsx).
+ */
+interface MineAssessmentSession {
+  id: string;
+  status: string;
+}
+
 interface Props {
   onLoggedOut: () => void;
 }
@@ -89,6 +122,57 @@ interface Props {
 const MATCH_STRONG_THRESHOLD = 65;
 /** A missing skill only becomes the co-pilot's headline suggestion once it's blocking at least this many of the candidate's top matches — a single job's gap isn't a pattern worth interrupting for. */
 const RECURRING_GAP_MIN_COUNT = 2;
+/** See MineAssessmentSession's doc comment — this system only offers one discussion assessment today, so its skill/level are constants, same as the pre-session page's own SKILL_NAME/SKILL_LEVEL. */
+const DISCUSSION_SKILL_NAME = 'RAG Systems';
+const DISCUSSION_SKILL_LEVEL = 'L2';
+
+function roleLineFor(job: { title: string } | null): string {
+  return job ? ` for ${job.title}` : '';
+}
+
+/**
+ * A discriminated summary of whichever single interview pipeline needs the
+ * candidate's attention most, in the same priority order the co-pilot ladder
+ * below uses. Resolved once, outside buildCopilotMessage, the same way
+ * bestUnapplied/recurringGap already are — keeps the ladder itself a plain
+ * sequence of "if this signal is present" branches with no searching of its
+ * own. When several pipelines are active simultaneously, only the single
+ * most urgent one is ever returned — HIRED beats an awaiting offer beats a
+ * pending invite beats an in-progress interview, matching the order a
+ * candidate would actually want to hear about them in.
+ */
+type PipelineAlert =
+  | { kind: 'HIRED'; orgName: string; roleLine: string }
+  | { kind: 'OFFER'; orgName: string; roleLine: string }
+  | { kind: 'INVITED'; orgName: string; roleLine: string }
+  | { kind: 'INTERVIEWING'; orgName: string; roleLine: string; round: InterviewRound | null };
+
+function mostUrgentPipelineAlert(interviews: Interview[]): PipelineAlert | undefined {
+  const hired = interviews.find((i) => i.stage === 'HIRED');
+  if (hired) return { kind: 'HIRED', orgName: hired.orgName, roleLine: roleLineFor(hired.job) };
+
+  // Awaiting specifically means the candidate hasn't responded yet — once
+  // they have (candidateResponse set), the entry stays in OFFER stage until
+  // the employer records an outcome, but there's nothing left for the
+  // candidate to act on, so it no longer belongs in the co-pilot at all.
+  const offerAwaiting = interviews.find((i) => i.stage === 'OFFER' && i.candidateResponse === null);
+  if (offerAwaiting) return { kind: 'OFFER', orgName: offerAwaiting.orgName, roleLine: roleLineFor(offerAwaiting.job) };
+
+  const invited = interviews.find((i) => i.stage === 'INVITED');
+  if (invited) return { kind: 'INVITED', orgName: invited.orgName, roleLine: roleLineFor(invited.job) };
+
+  const interviewing = interviews.find((i) => i.stage === 'INTERVIEWING');
+  if (interviewing) {
+    return {
+      kind: 'INTERVIEWING',
+      orgName: interviewing.orgName,
+      roleLine: roleLineFor(interviewing.job),
+      round: interviewing.currentRound,
+    };
+  }
+
+  return undefined;
+}
 
 function journeySubLabel(state: SegmentedProgressState): string {
   if (state === 'done') return 'Complete';
@@ -113,12 +197,24 @@ function buildCopilotMessage(params: {
   hasProfile: boolean;
   hasBadge: boolean;
   liveAssessmentCount: number;
+  pipelineAlert: PipelineAlert | undefined;
+  awaitingReviewSession: MineAssessmentSession | undefined;
   bestUnapplied: MatchedJob | undefined;
   recurringGap: { name: string; count: number } | undefined;
   hasApplied: boolean;
   applicationCount: number;
 }): CopilotMessage {
-  const { hasProfile, hasBadge, liveAssessmentCount, bestUnapplied, recurringGap, hasApplied, applicationCount } = params;
+  const {
+    hasProfile,
+    hasBadge,
+    liveAssessmentCount,
+    pipelineAlert,
+    awaitingReviewSession,
+    bestUnapplied,
+    recurringGap,
+    hasApplied,
+    applicationCount,
+  } = params;
 
   if (!hasProfile) {
     return {
@@ -143,6 +239,69 @@ function buildCopilotMessage(params: {
           ctaLabel: 'Check assessments',
           ctaHref: '/assessments',
         };
+  }
+
+  // Live interview-pipeline and pending-review states, most urgent first —
+  // all of these outrank match/gap suggestions below, since none of them
+  // are "worth a look," they're waiting on the candidate (or, for HIRED,
+  // worth a moment of celebration) right now. A candidate can only ever
+  // reach any of these with a profile and a badge already in hand (both
+  // are apply-time gates — see candidate-jobs.service.ts), so this block
+  // structurally can't fire before the two checks above have passed.
+  if (pipelineAlert?.kind === 'HIRED') {
+    return {
+      eyebrow: 'You got the job!',
+      message: `${pipelineAlert.orgName} hired you${pipelineAlert.roleLine}. Congratulations — take a moment, you earned it.`,
+      ctaLabel: 'View details',
+      ctaHref: '/interviews',
+    };
+  }
+
+  if (pipelineAlert?.kind === 'OFFER') {
+    return {
+      eyebrow: 'Offer awaiting your response',
+      message: `${pipelineAlert.orgName} has extended an offer${pipelineAlert.roleLine}.`,
+      ctaLabel: 'Respond',
+      ctaHref: '/interviews',
+    };
+  }
+
+  if (pipelineAlert?.kind === 'INVITED') {
+    return {
+      eyebrow: 'Interview invitation',
+      message: `${pipelineAlert.orgName} invited you to interview${pipelineAlert.roleLine}.`,
+      ctaLabel: 'Accept or decline',
+      ctaHref: '/interviews',
+    };
+  }
+
+  if (pipelineAlert?.kind === 'INTERVIEWING') {
+    const round = pipelineAlert.round;
+    if (round) {
+      const channelPart = round.channel ? ` — ${round.channel}` : '';
+      const timePart = round.scheduledAt ? `, ${new Date(round.scheduledAt).toLocaleString()}` : '';
+      return {
+        eyebrow: 'Interview round scheduled',
+        message: `Round ${round.roundNumber} at ${pipelineAlert.orgName}${pipelineAlert.roleLine}${channelPart}${timePart}.`,
+        ctaLabel: 'View details',
+        ctaHref: '/interviews',
+      };
+    }
+    return {
+      eyebrow: 'Interviewing',
+      message: `You're interviewing at ${pipelineAlert.orgName}${pipelineAlert.roleLine} — they'll schedule your next round soon.`,
+      ctaLabel: 'View details',
+      ctaHref: '/interviews',
+    };
+  }
+
+  if (awaitingReviewSession) {
+    return {
+      eyebrow: 'Assessment awaiting review',
+      message: `Your ${DISCUSSION_SKILL_NAME} ${DISCUSSION_SKILL_LEVEL} session is with a reviewer — results typically within a day.`,
+      ctaLabel: 'View status',
+      ctaHref: `/assessments/discussion/session/${awaitingReviewSession.id}`,
+    };
   }
 
   if (bestUnapplied && bestUnapplied.score >= MATCH_STRONG_THRESHOLD) {
@@ -196,6 +355,8 @@ export default function Dashboard({ onLoggedOut }: Props) {
   const [matched, setMatched] = useState<MatchedResponse>();
   const [applications, setApplications] = useState<MyApplication[]>([]);
   const [credentials, setCredentials] = useState<ExternalCredential[]>([]);
+  const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [assessmentSession, setAssessmentSession] = useState<MineAssessmentSession | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -214,12 +375,19 @@ export default function Dashboard({ onLoggedOut }: Props) {
           api<MatchedResponse>('/jobs/matched'),
           api<MyApplication[]>('/applications/me'),
           api<ExternalCredential[]>('/profiles/me/external-credentials').catch(() => []),
-        ]).then(([p, a, j, apps, creds]) => {
+          // Best-effort, same as external-credentials above — a candidate
+          // with no interview pipelines yet, or a hiccup fetching them,
+          // should never block the rest of the dashboard from rendering.
+          api<Interview[]>('/interviews/mine').catch(() => []),
+          api<MineAssessmentSession | null>('/assessment-sessions/mine').catch(() => null),
+        ]).then(([p, a, j, apps, creds, ivs, session]) => {
           setProfile(p);
           setAssessments(a);
           setMatched(j);
           setApplications(apps);
           setCredentials(creds);
+          setInterviews(ivs);
+          setAssessmentSession(session);
         });
       })
       .catch((e) => setError(e.message));
@@ -273,6 +441,16 @@ export default function Dashboard({ onLoggedOut }: Props) {
   const hasProfile = profile.completeness > 0;
   const hasBadge = badges.length > 0;
   const hasApplied = applications.length > 0;
+  // A pipeline entry only ever reaches INVITED (or further) once an
+  // employer has acted on it — SHORTLISTED alone (the employer merely
+  // saved the candidate) isn't "reached interviewing" yet. REJECTED is
+  // excluded too: the entry's current stage is all this endpoint carries,
+  // not its history, so a REJECTED row can't be told apart from one that
+  // was rejected straight out of SHORTLISTED without ever being invited —
+  // treating REJECTED as "reached" would overclaim a milestone we can't
+  // actually confirm.
+  const hasInterviewStage = interviews.some((i) => i.stage !== 'SHORTLISTED' && i.stage !== 'REJECTED');
+  const hasHired = interviews.some((i) => i.stage === 'HIRED');
   // No new field: "first session" is derived entirely from existing signals —
   // nothing built a profile, earned a badge, or applied to anything yet.
   const isFirstSession = !hasProfile && !hasBadge && !hasApplied;
@@ -283,11 +461,15 @@ export default function Dashboard({ onLoggedOut }: Props) {
   const stage1: SegmentedProgressState = hasProfile ? 'done' : 'active';
   const stage2: SegmentedProgressState = hasBadge ? 'done' : hasProfile ? 'active' : 'upcoming';
   const stage3: SegmentedProgressState = hasApplied ? 'done' : hasBadge ? 'active' : 'upcoming';
+  const stage4: SegmentedProgressState = hasInterviewStage ? 'done' : hasApplied ? 'active' : 'upcoming';
+  const stage5: SegmentedProgressState = hasHired ? 'done' : hasInterviewStage ? 'active' : 'upcoming';
 
   const journeySteps = [
     { label: 'Profile built', subLabel: journeySubLabel(stage1), state: stage1 },
     { label: 'First badge', subLabel: journeySubLabel(stage2), state: stage2 },
     { label: 'Jobs explored', subLabel: journeySubLabel(stage3), state: stage3 },
+    { label: 'Interviewing', subLabel: journeySubLabel(stage4), state: stage4 },
+    { label: 'Hired', subLabel: journeySubLabel(stage5), state: stage5 },
   ];
 
   // Never show the raw phone/email as a "name" — greet by fullName once it
@@ -316,10 +498,18 @@ export default function Dashboard({ onLoggedOut }: Props) {
     }
   });
 
+  const pipelineAlert = mostUrgentPipelineAlert(interviews);
+  const awaitingReviewSession =
+    assessmentSession && (assessmentSession.status === 'AWAITING_SCORING' || assessmentSession.status === 'AWAITING_REVIEW')
+      ? assessmentSession
+      : undefined;
+
   const copilot = buildCopilotMessage({
     hasProfile,
     hasBadge,
     liveAssessmentCount,
+    pipelineAlert,
+    awaitingReviewSession,
     bestUnapplied,
     recurringGap,
     hasApplied,
