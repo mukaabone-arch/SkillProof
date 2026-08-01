@@ -384,30 +384,8 @@ export default function EmployerShortlist() {
       <h1>Shortlist</h1>
       <p>Candidates you&apos;ve collected from applicants, search, and matches — and where you drive them through the hiring pipeline.</p>
 
-      <div className="row" style={{ margin: 0, flexWrap: 'wrap' }}>
-        <div className="field" style={{ maxWidth: 260 }}>
-          <label htmlFor="stageFilter">Stage</label>
-          <select id="stageFilter" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
-            <option value="">All stages</option>
-            {STAGE_FILTERS.map((s) => (
-              <option key={s} value={s}>{STAGE_LABELS[s]}</option>
-            ))}
-          </select>
-        </div>
-
-        {jobs.length > 0 && (
-          <div className="field" style={{ maxWidth: 260 }}>
-            <label htmlFor="jobFilter">Role</label>
-            <select id="jobFilter" value={jobFilter} onChange={(e) => setJobFilter(e.target.value)}>
-              <option value="">All roles</option>
-              {jobs.map((j) => (
-                <option key={j.id} value={j.id}>{j.title}</option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
-
+      <div className="list-page-columns">
+      <div className="list-page-main">
       {error && <p className="error">{error}</p>}
       {loading && <p className="meta">Loading…</p>}
 
@@ -700,6 +678,34 @@ export default function EmployerShortlist() {
           </div>
         </div>
       ))}
+      </div>
+
+      <div className="list-page-sidebar">
+        <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+          <div className="field">
+            <label htmlFor="stageFilter">Stage</label>
+            <select id="stageFilter" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
+              <option value="">All stages</option>
+              {STAGE_FILTERS.map((s) => (
+                <option key={s} value={s}>{STAGE_LABELS[s]}</option>
+              ))}
+            </select>
+          </div>
+
+          {jobs.length > 0 && (
+            <div className="field">
+              <label htmlFor="jobFilter">Role</label>
+              <select id="jobFilter" value={jobFilter} onChange={(e) => setJobFilter(e.target.value)}>
+                <option value="">All roles</option>
+                {jobs.map((j) => (
+                  <option key={j.id} value={j.id}>{j.title}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      </div>
+      </div>
     </main>
   );
 }

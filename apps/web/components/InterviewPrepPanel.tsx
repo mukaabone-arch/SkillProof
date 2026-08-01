@@ -33,7 +33,7 @@ export default function InterviewPrepPanel() {
   if (!limits) return null;
 
   return (
-    <section className="ui-card profile-panel" style={{ marginTop: 32 }}>
+    <section className="ui-card profile-panel">
       <h2>Interview prep</h2>
       <p>Guidance for turning a verified badge into an interview that goes well.</p>
 

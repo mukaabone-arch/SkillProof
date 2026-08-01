@@ -17,8 +17,14 @@ export default function InterviewsPage() {
         <h1>Interviews</h1>
         <p>Track where you stand with every employer who&apos;s invited you to interview.</p>
 
-        <CandidateInterviews />
-        <InterviewPrepPanel />
+        <div className="list-page-columns">
+          <div className="list-page-main">
+            <CandidateInterviews />
+          </div>
+          <div className="list-page-sidebar">
+            <InterviewPrepPanel />
+          </div>
+        </div>
       </main>
     </>
   );
