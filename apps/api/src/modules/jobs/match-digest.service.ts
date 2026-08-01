@@ -2,7 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CertVerificationStatus, ClaimStatus, JobStatus, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { WEB_BASE_URL } from '../../config/web-base-url';
 import { NotificationsService } from '../notifications/notifications.service';
+import { renderNotificationEmail } from '../notifications/notification-email.template';
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
 
 /** Only genuinely strong matches get emailed — this is a curated digest, not a firehose. */
@@ -146,6 +148,9 @@ export class MatchDigestService {
           `<li><strong>${job.title}</strong> at ${job.organization.name} — ${result.score}% match</li>`,
       )
       .join('');
-    return `<p>New jobs matching your verified skills:</p><ul>${items}</ul>`;
+    return renderNotificationEmail(`<p>New jobs matching your verified skills:</p><ul>${items}</ul>`, {
+      label: 'View your matches',
+      url: `${WEB_BASE_URL}/jobs?tab=matched`,
+    });
   }
 }

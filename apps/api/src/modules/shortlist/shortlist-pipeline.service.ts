@@ -1,10 +1,15 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { NotificationType, ProfileViewSource, ShortlistStage } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { WEB_BASE_URL } from '../../config/web-base-url';
 import { NotificationsService } from '../notifications/notifications.service';
+import { renderNotificationEmail } from '../notifications/notification-email.template';
 import { ProfileViewsService } from '../profile-views/profile-views.service';
 import { assertTransition } from './pipeline-transitions';
 import { AddRoundDto, InviteDto, OutcomeDto, RejectDto, UpdateRoundDto } from './shortlist-pipeline.dto';
+
+/** Every pipeline-stage email lands the candidate on the same place: their interviews list — there's no per-entry route to deep-link to. */
+const INTERVIEWS_URL = `${WEB_BASE_URL}/interviews`;
 
 /** Just enough to write a notification and check ownership — not the full candidate-summary shape ShortlistService.present() builds. */
 const entryContext = {
@@ -35,9 +40,12 @@ export class ShortlistPipelineService {
       entry.candidateProfile.userId,
       NotificationType.PIPELINE_INVITE,
       `${entry.organization.name} invited you to interview${roleLine}`,
-      `<p><strong>${entry.organization.name}</strong> has invited you to interview${roleLine}.</p>` +
-        (dto.message ? `<p>${escapeHtml(dto.message)}</p>` : '') +
-        `<p>Open your Interviews page to accept or decline.</p>`,
+      renderNotificationEmail(
+        `<p><strong>${entry.organization.name}</strong> has invited you to interview${roleLine}.</p>` +
+          (dto.message ? `<p>${escapeHtml(dto.message)}</p>` : '') +
+          `<p>Accept or decline below.</p>`,
+        { label: 'Respond to invite', url: INTERVIEWS_URL },
+      ),
     );
 
     return { id };
@@ -73,9 +81,11 @@ export class ShortlistPipelineService {
       entry.candidateProfile.userId,
       NotificationType.PIPELINE_ROUND_SCHEDULED,
       `Next interview round scheduled at ${entry.organization.name}`,
-      `<p><strong>${entry.organization.name}</strong> has scheduled round ${round.roundNumber}${roleLine}.</p>` +
-        (dto.channel ? `<p>${escapeHtml(dto.channel)}</p>` : '') +
-        `<p>Open your Interviews page for details.</p>`,
+      renderNotificationEmail(
+        `<p><strong>${entry.organization.name}</strong> has scheduled round ${round.roundNumber}${roleLine}.</p>` +
+          (dto.channel ? `<p>${escapeHtml(dto.channel)}</p>` : ''),
+        { label: 'View interview details', url: INTERVIEWS_URL },
+      ),
     );
 
     return round;
@@ -110,8 +120,10 @@ export class ShortlistPipelineService {
       entry.candidateProfile.userId,
       NotificationType.PIPELINE_OFFER,
       `${entry.organization.name} extended you an offer`,
-      `<p><strong>${entry.organization.name}</strong> has extended you an offer${roleLine}.</p>` +
-        `<p>Open your Interviews page to respond.</p>`,
+      renderNotificationEmail(`<p><strong>${entry.organization.name}</strong> has extended you an offer${roleLine}.</p>`, {
+        label: 'Respond to offer',
+        url: INTERVIEWS_URL,
+      }),
     );
 
     return { id };
@@ -142,8 +154,11 @@ export class ShortlistPipelineService {
       entry.candidateProfile.userId,
       NotificationType.PIPELINE_REJECTED,
       `Update on your application${roleLine} at ${entry.organization.name}`,
-      `<p><strong>${entry.organization.name}</strong> has decided not to move forward with you${roleLine} at this time.</p>` +
-        `<p>Thank you for your interest — we encourage you to keep building your verified skills for future opportunities.</p>`,
+      renderNotificationEmail(
+        `<p><strong>${entry.organization.name}</strong> has decided not to move forward with you${roleLine} at this time.</p>` +
+          `<p>Thank you for your interest — we encourage you to keep building your verified skills for future opportunities.</p>`,
+        { label: 'View your interviews', url: INTERVIEWS_URL },
+      ),
     );
 
     return { id };
