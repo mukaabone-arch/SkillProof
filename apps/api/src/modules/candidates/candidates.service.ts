@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { CandidateRoleTitle, ClaimStatus, Prisma, ProfileViewSource, SkillLevel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ProfileViewsService } from '../profile-views/profile-views.service';
+import { candidateVisibilityFilter } from '../account/account.util';
 import { SearchCandidatesDto } from './candidates.dto';
 import { formatCandidateLocation } from '../profiles/location-format.util';
 
@@ -39,7 +40,7 @@ export class CandidatesService {
     };
 
     const conditions: Prisma.CandidateProfileWhereInput[] = [
-      { deletedAt: null },
+      candidateVisibilityFilter,
       { skillClaims: { some: { status: ClaimStatus.VERIFIED } } }, // privacy gate — always enforced
     ];
     if (skillId || levels) {
@@ -99,7 +100,7 @@ export class CandidatesService {
    */
   async getById(id: string, employerUserId: string) {
     const profile = await this.prisma.candidateProfile.findFirst({
-      where: { id, deletedAt: null, skillClaims: { some: { status: ClaimStatus.VERIFIED } } },
+      where: { id, ...candidateVisibilityFilter, skillClaims: { some: { status: ClaimStatus.VERIFIED } } },
       include: {
         skillClaims: {
           where: { status: ClaimStatus.VERIFIED },

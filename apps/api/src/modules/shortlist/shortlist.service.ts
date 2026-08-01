@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { ClaimStatus, Prisma, ProfileViewSource, ShortlistStage } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ProfileViewsService } from '../profile-views/profile-views.service';
+import { assertCandidateAvailableForPipeline } from '../account/account.util';
 import { AddShortlistEntryDto, UpdateShortlistEntryDto } from './shortlist.dto';
 import { formatCandidateLocation } from '../profiles/location-format.util';
 
@@ -43,6 +44,7 @@ export class ShortlistService {
    * the same one for null jobId.
    */
   async add(orgId: string, userId: string, dto: AddShortlistEntryDto) {
+    await assertCandidateAvailableForPipeline(this.prisma, dto.candidateId);
     await this.profileViews.record(dto.candidateId, userId, ProfileViewSource.SHORTLIST);
 
     if (dto.jobId) {

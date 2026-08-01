@@ -136,6 +136,16 @@ enum ShortlistStage {
   DECLINED
   REJECTED
   CLOSED
+  /**
+   * Set only by AccountService when a candidate with a live entry
+   * (INVITED/INTERVIEWING/OFFER) deactivates or deletes their account —
+   * never a hiring decision by either party, so it's deliberately distinct
+   * from DECLINED (candidate's own active choice to decline an invite),
+   * REJECTED (employer's own active choice) and CLOSED (post-offer
+   * resolution). See ShortlistEntry.preUnavailableStage for how
+   * reactivation reverses this.
+   */
+  CANDIDATE_UNAVAILABLE
 }
 
 /**
@@ -186,6 +196,26 @@ enum NotificationType {
    * Candidate: → REJECTED.
    */
   PIPELINE_REJECTED
+  /**
+   * Employer: a candidate with a live pipeline entry (INVITED/
+   * INTERVIEWING/OFFER) deactivated or deleted their account — see
+   * AccountService. Never states which of the two, or why; see that
+   * service's own doc comment on why the candidate's reason never reaches
+   * this notification.
+   */
+  PIPELINE_CANDIDATE_UNAVAILABLE
+  /**
+   * Candidate: confirms a deactivation just took effect, and how to
+   * reactivate.
+   */
+  ACCOUNT_DEACTIVATED
+  /**
+   * Candidate: confirms a deletion just took effect. Irreversible, so this
+   * is the one durable record the candidate has that it happened — sent
+   * before the profile's own contact fields are wiped, since it's the last
+   * email this account will ever receive.
+   */
+  ACCOUNT_DELETED
 }
 
 enum NotificationChannel {
@@ -387,6 +417,29 @@ model CandidateProfile {
   emailNotifications Boolean   @default(true)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+  /**
+   * Reversible — see AccountService.deactivate/reactivate. Deliberately a
+   * separate column from deletedAt below, not a reuse of it: deletedAt
+   * already means (and, per the four existing call sites that filter on
+   * it — CandidatesService.search, MatchingService.getMatches,
+   * MatchDigestService.sendDigests, UsersController.me — is trusted to
+   * mean) permanently gone, and overloading it to also cover a routinely
+   * reversed state would leave every future reader of `deletedAt: null`
+   * unable to tell which one they were actually excluding. Both columns
+   * are checked together everywhere a candidate's visibility/eligibility
+   * matters (see candidateVisibilityFilter in account/account.util.ts) —
+   * from a caller's point of view "hidden" is one concept, but the two
+   * reasons a candidate can be hidden are not the same fact and must stay
+   * distinguishable at the data layer.
+   */
+  deactivatedAt      DateTime?
+  /**
+   * Permanent. Set once by AccountService.delete and never cleared —
+   * unlike deactivatedAt, there is no reactivation path back from this.
+   * The row itself is never removed (see AccountService.delete's own doc
+   * comment on why a real SQL delete is off the table for this schema);
+   * this column plus the PII-scrub it triggers *is* "deletion" here.
+   */
   deletedAt          DateTime?
 
   /**
@@ -410,6 +463,60 @@ model CandidateProfile {
   subscription        Subscription?
   usageCounters       UsageCounter[]
   profileViews        ProfileView[]
+  accountActions      AccountAction[]
+}
+
+// ---------- Account lifecycle (deactivation, reactivation, deletion) ----------
+
+enum AccountActionType {
+  DEACTIVATED
+  REACTIVATED
+  DELETED
+}
+
+/**
+ * Single-select exit-survey options offered on both deactivation and
+ * deletion (see AccountService) — optional, never a gate on either action.
+ * Deliberately flat/coarse rather than open-ended: fine enough for product
+ * signal, never granular enough to be personally identifying on its own.
+ */
+enum AccountActionReason {
+  FOUND_JOB_SKILLPROOF
+  FOUND_JOB_ELSEWHERE
+  NOT_FINDING_ROLES
+  TOO_MANY_EMAILS
+  PRIVACY_CONCERNS
+  OTHER
+}
+
+/**
+ * One row per deactivate/reactivate/delete event — the audit trail
+ * AccountService.delete's own doc comment promises ("a record that an
+ * account was deleted, when, and the anonymised reason, without retaining
+ * the personal data itself"). A real, undeleted @relation to
+ * CandidateProfile is safe here specifically because CandidateProfile is
+ * never actually deleted (see that model's deletedAt doc comment) — this
+ * row survives right alongside the anonymised profile it's about.
+ * reasonText is the one field this table doesn't keep forever: it's
+ * candidate-authored free text (the same category of personal data the
+ * rest of the deletion path removes), so AccountService.delete null-'s
+ * every reasonText tied to this candidate — including rows from a much
+ * earlier deactivation — at the same time it anonymises the profile,
+ * leaving reasonCategory (never personally identifying on its own) as the
+ * durable product-analytics signal. Admin-readable via
+ * AccountService.listActionsForAdmin — no dedicated UI in this pass, see
+ * that method's own doc comment.
+ */
+model AccountAction {
+  id                 String               @id @default(uuid())
+  candidateProfileId String
+  candidateProfile   CandidateProfile     @relation(fields: [candidateProfileId], references: [id])
+  type               AccountActionType
+  reasonCategory     AccountActionReason?
+  reasonText         String?
+  createdAt          DateTime             @default(now())
+
+  @@index([candidateProfileId])
 }
 
 // ---------- Taxonomy (spec section 4.3) ----------
@@ -830,6 +937,18 @@ model ShortlistEntry {
    * overwritten by, and never overwrites, `stage`.
    */
   candidateResponse CandidateOfferResponse?
+
+  /**
+   * The stage this entry was in immediately before AccountService moved it
+   * to CANDIDATE_UNAVAILABLE — null unless stage is currently
+   * CANDIDATE_UNAVAILABLE. Restored verbatim on reactivation (see
+   * AccountService.reactivate), same "remember what to revert to" role
+   * AssessmentSession.preDisputeStatus already plays for disputes
+   * elsewhere in this schema. Left permanently set (not cleared) once a
+   * deletion makes the transition irreversible — harmless, since nothing
+   * reads it once stage can never leave CANDIDATE_UNAVAILABLE again.
+   */
+  preUnavailableStage ShortlistStage?
 
   rounds InterviewRound[]
 

@@ -476,7 +476,7 @@ export class AssessmentsService {
     const badge = await this.prisma.badge.findUnique({
       where: { verifyHash: hash },
       include: {
-        user: { include: { profile: { select: { fullName: true } } } },
+        user: { include: { profile: { select: { fullName: true, deactivatedAt: true, deletedAt: true } } } },
         skill: true,
         attempt: true,
       },
@@ -484,6 +484,21 @@ export class AssessmentsService {
     if (!badge || badge.revokedAt) throw new NotFoundException('Badge not found or revoked');
     return {
       candidate: badge.user.profile?.fullName ?? 'SkillProof candidate',
+      /**
+       * Deliberately distinct from the plain no-name fallback above — a
+       * candidate who simply never set a name and one whose account was
+       * deleted both show "SkillProof candidate", but only the latter
+       * should read as "this person is gone", not "this person didn't fill
+       * in a field". Badges are never revoked or hidden for either
+       * deactivation or deletion (see AccountService's own doc comment on
+       * why — "permanent, immutable log of evidence" per this model's own
+       * top comment); this is the one explicit signal the frontend has to
+       * tell the two apart. Deactivation (reversible) intentionally reads
+       * the same as deletion here — an employer verifying a certificate
+       * has no need to know which; "not currently active" is the complete,
+       * honest answer either way.
+       */
+      accountStatus: badge.user.profile?.deactivatedAt || badge.user.profile?.deletedAt ? 'inactive' : 'active',
       skill: badge.skill.name,
       level: badge.level,
       verifiedBy: badge.verifiedBy,

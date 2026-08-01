@@ -5,6 +5,7 @@ import { WEB_BASE_URL } from '../../config/web-base-url';
 import { NotificationsService } from '../notifications/notifications.service';
 import { renderNotificationEmail } from '../notifications/notification-email.template';
 import { ProfileViewsService } from '../profile-views/profile-views.service';
+import { assertCandidateAvailableForPipeline } from '../account/account.util';
 import { assertTransition } from './pipeline-transitions';
 import { AddRoundDto, InviteDto, OutcomeDto, RejectDto, UpdateRoundDto } from './shortlist-pipeline.dto';
 
@@ -28,6 +29,7 @@ export class ShortlistPipelineService {
 
   async invite(orgId: string, id: string, dto: InviteDto) {
     const entry = await this.getOwnedEntry(orgId, id);
+    await assertCandidateAvailableForPipeline(this.prisma, entry.candidateId);
     const nextStage = assertTransition(entry.stage, 'invite');
 
     await this.prisma.shortlistEntry.update({

@@ -26,6 +26,7 @@ import { PlansModule } from './modules/plans/plans.module';
 import { LocationsModule } from './modules/locations/locations.module';
 import { InterviewQuestionsModule } from './modules/interview-questions/interview-questions.module';
 import { InterviewSessionsModule } from './modules/interview-sessions/interview-sessions.module';
+import { AccountModule } from './modules/account/account.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { InterviewSessionsModule } from './modules/interview-sessions/interview-
     LocationsModule,
     InterviewQuestionsModule,
     InterviewSessionsModule,
+    AccountModule,
   ],
 })
 export class AppModule {}

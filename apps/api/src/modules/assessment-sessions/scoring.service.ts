@@ -228,7 +228,17 @@ export class ScoringService {
    */
   async getReviewQueue() {
     const sessions = await this.prisma.assessmentSession.findMany({
-      where: { status: { in: [AssessmentSessionStatus.AWAITING_REVIEW, AssessmentSessionStatus.DISPUTED] } },
+      where: {
+        status: { in: [AssessmentSessionStatus.AWAITING_REVIEW, AssessmentSessionStatus.DISPUTED] },
+        // A deactivated candidate isn't checking their results right now,
+        // and a deleted one never will — either way, a reviewer spending
+        // time on this session has no one left to deliver a decision to.
+        // Deactivation is reversible, so this is a live filter, not a
+        // one-time removal: the session reappears here on its own the
+        // moment AccountService.reactivate clears deactivatedAt, no
+        // separate restore step needed.
+        user: { profile: { deactivatedAt: null, deletedAt: null } },
+      },
       include: { claimVerdicts: true, disputes: true, _count: { select: { interruptions: true } } },
     });
 

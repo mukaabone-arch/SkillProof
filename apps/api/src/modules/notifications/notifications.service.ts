@@ -40,6 +40,17 @@ export class NotificationsService {
         this.logger.log(`Skipping ${type} notification — user opted out of email`);
         return;
       }
+      // "All notification emails stop" on deactivation/deletion (see
+      // AccountService) — except the two account-lifecycle confirmations
+      // themselves, which are sent to this same now-deactivated/deleted
+      // user about the very action that just set the field being checked
+      // here, and must go through regardless.
+      const isAccountLifecycleConfirmation =
+        type === NotificationType.ACCOUNT_DEACTIVATED || type === NotificationType.ACCOUNT_DELETED;
+      if (!isAccountLifecycleConfirmation && (user.profile?.deactivatedAt || user.profile?.deletedAt)) {
+        this.logger.log(`Skipping ${type} notification — candidate account is deactivated or deleted`);
+        return;
+      }
 
       const notification = await this.prisma.notification.create({
         data: { userId, type, channel: 'EMAIL', subject, body: html, jobIds },

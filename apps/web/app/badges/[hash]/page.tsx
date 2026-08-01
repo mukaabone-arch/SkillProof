@@ -22,6 +22,16 @@ interface BadgeInfo {
    * false, we render nothing about integrity at all, never a negative label.
    */
   verifiedClean: boolean;
+  /**
+   * 'inactive' covers both a reversible deactivation and a permanent
+   * deletion — the server deliberately never says which (see
+   * AssessmentsService.verifyBadge's own doc comment): an employer
+   * verifying a certificate only needs to know the candidate isn't
+   * currently active, never why. The badge itself is never revoked or
+   * hidden for either reason, so everything else on this page still
+   * renders normally — this only adds one extra, honest line.
+   */
+  accountStatus: 'active' | 'inactive';
 }
 
 export default function BadgeVerifyPage() {
@@ -74,6 +84,12 @@ export default function BadgeVerifyPage() {
           <p className={badge.valid ? 'ok' : 'error'}>
             {badge.valid ? 'This certificate is valid.' : 'This certificate has expired.'}
           </p>
+          {badge.accountStatus === 'inactive' && (
+            <p className="meta">
+              This candidate is not currently active on SkillProof. The credential itself was genuinely earned and
+              remains valid.
+            </p>
+          )}
           <p className="meta">Verification ID: {hash}</p>
         </div>
       </main>

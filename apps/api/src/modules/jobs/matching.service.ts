@@ -5,6 +5,7 @@ import { LlmService } from '../../llm/llm.service';
 import { PLANS } from '../../config/plans.config';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { formatCandidateLocation } from '../profiles/location-format.util';
+import { candidateVisibilityFilter } from '../account/account.util';
 import { CandidateSkillClaim, JobSkillRequirement, compareByMatchRank, scoreCandidate } from './scoring';
 
 /** LLM explanations are the expensive part — only ever generated for the top N. */
@@ -49,7 +50,7 @@ export class MatchingService {
     // already cleared this gate; it never lets someone new into the pool.
     const profiles = await this.prisma.candidateProfile.findMany({
       where: {
-        deletedAt: null,
+        ...candidateVisibilityFilter,
         AND: [
           { skillClaims: { some: { status: ClaimStatus.VERIFIED } } },
           { skillClaims: { some: { skillId: { in: jobSkillIds } } } },

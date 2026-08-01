@@ -420,6 +420,9 @@ function ProfilePageInner() {
       <main className="container-wide">
       <h1>Your profile</h1>
       <p>Keep this up to date — employers see it alongside your verified badges.</p>
+      <p style={{ marginTop: -16 }}>
+        <Link href="/profile/account">Account settings →</Link>
+      </p>
 
       {isSafeReturnTo(returnTo) && (
         <p className="meta" style={{ marginTop: -16 }}>

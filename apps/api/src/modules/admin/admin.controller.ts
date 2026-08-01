@@ -4,6 +4,7 @@ import { AuthenticatedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { AdminService } from './admin.service';
+import { AccountService } from '../account/account.service';
 import {
   CreateAssessmentDto,
   CreateQuestionDto,
@@ -17,7 +18,16 @@ import {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.PLATFORM_ADMIN)
 export class AdminController {
-  constructor(private readonly svc: AdminService) {}
+  constructor(
+    private readonly svc: AdminService,
+    private readonly account: AccountService,
+  ) {}
+
+  /** Product-insight visibility for AccountAction — see that model's own doc comment. No dedicated admin UI page in this pass, just the query it would call. */
+  @Get('account-actions')
+  listAccountActions() {
+    return this.account.listActionsForAdmin();
+  }
 
   @Get('assessments')
   list() {

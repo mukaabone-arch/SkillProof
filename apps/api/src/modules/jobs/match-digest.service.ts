@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { WEB_BASE_URL } from '../../config/web-base-url';
 import { NotificationsService } from '../notifications/notifications.service';
 import { renderNotificationEmail } from '../notifications/notification-email.template';
+import { candidateVisibilityFilter } from '../account/account.util';
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
 
 /** Only genuinely strong matches get emailed — this is a curated digest, not a firehose. */
@@ -64,7 +65,7 @@ export class MatchDigestService {
     if (liveJobs.length === 0) return;
 
     const candidates = await this.prisma.candidateProfile.findMany({
-      where: { deletedAt: null, emailNotifications: true, user: { email: { not: null } } },
+      where: { ...candidateVisibilityFilter, emailNotifications: true, user: { email: { not: null } } },
       select: {
         userId: true,
         yearsOfExp: true,
