@@ -586,6 +586,30 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   .employer-home-sidebar { position: static; }
 }
 
+/* ---- list-page two-column layout ----
+   Generic version of the pattern above (growing main list + fixed-size
+   sticky tool), reused wherever a list page has a genuine companion tool
+   worth it — /jobs (search), /employer/shortlist (stage/role filters),
+   /interviews (prep guides) as of this pass. Same ratio, same 900px
+   collapse point, same DOM-order-first main column on mobile as
+   .employer-home-columns — deliberately identical rather than
+   independently tuned, so every list page in the app behaves the same
+   way at the same breakpoint. Not applied everywhere a list exists:
+   /assessments has no comparable companion-tool content today (a single
+   skill card, and no natural sidebar concept even set that aside — see
+   that page's own notes on why it stays single-column). */
+.list-page-columns { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--space-7); align-items: start; }
+.list-page-main { min-width: 0; }
+.list-page-sidebar {
+  min-width: 0;
+  position: sticky;
+  top: calc(64px + var(--space-6));
+}
+@media (max-width: 900px) {
+  .list-page-columns { grid-template-columns: 1fr; gap: var(--space-6); }
+  .list-page-sidebar { position: static; }
+}
+
 /* ---- dashboard hub ---- */
 /* Rendered as a sibling before <main>, full-bleed and sticky, independent of any page's max-width. */
 .appnav {
