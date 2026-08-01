@@ -100,7 +100,17 @@ export default function EmployerDashboard() {
 
       {!loading && summary && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(140px, 1fr))', gap: 16, marginTop: 8 }}>
+          {/*
+            auto-fit, not a fixed repeat(5, ...): below ~764px of
+            available width, 5 columns at the 140px floor no longer fit —
+            auto-fit drops to however many do (4, then 3, then 2...) and
+            wraps the rest onto additional rows instead of overflowing.
+            KPI_CARDS' own order (funnel stage order, left to right) is
+            untouched, so row-by-row reading still runs the funnel in
+            order even when it wraps — e.g. at 4 columns the last card
+            (Hired) just sits alone on its own second row.
+          */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, marginTop: 8 }}>
             {KPI_CARDS.map((card) => {
               const count = summary.kpis[card.key];
               return (
