@@ -8,7 +8,9 @@ import {
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { WEB_BASE_URL } from '../../config/web-base-url';
 import { NotificationsService } from '../notifications/notifications.service';
+import { renderNotificationEmail } from '../notifications/notification-email.template';
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
 import { BrowseJobsDto } from './candidate-jobs.dto';
 import { isProfileReadyToApply } from '../profiles/profile-readiness';
@@ -234,7 +236,10 @@ export class CandidateJobsService {
     // Best-effort — a slow/failed email must never fail the application itself.
     try {
       const subject = `You've applied to ${job.title} at ${job.organization.name}`;
-      const html = `<p>You've applied to <strong>${job.title}</strong> at <strong>${job.organization.name}</strong>. The employer will review your application and you'll be notified of any status change.</p>`;
+      const html = renderNotificationEmail(
+        `<p>You've applied to <strong>${job.title}</strong> at <strong>${job.organization.name}</strong>. The employer will review your application and you'll be notified of any status change.</p>`,
+        { label: 'View your applications', url: `${WEB_BASE_URL}/jobs?tab=applications` },
+      );
       await this.notifications.sendEmail(userId, NotificationType.APPLICATION_CONFIRMATION, subject, html);
     } catch {
       // NotificationsService already swallows its own errors; this catch is defense in depth.

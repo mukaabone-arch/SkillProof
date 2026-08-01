@@ -185,16 +185,10 @@ export default function JobDetailPage() {
 
   if (loggedIn === null) return <main className="container-standard"><LoadingState message="Loading job…" /></main>;
 
-  // Not migrated to ErrorState: its message is typed as a plain string, and
-  // this one carries an embedded <Link> — stringifying it would drop the
-  // link entirely (same reason app/resume/page.tsx's identical message
-  // is left as a raw paragraph too).
   if (!loggedIn) {
     return (
       <main className="container-standard">
-        <p className="error">
-          You are not logged in — <Link href="/">log in first</Link> to view this job.
-        </p>
+        <ErrorState message={<>You are not logged in — <Link href="/">log in first</Link> to view this job.</>} />
       </main>
     );
   }

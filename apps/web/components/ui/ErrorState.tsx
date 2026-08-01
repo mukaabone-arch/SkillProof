@@ -1,5 +1,8 @@
+import { ReactNode } from 'react';
+
 export interface ErrorStateProps {
-  message: string;
+  /** Usually a plain string; ReactNode so a message that needs an embedded <Link> (e.g. "log in first to view this job") doesn't have to fall back to a raw paragraph instead of this component. */
+  message: ReactNode;
   onRetry?: () => void;
 }
 
