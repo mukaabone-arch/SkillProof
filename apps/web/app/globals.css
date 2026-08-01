@@ -138,7 +138,57 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 main { max-width: 640px; margin: 0 auto; padding: 64px 24px; }
-main.hub { max-width: 880px; }
+
+/* ---- layout container system ----
+   Three width tiers, named for the shape of content they suit rather than
+   arbitrary numbers — every page opts into exactly one via a class on its
+   own <main> (main.container-reading/-standard/-wide). Pages that don't
+   carry one of these three classes fall through to the bare `main` rule
+   above (640px, unchanged) — that's every page this system deliberately
+   doesn't touch: the two assessment take-flows (their narrowness is
+   documented as intentional), the public /badges/[hash] certificate page,
+   and the auth/admin/OAuth-callback surfaces outside this pass's scope.
+
+   Each tier is fluid up to its ceiling via width: min(100% - gutters, cap)
+   rather than a hard max-width, so content keeps growing with the
+   viewport instead of stopping dead at a fixed pixel value the moment the
+   window is wider than a laptop. The -2*gutter term IS the edge inset —
+   these classes zero out the base rule's horizontal padding so the gutter
+   is only ever applied once (by the width formula), not stacked with
+   padding too; vertical padding (64px) still comes from the base rule
+   above, untouched. margin: 0 auto (also from the base rule) still
+   centers the box once its cap is reached — same end result as the old
+   max-width+margin:auto pattern past the cap, the only change is what
+   happens *below* it. */
+:root {
+  --container-gutter: 24px;    /* horizontal inset from the viewport edge, small screens */
+  --container-reading: 720px;  /* prose-heavy / single-focus: long lines hurt readability past this */
+  --container-standard: 1200px; /* the default shape for most pages: comfortable on a laptop, not marooned on a monitor */
+  --container-wide: 1400px;    /* genuinely wide content: multi-column layouts, grids, dashboards */
+}
+main.container-reading, main.container-standard, main.container-wide {
+  max-width: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+main.container-reading  { width: min(100% - (var(--container-gutter) * 2), var(--container-reading)); }
+main.container-standard { width: min(100% - (var(--container-gutter) * 2), var(--container-standard)); }
+main.container-wide     { width: min(100% - (var(--container-gutter) * 2), var(--container-wide)); }
+/* Below the width these pages' own internal grids collapse to a single
+   column (.profile-columns / .employer-home-columns, both @900px) — drop
+   Wide's ceiling to Reading's at the same breakpoint so a collapsed single
+   column of form fields doesn't stretch to Wide's full 1400px. Mirrors
+   what main.profile/main.employer-home each did independently before this
+   pass (1080px -> 640px at the same 900px point); generalized onto the
+   tier itself since every Wide page benefits from not over-stretching a
+   collapsed layout, not just these two. */
+@media (max-width: 900px) {
+  main.container-wide { width: min(100% - (var(--container-gutter) * 2), var(--container-reading)); }
+}
+
+/* main.hub is now typography-only (see main.hub h1/h2 below) — its width
+   is delegated to main.container-standard, added alongside it on the
+   pages that use it (Dashboard, /resume), rather than duplicated here. */
 h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
 h1 { font-weight: 800; margin-bottom: 12px; }
 h2 { font-weight: 700; }
@@ -500,10 +550,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   transition: width 0.2s ease;
 }
 
-/* Wider container so two columns of fields have room to breathe; the
-   progress bar and intro text above the grid still read fine at this width
-   since they're short lines, not body copy. */
-main.profile { max-width: 1080px; }
+/* Width comes from main.container-wide (see the layout container system
+   above) — wide enough for two columns of fields to have room to breathe. */
 /* Left column: the profile form card. Right column: a flex stack of the
    Resume card and Certifications card, in that DOM order — collapsing
    to `1fr` below the breakpoint keeps that same source order (form, then
@@ -513,7 +561,6 @@ main.profile { max-width: 1080px; }
 .profile-panel { min-width: 0; }
 .profile-panel h2 { font-size: var(--text-lg); margin-bottom: var(--space-4); }
 @media (max-width: 900px) {
-  main.profile { max-width: 640px; }
   .profile-columns { grid-template-columns: 1fr; gap: var(--space-6); }
 }
 
@@ -525,8 +572,8 @@ main.profile { max-width: 1080px; }
    Below the breakpoint both collapse to a single column in DOM order
    (jobs first, then search) with no reordering needed, since an
    employer's own jobs should read before the candidate search on
-   small screens. */
-main.employer-home { max-width: 1080px; }
+   small screens. Width comes from main.container-wide (see the layout
+   container system above). */
 .employer-home-columns { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--space-7); align-items: start; }
 .employer-home-main { min-width: 0; }
 .employer-home-sidebar {
@@ -535,7 +582,6 @@ main.employer-home { max-width: 1080px; }
   top: calc(64px + var(--space-6)); /* .appnav-inner height + breathing room */
 }
 @media (max-width: 900px) {
-  main.employer-home { max-width: 640px; }
   .employer-home-columns { grid-template-columns: 1fr; gap: var(--space-6); }
   .employer-home-sidebar { position: static; }
 }
@@ -617,7 +663,9 @@ main.employer-home { max-width: 1080px; }
    its own breath rather than a dense stack. Two weights only within the hub
    — 700 for anything meant to draw the eye (headings, stat numbers, the
    co-pilot's own message), 400 (the body default) for everything else —
-   overriding the 800/600/500 mix the shared base rules use elsewhere. */
+   overriding the 800/600/500 mix the shared base rules use elsewhere.
+   Typography only now — width comes from main.container-standard,
+   carried alongside this class on the pages that use it. */
 main.hub h1 { font-weight: 700; }
 main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .hub-subhead { color: var(--ink-60); margin-bottom: var(--space-7); }
@@ -704,7 +752,10 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .match-card-gap { font-family: var(--font-body); font-size: var(--text-xs); color: var(--ink-60); white-space: nowrap; }
 
 @media (max-width: 720px) {
-  main.hub { padding-left: 16px; padding-right: 16px; }
+  /* main.hub's own 24px->16px edge tightening is superseded by
+     main.container-standard's fluid gutter (see the layout container
+     system) — that formula already computes the right inset continuously,
+     no breakpoint needed. */
   .status-grid { grid-template-columns: 1fr; }
   .copilot-panel { padding: var(--space-5); }
   .copilot-message { font-size: 1.25rem; }

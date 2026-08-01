@@ -380,7 +380,7 @@ export default function EmployerShortlist() {
   }
 
   return (
-    <main>
+    <main className="container-standard">
       <h1>Shortlist</h1>
       <p>Candidates you&apos;ve collected from applicants, search, and matches — and where you drive them through the hiring pipeline.</p>
 

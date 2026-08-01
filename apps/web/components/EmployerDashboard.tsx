@@ -79,7 +79,7 @@ export default function EmployerDashboard() {
   const shortlistHref = (stage: string) => `/employer/shortlist?stage=${stage}${jobFilter ? `&jobId=${jobFilter}` : ''}`;
 
   return (
-    <main>
+    <main className="container-wide">
       <h1>Dashboard</h1>
       <p>Your hiring pipeline at a glance — click any stage to see who&apos;s in it.</p>
 

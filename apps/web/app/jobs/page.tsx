@@ -14,7 +14,7 @@ export default function JobsPage() {
   return (
     <>
       <CandidateNav />
-      <main>
+      <main className="container-standard">
         <h1>Jobs</h1>
         <p>Browse live openings, see how you match up, and track your applications.</p>
 

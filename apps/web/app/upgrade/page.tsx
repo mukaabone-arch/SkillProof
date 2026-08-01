@@ -110,7 +110,7 @@ export default function UpgradePage() {
   return (
     <>
       {loggedIn && <CandidateNav />}
-      <main>
+      <main className="container-wide">
         <h1>Free vs Premium</h1>
         <p>
           Every row below is read straight from the same limits the API enforces — this page can&apos;t

@@ -58,7 +58,7 @@ export default function DiscussionSetupPage() {
   const resumable = mine?.status === 'IN_PROGRESS' || mine?.status === 'EXPIRED';
 
   return (
-    <main>
+    <main className="container-reading">
       <h1>{SKILL_NAME} · Level {SKILL_LEVEL}</h1>
       <p className="meta">A written technical discussion. Around 20 minutes.</p>
 

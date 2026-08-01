@@ -390,7 +390,7 @@ function AssessmentsPageInner() {
   return (
     <>
       <CandidateNav />
-      <main>
+      <main className="container-standard">
         <h1>Assessments</h1>
         <p>
           Pass an assessment to earn a verified skill badge for your profile. Employers can see every badge
@@ -455,7 +455,7 @@ function AssessmentsPageInner() {
 
 export default function AssessmentsPage() {
   return (
-    <Suspense fallback={<main><LoadingState /></main>}>
+    <Suspense fallback={<main className="container-standard"><LoadingState /></main>}>
       <AssessmentsPageInner />
     </Suspense>
   );

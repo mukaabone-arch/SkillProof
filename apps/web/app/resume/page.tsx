@@ -143,12 +143,12 @@ export default function ResumePage() {
     setContent((c) => ({ ...c, education: c.education.filter((_, i) => i !== index) }));
   }
 
-  if (!ready) return <main><p>Loading…</p></main>;
+  if (!ready) return <main className="container-reading"><p>Loading…</p></main>;
 
   return (
     <>
       {loggedIn && <CandidateNav onLoggedOut={() => setLoggedIn(false)} />}
-      <main className="hub">
+      <main className="hub container-reading">
         <h1>Build your resume</h1>
         <p>Generate a clean, one-page PDF resume — including your verified skill badges.</p>
 

@@ -13,7 +13,7 @@ export default function InterviewsPage() {
   return (
     <>
       <CandidateNav />
-      <main>
+      <main className="container-standard">
         <h1>Interviews</h1>
         <p>Track where you stand with every employer who&apos;s invited you to interview.</p>
 

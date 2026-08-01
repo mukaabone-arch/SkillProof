@@ -31,7 +31,7 @@ export default function EmployerShortlistPage() {
   return (
     <>
       <EmployerNav onLoggedOut={() => router.replace('/employer')} />
-      <Suspense fallback={<main><p className="meta">Loading…</p></main>}>
+      <Suspense fallback={<main className="container-standard"><p className="meta">Loading…</p></main>}>
         <EmployerShortlist />
       </Suspense>
     </>

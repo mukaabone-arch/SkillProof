@@ -183,7 +183,7 @@ export default function JobDetailPage() {
     }
   }
 
-  if (loggedIn === null) return <main><LoadingState message="Loading job…" /></main>;
+  if (loggedIn === null) return <main className="container-standard"><LoadingState message="Loading job…" /></main>;
 
   // Not migrated to ErrorState: its message is typed as a plain string, and
   // this one carries an embedded <Link> — stringifying it would drop the
@@ -191,7 +191,7 @@ export default function JobDetailPage() {
   // is left as a raw paragraph too).
   if (!loggedIn) {
     return (
-      <main>
+      <main className="container-standard">
         <p className="error">
           You are not logged in — <Link href="/">log in first</Link> to view this job.
         </p>
@@ -199,11 +199,11 @@ export default function JobDetailPage() {
     );
   }
 
-  if (error) return <main><ErrorState message={error} /></main>;
-  if (!job) return <main><LoadingState message="Loading job…" /></main>;
+  if (error) return <main className="container-standard"><ErrorState message={error} /></main>;
+  if (!job) return <main className="container-standard"><LoadingState message="Loading job…" /></main>;
 
   return (
-    <main>
+    <main className="container-standard">
       <Link href="/jobs">← Back to jobs</Link>
       <h1 style={{ marginTop: 16 }}>{job.title}</h1>
       <p className="meta" style={{ fontSize: '1rem' }}>

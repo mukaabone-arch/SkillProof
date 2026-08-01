@@ -417,7 +417,7 @@ function ProfilePageInner() {
   return (
     <>
       <CandidateNav />
-      <main className="profile">
+      <main className="container-wide">
       <h1>Your profile</h1>
       <p>Keep this up to date — employers see it alongside your verified badges.</p>
 
@@ -794,7 +794,7 @@ function ProfilePageInner() {
 
 export default function ProfilePage() {
   return (
-    <Suspense fallback={<main><LoadingState /></main>}>
+    <Suspense fallback={<main className="container-wide"><LoadingState /></main>}>
       <ProfilePageInner />
     </Suspense>
   );

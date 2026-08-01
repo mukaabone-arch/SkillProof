@@ -397,7 +397,7 @@ export default function Dashboard({ onLoggedOut }: Props) {
     return (
       <>
         <AdminNav onLoggedOut={onLoggedOut} />
-        <main className="hub">
+        <main className="hub container-standard">
           <EmptyState
             message="You're signed in with an admin account — the candidate dashboard isn't meant for admins."
             actionLabel="Go to admin console"
@@ -412,7 +412,7 @@ export default function Dashboard({ onLoggedOut }: Props) {
     return (
       <>
         <CandidateNav onLoggedOut={onLoggedOut} />
-        <main className="hub">
+        <main className="hub container-standard">
           <ErrorState message={error} />
         </main>
       </>
@@ -422,7 +422,7 @@ export default function Dashboard({ onLoggedOut }: Props) {
     return (
       <>
         <CandidateNav onLoggedOut={onLoggedOut} />
-        <main className="hub">
+        <main className="hub container-standard">
           <LoadingState message="Loading your dashboard…" />
         </main>
       </>
@@ -530,7 +530,7 @@ export default function Dashboard({ onLoggedOut }: Props) {
   return (
     <>
       <CandidateNav onLoggedOut={onLoggedOut} />
-      <main className="hub">
+      <main className="hub container-standard">
         <h1>{greeting}</h1>
         <p className="hub-subhead">Here&apos;s where things stand — and what to do next.</p>
 

@@ -129,7 +129,7 @@ export default function DiscussionResultPage() {
 
   if (error) {
     return (
-      <main>
+      <main className="container-reading">
         <p className="error">{error}</p>
         <Link href="/assessments">← Back to assessments</Link>
       </main>
@@ -137,7 +137,7 @@ export default function DiscussionResultPage() {
   }
   if (!data) {
     return (
-      <main>
+      <main className="container-reading">
         <p>Loading…</p>
       </main>
     );
@@ -148,7 +148,7 @@ export default function DiscussionResultPage() {
   // at all; the only honest response is a fresh, no-fault attempt.
   if (data.outcome === 'INSUFFICIENT_PROBING') {
     return (
-      <main>
+      <main className="container-reading">
         <h1>This session didn&apos;t give you a fair chance to show this skill</h1>
         <p>
           Something in how the conversation went meant we couldn&apos;t properly assess part of it. That&apos;s on
@@ -165,7 +165,7 @@ export default function DiscussionResultPage() {
   }
 
   return (
-    <main>
+    <main className="container-reading">
       <h1>
         {data.skill} · Level {data.level}
       </h1>

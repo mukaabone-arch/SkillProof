@@ -33,7 +33,7 @@ export default function EmployerHome({ onLoggedOut }: Props) {
     return (
       <>
         <EmployerNav onLoggedOut={onLoggedOut} />
-        <main>
+        <main className="container-wide">
           <p className="error">{error}</p>
           <p>
             Looking for the candidate app? <Link href="/">Go there instead</Link>.
@@ -46,7 +46,7 @@ export default function EmployerHome({ onLoggedOut }: Props) {
     return (
       <>
         <EmployerNav onLoggedOut={onLoggedOut} />
-        <main><p>Loading your organization…</p></main>
+        <main className="container-wide"><p>Loading your organization…</p></main>
       </>
     );
   }
@@ -54,7 +54,7 @@ export default function EmployerHome({ onLoggedOut }: Props) {
   return (
     <>
       <EmployerNav onLoggedOut={onLoggedOut} />
-      <main className="employer-home">
+      <main className="container-wide">
         <h1>Welcome, {org.organization.name}</h1>
         <p>Signed in as {org.role === 'EMPLOYER_ADMIN' ? 'an admin' : 'a member'} of this organization.</p>
 
