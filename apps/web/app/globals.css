@@ -45,7 +45,21 @@
      primary text, darkest (900-ish) is now page background. ---- */
   --gray-50:  #161826;    /* page background (Nocturne --color-bg) */
   --gray-100: #3F424D;    /* borders, dividers, secondary surfaces (Nocturne neutral-800) */
-  --gray-300: #75798C;    /* disabled, subtle borders (Nocturne neutral-600) */
+  /* Contrast fix (tester report: "small and muted text hard to read"): the dark-theme pass carried
+     over neutral-600 (#75798C) for this step because it held the same *position* in the ramp as the
+     old light-theme --gray-300, not because it was re-measured against the new dark backgrounds —
+     it only cleared 4.08:1 on --gray-50 / 3.52:1 on --card, below the 4.5:1 AA floor, and everything
+     that reads this token as TEXT (not a border) does so at small sizes: the journey stepper's
+     upcoming-stage label/sublabel ("Not started", ~11.5px), the dashboard hero photo credit (~10.5px),
+     the app footer credit (~12.5px), and .match-confidence.weak on /jobs. Moved one step up Nocturne's
+     own ramp to neutral-400: 8.75:1 / 7.55:1 — comfortably above AA even at those sizes, close to AAA
+     (7:1) on --card. (Also used for a few *borders* — .btn-ghost/.btn-secondary/input — where contrast
+     was never the binding constraint; those just render a touch more visible now, which is harmless.) */
+  --gray-300: #B2B6CA;    /* was #75798C — see contrast note above (Nocturne neutral-400) */
+  /* Audited, unchanged: 11.82:1 on --gray-50 / 10.20:1 on --card — already well above AA (in fact
+     above the stricter 7:1 AAA floor too) and matches the source Nocturne design's own choice for
+     this role (its hero subtitle uses this exact value). Carries the dashboard greeting's sub-line,
+     .meta lines app-wide, FeatureStrip labels, etc. — reviewed per this pass, no change needed. */
   --gray-600: #CFD3E5;    /* secondary text (Nocturne neutral-300) */
   --gray-900: #E9E9ED;    /* primary text (Nocturne --color-text) */
 
@@ -809,10 +823,21 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 }
 .dashboard-hero-inner { position: relative; z-index: 1; padding-bottom: 32px; }
 .dashboard-hero-inner h1 { font-size: 2.375rem; }
+/* Audited (tester report named this line specifically): --gray-600 at 16px (no font-size override
+   here, so it's the default body size, not "small") measures 11.82:1 against the flat --gray-50 the
+   scrim fades back to — well above the 4.5:1 AA floor, so the token itself isn't the defect. Left
+   unchanged rather than forced brighter without a contrast reason to justify it (over-brightening would
+   flatten its hierarchy against the bold white h1 right above it for no measurable accessibility gain).
+   If it still reads as dim in review, the remaining cause is almost certainly the photo underneath —
+   layout/imagery, out of this pass's scope (no layout changes) — flag as a separate follow-up if so. */
 .dashboard-hero-inner .hub-subhead { color: var(--gray-600); margin-bottom: 0; }
+/* Contrast + size fix ("nearly invisible" per tester report): color was already --ink-30, so it
+   inherits the --gray-300 retune above (4.08:1 -> 8.75:1 against the flat scrim-bg it mostly sits on).
+   Also bumped 10.56px -> 11.52px (var(--text-xs)) for extra margin, since this is the one small-text
+   instance that sits directly over the photo rather than a flat surface. */
 .dashboard-hero-credit {
   position: relative; z-index: 1; display: block; text-align: right;
-  font-size: 0.66rem; color: var(--ink-30); font-weight: 500; margin-top: -20px; padding-bottom: 8px;
+  font-size: var(--text-xs); color: var(--ink-30); font-weight: 500; margin-top: -20px; padding-bottom: 8px;
 }
 @media (max-width: 720px) {
   .dashboard-hero { padding-top: 40px; margin-bottom: 24px; }
@@ -864,8 +889,16 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .status-card-flag { border-left: 3px solid var(--brand-400); }
 .status-stat { font-family: var(--font-display); font-weight: 700; font-size: 2rem; letter-spacing: -0.02em; color: var(--indigo); line-height: 1; margin-bottom: 6px; }
 .status-stat.verified { color: var(--success); }
-/* Kicker label — colored like the Nocturne design's own .card-kicker (accent, not muted gray). */
-.status-card-label { font-family: var(--font-body); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brand-400); margin-bottom: 10px; }
+/* Kicker label. Contrast fix: originally colored like the Nocturne design's own .card-kicker
+   (var(--brand-400), an accent purple) at 10.56px with 0.08em tracking, uppercase — that combination
+   numerically cleared AA (8.55:1 on --gray-50 / 7.38:1 on --card, since --brand-400 is a light
+   lavender) but read as "muted" anyway: three compounding legibility penalties (small + uppercase/
+   tracked + a low-saturation-contrast accent color that doesn't pop off a purple-tinted dark card the
+   way a neutral does at equal luminance). Since the accent palette itself is out of scope, the fix is
+   size + tracking + switching to the neutral secondary-text token instead of an accent one: now
+   11.2px (was 10.56px), 0.06em tracking (was 0.08em), var(--gray-600) — 11.82:1 / 10.20:1, and reads
+   crisp rather than tinted. */
+.status-card-label { font-family: var(--font-body); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gray-600); margin-bottom: 10px; }
 .status-card-progress { margin-top: 8px; margin-bottom: 0; }
 
 /* ---- signal chips ----
@@ -1037,7 +1070,12 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 
 .discussion-session {
   --dc-bg: #0B0C10; --dc-card: #14161D; --dc-card2: #181B24; --dc-border: #262A35;
-  --dc-text: #E8EAF0; --dc-text2: #9AA1B2; --dc-text3: #6B7280;
+  /* --dc-text3 contrast fix: this scoped dark theme predates the app-wide Nocturne pass and was
+     never re-audited against it — #6B7280 only cleared 4.04:1 on --dc-bg / 3.56:1 on --dc-card2,
+     below AA, and both its text uses are small (.discussion-exit-link 12.8px, .discussion-input-hint
+     11.2px). Lightened to #8B92A3: 6.27:1 / 5.52:1. (Also a hover border-color on
+     .discussion-chev/.discussion-pill — no contrast requirement there, just reads a touch lighter now.) */
+  --dc-text: #E8EAF0; --dc-text2: #9AA1B2; --dc-text3: #8B92A3;
   /* Re-keyed onto the new brand system (was #6366F1/#818CF8 literal hex) — var() refs, not
      duplicated hex, so this stays in sync if brand-400/200 ever change. Everything else in this
      scoped dark palette is untouched. */
