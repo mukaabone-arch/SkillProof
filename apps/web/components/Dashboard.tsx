@@ -534,20 +534,11 @@ export default function Dashboard({ onLoggedOut }: Props) {
       <main className="hub container-standard">
         <div className="dashboard-hero">
           <div className="dashboard-hero-bg" />
-          <div className="dashboard-hero-scrim" />
           <div className="dashboard-hero-inner">
             <h1>{greeting}</h1>
             <p className="hub-subhead">Here&apos;s where things stand — and what to do next.</p>
           </div>
         </div>
-        <a
-          className="dashboard-hero-credit"
-          href="https://unsplash.com/@jrkorpa"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Photo by Jr Korpa on Unsplash
-        </a>
 
         <SegmentedProgress steps={journeySteps} />
 

@@ -790,10 +790,23 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .hub-section-head a { font-size: var(--text-sm); }
 .hub-resume-link { margin-top: -8px; }
 
-/* ---- dashboard photo hero band (candidate dashboard greeting only) ----
-   Matches the SkillProof Dashboard Nocturne design import: a full-viewport-
-   width photo band behind the greeting, vignetted to the page background at
-   top and bottom so only a soft middle band of the photo shows through.
+/* ---- dashboard hero band (candidate dashboard greeting only) ----
+   Pure-CSS gradient behind the greeting — no image asset. Previously an
+   Unsplash photo at 0.5 opacity blended under a vignette scrim; at that
+   opacity the photo itself was barely perceptible (it read as nothing more
+   than a soft purple wash), yet it still carried a required attribution
+   line that caused repeated placement/contrast problems, and the variable
+   image underneath was the one thing standing between the greeting's
+   sub-line and a guaranteed-safe contrast ratio. Replaced with a single
+   gradient, in the same purple-wash tones, using the app's own brand
+   tokens (--brand-600, the Nocturne primary purple) rather than fresh
+   hex — same 135deg angle as .copilot-panel's gradient below, for a
+   consistent visual language between the two purple gradient surfaces on
+   this page. No photo, no attribution, no variability: the text sits on a
+   background this stylesheet fully controls, so its contrast is exact and
+   guaranteed rather than "should be fine underneath whatever the photo
+   was doing" — verified 9.33:1 (sub-line) / 11.48:1 (heading) at the
+   gradient's own most-tinted point, both comfortably above AA.
    main.hub.container-standard still carries the base `main` rule's 64px top
    padding — the negative top margin here cancels exactly that, so the band
    starts right at the top of the page content, under the sticky nav, rather
@@ -808,37 +821,19 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 }
 .dashboard-hero-bg {
   position: absolute; inset: 0; z-index: 0;
-  background-image: url('https://images.unsplash.com/photo-1557682250-33bd709cbe85?q=80&w=2000&auto=format&fit=crop');
-  background-size: cover; background-position: center 30%;
-  opacity: 0.5; mix-blend-mode: lighten;
-}
-.dashboard-hero-scrim {
-  position: absolute; inset: 0; z-index: 0;
   background: linear-gradient(
-    180deg,
+    135deg,
     var(--gray-50) 0%,
-    color-mix(in srgb, var(--gray-50) 55%, transparent) 55%,
+    color-mix(in srgb, var(--brand-600) 30%, var(--gray-50)) 50%,
     var(--gray-50) 100%
   );
 }
 .dashboard-hero-inner { position: relative; z-index: 1; padding-bottom: 32px; }
 .dashboard-hero-inner h1 { font-size: 2.375rem; }
-/* Audited (tester report named this line specifically): --gray-600 at 16px (no font-size override
-   here, so it's the default body size, not "small") measures 11.82:1 against the flat --gray-50 the
-   scrim fades back to — well above the 4.5:1 AA floor, so the token itself isn't the defect. Left
-   unchanged rather than forced brighter without a contrast reason to justify it (over-brightening would
-   flatten its hierarchy against the bold white h1 right above it for no measurable accessibility gain).
-   If it still reads as dim in review, the remaining cause is almost certainly the photo underneath —
-   layout/imagery, out of this pass's scope (no layout changes) — flag as a separate follow-up if so. */
+/* --gray-600 at 16px (no font-size override here, so it's the default body size, not "small")
+   measures at minimum 9.33:1 against this gradient (see the gradient's own comment above) — well
+   above the 4.5:1 AA floor everywhere along it, not just against a flat background. */
 .dashboard-hero-inner .hub-subhead { color: var(--gray-600); margin-bottom: 0; }
-/* Contrast + size fix ("nearly invisible" per tester report): color was already --ink-30, so it
-   inherits the --gray-300 retune above (4.08:1 -> 8.75:1 against the flat scrim-bg it mostly sits on).
-   Also bumped 10.56px -> 11.52px (var(--text-xs)) for extra margin, since this is the one small-text
-   instance that sits directly over the photo rather than a flat surface. */
-.dashboard-hero-credit {
-  position: relative; z-index: 1; display: block; text-align: right;
-  font-size: var(--text-xs); color: var(--ink-30); font-weight: 500; margin-top: -20px; padding-bottom: 8px;
-}
 @media (max-width: 720px) {
   .dashboard-hero { padding-top: 40px; margin-bottom: 24px; }
   .dashboard-hero-inner h1 { font-size: 1.7rem; }
