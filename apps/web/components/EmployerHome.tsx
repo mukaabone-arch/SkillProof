@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { employerApi } from '@/lib/api';
+import { timeOfDayGreeting } from '@/lib/greeting';
 import EmployerNav from './EmployerNav';
 import EmployerJobs from './EmployerJobs';
 import CandidateSearch from './CandidateSearch';
@@ -55,7 +56,7 @@ export default function EmployerHome({ onLoggedOut }: Props) {
     <>
       <EmployerNav onLoggedOut={onLoggedOut} />
       <main className="container-wide">
-        <h1>Welcome, {org.organization.name}</h1>
+        <h1>{timeOfDayGreeting()}, {org.organization.name}</h1>
         <p>Signed in as {org.role === 'EMPLOYER_ADMIN' ? 'an admin' : 'a member'} of this organization.</p>
 
         <div className="employer-home-columns">

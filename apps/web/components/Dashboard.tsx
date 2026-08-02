@@ -20,6 +20,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { timeOfDayGreeting } from '@/lib/greeting';
 import CandidateNav from './CandidateNav';
 import AdminNav from './AdminNav';
 import FeatureStrip from './FeatureStrip';
@@ -476,7 +477,7 @@ export default function Dashboard({ onLoggedOut }: Props) {
   // exists, otherwise a neutral greeting that still distinguishes a brand
   // new visitor from someone returning who just hasn't named themselves yet.
   const greeting = profile.fullName
-    ? `Welcome back, ${profile.fullName}`
+    ? `${timeOfDayGreeting()}, ${profile.fullName}`
     : isFirstSession
       ? 'Welcome to SkillProof'
       : 'Welcome back';
