@@ -1,40 +1,60 @@
 /*
- * Design system foundation — extracted and formalized from the already-
- * polished surfaces (public/landing.html, the OTP/auth pages, the dashboard
- * hub), not invented fresh. Every color/radius/shadow value below that
- * predates this pass is kept byte-for-byte identical; this only *names*
- * what was already there and fills the gaps (spacing scale, type scale,
- * danger/warning semantics) so future component work has one place to pull
- * from instead of ad hoc pixel values.
+ * Design system foundation — originally extracted from a light theme
+ * (public/landing.html, the OTP/auth pages, the dashboard hub); re-themed
+ * dark ("Nocturne") to match the SkillProof Dashboard design import
+ * (claude.ai/design project 8cae981e, nocturne-1d7b12b4 design system).
+ * Every token below keeps its ORIGINAL NAME and semantic role (page bg,
+ * card surface, primary text, THE primary accent, etc.) — only the hex
+ * values changed — so every rule/component below that reads a token
+ * re-themes automatically with no per-rule edits. Where a rule read a raw
+ * literal (a hardcoded "white"/"black" mix, a hex baked into a gradient)
+ * instead of a token, that rule needed a direct fix too — search this file
+ * for "dark-theme fix" to find those.
  */
 :root {
-  /* ---- Brand: indigo-violet ---- */
-  --brand-50:  #EEEDFE;
-  --brand-100: #CECBF6;
-  --brand-200: #AFA9EC;
-  --brand-400: #7F77DD;   /* secondary buttons, links, CTAs on dark */
-  --brand-600: #5B4FE0;   /* THE primary: logo, main CTA, active nav */
-  --brand-800: #3C3489;   /* text on brand-50/100 backgrounds */
-  --brand-900: #26215C;   /* dark panels, hero, footer */
+  color-scheme: dark; /* native form controls (select, date/time pickers, scrollbars, autofill) render dark instead of the browser's light default */
 
-  /* ---- Accent: warm coral (rationed) ---- */
-  --accent-50:  #FFF1EC;
+  /* ---- Brand: indigo-violet, re-keyed onto Nocturne's accent (purple) ramp ----
+     Values pulled from the Nocturne design system's own OKLCH-derived scale
+     (accent-100..900) rather than just inverting the old light-theme ramp,
+     since a role like "text on a tinted wash" needs a genuinely different
+     *lightness*, not just the same number reused. */
+  /* accent-200: wash bg under --indigo TEXT (eyebrow, badges, chip-external) and hover/active
+     rings/glows. Needs to be genuinely LIGHT, not just "a darker purple than the page" — --indigo
+     itself is dark (kept that way so white button text stays readable on it), so a dark wash would
+     put dark-on-near-dark text at ~1.5:1 contrast. Light wash + dark indigo text instead: ~5.5:1,
+     and doubles as a nice bright glow for hover borders / active-dot rings on a dark page. */
+  --brand-50:  #E7E5FE;
+  --brand-100: #E7E5FE;   /* accent-200: unused today, kept for parity */
+  --brand-200: #D2CEFD;   /* accent-300: --dc-indigo-soft (discussion dark theme) */
+  --brand-400: #B5ABFC;   /* accent-400: secondary buttons/links, already tuned for dark surfaces */
+  --brand-600: #5D5294;   /* accent-700: THE primary — filled-button bg, close in perceived lightness to the old #5B4FE0 so white button text stays readable */
+  --brand-800: #B5ABFC;   /* accent-400: brighter-than-primary — hover-lighten fills, "strong match" text, open-hint text */
+  --brand-900: #2B2741;   /* accent-900: darkest — dark panels, hero/footer gradient stop */
+
+  /* ---- Accent: warm coral (rationed) — brightened one/two steps so it
+     still pops as a "verified/earned" signal against a dark page instead
+     of reading as a muted brown. ---- */
+  --accent-50:  #4A2E22;
   --accent-100: #FFD9CB;
   --accent-400: #FF8A65;
-  --accent-600: #E85A3A;  /* verified badges + max ONE standout CTA */
-  --accent-800: #8A2E1A;  /* text on coral backgrounds */
+  --accent-600: #FF9F80;  /* verified badges + max ONE standout CTA */
+  --accent-800: #FFCBB3;  /* text on coral backgrounds / standalone coral text on the page */
 
-  /* ---- Neutrals ---- */
-  --gray-50:  #F7F7F9;    /* page background */
-  --gray-100: #EBEBF0;    /* borders, dividers */
-  --gray-300: #C7C6D1;    /* disabled, subtle borders */
-  --gray-600: #6E6D7A;    /* secondary text */
-  --gray-900: #18171F;    /* primary text */
+  /* ---- Neutrals — Nocturne's own neutral ramp; lightest (100) is now
+     primary text, darkest (900-ish) is now page background. ---- */
+  --gray-50:  #161826;    /* page background (Nocturne --color-bg) */
+  --gray-100: #3F424D;    /* borders, dividers, secondary surfaces (Nocturne neutral-800) */
+  --gray-300: #75798C;    /* disabled, subtle borders (Nocturne neutral-600) */
+  --gray-600: #CFD3E5;    /* secondary text (Nocturne neutral-300) */
+  --gray-900: #E9E9ED;    /* primary text (Nocturne --color-text) */
 
-  /* ---- Semantic (status only — never for brand/decoration) ---- */
-  --success: #1D9E75;
-  --warning: #BA7517;
-  --error:   #D9483F;
+  /* ---- Semantic (status only — never for brand/decoration) ----
+     Brightened to the same values already proven to work on a dark
+     surface by the discussion-assessment feature's own --dc-green/-amber/-red. */
+  --success: #34D399;
+  --warning: #FBBF24;
+  --error:   #F87171;
 
   /* ---- Legacy bridge: old names -> new tokens ----
      Lets every existing rule keep working on day one; individual
@@ -51,34 +71,28 @@
 
   /* ---- Auth-gradient card text (OtpLogin.tsx / EmployerOtpLogin.tsx only) ----
      --ink-60/--ink-30 above are flat grays tuned for text on the plain
-     paper background; on .auth-card's translucent glass surface — now
-     sitting over the flat .auth-gradient indigo instead of the old busy
-     photo — they read as too faint. These are ink itself at fixed alpha
-     (not flat grays), so contrast scales with whatever's actually behind
-     the glass rather than assuming one fixed backdrop; verified >=4.5:1
-     (AA, normal text) even at the card's lightest point (nearest the
-     gradient's --brand-600 end). Two levels, both darker than --ink-60:
-     -secondary for copy that should read clearly (the intro paragraph,
-     the OTP-sent/resend context line); -tertiary for the "or continue
-     with" / "Already have an account?" divider label, which stays a
-     notch more de-emphasized. Reference by name (var(--auth-text-secondary))
-     rather than reusing --ink-60/--ink-30 directly, so it's clear at the
-     call site this is the gradient-card-specific override, not a global
-     token change. */
-  --auth-text-secondary: rgba(24, 23, 31, 0.82);
-  --auth-text-tertiary:  rgba(24, 23, 31, 0.7);
+     paper background; on .auth-card's translucent glass surface — sitting
+     over the flat .auth-gradient indigo — they read as too faint. These are
+     ink itself at fixed alpha (not flat grays), so contrast scales with
+     whatever's actually behind the glass. Dark-theme fix: --ink is now a
+     near-white value and .auth-card's glass flipped dark (see .auth-card
+     below), so these alphas are now ink-at-full-brightness (233,233,237 —
+     matches --gray-900) instead of the old near-black (24,23,31); same two
+     levels, same roles (-secondary for copy that should read clearly,
+     -tertiary for the more de-emphasized divider label). */
+  --auth-text-secondary: rgba(233, 233, 237, 0.82);
+  --auth-text-tertiary:  rgba(233, 233, 237, 0.7);
 
   /* ---- Brand primitives (the flAIr future Intelligence logo's own colors) ----
      Reserved for the logo asset itself (Logo.tsx, which reads these via
      var(--brand-purple, #8b5cf6)-style fallbacks) and brand-decoration
-     contexts (the hero/auth-page photo scrim). Re-keyed onto the new
-     system rather than left on the old literal hex: purple becomes the
-     system's actual primary brand hue; green has no equivalent family in
-     the new palette, so it takes the one surviving green-family token. */
+     contexts (the hero/auth-page photo scrim). Purple is the system's
+     primary brand hue; green takes the one surviving green-family token
+     (--success) — both re-theme automatically with the tokens above. */
   --brand-purple: var(--brand-600);
   --brand-green: var(--success);
 
-  --card: #fff; /* cards/surfaces: white, unchanged by this rebrand */
+  --card: #232532; /* cards/surfaces: Nocturne --color-surface — dark-theme fix, was white */
 
   /* ---- Spacing scale (4px base) ---- */
   --space-1: 4px;
@@ -104,10 +118,14 @@
      --shadow-md is the exact elevation already used by .model-card (landing)
      and .next-step-card/.status-card (dashboard) — formalized, not changed.
      --shadow-lg is .auth-card's slightly deeper variant for sitting on top
-     of the busy hero photo. --shadow-sm is new, for smaller lifted elements. */
-  --shadow-sm: 0 2px 8px rgba(20, 27, 45, 0.08);
-  --shadow-md: 0 24px 60px -24px rgba(20, 27, 45, 0.25);
-  --shadow-lg: 0 24px 60px -20px rgba(15, 17, 21, 0.45);
+     of the busy hero photo. --shadow-sm is new, for smaller lifted elements.
+     Dark-theme fix: a soft colored drop shadow doesn't read against an
+     already-dark page — elevation now comes from a Nocturne-style hairline
+     (a 0 0 0 1px "border" painted as a shadow layer, using their own
+     neutral-800/700/500 steps) plus ambient black for -md/-lg. */
+  --shadow-sm: 0 0 0 1px #3F424D;
+  --shadow-md: 0 0 0 1px #595D6C, 0 6px 18px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 0 0 1px #9397AB, 0 16px 40px rgba(0, 0, 0, 0.65);
 
   /* ---- Typography ----
      Strict 2-font system, shared verbatim with mobile's TextTheme
@@ -204,7 +222,10 @@ button {
   font-weight: 600; cursor: pointer;
   transition: transform 0.12s ease, background 0.12s ease;
 }
-button:hover:not(:disabled) { background: var(--brand-800); transform: translateY(-1px); }
+/* Dark-theme fix: --brand-800 is now *brighter* than --indigo (see its declaration) — right for
+   text-on-dark-page (match-confidence-strong, hint-toggle-open below) but wrong here, where white
+   button text needs the fill to stay dark. Darkened relative to --indigo directly instead. */
+button:hover:not(:disabled) { background: color-mix(in srgb, var(--indigo) 80%, black); transform: translateY(-1px); }
 a { color: var(--indigo); font-weight: 600; text-decoration: none; }
 a:hover { text-decoration: underline; }
 nav { font-size: 0.95rem; }
@@ -227,7 +248,9 @@ code { font-family: var(--font-body); }
      light wash under brand-600 text, and brand-400 fails contrast here (1.86:1). */
   padding: 5px 11px; border-radius: 100px; background: var(--brand-50);
 }
-.eyebrow.verified { color: var(--success); background: color-mix(in srgb, var(--success) 12%, white); }
+/* Dark-theme fix: was `12%, white` — mixing into the dark --card surface instead (and raising the
+   percentage; a light-on-dark mix needs more of the tint color to stay visible against a dark base). */
+.eyebrow.verified { color: var(--success); background: color-mix(in srgb, var(--success) 18%, var(--card)); }
 .btn-ghost {
   display: inline-block; background: transparent; color: var(--ink); font-weight: 600;
   border: 1.5px solid var(--ink-30); border-radius: 10px; padding: 12px 22px; cursor: pointer;
@@ -263,11 +286,16 @@ code { font-family: var(--font-body); }
 .btn { font: inherit; padding: 12px 16px; border-radius: var(--radius-md); border: none; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform 0.12s ease, background 0.12s ease; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-primary { background: var(--indigo); color: #fff; }
-.btn-primary:hover:not(:disabled) { background: var(--brand-800); transform: translateY(-1px); }
+/* Dark-theme fix: same reasoning as the base button:hover rule above. */
+.btn-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--indigo) 80%, black); transform: translateY(-1px); }
 .btn-secondary { background: transparent; color: var(--ink); border: 1.5px solid var(--ink-30); }
 .btn-secondary:hover:not(:disabled) { border-color: var(--ink); }
 .btn-danger { background: transparent; color: var(--error); border: 1.5px solid var(--error); }
-.btn-danger:hover:not(:disabled) { background: var(--error); color: #fff; }
+/* Dark-theme fix: --error is now a bright red tuned for *text* on a dark page (matches --dc-red) —
+   too light a fill for white text to sit on (measured ~2.8:1, fails even the 3:1 UI floor).
+   Darkened for this one filled-with-white-text state only; --error itself stays bright everywhere
+   it's used as text/border (the large majority of its call sites). */
+.btn-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--error) 70%, black); color: #fff; }
 
 .ui-card { background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-lg); padding: var(--space-6); }
 .ui-card-elevated { box-shadow: var(--shadow-md); }
@@ -294,12 +322,12 @@ code { font-family: var(--font-body); }
   padding: 5px 11px; border-radius: var(--radius-full); display: inline-flex; align-items: center; gap: 5px;
 }
 .ui-badge-default { color: var(--indigo); background: var(--brand-50); }
-.ui-badge-verified { color: var(--success); background: color-mix(in srgb, var(--success) 12%, white); }
-.ui-badge-danger { color: var(--error); background: color-mix(in srgb, var(--error) 12%, white); }
-/* --warning fails 4.5:1 AA at this badge's --text-xs (~10.4px) body size (verified: 3.72:1 on white) —
-   darkened via color-mix for the text specifically; the raw token stays fine for the background tint,
-   which only needs the 3:1 UI floor. */
-.ui-badge-warning { color: color-mix(in srgb, var(--warning) 75%, black); background: color-mix(in srgb, var(--warning) 12%, white); }
+/* Dark-theme fix: all three below were `12%, white` — mixed into --card instead, same reasoning as .eyebrow.verified above. */
+.ui-badge-verified { color: var(--success); background: color-mix(in srgb, var(--success) 18%, var(--card)); }
+.ui-badge-danger { color: var(--error); background: color-mix(in srgb, var(--error) 18%, var(--card)); }
+/* --warning is now already bright enough (#FBBF24) to read directly on a dark page — the old
+   darken-for-white-bg hack (color-mix(...,black) to pass AA on a *light* badge) no longer applies. */
+.ui-badge-warning { color: var(--warning); background: color-mix(in srgb, var(--warning) 18%, var(--card)); }
 .ui-badge-neutral { color: var(--ink-60); background: var(--paper-2); }
 
 .empty-state { text-align: center; padding: var(--space-7) var(--space-4); color: var(--ink-60); }
@@ -309,21 +337,22 @@ code { font-family: var(--font-body); }
    between the OAuth callback landing back on '/' or '/employer' and the
    dashboard painting — distinct from .loading-state above, which is an
    inline row within an already-rendered page. A bare <main> here (no
-   background class at all) was a plain white flash sandwiched between the
+   background class at all) was a plain flash sandwiched between the
    callback's colored .auth-gradient screen and the dashboard's own
-   (also white) background — jarring specifically because of what comes
-   right before it, even though it matches the destination page. A soft
-   brand-tinted neutral (--brand-50, already used for .eyebrow's wash)
-   reads as a gentle step down from the gradient rather than a hard cut to
-   white, without being bold enough to itself flash against the plain
-   white dashboard that follows half a beat later. Text stays the default
-   --ink-60 (unchanged) — contrast against --brand-50 is essentially the
-   same as the existing --paper background it's already proven against
-   app-wide, so no separate legibility fix was needed here. */
+   background — jarring specifically because of what comes right before it,
+   even though it matches the destination page.
+   Dark-theme fix: was --brand-50 (a soft brand-tinted step down from the
+   gradient, on the old light --paper). --brand-50 is now a bright wash
+   (see its own declaration) — right for a small text-bearing chip, wrong
+   as a full-page background sitting between two dark screens (it'd flash
+   bright instead of reading as a gentle step down). --brand-900 (the
+   darkest brand tone) reads as the intended "still branded, still dark"
+   transition instead; --ink-60 text keeps working against it (same
+   direction of contrast as it always had against a dark surface). */
 .app-loading {
   max-width: none; margin: 0; padding: 24px;
   min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  background: var(--brand-50);
+  background: var(--brand-900);
 }
 .error-state { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
 /* Screen-reader-only text — first used by FeatureStrip's journey summary. */
@@ -370,9 +399,10 @@ main.auth {
   min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: var(--space-7);
   /* Purple/green stops rebased to brand-600's/success's RGB channels (were the old
-     --brand-purple/--brand-green literal hex as rgba) — same alphas, new hues. */
+     --brand-purple/--brand-green literal hex as rgba) — same alphas, new hues.
+     Dark-theme fix: recomputed for the new --brand-600 (#5D5294) / --success (#34D399). */
   background-image:
-    linear-gradient(135deg, rgba(15, 17, 21, 0.85) 0%, rgba(91, 79, 224, 0.45) 45%, rgba(29, 158, 117, 0.4) 100%),
+    linear-gradient(135deg, rgba(15, 17, 21, 0.85) 0%, rgba(93, 82, 148, 0.45) 45%, rgba(52, 211, 153, 0.4) 100%),
     url('/background.jpg');
   background-size: cover;
   background-position: center 40%;
@@ -386,12 +416,17 @@ main.auth {
    pure CSS, no image asset, monotonically darkest (--brand-900) to
    lightest (--brand-600) so white headline/card text stays comfortably
    above the 3:1 (large text) / readable floor everywhere in the gradient,
-   not just at one end — verified worst-case (white on --brand-600) is
-   5.77:1, well past AA. The OAuth callback pages are unaffected — this is
+   not just at one end. The OAuth callback pages are unaffected — this is
    additive (`.auth.auth-gradient`), never overrides plain `.auth` on its
-   own. */
+   own.
+   Dark-theme fix: dropped to two stops (900 -> 600), not three. --brand-800
+   was repurposed by the dark remap into a *brighter*-than-primary accent
+   (hover-lighten fills, strong-match text) — reusing it here as a "mid"
+   stop would push this gradient into pale territory the white headline text
+   can't sit on. --brand-900/--brand-600 alone are both still comfortably
+   dark-to-mid, so the "never reaches a pale tint" guarantee still holds. */
 main.auth.auth-gradient {
-  background-image: linear-gradient(135deg, var(--brand-900) 0%, var(--brand-800) 45%, var(--brand-600) 100%);
+  background-image: linear-gradient(135deg, var(--brand-900) 0%, var(--brand-600) 100%);
 }
 /* Secondary/tertiary text on the two gradient auth pages — see
    --auth-text-secondary/--auth-text-tertiary's own doc comment above for
@@ -440,16 +475,18 @@ main.auth.auth-gradient {
   color: #fff; text-align: center; margin: 0;
 }
 /* Glassmorphism, matching .model-card's treatment on the landing page (same
-   underlying busy/dark-scrimmed photo problem). Background is tuned well
-   above the textbook 0.18 "light glass" starting point: at 0.18 the dark
-   --ink text (title, body copy, field labels) composited against this dark
-   scrim+photo backdrop failed contrast outright — verified before landing on
-   0.74. Border and blur match what was requested exactly (those don't carry
-   text, so there's no legibility trade-off to tune away). border-radius is
-   untouched (still var(--radius)). */
+   underlying busy/dark-scrimmed photo problem). Border and blur match what
+   was requested exactly (those don't carry text, so there's no legibility
+   trade-off to tune away). border-radius is untouched (still var(--radius)).
+   Dark-theme fix: the whole app's --ink flipped from near-black to
+   near-white, so a *light* frosted-glass card (rgba(255,255,255,0.74)) would
+   now put light text on a light surface. Flipped the glass itself dark
+   (rgba of --card, #232532) instead, with a light hairline border for the
+   frosted edge — --ink text (now light) reads correctly on it again, no
+   change needed to the text rules themselves. */
 .auth-card {
-  background: rgba(255, 255, 255, 0.74);
-  border: 1px solid rgba(255, 255, 255, 0.35); border-radius: var(--radius);
+  background: rgba(35, 37, 50, 0.74);
+  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: var(--radius);
   backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
   box-shadow: 0 24px 60px -20px rgba(15, 17, 21, 0.5);
   padding: 40px 36px; max-width: 440px; width: 100%;
@@ -461,7 +498,7 @@ main.auth.auth-gradient {
    the global `button{}` rule, so it needs no extra treatment here. */
 .auth-card input { background: var(--card); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .auth-card { background: rgba(255, 255, 255, 0.92); }
+  .auth-card { background: rgba(35, 37, 50, 0.92); }
 }
 @media (max-width: 480px) {
   main.auth { padding: 16px; gap: var(--space-5); }
@@ -520,18 +557,22 @@ main.auth.auth-gradient {
   padding: 18px 20px; margin-bottom: 14px;
 }
 .option { display: block; padding: 8px 4px; cursor: pointer; color: var(--ink); }
-.option:hover { background: color-mix(in srgb, var(--brand-600) 6%, white); border-radius: 6px; }
+/* Dark-theme fix: was `6%, white` — mixed into --card, percentage doubled for visibility on a dark base. */
+.option:hover { background: color-mix(in srgb, var(--brand-600) 12%, var(--card)); border-radius: 6px; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 /* Coral ration (a): the earned/verified badge treatment — border + tint background use accent-600
    directly (non-text UI elements, only need the 3:1 floor); accent-800 for the accompanying
    checkmark/text (see .assessment-earned below) since accent-600 fails 4.5:1 AA at body-text size. */
-.badge-card { border-color: var(--accent-600); background: color-mix(in srgb, var(--accent-600) 8%, white); }
+/* Dark-theme fix: was `8%, white` — mixed into --card, percentage raised for visibility on a dark base. */
+.badge-card { border-color: var(--accent-600); background: color-mix(in srgb, var(--accent-600) 15%, var(--card)); }
 .cert {
   background: var(--card); border: 2px solid var(--success); border-radius: 16px;
   padding: 40px; text-align: center;
 }
+/* Dark-theme fix: same white-on-bright-fill problem as .btn-danger:hover above — --success is
+   tuned bright for text-on-dark-page, too light a fill for a white checkmark glyph to sit on. */
 .cert-mark {
-  width: 56px; height: 56px; border-radius: 50%; background: var(--success);
+  width: 56px; height: 56px; border-radius: 50%; background: color-mix(in srgb, var(--success) 65%, black);
   color: #fff; font-size: 1.6rem; display: flex; align-items: center;
   justify-content: center; margin: 0 auto 16px;
 }
@@ -541,8 +582,11 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
 .field label { font-size: 0.85rem; font-weight: 600; color: var(--ink); }
 .field input, .field select { width: 100%; }
+/* Dark-theme fix: was `color-mix(--gray-900 10%, white)` — a light-gray track on a light page.
+   --gray-900 is now the *text* value (near-white), so that mix would read as a barely-tinted
+   white track on a dark page; mixed into --card instead, independent of the text-color token. */
 .progress-track {
-  background: color-mix(in srgb, var(--gray-900) 10%, white); border-radius: 999px; height: 8px;
+  background: color-mix(in srgb, var(--ink) 12%, var(--card)); border-radius: 999px; height: 8px;
   overflow: hidden; margin-bottom: 6px;
 }
 .progress-fill {
@@ -612,8 +656,10 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ---- dashboard hub ---- */
 /* Rendered as a sibling before <main>, full-bleed and sticky, independent of any page's max-width. */
+/* Dark-theme fix: was rgba(247, 247, 249, 0.85), the old --paper as a translucent literal — now the
+   page's own dark bg (#161826) at the same alpha/blur treatment. */
 .appnav {
-  position: sticky; top: 0; z-index: 50; background: rgba(247, 247, 249, 0.85);
+  position: sticky; top: 0; z-index: 50; background: rgba(22, 24, 38, 0.85);
   backdrop-filter: blur(10px); border-bottom: 1px solid var(--ink-12);
 }
 /* `gap` is a floor, independent of justify-content: space-between's
@@ -730,30 +776,81 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .hub-section-head a { font-size: var(--text-sm); }
 .hub-resume-link { margin-top: -8px; }
 
+/* ---- dashboard photo hero band (candidate dashboard greeting only) ----
+   Matches the SkillProof Dashboard Nocturne design import: a full-viewport-
+   width photo band behind the greeting, vignetted to the page background at
+   top and bottom so only a soft middle band of the photo shows through.
+   main.hub.container-standard still carries the base `main` rule's 64px top
+   padding — the negative top margin here cancels exactly that, so the band
+   starts right at the top of the page content, under the sticky nav, rather
+   than 64px below it. The classic full-bleed-inside-a-capped-container trick:
+   negative side margins of (50% - 50vw) break out to the viewport edges;
+   equal-and-opposite side padding pushes the *content* back to the page's
+   normal width, independent of container-standard's exact cap. */
+.dashboard-hero {
+  position: relative; overflow: hidden;
+  margin: -64px calc(50% - 50vw) 40px;
+  padding: 64px calc(50vw - 50%) 0;
+}
+.dashboard-hero-bg {
+  position: absolute; inset: 0; z-index: 0;
+  background-image: url('https://images.unsplash.com/photo-1557682250-33bd709cbe85?q=80&w=2000&auto=format&fit=crop');
+  background-size: cover; background-position: center 30%;
+  opacity: 0.5; mix-blend-mode: lighten;
+}
+.dashboard-hero-scrim {
+  position: absolute; inset: 0; z-index: 0;
+  background: linear-gradient(
+    180deg,
+    var(--gray-50) 0%,
+    color-mix(in srgb, var(--gray-50) 55%, transparent) 55%,
+    var(--gray-50) 100%
+  );
+}
+.dashboard-hero-inner { position: relative; z-index: 1; padding-bottom: 32px; }
+.dashboard-hero-inner h1 { font-size: 2.375rem; }
+.dashboard-hero-inner .hub-subhead { color: var(--gray-600); margin-bottom: 0; }
+.dashboard-hero-credit {
+  position: relative; z-index: 1; display: block; text-align: right;
+  font-size: 0.66rem; color: var(--ink-30); font-weight: 500; margin-top: -20px; padding-bottom: 8px;
+}
+@media (max-width: 720px) {
+  .dashboard-hero { padding-top: 40px; margin-bottom: 24px; }
+  .dashboard-hero-inner h1 { font-size: 1.7rem; }
+}
+
 /* ---- AI co-pilot panel: the dashboard's hero ----
    One contextual message, computed client-side from the candidate's own
    verified skills, match scores and skill gaps (see buildCopilotMessage in
    Dashboard.tsx) — no separate AI backend call, but it reads as a co-pilot
    speaking directly to what it can already see. Indigo-tinted, not a new
    hue: same accent family as the rest of the hub, just given more room to
-   breathe than a standard .ui-card. */
+   breathe than a standard .ui-card.
+   Restyled to match the "CLOSE THE GAP" panel in the SkillProof Dashboard
+   Nocturne import: a dark accent-to-accent-900 gradient card (not a subtle
+   wash on --card) with a lit border, near-white message text, and a pop
+   button that inverts (light fill, dark text) against the dark gradient. */
 .copilot-panel {
-  background: linear-gradient(160deg, var(--card) 0%, var(--brand-50) 165%);
-  border: 1px solid var(--ink-12); border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--brand-600) 0%, var(--brand-900) 100%);
+  border: 1px solid var(--brand-400);
   box-shadow: var(--shadow-md);
   padding: var(--space-6); margin-bottom: var(--space-7);
 }
 .copilot-eyebrow {
   font-family: var(--font-body); font-size: var(--text-xs); letter-spacing: 0.08em; font-weight: 700;
-  color: var(--indigo); text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px;
+  color: var(--brand-50); text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px;
 }
-.copilot-eyebrow-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--indigo); box-shadow: 0 0 0 3px var(--brand-50); flex-shrink: 0; }
+.copilot-eyebrow-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--brand-50); flex-shrink: 0; }
 /* Heading-sized, not hero-sized: a confident single insight, not a banner. */
 .copilot-message {
   font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; line-height: 1.3;
-  color: var(--ink); letter-spacing: -0.01em; max-width: 52ch; margin: var(--space-3) 0 var(--space-4);
+  color: var(--gray-900); letter-spacing: -0.01em; max-width: 52ch; margin: var(--space-3) 0 var(--space-4);
 }
 .copilot-cta { margin: 0; }
+/* The inverted "pop" button: light fill, dark text — reads as the one bright
+   element on the dark gradient card, same trick the mockup's own CTA uses. */
+.copilot-panel .btn-primary { background: var(--gray-900); color: var(--brand-900); }
+.copilot-panel .btn-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--gray-900) 85%, black); }
 
 .status-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: var(--space-8); }
 .status-card {
@@ -762,9 +859,14 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
   transition: border-color 0.15s ease, transform 0.12s ease;
 }
 .status-card:hover { border-color: var(--brand-50); transform: translateY(-2px); text-decoration: none; }
+/* A card that needs the candidate's attention (e.g. no verified skill yet) gets a lit left rule —
+   matches the "needs attention" treatment on the Verified Skills card in the Nocturne dashboard import. */
+.status-card-flag { border-left: 3px solid var(--brand-400); }
 .status-stat { font-family: var(--font-display); font-weight: 700; font-size: 2rem; letter-spacing: -0.02em; color: var(--indigo); line-height: 1; margin-bottom: 6px; }
 .status-stat.verified { color: var(--success); }
-.status-card-label { font-family: var(--font-body); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-30); margin-bottom: 10px; }
+/* Kicker label — colored like the Nocturne design's own .card-kicker (accent, not muted gray). */
+.status-card-label { font-family: var(--font-body); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brand-400); margin-bottom: 10px; }
+.status-card-progress { margin-top: 8px; margin-bottom: 0; }
 
 /* ---- signal chips ----
    .chip (unchanged, green) is the reserved "SkillProof verified this"
@@ -774,10 +876,11 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
    profile page and throughout mobile: green never means anything but a
    platform-verified badge. */
 .signal-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+/* Dark-theme fix: both `12%, white` — mixed into --card, percentage raised for visibility on a dark base. */
 .chip {
   font-family: var(--font-body); font-size: 0.68rem; padding: 5px 10px; border-radius: 100px;
-  border: 1px solid color-mix(in srgb, var(--success) 12%, white);
-  background: color-mix(in srgb, var(--success) 12%, white); color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 18%, var(--card));
+  background: color-mix(in srgb, var(--success) 18%, var(--card)); color: var(--success);
   display: inline-flex; align-items: center; gap: 5px;
 }
 .chip-external { border-color: var(--brand-50); background: var(--brand-50); color: var(--indigo); }
@@ -912,8 +1015,9 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .review-verdict-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 .review-verdict-buttons .btn { min-width: 0; padding: 8px 12px; font-size: 0.85rem; }
 .review-reveal { border-top: 1px solid var(--ink-12); padding-top: 12px; margin-top: 4px; border-radius: 8px; }
-.review-reveal-agree { background: color-mix(in srgb, var(--success) 12%, white); padding: 12px; border-top: none; }
-.review-reveal-disagree { background: color-mix(in srgb, var(--warning) 12%, white); padding: 12px; border-top: none; }
+/* Dark-theme fix: both `12%, white` — mixed into --card, same as .chip above. */
+.review-reveal-agree { background: color-mix(in srgb, var(--success) 18%, var(--card)); padding: 12px; border-top: none; }
+.review-reveal-disagree { background: color-mix(in srgb, var(--warning) 18%, var(--card)); padding: 12px; border-top: none; }
 .review-model-block { margin-top: 8px; }
 .interruption-banner { background: var(--paper-2); border: 1px solid var(--ink-12); border-radius: 10px; padding: 12px 16px; margin-bottom: var(--space-6); font-size: 0.9rem; }
 .interruption-banner ul { margin: 6px 0 0; padding-left: 18px; }
@@ -1155,10 +1259,14 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 }
 
 /* Central 402 upgrade prompt — same glass-free surface as .ui-card, raised
-   above a dimmed page with .shadow-lg, the app's existing "lifted" elevation. */
+   above a dimmed page with .shadow-lg, the app's existing "lifted" elevation.
+   Dark-theme fix: this scrim used --gray-900 for its raw darkness, not as a
+   text color — now that --gray-900 IS the (near-white) text token, reusing
+   it here would dim the page with a near-white overlay. A fixed near-black
+   instead, independent of the text-color token. */
 .modal-overlay {
   position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
-  background: color-mix(in srgb, var(--gray-900) 55%, transparent); padding: var(--space-4);
+  background: rgba(8, 9, 14, 0.6); padding: var(--space-4);
 }
 .modal-card {
   background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-lg);

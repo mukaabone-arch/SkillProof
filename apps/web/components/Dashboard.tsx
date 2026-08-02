@@ -532,8 +532,22 @@ export default function Dashboard({ onLoggedOut }: Props) {
     <>
       <CandidateNav onLoggedOut={onLoggedOut} />
       <main className="hub container-standard">
-        <h1>{greeting}</h1>
-        <p className="hub-subhead">Here&apos;s where things stand — and what to do next.</p>
+        <div className="dashboard-hero">
+          <div className="dashboard-hero-bg" />
+          <div className="dashboard-hero-scrim" />
+          <div className="dashboard-hero-inner">
+            <h1>{greeting}</h1>
+            <p className="hub-subhead">Here&apos;s where things stand — and what to do next.</p>
+          </div>
+        </div>
+        <a
+          className="dashboard-hero-credit"
+          href="https://unsplash.com/@jrkorpa"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Photo by Jr Korpa on Unsplash
+        </a>
 
         <SegmentedProgress steps={journeySteps} />
 
@@ -555,10 +569,13 @@ export default function Dashboard({ onLoggedOut }: Props) {
             <div className="meta">
               {profile.completeness < 100 ? 'Complete your profile to stand out.' : 'Your profile is complete.'}
             </div>
+            <div className="progress-track status-card-progress">
+              <div className="progress-fill" style={{ width: `${profile.completeness}%` }} />
+            </div>
           </Link>
 
-          <Link href="/assessments" className="status-card">
-            <div className="status-card-label">Verified skills</div>
+          <Link href="/assessments" className={hasBadge ? 'status-card' : 'status-card status-card-flag'}>
+            <div className="status-card-label">Verified skills{hasBadge ? '' : ' · needs attention'}</div>
             <div className="status-stat verified">{badges.length}</div>
             {shownBadges.length === 0 && shownCredentials.length === 0 ? (
               <div className="meta">Take an assessment to earn your first badge.</div>
