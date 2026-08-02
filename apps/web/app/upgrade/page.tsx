@@ -112,10 +112,7 @@ export default function UpgradePage() {
       {loggedIn && <CandidateNav />}
       <main className="container-wide">
         <h1>Free vs Premium</h1>
-        <p>
-          Every row below is read straight from the same limits the API enforces — this page can&apos;t
-          say something that isn&apos;t actually true of your account.
-        </p>
+        <p>Everything below reflects your actual account — no fine print.</p>
         {error && <ErrorState message={error} />}
 
         {plans && (
