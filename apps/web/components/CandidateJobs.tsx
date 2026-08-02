@@ -230,8 +230,7 @@ export default function CandidateJobs() {
   }
 
   return (
-    <div className="list-page-columns">
-      <div className="list-page-main">
+    <>
       <div className="row" style={{ marginTop: 32, marginBottom: 16 }}>
         <button onClick={() => setTab('matched')} disabled={tab === 'matched'}>Matched to you</button>
         <button onClick={() => setTab('browse')} disabled={tab === 'browse'}>Browse jobs</button>
@@ -281,6 +280,45 @@ export default function CandidateJobs() {
 
       {tab === 'browse' && (
         <>
+          <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+            <div className="field">
+              <label htmlFor="jobSkill">Skill</label>
+              <select id="jobSkill" value={skillId} onChange={(e) => setSkillId(e.target.value)}>
+                <option value="">Any skill</option>
+                {domains.map((d) => (
+                  <optgroup key={d.id} label={d.name}>
+                    {d.skills.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+
+            <div className="field">
+              <label htmlFor="jobLocation">Location</label>
+              <input
+                id="jobLocation"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g. Bengaluru"
+              />
+            </div>
+
+            <label className="row" style={{ alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={remoteOnly}
+                onChange={(e) => setRemoteOnly(e.target.checked)}
+              />
+              Remote only
+            </label>
+
+            <button onClick={browse} disabled={browsing}>
+              {browsing ? 'Searching…' : 'Search'}
+            </button>
+          </div>
+
           {browseError && <ErrorState message={browseError} />}
 
           {total === null ? (
@@ -340,62 +378,6 @@ export default function CandidateJobs() {
           ))}
         </>
       )}
-      </div>
-
-      {/*
-        The search/filter tool, relocated here from inside the Browse tab
-        — same fields, same state, same browse() call, just always visible
-        rather than only while that one tab is active. Search still jumps
-        to the Browse tab so results show immediately regardless of which
-        tab was open when it's used, the same way a persistent search box
-        elsewhere in an app takes you to its results view.
-      */}
-      <div className="list-page-sidebar">
-        <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
-          <div className="field">
-            <label htmlFor="jobSkill">Skill</label>
-            <select id="jobSkill" value={skillId} onChange={(e) => setSkillId(e.target.value)}>
-              <option value="">Any skill</option>
-              {domains.map((d) => (
-                <optgroup key={d.id} label={d.name}>
-                  {d.skills.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
-
-          <div className="field">
-            <label htmlFor="jobLocation">Location</label>
-            <input
-              id="jobLocation"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="e.g. Bengaluru"
-            />
-          </div>
-
-          <label className="row" style={{ alignItems: 'center' }}>
-            <input
-              type="checkbox"
-              checked={remoteOnly}
-              onChange={(e) => setRemoteOnly(e.target.checked)}
-            />
-            Remote only
-          </label>
-
-          <button
-            onClick={() => {
-              setTab('browse');
-              browse();
-            }}
-            disabled={browsing}
-          >
-            {browsing ? 'Searching…' : 'Search'}
-          </button>
-        </div>
-      </div>
-    </div>
+    </>
   );
 }
