@@ -7,20 +7,25 @@
  * (enforced server-side by the role checks in /auth/employer/register).
  */
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { employerApi } from '@/lib/api';
 import EmployerOtpLogin from '@/components/EmployerOtpLogin';
-import EmployerHome from '@/components/EmployerHome';
 
 const { getToken } = employerApi;
 
 export default function EmployerPage() {
+  const router = useRouter();
   const [status, setStatus] = useState<'loading' | 'anon' | 'authed'>('loading');
 
   useEffect(() => {
-    setStatus(getToken() ? 'authed' : 'anon');
-  }, []);
+    if (getToken()) {
+      router.replace('/employer/dashboard');
+      setStatus('authed');
+    } else {
+      setStatus('anon');
+    }
+  }, [router]);
 
-  if (status === 'loading') return <main className="app-loading"><p>Loading…</p></main>;
-  if (status === 'anon') return <EmployerOtpLogin onLoggedIn={() => setStatus('authed')} />;
-  return <EmployerHome onLoggedOut={() => setStatus('anon')} />;
+  if (status === 'loading' || status === 'authed') return <main className="app-loading"><p>Loading…</p></main>;
+  return <EmployerOtpLogin onLoggedIn={() => router.replace('/employer/dashboard')} />;
 }

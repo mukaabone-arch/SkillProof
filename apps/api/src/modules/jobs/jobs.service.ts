@@ -114,32 +114,72 @@ export class JobsService {
    */
   async getApplicants(orgId: string, jobId: string) {
     await this.getOwnedJob(orgId, jobId);
+    return this.applicantsFor({ jobId });
+  }
 
-    const job = await this.prisma.job.findUniqueOrThrow({
-      where: { id: jobId },
-      include: { skills: { include: { skill: true } } },
-    });
-    const jobSkills: JobSkillRequirement[] = job.skills.map((s) => ({
-      skillId: s.skillId,
-      skillName: s.skill.name,
-      requiredLevel: s.requiredLevel,
-      isRequired: s.isRequired,
-    }));
+  /**
+   * Org-wide applicant list — every application across every job this org
+   * owns, most recent first. Same enrichment as getApplicants (identity,
+   * verified skills, external credentials) with one deliberate omission:
+   * `score` is a fit-against-*one*-job's requirements (scoreCandidate needs
+   * that job's skills + experience range), which has no single meaning
+   * across a list spanning many different jobs — so it's always null here,
+   * not a job picked arbitrarily to score against. jobId/jobTitle are
+   * included per row instead, so the employer still knows which job each
+   * applicant is for. Backs both GET /jobs/applicants (the full
+   * /employer/applicants page) and the dashboard's recent-applicants
+   * preview (via `take`).
+   */
+  getApplicantsForOrg(orgId: string, take?: number) {
+    return this.applicantsFor({ orgId, take });
+  }
+
+  /**
+   * Shared applicant-enrichment query, scoped either to one job (score
+   * included, existing getApplicants behavior, untouched) or to a whole org
+   * (no score — see getApplicantsForOrg's doc comment). Kept as one method
+   * rather than two near-duplicates so the enrichment shape can't drift
+   * between the per-job and org-wide views. Exactly one of jobId/orgId is
+   * ever passed — both call sites are private-method-internal, so this is
+   * a plain options bag rather than a discriminated union.
+   */
+  private async applicantsFor(opts: { jobId?: string; orgId?: string; take?: number }) {
+    let jobSkills: JobSkillRequirement[] = [];
+    let jobExperience: { min: number | null; max: number | null } | null = null;
+
+    if (opts.jobId) {
+      const job = await this.prisma.job.findUniqueOrThrow({
+        where: { id: opts.jobId },
+        include: { skills: { include: { skill: true } } },
+      });
+      jobSkills = job.skills.map((s) => ({
+        skillId: s.skillId,
+        skillName: s.skill.name,
+        requiredLevel: s.requiredLevel,
+        isRequired: s.isRequired,
+      }));
+      jobExperience = { min: job.experienceMin, max: job.experienceMax };
+    }
+    const skillIdsToScore = jobSkills.map((s) => s.skillId);
 
     const applications = await this.prisma.application.findMany({
-      where: { jobId },
+      where: opts.jobId ? { jobId: opts.jobId } : { job: { orgId: opts.orgId } },
       orderBy: { createdAt: 'desc' },
+      ...(opts.take ? { take: opts.take } : {}),
       include: {
+        job: { select: { id: true, title: true } },
         candidateProfile: {
           include: {
             skillClaims: { include: { skill: true, badge: true } },
             externalCredentials: { where: { verificationState: CredentialVerificationState.VERIFIED } },
-            // Score-only — see this method's doc comment. Same VERIFIED/
-            // non-expired/relevant-tags filter as MatchingService.
+            // Score-only (job-scoped path) — see this method's doc comment. Same VERIFIED/
+            // non-expired/relevant-tags filter as MatchingService. Org-wide path passes an
+            // empty skillIdsToScore, so `hasSome` never matches anything and this list is
+            // always empty there — consistent with the org-wide path never scoring.
             certifications: {
               where: {
                 verificationStatus: CertVerificationStatus.VERIFIED,
-                skillTags: { hasSome: jobSkills.map((s) => s.skillId) },
+                skillTags: { hasSome: skillIdsToScore },
                 OR: [{ expiryDate: null }, { expiryDate: { gt: new Date() } }],
               },
               select: { skillTags: true },
@@ -151,32 +191,27 @@ export class JobsService {
 
     return applications.map((app) => {
       const profile = app.candidateProfile;
-      const claimsBySkillId = new Map<string, CandidateSkillClaim>();
-      for (const c of profile.skillClaims) {
-        claimsBySkillId.set(c.skillId, {
-          skillId: c.skillId,
-          level: c.level,
-          verified: c.status === ClaimStatus.VERIFIED,
-        });
-      }
-      const certifiedSkillIds = new Set(profile.certifications.flatMap((c) => c.skillTags));
 
-      const score =
-        jobSkills.length > 0
-          ? scoreCandidate(
-              jobSkills,
-              claimsBySkillId,
-              certifiedSkillIds,
-              profile.yearsOfExp,
-              job.experienceMin,
-              job.experienceMax,
-            ).score
-          : null;
+      let score: number | null = null;
+      if (jobSkills.length > 0 && jobExperience) {
+        const claimsBySkillId = new Map<string, CandidateSkillClaim>();
+        for (const c of profile.skillClaims) {
+          claimsBySkillId.set(c.skillId, {
+            skillId: c.skillId,
+            level: c.level,
+            verified: c.status === ClaimStatus.VERIFIED,
+          });
+        }
+        const certifiedSkillIds = new Set(profile.certifications.flatMap((c) => c.skillTags));
+        score = scoreCandidate(jobSkills, claimsBySkillId, certifiedSkillIds, profile.yearsOfExp, jobExperience.min, jobExperience.max).score;
+      }
 
       return {
         applicationId: app.id,
         status: app.status,
         appliedAt: app.createdAt,
+        jobId: app.job.id,
+        jobTitle: app.job.title,
         profileId: profile.id,
         fullName: profile.fullName,
         headline: profile.headline,

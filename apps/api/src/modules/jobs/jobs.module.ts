@@ -16,6 +16,6 @@ import { MatchDigestService } from './match-digest.service';
   imports: [AuthModule, LlmModule, NotificationsModule, ProfilesModule, EmployerCandidateAccessModule, EntitlementsModule],
   controllers: [JobsController, CandidateJobsController],
   providers: [JobsService, MatchingService, CandidateJobsService, MatchDigestService],
-  exports: [CandidateJobsService],
+  exports: [JobsService, CandidateJobsService],
 })
 export class JobsModule {}

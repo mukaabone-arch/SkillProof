@@ -1,6 +1,6 @@
 'use client';
 
-/** Persistent nav for the PLATFORM_ADMIN console — parallel to CandidateNav/EmployerNav, scoped to admin-only pages. */
+/** Persistent nav for the PLATFORM_ADMIN console — parallel to CandidateNav, scoped to admin-only pages. */
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '@/lib/api';

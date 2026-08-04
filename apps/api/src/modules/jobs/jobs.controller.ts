@@ -59,6 +59,17 @@ export class JobsController {
     return this.svc.getApplicants(req.orgId, id);
   }
 
+  /**
+   * Org-wide applicants — every application across every job this org owns.
+   * Registered on this same controller (not a new one) since it shares the
+   * exact guard/role setup; distinct from GET /jobs/:id/applicants by path
+   * shape (2 segments vs 3), so there's no routing ambiguity with it.
+   */
+  @Get('applicants')
+  applicantsForOrg(@Req() req: OrgScopedRequest) {
+    return this.svc.getApplicantsForOrg(req.orgId);
+  }
+
   /** Streams the applicant's raw uploaded resume PDF — gated by JobsService.getApplicantResume (employerCanViewCandidate). */
   @Get(':jobId/applicants/:candidateId/resume')
   @Header('Content-Type', 'application/pdf')

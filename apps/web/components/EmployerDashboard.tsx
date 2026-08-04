@@ -1,17 +1,18 @@
 'use client';
 
 /**
- * Org-wide pipeline KPIs — a read layer over ShortlistEntry.stage, no new
- * state of its own. Five cards in funnel order (SHORTLISTED → HIRED); each
- * links to the existing shortlist view pre-filtered to that stage (see
- * EmployerShortlist's `stage`/`jobId` search-param handling) rather than
- * building a second list view here. The three terminal non-KPI stages
- * (declined/rejected/closed) are surfaced as a small reconciliation line,
- * not their own cards, per the spec.
+ * Dashboard home: four org-level KPI cards, recent-activity previews, and
+ * (unchanged) the pipeline-funnel view that used to be the entire page.
+ * Extends the existing /employer/dashboard endpoint/response rather than
+ * standing up a second dashboard — see DashboardService.summary/orgOverview
+ * for what backs each field and why avgTimeToHireDays can be null (real
+ * absence of data, never fabricated).
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { employerApi } from '@/lib/api';
+import { EmptyState } from '@/components/ui';
+import ApplicantCard, { type ApplicantCardData } from './ApplicantCard';
 
 const { api } = employerApi;
 
@@ -19,6 +20,16 @@ interface Job {
   id: string;
   title: string;
 }
+
+interface RecentJob {
+  id: string;
+  title: string;
+  status: 'DRAFT' | 'LIVE' | 'CLOSED';
+  applicantCount: number;
+  createdAt: string;
+}
+
+type RecentApplicant = ApplicantCardData & { jobId: string; jobTitle: string };
 
 interface DashboardSummary {
   jobId: string | null;
@@ -36,6 +47,12 @@ interface DashboardSummary {
     closed: number;
   };
   total: number;
+  activeJobs: number;
+  totalApplicants: number;
+  applicantsThisMonth: number;
+  avgTimeToHireDays: number | null;
+  recentJobs: RecentJob[];
+  recentApplicants: RecentApplicant[];
 }
 
 const KPI_CARDS: { key: keyof DashboardSummary['kpis']; label: string; stage: string }[] = [
@@ -45,6 +62,8 @@ const KPI_CARDS: { key: keyof DashboardSummary['kpis']; label: string; stage: st
   { key: 'offersOut', label: 'Offers out', stage: 'OFFER' },
   { key: 'hired', label: 'Hired', stage: 'HIRED' },
 ];
+
+const JOB_STATUS_LABEL: Record<RecentJob['status'], string> = { DRAFT: 'Draft', LIVE: 'Live', CLOSED: 'Closed' };
 
 export default function EmployerDashboard() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -81,25 +100,113 @@ export default function EmployerDashboard() {
   return (
     <main className="container-wide">
       <h1>Dashboard</h1>
-      <p>Your hiring pipeline at a glance — click any stage to see who&apos;s in it.</p>
-
-      {jobs.length > 0 && (
-        <div className="field" style={{ maxWidth: 320 }}>
-          <label htmlFor="dashboardJobFilter">Role</label>
-          <select id="dashboardJobFilter" value={jobFilter} onChange={(e) => setJobFilter(e.target.value)}>
-            <option value="">All roles</option>
-            {jobs.map((j) => (
-              <option key={j.id} value={j.id}>{j.title}</option>
-            ))}
-          </select>
-        </div>
-      )}
+      <p>Your hiring at a glance.</p>
 
       {error && <p className="error">{error}</p>}
       {loading && <p className="meta">Loading…</p>}
 
       {!loading && summary && (
         <>
+          <div className="dashboard-overview-grid">
+            <Link href="/employer/jobs" className="status-card">
+              <div className="status-card-label">Active Jobs</div>
+              <div className="status-stat">{summary.activeJobs}</div>
+              <p className="meta" style={{ margin: 0 }}>Currently live</p>
+            </Link>
+            <Link href="/employer/applicants" className="status-card">
+              <div className="status-card-label">Total Applicants</div>
+              <div className="status-stat">{summary.totalApplicants}</div>
+              <p className="meta" style={{ margin: 0 }}>All-time, across every job</p>
+            </Link>
+            <Link href="/employer/applicants" className="status-card">
+              <div className="status-card-label">New Applicants This Month</div>
+              <div className="status-stat">{summary.applicantsThisMonth}</div>
+              <p className="meta" style={{ margin: 0 }}>Since the 1st of this month</p>
+            </Link>
+            <div className="status-card">
+              <div className="status-card-label">Avg. Time to Hire</div>
+              {summary.avgTimeToHireDays !== null ? (
+                <>
+                  <div className="status-stat">{summary.avgTimeToHireDays}d</div>
+                  <p className="meta" style={{ margin: 0 }}>Shortlisted → hired</p>
+                </>
+              ) : (
+                <p className="meta" style={{ margin: 0 }}>Not enough data yet — this fills in once a candidate is marked Hired.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="dashboard-recent-grid">
+            <section>
+              <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
+                <h2 style={{ margin: 0 }}>Recent job postings</h2>
+                <Link href="/employer/jobs">View all</Link>
+              </div>
+              {summary.recentJobs.length === 0 ? (
+                <EmptyState message="No jobs posted yet." actionLabel="Post your first job" actionHref="/employer/jobs" />
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
+                  {summary.recentJobs.map((j) => (
+                    <Link
+                      key={j.id}
+                      href={`/employer/jobs?openApplicants=${j.id}`}
+                      className="card"
+                      style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}
+                    >
+                      <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
+                        <strong>{j.title}</strong>
+                        <span className="meta" style={{ margin: 0 }}>{JOB_STATUS_LABEL[j.status]}</span>
+                      </div>
+                      <span className="meta" style={{ margin: 0 }}>
+                        {j.applicantCount} applicant{j.applicantCount === 1 ? '' : 's'} · posted {new Date(j.createdAt).toLocaleDateString()}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section>
+              <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
+                <h2 style={{ margin: 0 }}>Recent applicants</h2>
+                <Link href="/employer/applicants">View all</Link>
+              </div>
+              {summary.recentApplicants.length === 0 ? (
+                <EmptyState message="No applicants yet — candidates will appear here once they apply." />
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
+                  {summary.recentApplicants.map((a) => (
+                    <ApplicantCard
+                      key={a.applicationId}
+                      applicant={a}
+                      compact
+                      footer={
+                        <Link href={`/employer/jobs?openApplicants=${a.jobId}`} className="meta" style={{ margin: 0 }}>
+                          Applied for {a.jobTitle}
+                        </Link>
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+
+          <h2 style={{ marginTop: 32 }}>Pipeline</h2>
+          <p className="meta" style={{ marginTop: -8 }}>Click any stage to see who&apos;s in it.</p>
+
+          {jobs.length > 0 && (
+            <div className="field" style={{ maxWidth: 320 }}>
+              <label htmlFor="dashboardJobFilter">Role</label>
+              <select id="dashboardJobFilter" value={jobFilter} onChange={(e) => setJobFilter(e.target.value)}>
+                <option value="">All roles</option>
+                {jobs.map((j) => (
+                  <option key={j.id} value={j.id}>{j.title}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/*
             auto-fit, not a fixed repeat(5, ...): below ~764px of
             available width, 5 columns at the 140px floor no longer fit —

@@ -207,7 +207,7 @@ main.container-reading  { width: min(100% - (var(--container-gutter) * 2), var(-
 main.container-standard { width: min(100% - (var(--container-gutter) * 2), var(--container-standard)); }
 main.container-wide     { width: min(100% - (var(--container-gutter) * 2), var(--container-wide)); }
 /* Below the width these pages' own internal grids collapse to a single
-   column (.profile-columns / .employer-home-columns, both @900px) — drop
+   column (.profile-columns / .dashboard-recent-grid, both @900px) — drop
    Wide's ceiling to Reading's at the same breakpoint so a collapsed single
    column of form fields doesn't stretch to Wide's full 1400px. Mirrors
    what main.profile/main.employer-home each did independently before this
@@ -645,35 +645,13 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   .profile-columns { grid-template-columns: 1fr; gap: var(--space-6); }
 }
 
-/* ---- employer home: two-column layout ----
-   Left/main column (wider, flexible): job posting + "Your jobs", which
-   grows without bound as jobs pile up. Right column (narrower, sidebar):
-   the find-candidates search, a fixed-size self-contained tool — kept in
-   view via position: sticky while the jobs column scrolls past it.
-   Below the breakpoint both collapse to a single column in DOM order
-   (jobs first, then search) with no reordering needed, since an
-   employer's own jobs should read before the candidate search on
-   small screens. Width comes from main.container-wide (see the layout
-   container system above). */
-.employer-home-columns { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--space-7); align-items: start; }
-.employer-home-main { min-width: 0; }
-.employer-home-sidebar {
-  min-width: 0;
-  position: sticky;
-  top: calc(64px + var(--space-6)); /* .appnav-inner height + breathing room */
-}
-@media (max-width: 900px) {
-  .employer-home-columns { grid-template-columns: 1fr; gap: var(--space-6); }
-  .employer-home-sidebar { position: static; }
-}
-
 /* ---- list-page two-column layout ----
    Generic version of the pattern above (growing main list + fixed-size
    sticky tool), reused wherever a list page has a genuine companion tool
    worth it — /jobs (search), /employer/shortlist (stage/role filters),
    /interviews (prep guides) as of this pass. Same ratio, same 900px
    collapse point, same DOM-order-first main column on mobile as
-   .employer-home-columns — deliberately identical rather than
+   .profile-columns above — deliberately identical rather than
    independently tuned, so every list page in the app behaves the same
    way at the same breakpoint. Not applied everywhere a list exists:
    /assessments has no comparable companion-tool content today (a single
@@ -746,6 +724,63 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
 .appnav-links a.active { color: var(--indigo); }
 .appnav-logout { background: transparent !important; color: var(--ink-60) !important; font-size: 0.85rem; padding: 8px 14px !important; border: 1px solid var(--ink-12) !important; white-space: nowrap; }
 .appnav-logout:hover { color: var(--ink) !important; transform: none !important; }
+
+/* ---- employer portal: sidebar shell ----
+   Own class namespace throughout (not .appnav*) since this is a different
+   layout shape (slim topbar + left sidebar + content), not a variant of the
+   centered top-nav CandidateNav/AdminNav share — reusing those classes would
+   pull in their centered-nav width math (the body:has(main.container-*)
+   rules above) for no reason, and risk a change here leaking into pages that
+   must stay untouched. Only .appnav-logo/.appnav-logout are shared, since
+   the brand lockup and Log out button ARE meant to look identical to every
+   other app section. */
+.employer-shell { display: flex; flex-direction: column; min-height: 100vh; }
+.employer-topbar {
+  position: sticky; top: 0; z-index: 50; height: 64px; flex-shrink: 0;
+  display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-5);
+  background: rgba(22, 24, 38, 0.85); backdrop-filter: blur(10px); border-bottom: 1px solid var(--ink-12);
+}
+.employer-topbar .appnav-logout { margin-left: auto; }
+.employer-nav-toggle {
+  display: none; flex-direction: column; justify-content: center; gap: 4px;
+  width: 32px; height: 32px; padding: 0; background: transparent !important; border: none !important;
+}
+.employer-nav-toggle span { display: block; width: 20px; height: 2px; background: var(--ink); border-radius: 1px; }
+.employer-body { display: flex; flex: 1; min-height: 0; }
+.employer-sidebar {
+  flex-shrink: 0; width: 220px; padding: var(--space-5) var(--space-3);
+  display: flex; flex-direction: column; gap: 2px;
+  border-right: 1px solid var(--ink-12); background: var(--card);
+}
+.employer-sidebar a {
+  display: block; padding: 10px 14px; border-radius: var(--radius-md);
+  font-size: 0.92rem; font-weight: 500; color: var(--ink-60); text-decoration: none;
+}
+.employer-sidebar a:hover { color: var(--ink); background: color-mix(in srgb, var(--brand-600) 12%, var(--card)); text-decoration: none; }
+.employer-sidebar a.active { color: var(--ink); background: color-mix(in srgb, var(--brand-600) 22%, var(--card)); }
+.employer-content { flex: 1; min-width: 0; }
+.employer-sidebar-scrim { display: none; }
+
+/* Below this width the sidebar becomes an off-canvas drawer opened by the
+   hamburger toggle in the topbar, rather than the fixed 220px rail above —
+   at narrow widths a permanent rail would leave little room for content.
+   Chosen independently of the pre-existing 720px breakpoint that hides
+   .appnav-links (see the note on that rule): this shell never uses
+   .appnav-links, so employers always have a way to navigate, on any
+   screen width. */
+@media (max-width: 860px) {
+  .employer-nav-toggle { display: flex; }
+  .employer-sidebar {
+    position: fixed; top: 64px; bottom: 0; left: 0; z-index: 60; width: 260px;
+    transform: translateX(-100%); transition: transform 0.18s ease;
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.35); overflow-y: auto;
+  }
+  .employer-sidebar.is-open { transform: translateX(0); }
+  .employer-sidebar-scrim {
+    display: block; position: fixed; inset: 64px 0 0 0; z-index: 55;
+    background: rgba(0, 0, 0, 0.5);
+  }
+}
 
 /* ---- segmented journey progress (candidate dashboard) ----
    Three (or more) labeled points on a horizontal bar. Green is reserved
@@ -918,6 +953,18 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
    crisp rather than tinted. */
 .status-card-label { font-family: var(--font-body); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gray-600); margin-bottom: 10px; }
 .status-card-progress { margin-top: 8px; margin-bottom: 0; }
+
+/* ---- employer dashboard home: overview KPIs + recent-activity preview ----
+   Reuses .status-card/-label/-stat (defined above) rather than a parallel
+   set of card classes — same visual language as the pipeline funnel cards
+   further down this same page, just a different grid shape (4 cards, not
+   5-in-a-funnel-row) and each card in a details line instead of a progress
+   bar, since these are stock-level counts, not values with a natural max. */
+.dashboard-overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: var(--space-5) 0 var(--space-7); }
+.dashboard-recent-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-7); align-items: start; margin-bottom: var(--space-7); }
+@media (max-width: 900px) {
+  .dashboard-recent-grid { grid-template-columns: 1fr; gap: var(--space-6); }
+}
 
 /* ---- signal chips ----
    .chip (unchanged, green) is the reserved "SkillProof verified this"

@@ -8,10 +8,11 @@
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { employerApi, downloadBlob } from '@/lib/api';
 import { Badge } from '@/components/ui';
 import ShortlistButton from './ShortlistButton';
-import CandidateAvatar from './CandidateAvatar';
+import ApplicantCard, { type ApplicantCardData } from './ApplicantCard';
 
 const { api, apiBlob } = employerApi;
 
@@ -119,90 +120,8 @@ interface MatchesResponse {
   candidates: CandidateMatch[];
 }
 
-interface ApplicantSkill {
-  skillId: string;
-  skillName: string;
-  level: string;
-  verifiedBy: 'TEST' | 'DISCUSSION';
-  verifyHash: string;
-}
-
-type CredentialIssuer = 'CREDLY' | 'AWS' | 'GOOGLE' | 'AZURE' | 'NVIDIA' | 'DATABRICKS' | 'IBM' | 'OTHER';
-type NameMatchState = 'MATCH' | 'MISMATCH' | 'UNCHECKED';
-
-interface ApplicantExternalCredential {
-  id: string;
-  issuer: CredentialIssuer;
-  name: string | null;
-  credentialUrl: string;
-  issuedAt: string | null;
-  expiresAt: string | null;
-  /** Advisory only — see NameMatchState. Never affects verification or scoring. */
-  nameMatchState: NameMatchState;
-}
-
-const ISSUER_LABELS: Record<CredentialIssuer, string> = {
-  CREDLY: 'Credly',
-  AWS: 'AWS',
-  GOOGLE: 'Google',
-  AZURE: 'Microsoft Azure',
-  NVIDIA: 'NVIDIA',
-  DATABRICKS: 'Databricks',
-  IBM: 'IBM',
-  OTHER: 'Unknown issuer',
-};
-
-/** Display/filter only — mirrors the API's CandidateRoleTitle enum. Never fed into match scoring. */
-type CandidateRoleTitle =
-  | 'AI_ENGINEER'
-  | 'ML_ENGINEER'
-  | 'PROMPT_ENGINEER'
-  | 'DATA_SCIENTIST'
-  | 'MLOPS_ENGINEER'
-  | 'NLP_ENGINEER'
-  | 'COMPUTER_VISION_ENGINEER'
-  | 'RESEARCH_ENGINEER'
-  | 'DATA_ENGINEER'
-  | 'AI_PRODUCT_MANAGER'
-  | 'OTHER';
-
-const ROLE_TITLE_LABELS: Record<CandidateRoleTitle, string> = {
-  AI_ENGINEER: 'AI Engineer',
-  ML_ENGINEER: 'ML Engineer',
-  PROMPT_ENGINEER: 'Prompt Engineer',
-  DATA_SCIENTIST: 'Data Scientist',
-  MLOPS_ENGINEER: 'MLOps Engineer',
-  NLP_ENGINEER: 'NLP Engineer',
-  COMPUTER_VISION_ENGINEER: 'Computer Vision Engineer',
-  RESEARCH_ENGINEER: 'Research Engineer',
-  DATA_ENGINEER: 'Data Engineer',
-  AI_PRODUCT_MANAGER: 'AI Product Manager',
-  OTHER: 'Other',
-};
-
-interface Applicant {
-  applicationId: string;
-  status: string;
-  appliedAt: string;
-  profileId: string;
-  fullName: string | null;
-  headline: string | null;
-  roleTitle: CandidateRoleTitle | null;
-  roleTitleOther: string | null;
-  location: string | null;
-  yearsOfExp: number | null;
-  githubUrl: string | null;
-  linkedinUrl: string | null;
-  /** Bytes are only ever fetched through the authenticated proxy endpoints — see CandidateAvatar and viewApplicantResume. */
-  hasPhoto: boolean;
-  hasResume: boolean;
-  /** True for applications that predate the apply-time profile requirement. */
-  profileIncomplete: boolean;
-  score: number | null;
-  verifiedSkills: ApplicantSkill[];
-  /** Only ever VERIFIED, non-scoring credentials — see JobsService.getApplicants. */
-  externalCredentials: ApplicantExternalCredential[];
-}
+/** Applicant shape (identity, skills, credentials) lives in ApplicantCard — shared with the org-wide applicants page and dashboard preview. */
+type Applicant = ApplicantCardData;
 
 /** Only the fields needed to build the "already shortlisted" lookup — see ShortlistScreen for the full shape. */
 interface ShortlistEntrySummary {
@@ -261,6 +180,11 @@ export default function EmployerJobs() {
   const [statusConfirmed, setStatusConfirmed] = useState<string | null>(null);
   const [resumeDownloadingId, setResumeDownloadingId] = useState<string | null>(null);
 
+  // Deep link from the dashboard's "Recent job postings" — opens that job's
+  // applicants panel and scrolls to it, rather than landing on a plain list
+  // the employer has to search through themselves.
+  const openApplicantsJobId = useSearchParams().get('openApplicants');
+
   useEffect(() => {
     api<Job[]>('/jobs').then(setJobs).catch((e) => setError(e.message));
     api<Domain[]>('/taxonomy')
@@ -275,6 +199,13 @@ export default function EmployerJobs() {
         ),
       );
   }, []);
+
+  useEffect(() => {
+    if (!openApplicantsJobId || jobs.length === 0 || applicantsForJob === openApplicantsJobId) return;
+    viewApplicants(openApplicantsJobId);
+    document.getElementById(`job-${openApplicantsJobId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openApplicantsJobId, jobs, applicantsForJob]);
 
   async function refresh() {
     setJobs(await api<Job[]>('/jobs'));
@@ -695,7 +626,7 @@ export default function EmployerJobs() {
       <h2 style={{ marginTop: 32, marginBottom: 16 }}>Your jobs</h2>
       {jobs.length === 0 && <p>No jobs posted yet.</p>}
       {jobs.map((j) => (
-        <div key={j.id} className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
+        <div key={j.id} id={`job-${j.id}`} className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
           <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
             <strong>{j.title}</strong>
             <Badge variant={JOB_STATUS_BADGE[j.status].variant}>{JOB_STATUS_BADGE[j.status].label}</Badge>
@@ -855,133 +786,53 @@ export default function EmployerJobs() {
                 <p className="meta" style={{ margin: 0 }}>No applicants yet.</p>
               )}
               {applicants.map((a) => (
-                <div
+                <ApplicantCard
                   key={a.applicationId}
-                  className="card"
-                  style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}
-                >
-                  <div className="row" style={{ justifyContent: 'space-between', margin: 0, alignItems: 'flex-start' }}>
-                    <div className="row" style={{ margin: 0, alignItems: 'center' }}>
-                      <CandidateAvatar profileId={a.profileId} fullName={a.fullName} hasPhoto={a.hasPhoto} size={44} />
-                      <div>
-                        <strong>{a.fullName || 'Candidate'}</strong>
-                        {a.roleTitle && (
-                          <div className="meta" style={{ margin: 0 }}>
-                            {a.roleTitle === 'OTHER' ? a.roleTitleOther || 'Other' : ROLE_TITLE_LABELS[a.roleTitle]}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="row" style={{ margin: 0 }}>
-                      {a.score !== null && <span className="ok">{a.score}</span>}
-                      <ShortlistButton
-                        candidateId={a.profileId}
-                        jobId={j.id}
-                        entryId={applicantsShortlist[a.profileId] ?? null}
-                        onAdded={(entryId) => setApplicantsShortlist((prev) => ({ ...prev, [a.profileId]: entryId }))}
-                        onRemoved={() => setApplicantsShortlist((prev) => {
-                          const next = { ...prev };
-                          delete next[a.profileId];
-                          return next;
-                        })}
-                        onError={setApplicantsError}
-                      />
-                    </div>
-                  </div>
-                  {a.profileIncomplete && (
-                    <Badge variant="warning" style={{ alignSelf: 'flex-start' }}>Profile incomplete</Badge>
-                  )}
-                  {a.score !== null && (
-                    <div className="progress-track">
-                      <div className="progress-fill" style={{ width: `${a.score}%` }} />
-                    </div>
-                  )}
-                  {a.headline && <div className="meta">{a.headline}</div>}
-                  <div className="meta">
-                    {a.location || 'Location not set'}
-                    {a.yearsOfExp !== null && ` · ${a.yearsOfExp} yrs experience`}
-                  </div>
-                  <div className="meta">Applied {new Date(a.appliedAt).toLocaleDateString()}</div>
-
-                  {(a.githubUrl || a.linkedinUrl || a.hasResume) && (
-                    <div className="row" style={{ margin: 0, alignItems: 'center' }}>
-                      {a.githubUrl && <a href={a.githubUrl} target="_blank" rel="noopener noreferrer">GitHub</a>}
-                      {a.linkedinUrl && <a href={a.linkedinUrl} target="_blank" rel="noopener noreferrer">LinkedIn</a>}
-                      {a.hasResume && (
+                  applicant={a}
+                  headerActions={
+                    <ShortlistButton
+                      candidateId={a.profileId}
+                      jobId={j.id}
+                      entryId={applicantsShortlist[a.profileId] ?? null}
+                      onAdded={(entryId) => setApplicantsShortlist((prev) => ({ ...prev, [a.profileId]: entryId }))}
+                      onRemoved={() => setApplicantsShortlist((prev) => {
+                        const next = { ...prev };
+                        delete next[a.profileId];
+                        return next;
+                      })}
+                      onError={setApplicantsError}
+                    />
+                  }
+                  resumeAction={
+                    a.hasResume ? (
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => viewApplicantResume(j.id, a.profileId)}
+                        disabled={resumeDownloadingId === a.profileId}
+                      >
+                        {resumeDownloadingId === a.profileId ? 'Downloading…' : 'View resume'}
+                      </button>
+                    ) : undefined
+                  }
+                  footer={
+                    <div className="row" style={{ alignItems: 'center', margin: 0 }}>
+                      <span className="meta" style={{ margin: 0 }}>Status: {a.status}</span>
+                      {STATUS_ACTIONS.map((s) => (
                         <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => viewApplicantResume(j.id, a.profileId)}
-                          disabled={resumeDownloadingId === a.profileId}
+                          key={s}
+                          onClick={() => updateApplicantStatus(a.applicationId, s)}
+                          disabled={statusUpdating === a.applicationId || a.status === s}
                         >
-                          {resumeDownloadingId === a.profileId ? 'Downloading…' : 'View resume'}
+                          {s}
                         </button>
+                      ))}
+                      {statusConfirmed === a.applicationId && (
+                        <span className="ok" style={{ margin: 0 }}>✓ Updated</span>
                       )}
                     </div>
-                  )}
-
-                  {a.verifiedSkills.length > 0 && (
-                    <div style={{ marginTop: 4 }}>
-                      <div className="meta" style={{ margin: 0, marginBottom: 4 }}>
-                        SkillProof-Verified Skills
-                      </div>
-                      <div className="row" style={{ flexWrap: 'wrap', margin: 0 }}>
-                        {a.verifiedSkills.map((s) => (
-                          <Link key={s.skillId} href={`/badges/${s.verifyHash}`}>
-                            <Badge variant="verified" title={s.verifiedBy === 'DISCUSSION' ? 'Verified by discussion' : 'Verified by test'}>
-                              {s.skillName} ({s.level}) {s.verifiedBy === 'DISCUSSION' ? '💬' : ''}
-                            </Badge>
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Distinct, non-green tier — the employer judges relevance themselves, we only present. */}
-                  {a.externalCredentials.length > 0 && (
-                    <div style={{ marginTop: 4 }}>
-                      <div className="meta" style={{ margin: 0, marginBottom: 4 }}>
-                        External Credentials
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {a.externalCredentials.map((c) => (
-                          <a
-                            key={c.id}
-                            href={c.credentialUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-                          >
-                            <Badge variant="default">{c.name ?? 'Credential'}</Badge>
-                            <span className="meta" style={{ margin: 0 }}>
-                              {ISSUER_LABELS[c.issuer]} · verified via Credly
-                              {c.expiresAt && new Date(c.expiresAt) < new Date() ? ' · expired' : ''}
-                            </span>
-                            {c.nameMatchState === 'MISMATCH' && (
-                              <Badge variant="warning">Name mismatch</Badge>
-                            )}
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="row" style={{ alignItems: 'center', margin: 0 }}>
-                    <span className="meta" style={{ margin: 0 }}>Status: {a.status}</span>
-                    {STATUS_ACTIONS.map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => updateApplicantStatus(a.applicationId, s)}
-                        disabled={statusUpdating === a.applicationId || a.status === s}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                    {statusConfirmed === a.applicationId && (
-                      <span className="ok" style={{ margin: 0 }}>✓ Updated</span>
-                    )}
-                  </div>
-                </div>
+                  }
+                />
               ))}
             </div>
           )}

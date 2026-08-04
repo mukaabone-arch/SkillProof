@@ -1,6 +1,11 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { ShortlistStage } from '@prisma/client';
+import { JobStatus, ShortlistStage } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { JobsService } from '../jobs/jobs.service';
+
+/** How many rows each recent-activity list shows — matches no particular
+ * spec value, just a sane "at a glance" preview size for a dashboard card. */
+const RECENT_LIMIT = 5;
 
 /** Left-to-right funnel order — the five cards the dashboard renders. */
 const KPI_STAGES = [
@@ -16,7 +21,10 @@ const OTHER_STAGES = [ShortlistStage.DECLINED, ShortlistStage.REJECTED, Shortlis
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jobs: JobsService,
+  ) {}
 
   async summary(orgId: string, jobId?: string) {
     let jobTitle: string | null = null;
@@ -49,7 +57,67 @@ export class DashboardService {
     };
     const total = [...KPI_STAGES, ...OTHER_STAGES].reduce((sum, stage) => sum + count(stage), 0);
 
-    return { jobId: jobId ?? null, jobTitle, kpis, other, total };
+    // Top-level org overview — deliberately NOT filtered by jobId (unlike
+    // kpis/other/total above): these four describe the org's overall
+    // standing, not one role's funnel, so the existing Role dropdown filter
+    // on this page never touches them.
+    const overview = await this.orgOverview(orgId);
+
+    return { jobId: jobId ?? null, jobTitle, kpis, other, total, ...overview };
+  }
+
+  /**
+   * The dashboard home's four top KPI cards plus recent-activity previews.
+   * activeJobs/totalApplicants/applicantsThisMonth are all real, direct
+   * counts. avgTimeToHireDays is the one honest exception: computed from
+   * ShortlistEntry.createdAt -> updatedAt for HIRED entries when any exist,
+   * but ShortlistEntry has no dedicated per-stage-transition timestamp, so
+   * updatedAt is only a proxy for "became HIRED" (any later write to the
+   * row — a note edit, a round added — would also bump it, though in
+   * practice HIRED is terminal and rarely touched again). Never fabricated
+   * or hardcoded: with zero HIRED entries (true for every org in dev today
+   * — checked directly) this is null, and the client shows an honest
+   * "not enough data yet" rather than a number.
+   */
+  private async orgOverview(orgId: string) {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [activeJobs, totalApplicants, applicantsThisMonth, hiredEntries, recentJobsRaw, recentApplicants] = await Promise.all([
+      this.prisma.job.count({ where: { orgId, status: JobStatus.LIVE } }),
+      this.prisma.application.count({ where: { job: { orgId } } }),
+      this.prisma.application.count({ where: { job: { orgId }, createdAt: { gte: startOfMonth } } }),
+      this.prisma.shortlistEntry.findMany({
+        where: { orgId, stage: ShortlistStage.HIRED },
+        select: { createdAt: true, updatedAt: true },
+      }),
+      this.prisma.job.findMany({
+        where: { orgId },
+        orderBy: { createdAt: 'desc' },
+        take: RECENT_LIMIT,
+        include: { _count: { select: { applications: true } } },
+      }),
+      this.jobs.getApplicantsForOrg(orgId, RECENT_LIMIT),
+    ]);
+
+    const avgTimeToHireDays =
+      hiredEntries.length > 0
+        ? Math.round(
+            hiredEntries.reduce((sum, e) => sum + (e.updatedAt.getTime() - e.createdAt.getTime()), 0) /
+              hiredEntries.length /
+              (1000 * 60 * 60 * 24),
+          )
+        : null;
+
+    const recentJobs = recentJobsRaw.map((j) => ({
+      id: j.id,
+      title: j.title,
+      status: j.status,
+      applicantCount: j._count.applications,
+      createdAt: j.createdAt,
+    }));
+
+    return { activeJobs, totalApplicants, applicantsThisMonth, avgTimeToHireDays, recentJobs, recentApplicants };
   }
 
   /** Same IDOR check as ShortlistService.getOwnedJob — a jobId from another org can't scope this org's dashboard. */

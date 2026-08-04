@@ -3,8 +3,8 @@
 /**
  * Header for standalone pages that anyone with the link can land on — a
  * candidate, an employer, or a logged-out third party (e.g. a recruiter
- * following a certificate URL shared on LinkedIn). Unlike CandidateNav/
- * EmployerNav this never assumes a session exists; it always offers the way
+ * following a certificate URL shared on LinkedIn). Unlike CandidateNav or
+ * the employer sidebar shell, this never assumes a session exists; it always offers the way
  * back to the public home page, and additionally offers "Back to dashboard"
  * only when a session for one of the two separately-scoped portals (see
  * lib/api.ts) is actually present in this browser.
