@@ -159,8 +159,8 @@ export default function ResumePage() {
         {loggedIn && error && <ErrorState message={error} />}
 
         {loggedIn && stage === 'choose' && (
-          <div className="row" style={{ alignItems: 'stretch', margin: 0 }}>
-            <Card elevated style={{ flex: 1 }}>
+          <div className="resume-options">
+            <Card elevated className="resume-option-card">
               <h3 style={{ marginBottom: 8 }}>Improve my resume</h3>
               <p className="meta" style={{ marginBottom: 16 }}>
                 Upload your resume — Claude rewrites it with stronger bullets and a tighter summary.
@@ -168,7 +168,7 @@ export default function ResumePage() {
               </p>
               <Button onClick={() => setStage('upload')}>Improve my resume</Button>
             </Card>
-            <Card elevated style={{ flex: 1 }}>
+            <Card elevated className="resume-option-card">
               <h3 style={{ marginBottom: 8 }}>Build from my profile</h3>
               <p className="meta" style={{ marginBottom: 16 }}>
                 Generate a resume from your profile and verified skill badges — no upload needed.

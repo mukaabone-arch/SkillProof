@@ -1401,3 +1401,16 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
   border: none; border-radius: var(--radius-sm); padding: 8px 10px; font-weight: 400; cursor: pointer;
 }
 .location-suggestion:hover, .location-suggestion:focus-visible { background: var(--gray-50); transform: none; }
+
+/* ---- /resume: "choose a path" option cards ----
+   Own class, not .row: needs a flex column per-card (title/description/CTA)
+   so the CTA can be pinned to the card foot via margin-top: auto regardless
+   of how long each card's description runs, plus a stacking breakpoint
+   scoped to just this page — .row is reused all over the app and neither
+   need applies to most of its other callers. */
+.resume-options { display: flex; gap: 10px; align-items: stretch; margin: 0; }
+.resume-option-card { flex: 1; display: flex; flex-direction: column; }
+.resume-option-card .btn { margin-top: auto; }
+@media (max-width: 640px) {
+  .resume-options { flex-direction: column; }
+}
