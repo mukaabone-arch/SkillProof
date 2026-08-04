@@ -566,6 +566,29 @@ main.auth.auth-gradient {
   .assessment-actions .btn { flex: 1; min-width: 0; }
   .assessment-actions button:not(.btn) { flex: 1 1 auto; min-width: 0; white-space: normal; }
 }
+
+/* ---- admin assessments: per-card layout (app/admin/assessments/page.tsx only) ----
+   That page's cards used to reuse .assessment-row/-info/-actions — a flex row with
+   the info column at flex:1 and the actions column flex-shrink:0 at a 128px-per-button
+   min-width. With three buttons that's 400px+ of fixed-width actions, which squeezed
+   the title and (especially) the integrity-ratio warning text into a narrow left
+   column: the title wrapped four lines deep and the warning wrapped two-three words
+   at a time with a wall of empty space to its right. Restructured as a vertical stack
+   instead — title+badges, then the taxonomy meta line, then the warning as a
+   full-width paragraph, then the actions in their own row — so the warning (the most
+   information-dense element on the card) gets the full card width to itself.
+   Scoped to new class names rather than touching .assessment-row/-info/-actions,
+   which the candidate assessments and admin review pages still use as flex rows by
+   design — this fix doesn't touch either. */
+.admin-assessment-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.admin-assessment-badges { display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
+.admin-assessment-warning { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.admin-assessment-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin-assessment-actions .btn { white-space: nowrap; }
+@media (max-width: 480px) {
+  .admin-assessment-actions .btn { flex: 1 1 auto; min-width: 0; }
+}
+
 .question {
   background: var(--card); border: 1px solid var(--gray-100); border-radius: 12px;
   padding: 18px 20px; margin-bottom: 14px;

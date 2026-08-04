@@ -460,46 +460,48 @@ export default function AdminAssessmentsPage() {
       {assessments.length === 0 && <p>No assessments yet.</p>}
 
       {assessments.map((a) => (
-        <div key={a.id} className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-          <div className="assessment-row">
-            <div className="assessment-info">
-              <strong>{a.title}</strong>
-              <div className="meta assessment-meta">
-                {a.skill.domain.name} → {a.skill.name} · {a.targetLevel} · {a.durationMins} min · pass
-                ≥ {a.passThreshold}% · {a.questionsPerAttempt}/attempt · {a._count.questions} question
-                {a._count.questions === 1 ? '' : 's'}
-                {a.isPremium ? ' · premium' : ''} ·{' '}
-                {a.isLive ? <span className="ok">live</span> : 'draft'}
-              </div>
-              {lowIntegrityWarning(a.questionsPerAttempt, a._count.questions) && (
-                <div style={{ marginTop: 6 }}>
-                  <Badge variant="warning">Low integrity ratio</Badge>{' '}
-                  <span className="meta" style={{ margin: 0 }}>
-                    {lowIntegrityWarning(a.questionsPerAttempt, a._count.questions)}
-                  </span>
-                </div>
-              )}
+        <div key={a.id} className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+          <div className="admin-assessment-title-row">
+            <strong>{a.title}</strong>
+            <div className="admin-assessment-badges">
+              <Badge variant={a.isLive ? 'verified' : 'neutral'}>{a.isLive ? 'Live' : 'Draft'}</Badge>
+              {a.isPremium && <Badge variant="default">Premium</Badge>}
             </div>
-            <div className="assessment-actions">
-              <button
-                className="btn btn-secondary"
-                onClick={() => (editOpenFor === a.id ? setEditOpenFor(null) : openEdit(a))}
-              >
-                {editOpenFor === a.id ? 'Cancel' : 'Edit config'}
-              </button>
-              <button
-                className="btn btn-secondary"
-                onClick={() => (openFor === a.id ? setOpenFor(null) : openQuestionForm(a.id))}
-              >
-                {openFor === a.id ? 'Cancel' : 'Add question'}
-              </button>
-              <button
-                className="btn btn-secondary"
-                onClick={() => (bulkOpenFor === a.id ? setBulkOpenFor(null) : openBulkImport(a.id))}
-              >
-                {bulkOpenFor === a.id ? 'Cancel' : 'Bulk import'}
-              </button>
+          </div>
+          <div className="meta" style={{ margin: 0 }}>
+            {a.skill.domain.name} → {a.skill.name} · {a.targetLevel} · {a.durationMins} min · pass
+            ≥ {a.passThreshold}% · {a.questionsPerAttempt}/attempt · {a._count.questions} question
+            {a._count.questions === 1 ? '' : 's'}
+          </div>
+
+          {lowIntegrityWarning(a.questionsPerAttempt, a._count.questions) && (
+            <div className="admin-assessment-warning">
+              <Badge variant="warning">Low integrity ratio</Badge>
+              <p className="meta" style={{ margin: 0 }}>
+                {lowIntegrityWarning(a.questionsPerAttempt, a._count.questions)}
+              </p>
             </div>
+          )}
+
+          <div className="admin-assessment-actions">
+            <button
+              className="btn btn-secondary"
+              onClick={() => (editOpenFor === a.id ? setEditOpenFor(null) : openEdit(a))}
+            >
+              {editOpenFor === a.id ? 'Cancel' : 'Edit config'}
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => (openFor === a.id ? setOpenFor(null) : openQuestionForm(a.id))}
+            >
+              {openFor === a.id ? 'Cancel' : 'Add question'}
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => (bulkOpenFor === a.id ? setBulkOpenFor(null) : openBulkImport(a.id))}
+            >
+              {bulkOpenFor === a.id ? 'Cancel' : 'Bulk import'}
+            </button>
           </div>
 
           {editOpenFor === a.id && (
