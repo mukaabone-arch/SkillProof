@@ -6,10 +6,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
+
 enum Role {
   CANDIDATE
   EMPLOYER_ADMIN
@@ -216,6 +217,22 @@ enum NotificationType {
    * email this account will ever receive.
    */
   ACCOUNT_DELETED
+  /**
+   * Candidate: an employer paid for and requested a specific skill+level
+   * assessment — see AssessmentRequestsService.payAndCreate.
+   */
+  ASSESSMENT_REQUEST_INVITE
+  /**
+   * Employer: an AssessmentRequest's candidate never started within the
+   * 5-day window and the payment was refunded — see the expiry job.
+   */
+  ASSESSMENT_REQUEST_EXPIRED
+  /**
+   * Employer: the candidate finished the requested assessment and a result
+   * (pass or fail) is ready to view — see the STARTED->COMPLETED
+   * reconciliation.
+   */
+  ASSESSMENT_REQUEST_RESULT
 }
 
 enum NotificationChannel {
@@ -268,20 +285,21 @@ model User {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
-  profile               CandidateProfile?
-  attempts              Attempt[]
-  badges                Badge[]
-  refreshTokens         RefreshToken[]
-  orgMembership         OrgMember?
-  notifications         Notification[]
-  reviewedAttempts      Attempt[]           @relation("AttemptReviewedBy")
-  identities            Identity[]
-  assessmentSessions    AssessmentSession[]
-  reviewedClaimVerdicts ClaimVerdict[]      @relation("ClaimVerdictReviewedBy")
-  decidedSessions       AssessmentSession[] @relation("SessionDecidedBy")
-  shortlistEntriesAdded ShortlistEntry[]
-  profileViewsMade      ProfileView[]
-  interviewSessions     InterviewSession[]
+  profile                CandidateProfile?
+  attempts               Attempt[]
+  badges                 Badge[]
+  refreshTokens          RefreshToken[]
+  orgMembership          OrgMember?
+  notifications          Notification[]
+  reviewedAttempts       Attempt[]           @relation("AttemptReviewedBy")
+  identities             Identity[]
+  assessmentSessions     AssessmentSession[]
+  reviewedClaimVerdicts  ClaimVerdict[]      @relation("ClaimVerdictReviewedBy")
+  decidedSessions        AssessmentSession[] @relation("SessionDecidedBy")
+  shortlistEntriesAdded  ShortlistEntry[]
+  profileViewsMade       ProfileView[]
+  interviewSessions      InterviewSession[]
+  assessmentRequestsMade AssessmentRequest[] @relation("AssessmentRequestRequestedBy")
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
@@ -317,9 +335,10 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members          OrgMember[]
-  jobs             Job[]
-  shortlistEntries ShortlistEntry[]
+  members            OrgMember[]
+  jobs               Job[]
+  shortlistEntries   ShortlistEntry[]
+  assessmentRequests AssessmentRequest[]
 }
 
 model OrgMember {
@@ -373,12 +392,12 @@ model CandidateProfile {
    * name, so it sorts/filters consistently regardless of Places' display
    * locale.
    */
-  locationCity     String?
-  locationRegion   String?
-  locationCountry  String?
-  locationPlaceId  String?
-  locationLat      Float?
-  locationLng      Float?
+  locationCity       String?
+  locationRegion     String?
+  locationCountry    String?
+  locationPlaceId    String?
+  locationLat        Float?
+  locationLng        Float?
   /**
    * Pre-migration free-text location value — never silently dropped (see
    * the add_structured_location migration's backfill). Candidates who
@@ -464,6 +483,7 @@ model CandidateProfile {
   usageCounters       UsageCounter[]
   profileViews        ProfileView[]
   accountActions      AccountAction[]
+  assessmentRequests  AssessmentRequest[]
 }
 
 // ---------- Account lifecycle (deactivation, reactivation, deletion) ----------
@@ -544,10 +564,11 @@ model Skill {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  claims      SkillClaim[]
-  assessments Assessment[]
-  jobSkills   JobSkill[]
-  badges      Badge[]
+  claims             SkillClaim[]
+  assessments        Assessment[]
+  jobSkills          JobSkill[]
+  badges             Badge[]
+  assessmentRequests AssessmentRequest[]
 
   @@unique([domainId, name])
 }
@@ -958,6 +979,99 @@ model ShortlistEntry {
   @@index([candidateId])
 }
 
+// ---------- Employer-triggered candidate assessments (pay-per-assessment,
+// Option C: pay-then-refund — see AssessmentRequestsService's own doc
+// comment for why, and its state machine). Deliberately separate from
+// Subscription/SubscriptionTier above — this is a one-off employer
+// purchase, not a candidate plan. ----------
+
+enum AssessmentRequestStatus {
+  /**
+   * Payment captured, candidate invited, waiting for them to start within expiresAt.
+   */
+  PAID_PENDING_START
+  /**
+   * Candidate started within the window — attemptId/sessionId is now set. Terminal for refund purposes: a STARTED request is never refunded.
+   */
+  STARTED
+  /**
+   * The linked attempt/session reached a terminal decision (pass or fail) — badgeId set if it passed.
+   */
+  COMPLETED
+  /**
+   * Candidate never started within the 5-day window; the $5 was refunded.
+   */
+  EXPIRED_REFUNDED
+  /**
+   * Expiry job attempted the refund and it failed — retried on the job's next run, never silently dropped.
+   */
+  REFUND_FAILED
+  /**
+   * Candidate already held a verified badge at the requested skill+level — set at creation, no payment ever taken. Terminal from the start.
+   */
+  ALREADY_BADGED
+}
+
+/**
+ * One employer's request to verify a specific candidate at a specific
+ * skill+level, triggered from the shortlist/pipeline. See
+ * AssessmentRequestsService for the full state machine and payment flow;
+ * this model is deliberately a thin data record — every transition and
+ * every Razorpay call lives in the service, not here.
+ */
+model AssessmentRequest {
+  id String @id @default(uuid())
+
+  orgId             String
+  organization      Organization     @relation(fields: [orgId], references: [id])
+  requestedByUserId String
+  requestedByUser   User             @relation("AssessmentRequestRequestedBy", fields: [requestedByUserId], references: [id])
+  /**
+   * CandidateProfile.id — matches ShortlistEntry.candidateId's own convention, since every request originates from a ShortlistEntry.
+   */
+  candidateId       String
+  candidateProfile  CandidateProfile @relation(fields: [candidateId], references: [id])
+  skillId           String
+  skill             Skill            @relation(fields: [skillId], references: [id])
+  level             SkillLevel
+
+  status AssessmentRequestStatus @default(PAID_PENDING_START)
+
+  /**
+   * Paise. Server-decided at creation time — never trust a client-supplied amount. Null only for ALREADY_BADGED, which never charges.
+   */
+  amount Int?
+
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  /**
+   * Set only once a refund actually succeeds — the double-refund guard the expiry job checks before ever calling Razorpay again.
+   */
+  razorpayRefundId  String?
+
+  paidAt    DateTime?
+  /**
+   * paidAt + 5 days. Null for ALREADY_BADGED (never paid, nothing to expire).
+   */
+  expiresAt DateTime?
+  startedAt DateTime?
+
+  attemptId String?            @unique
+  attempt   Attempt?           @relation(fields: [attemptId], references: [id])
+  sessionId String?            @unique
+  session   AssessmentSession? @relation(fields: [sessionId], references: [id])
+  badgeId   String?            @unique
+  badge     Badge?             @relation(fields: [badgeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([candidateId])
+  // The expiry job's own query shape: PAID_PENDING_START/REFUND_FAILED rows whose window has passed.
+  @@index([status, expiresAt])
+}
+
 /**
  * One interview round on a ShortlistEntry, employer-driven and repeatable —
  * there is no fixed count; the employer adds the next round when ready.
@@ -1007,7 +1121,6 @@ enum InterviewQuestionCategory {
  * style consumer reads from this table, same relationship this schema
  * already has between Assessment (content) and AttemptSession (session
  * logic) elsewhere in this file.
- *
  * expectedElements IS NOT A CHECKLIST. It's a STAR-shaped *illustrative
  * reference point* — one plausible strong answer's shape, written by the
  * product owner as a calibration example — describing what a strong
@@ -1028,9 +1141,11 @@ model InterviewQuestion {
   text     String
   category InterviewQuestionCategory
 
-  /** The evaluative intent — what trait(s) this question is actually
+  /**
+   * The evaluative intent — what trait(s) this question is actually
    * probing for (e.g. "agility, emotional control, structured pivoting
-   * without panic"), independent of any specific answer content. */
+   * without panic"), independent of any specific answer content.
+   */
   whatToLookFor String
 
   /**
@@ -1042,21 +1157,27 @@ model InterviewQuestion {
    */
   expectedElements Json
 
-  /** Optional deeper-probe questions an interviewer/AI assessor can ask
+  /**
+   * Optional deeper-probe questions an interviewer/AI assessor can ask
    * if the candidate's initial answer is thin — empty for a question with
-   * none authored yet, never inferred or auto-generated from the question text. */
+   * none authored yet, never inferred or auto-generated from the question text.
+   */
   followUpProbes String[] @default([])
 
-  /** True only for a question that references this specific company's
+  /**
+   * True only for a question that references this specific company's
    * product, values, or situation by name — false for every generic
    * behavioral question, including all of INDUSTRY_AWARENESS (which is
    * deliberately evergreen; see the seed script's own doc comment on why
-   * it never references current events). */
+   * it never references current events).
+   */
   isCompanyGrounded Boolean @default(false)
 
-  /** False retires a question from rotation (e.g. it's dated, or a
+  /**
+   * False retires a question from rotation (e.g. it's dated, or a
    * near-duplicate was added) without deleting history of it having been
-   * asked. Toggled via the admin endpoint, never a hard delete. */
+   * asked. Toggled via the admin endpoint, never a hard delete.
+   */
   active Boolean @default(true)
 
   createdAt DateTime @default(now())
@@ -1072,8 +1193,10 @@ model InterviewQuestion {
 enum InterviewSessionStatus {
   IN_PROGRESS
   EXPIRED
-  /** All turns done; the batched end-of-session feedback pass hasn't
-   * finished yet (or failed — see feedbackError). */
+  /**
+   * All turns done; the batched end-of-session feedback pass hasn't
+   * finished yet (or failed — see feedbackError).
+   */
   AWAITING_FEEDBACK
   COMPLETED
 }
@@ -1109,7 +1232,6 @@ enum InterviewTurnRole {
  * verified badges with employers — a candidate practicing behavioral
  * answers must never be confused, by the data model or by anything
  * downstream, with a candidate whose skills were actually verified.
- *
  * phaseState is the orchestrator's persisted position — see
  * InterviewOrchestratorState in interview-orchestrator.ts. Never exposed to
  * the client raw (see InterviewSessionsService.toPublicSession); the phase
@@ -1117,9 +1239,9 @@ enum InterviewTurnRole {
  * ever sees.
  */
 model InterviewSession {
-  id            String                 @id @default(uuid())
-  userId        String
-  user          User                   @relation(fields: [userId], references: [id])
+  id             String                 @id @default(uuid())
+  userId         String
+  user           User                   @relation(fields: [userId], references: [id])
   /**
    * Set at session creation from the candidate's own most recent
    * Application (or an applicationId they pass explicitly) — see
@@ -1127,27 +1249,33 @@ model InterviewSession {
    * exists yet; company-grounded touches are skipped in that case, never
    * faked with a generic placeholder employer.
    */
-  applicationId String?
-  application   Application?           @relation(fields: [applicationId], references: [id])
-  status        InterviewSessionStatus @default(IN_PROGRESS)
-  phaseState    Json
-  /** Candidate + coach turns combined — checked against the session turn
+  applicationId  String?
+  application    Application?           @relation(fields: [applicationId], references: [id])
+  status         InterviewSessionStatus @default(IN_PROGRESS)
+  phaseState     Json
+  /**
+   * Candidate + coach turns combined — checked against the session turn
    * cap on every postTurn call, independent of the idle-timeout/duration
-   * cap below (see MAX_SESSION_TURNS in interview-sessions.service.ts). */
-  turnCount     Int                    @default(0)
-  startedAt     DateTime               @default(now())
-  lastActivityAt DateTime              @default(now())
-  /** Idle-timeout boundary, same "resume, don't restart" role as
+   * cap below (see MAX_SESSION_TURNS in interview-sessions.service.ts).
+   */
+  turnCount      Int                    @default(0)
+  startedAt      DateTime               @default(now())
+  lastActivityAt DateTime               @default(now())
+  /**
+   * Idle-timeout boundary, same "resume, don't restart" role as
    * AssessmentSession.expiresAt — not the hard session-duration cap, which
-   * is computed from startedAt instead (see MAX_SESSION_DURATION_MINUTES). */
-  expiresAt     DateTime
-  completedAt   DateTime?
-  /** Set when the batched end-of-session feedback pass fails — session
+   * is computed from startedAt instead (see MAX_SESSION_DURATION_MINUTES).
+   */
+  expiresAt      DateTime
+  completedAt    DateTime?
+  /**
+   * Set when the batched end-of-session feedback pass fails — session
    * stays AWAITING_FEEDBACK and retryable rather than silently losing the
-   * transcript. Cleared on a successful retry. */
-  feedbackError String?
-  createdAt     DateTime               @default(now())
-  updatedAt     DateTime               @updatedAt
+   * transcript. Cleared on a successful retry.
+   */
+  feedbackError  String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
 
   turns    InterviewTurn[]
   feedback InterviewAnswerFeedback[]
@@ -1171,9 +1299,11 @@ model InterviewTurn {
   phase      InterviewSessionPhase
   questionId String?
   question   InterviewQuestion?    @relation(fields: [questionId], references: [id])
-  /** Re-asked-after-idle fragment, same meaning as SessionTurn.superseded —
+  /**
+   * Re-asked-after-idle fragment, same meaning as SessionTurn.superseded —
    * dropped from the model's context and the scored transcript, kept
-   * (struck through) in the candidate-facing history. */
+   * (struck through) in the candidate-facing history.
+   */
   superseded Boolean               @default(false)
   createdAt  DateTime              @default(now())
 
@@ -1196,18 +1326,18 @@ model InterviewTurn {
  * InterviewQuestion's own doc comment.
  */
 model InterviewAnswerFeedback {
-  id              String           @id @default(uuid())
-  sessionId       String
-  session         InterviewSession @relation(fields: [sessionId], references: [id])
-  candidateTurnId String           @unique
-  candidateTurn   InterviewTurn    @relation(fields: [candidateTurnId], references: [id])
-  questionId      String?
-  question        InterviewQuestion? @relation(fields: [questionId], references: [id])
+  id                 String             @id @default(uuid())
+  sessionId          String
+  session            InterviewSession   @relation(fields: [sessionId], references: [id])
+  candidateTurnId    String             @unique
+  candidateTurn      InterviewTurn      @relation(fields: [candidateTurnId], references: [id])
+  questionId         String?
+  question           InterviewQuestion? @relation(fields: [questionId], references: [id])
   missingStarElement String?
   summary            String
   strengths          Json
   improvements       Json
-  createdAt          DateTime @default(now())
+  createdAt          DateTime           @default(now())
 
   @@index([sessionId])
 }
@@ -1316,10 +1446,11 @@ model Attempt {
   reviewedByUserId String?
   reviewedByUser   User?          @relation("AttemptReviewedBy", fields: [reviewedByUserId], references: [id])
 
-  answers         AttemptAnswer[]
-  badge           Badge?
-  integrityEvents IntegrityEvent[]
-  questionsServed QuestionServedAt[]
+  answers           AttemptAnswer[]
+  badge             Badge?
+  integrityEvents   IntegrityEvent[]
+  questionsServed   QuestionServedAt[]
+  assessmentRequest AssessmentRequest?
 }
 
 /**
@@ -1417,7 +1548,8 @@ model Badge {
    */
   attemptNumber Int?
 
-  skillClaim SkillClaim?
+  skillClaim        SkillClaim?
+  assessmentRequest AssessmentRequest?
 
   @@index([userId, skillId, level])
 }
@@ -1534,6 +1666,7 @@ model AssessmentSession {
   disputes          ClaimDispute[]
   liveClaimFeedback LiveClaimFeedback[]
   badge             Badge?
+  assessmentRequest AssessmentRequest?
 
   @@index([userId])
 }

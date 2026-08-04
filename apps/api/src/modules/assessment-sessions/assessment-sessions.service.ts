@@ -212,8 +212,16 @@ export class AssessmentSessionsService {
    * gets that same session back (with its transcript) rather than a second
    * one — mirrors AssessmentsService.startAttempt's "one active attempt"
    * pattern. Only a session already at AWAITING_SCORING allows a fresh one.
+   *
+   * `skipLevelAndRetakeChecks` mirrors AssessmentsService.startAttempt's own
+   * option, for the same one caller (AssessmentRequestsService) and the same
+   * reason — see that method's doc comment. The normal candidate-initiated
+   * path never passes this.
    */
-  async createSession(userId: string): Promise<{ session: AssessmentSession; turns: PublicTurn[]; claimFeedback: PublicLiveFeedback[] }> {
+  async createSession(
+    userId: string,
+    options?: { skipLevelAndRetakeChecks?: boolean },
+  ): Promise<{ session: AssessmentSession; turns: PublicTurn[]; claimFeedback: PublicLiveFeedback[] }> {
     const existing = await this.prisma.assessmentSession.findFirst({
       where: { userId, status: { in: [AssessmentSessionStatus.IN_PROGRESS, AssessmentSessionStatus.EXPIRED] } },
       orderBy: { createdAt: 'desc' },
@@ -227,51 +235,55 @@ export class AssessmentSessionsService {
     // AssessmentsService.startAttempt and CandidateJobsService.apply's
     // PROFILE_INCOMPLETE check (see profile-readiness.ts). Only genuinely
     // new sessions are gated (after the idempotent existing-session return
-    // above), and this never touches badge/SkillClaim issuance.
+    // above), and this never touches badge/SkillClaim issuance. Applies
+    // regardless of skipLevelAndRetakeChecks — same reasoning as
+    // AssessmentsService.startAttempt's identical gate.
     const profile = await this.prisma.candidateProfile.findUnique({
       where: { userId },
       select: { fullName: true, headline: true, yearsOfExp: true },
     });
     assertProfileReadyForAssessment(profile ?? { fullName: null, headline: null, yearsOfExp: null });
 
-    // Strict sequential leveling — same rule and same shared derivation as
-    // AssessmentsService.startAttempt (see BadgeResolverService.assertLevelAvailable),
-    // checked before the retake-cooldown gate below since level-eligibility
-    // is the more fundamental question. Only genuinely new sessions are
-    // gated (after the idempotent existing-session return above).
-    const discussionSkill = await this.prisma.skill.findFirst({ where: { name: SKILL_NAME } });
-    if (discussionSkill) {
-      await this.badgeResolver.assertLevelAvailable(userId, discussionSkill.id, SKILL_LEVEL);
-    }
+    if (!options?.skipLevelAndRetakeChecks) {
+      // Strict sequential leveling — same rule and same shared derivation as
+      // AssessmentsService.startAttempt (see BadgeResolverService.assertLevelAvailable),
+      // checked before the retake-cooldown gate below since level-eligibility
+      // is the more fundamental question. Only genuinely new sessions are
+      // gated (after the idempotent existing-session return above).
+      const discussionSkill = await this.prisma.skill.findFirst({ where: { name: SKILL_NAME } });
+      if (discussionSkill) {
+        await this.badgeResolver.assertLevelAvailable(userId, discussionSkill.id, SKILL_LEVEL);
+      }
 
-    // Retake gate — looks at the most recently decided REJECTED-or-DISPUTED
-    // session (disputing never touches decidedAt, so "most recent" and the
-    // cooldown math both still key off the *original* decision). A DISPUTED
-    // session blocks a retake outright: no cooldown math applies while a
-    // dispute is still open, since there's no decided outcome yet to cool
-    // down from. A plain REJECTED decision is cooldown-gated unless exempt —
-    // INSUFFICIENT_PROBING or an upheld dispute (both faults of the process,
-    // not the candidate) grant an immediate, free retake. The disabled
-    // button on the client is UX; this 409 is the actual rule, in case of a
-    // stale page or a directly-hit API call.
-    const lastDecided = await this.prisma.assessmentSession.findFirst({
-      where: { userId, status: { in: [AssessmentSessionStatus.REJECTED, AssessmentSessionStatus.DISPUTED] } },
-      orderBy: { decidedAt: 'desc' },
-      include: { claimVerdicts: true, disputes: true },
-    });
-    if (lastDecided?.status === AssessmentSessionStatus.DISPUTED) {
-      throw new ConflictException({
-        message: 'A dispute on your last session is still under review.',
-        reason: 'DISPUTE_PENDING',
+      // Retake gate — looks at the most recently decided REJECTED-or-DISPUTED
+      // session (disputing never touches decidedAt, so "most recent" and the
+      // cooldown math both still key off the *original* decision). A DISPUTED
+      // session blocks a retake outright: no cooldown math applies while a
+      // dispute is still open, since there's no decided outcome yet to cool
+      // down from. A plain REJECTED decision is cooldown-gated unless exempt —
+      // INSUFFICIENT_PROBING or an upheld dispute (both faults of the process,
+      // not the candidate) grant an immediate, free retake. The disabled
+      // button on the client is UX; this 409 is the actual rule, in case of a
+      // stale page or a directly-hit API call.
+      const lastDecided = await this.prisma.assessmentSession.findFirst({
+        where: { userId, status: { in: [AssessmentSessionStatus.REJECTED, AssessmentSessionStatus.DISPUTED] } },
+        orderBy: { decidedAt: 'desc' },
+        include: { claimVerdicts: true, disputes: true },
       });
-    }
-    if (lastDecided?.decidedAt && !isRetakeCooldownExempt(lastDecided.claimVerdicts, lastDecided.disputes)) {
-      const retakeAvailableAt = new Date(lastDecided.decidedAt.getTime() + RETAKE_COOLDOWN_DAYS * 86_400_000);
-      if (Date.now() < retakeAvailableAt.getTime()) {
+      if (lastDecided?.status === AssessmentSessionStatus.DISPUTED) {
         throw new ConflictException({
-          message: `Retake available from ${retakeAvailableAt.toISOString()}`,
-          retakeAvailableAt: retakeAvailableAt.toISOString(),
+          message: 'A dispute on your last session is still under review.',
+          reason: 'DISPUTE_PENDING',
         });
+      }
+      if (lastDecided?.decidedAt && !isRetakeCooldownExempt(lastDecided.claimVerdicts, lastDecided.disputes)) {
+        const retakeAvailableAt = new Date(lastDecided.decidedAt.getTime() + RETAKE_COOLDOWN_DAYS * 86_400_000);
+        if (Date.now() < retakeAvailableAt.getTime()) {
+          throw new ConflictException({
+            message: `Retake available from ${retakeAvailableAt.toISOString()}`,
+            retakeAvailableAt: retakeAvailableAt.toISOString(),
+          });
+        }
       }
     }
 

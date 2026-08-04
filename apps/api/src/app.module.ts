@@ -27,6 +27,7 @@ import { LocationsModule } from './modules/locations/locations.module';
 import { InterviewQuestionsModule } from './modules/interview-questions/interview-questions.module';
 import { InterviewSessionsModule } from './modules/interview-sessions/interview-sessions.module';
 import { AccountModule } from './modules/account/account.module';
+import { AssessmentRequestsModule } from './modules/assessment-requests/assessment-requests.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { AccountModule } from './modules/account/account.module';
     InterviewQuestionsModule,
     InterviewSessionsModule,
     AccountModule,
+    AssessmentRequestsModule,
   ],
 })
 export class AppModule {}

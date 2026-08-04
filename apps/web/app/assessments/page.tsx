@@ -22,6 +22,7 @@ import { useRequireAuth } from '@/lib/useRequireAuth';
 import { isProfileReadyForAssessment, missingReadinessFields, readinessGateMessage } from '@/lib/profileReadiness';
 import { useEntitlements } from '@/lib/entitlements';
 import { UsageMeter } from '@/components/UsageMeter';
+import EmployerInvitations from '@/components/EmployerInvitations';
 
 type SkillLevelName = 'L1' | 'L2' | 'L3' | 'L4';
 type VerificationMethod = 'TEST' | 'DISCUSSION';
@@ -392,6 +393,7 @@ function AssessmentsPageInner() {
       <CandidateNav />
       <main className="container-standard">
         <h1>Assessments</h1>
+        <EmployerInvitations />
         <p>
           Pass an assessment to earn a verified skill badge for your profile. Employers can see every badge
           you&apos;ve earned — and it&apos;s verified badges, not self-reported skills, that drive your job matches.

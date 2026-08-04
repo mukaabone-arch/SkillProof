@@ -11,5 +11,9 @@ import { AssessmentsService } from './assessments.service';
   imports: [AuthModule, BadgesModule, AssessmentSessionsModule, JobsModule, EntitlementsModule],
   controllers: [AssessmentsController],
   providers: [AssessmentsService],
+  // AssessmentsService.startAttempt is consumed by AssessmentRequestsService
+  // (employer-triggered assessments) via its skipLevelAndRetakeChecks option
+  // — see that method's own doc comment.
+  exports: [AssessmentsService],
 })
 export class AssessmentsModule {}
