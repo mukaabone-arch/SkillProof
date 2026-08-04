@@ -197,7 +197,15 @@ async function ensureSkill(name: string): Promise<{ id: string }> {
   });
 }
 
-async function importFile(filePath: string, rand: () => number): Promise<{ inserted: number; skipped: number; positions: number[] }> {
+/** Newly-created assessments serve this many of each bank's 25 questions per attempt.
+ * Was 20 (80% of the bank) — a retaking candidate saw the same paper almost every time.
+ * 15 gives genuine variation between attempts while still covering 60% of the bank. */
+const QUESTIONS_PER_ATTEMPT = 15;
+
+async function importFile(
+  filePath: string,
+  rand: () => number,
+): Promise<{ inserted: number; skipped: number; positions: number[]; questionsPerAttemptCorrected: boolean }> {
   const rows = readRows(filePath);
   const fileName = path.basename(filePath);
   const skillName = rows[0].skill;
@@ -218,6 +226,7 @@ async function importFile(filePath: string, rand: () => number): Promise<{ inser
     : `${skillName} ${LEVEL_DISPLAY[targetLevel]}`;
 
   let assessment = await prisma.assessment.findFirst({ where: { title } });
+  let questionsPerAttemptCorrected = false;
   if (!assessment) {
     assessment = await prisma.assessment.create({
       data: {
@@ -226,11 +235,23 @@ async function importFile(filePath: string, rand: () => number): Promise<{ inser
         targetLevel,
         durationMins: 30,
         passThreshold: 70,
-        questionsPerAttempt: 20,
+        questionsPerAttempt: QUESTIONS_PER_ATTEMPT,
         isPremium: false,
         isLive: !collision,
       },
     });
+  } else if (assessment.questionsPerAttempt !== QUESTIONS_PER_ATTEMPT) {
+    // Re-running against a DB imported before the 20->15 change: this
+    // title is only ever produced by this script (see the `title` computed
+    // above), so correcting it here can never touch the three pre-existing,
+    // differently-named assessments this import deliberately left alone
+    // (RAG Systems Fundamentals L2, Prompt Engineer Test L1, Fine-tuning
+    // Smoke Test L1 — see the COLLISIONS comment).
+    assessment = await prisma.assessment.update({
+      where: { id: assessment.id },
+      data: { questionsPerAttempt: QUESTIONS_PER_ATTEMPT },
+    });
+    questionsPerAttemptCorrected = true;
   }
 
   const existingQuestions = await prisma.question.findMany({
@@ -275,7 +296,7 @@ async function importFile(filePath: string, rand: () => number): Promise<{ inser
     positions.push(newCorrectIndex);
   }
 
-  return { inserted, skipped, positions };
+  return { inserted, skipped, positions, questionsPerAttemptCorrected };
 }
 
 async function main() {
@@ -287,10 +308,11 @@ async function main() {
   const rand = mulberry32(SHUFFLE_SEED);
   const allPositions: number[] = [];
   const perAssessment: { file: string; skill: string; level: string; inserted: number; skipped: number }[] = [];
+  let questionsPerAttemptCorrectedCount = 0;
 
   for (const file of files) {
     const rows = readRows(path.join(DATA_DIR, file));
-    const { inserted, skipped, positions } = await importFile(path.join(DATA_DIR, file), rand);
+    const { inserted, skipped, positions, questionsPerAttemptCorrected } = await importFile(path.join(DATA_DIR, file), rand);
     allPositions.push(...positions);
     perAssessment.push({
       file,
@@ -299,8 +321,13 @@ async function main() {
       inserted,
       skipped,
     });
+    if (questionsPerAttemptCorrected) questionsPerAttemptCorrectedCount += 1;
     console.log(`${file}: inserted ${inserted}, skipped ${skipped} (already present)`);
   }
+
+  console.log(
+    `\n--- questionsPerAttempt correction ---\n${questionsPerAttemptCorrectedCount} existing imported assessment(s) corrected from 20 to ${QUESTIONS_PER_ATTEMPT}.`,
+  );
 
   console.log('\n--- Per skill/level ---');
   for (const p of perAssessment) {
