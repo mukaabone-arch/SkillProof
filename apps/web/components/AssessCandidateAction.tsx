@@ -8,8 +8,7 @@
  * requesting it here isn't offered as a known limitation, not a bug) →
  * POST /assessment-requests. Already-badged short-circuits with no charge
  * and no Checkout; otherwise opens Razorpay Checkout on the returned order
- * and verifies server-side on success — same pattern as
- * app/payment-test/page.tsx's checkout wiring.
+ * and verifies server-side on success.
  */
 import { useEffect, useState } from 'react';
 import Script from 'next/script';
