@@ -567,6 +567,36 @@ main.auth.auth-gradient {
   .assessment-actions button:not(.btn) { flex: 1 1 auto; min-width: 0; white-space: normal; }
 }
 
+/* ---- assessments catalog: collapsible category sections ----
+   Groups the skill cards under their taxonomy domain (CatalogSkill.domainName,
+   already sent by the catalog endpoint) as the skill count grows. The header
+   is a full-width plain button, not .btn — it needs to look like a section
+   heading, not a call to action. */
+.assessment-category { margin-bottom: 16px; }
+.assessment-category-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  width: 100%; text-align: left; background: var(--card); color: var(--ink);
+  border: 1px solid var(--gray-100); border-radius: 12px; padding: 14px 18px;
+  font-weight: 600; font-size: 1rem; cursor: pointer;
+}
+.assessment-category-header:hover { border-color: var(--brand-400); transform: none; background: var(--card); }
+.assessment-category-header-title { display: flex; align-items: center; gap: 10px; }
+.assessment-category-chevron { display: inline-block; color: var(--ink-60); transition: transform 0.15s ease; }
+.assessment-category-chevron.is-open { transform: rotate(90deg); }
+.assessment-category-summary { font-size: 0.85rem; font-weight: 400; color: var(--ink-60); white-space: nowrap; }
+.assessment-category-body { padding-top: 14px; }
+
+/* The per-skill-card "N levels behind you" toggle — plain text, not a
+   filled button, since it's revealing detail rather than starting anything. */
+.assessment-earned-summary {
+  display: block; width: 100%; text-align: left; background: transparent !important; color: var(--accent-800);
+  border: none; border-radius: 6px; padding: 6px 0 10px; margin: 0; font-weight: 500; font-size: 0.9rem; cursor: pointer;
+}
+.assessment-earned-summary:hover { text-decoration: underline; transform: none; }
+@media (max-width: 480px) {
+  .assessment-category-summary { width: 100%; }
+}
+
 /* ---- admin assessments: per-card layout (app/admin/assessments/page.tsx only) ----
    That page's cards used to reuse .assessment-row/-info/-actions — a flex row with
    the info column at flex:1 and the actions column flex-shrink:0 at a 128px-per-button
