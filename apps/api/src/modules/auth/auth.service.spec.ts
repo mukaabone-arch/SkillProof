@@ -1,25 +1,42 @@
 import { HttpException } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { OrgInvitationStatus, Role } from '@prisma/client';
 import { AuthService } from './auth.service';
 
 type UserRow = { id: string; phone: string | null; email: string | null; role: Role };
+type OrgMemberRow = { id: string; userId: string; organizationId: string };
+type InvitationRow = {
+  id: string;
+  organizationId: string;
+  email: string;
+  status: OrgInvitationStatus;
+  expiresAt: Date;
+  acceptedAt: Date | null;
+  createdAt: Date;
+};
 
 /**
  * Minimal in-memory stand-in for PrismaService — just enough of
- * user/refreshToken/$transaction to exercise AuthService's OTP paths
- * without a real database. `users` is shared/mutated across calls within a
- * test so findUnique sees what $transaction's tx.user.create just wrote,
- * same as a real DB would.
+ * user/refreshToken/orgMember/orgInvitation/$transaction to exercise
+ * AuthService's OTP and invite-accept paths without a real database.
+ * `users`/`orgMembers`/`invitations` are shared/mutated across calls within
+ * a test so findUnique sees what $transaction's tx.user.create (or a direct
+ * write) just wrote, same as a real DB would.
  */
-function fakePrisma(users: UserRow[] = []) {
+function fakePrisma(users: UserRow[] = [], orgMembers: OrgMemberRow[] = [], invitations: InvitationRow[] = []) {
   let nextId = 1;
 
   return {
     user: {
-      findUnique: jest.fn(async ({ where }: { where: { phone?: string; email?: string } }) => {
+      findUnique: jest.fn(async ({ where }: { where: { phone?: string; email?: string; id?: string } }) => {
         if (where.phone !== undefined) return users.find((u) => u.phone === where.phone) ?? null;
         if (where.email !== undefined) return users.find((u) => u.email === where.email) ?? null;
+        if (where.id !== undefined) return users.find((u) => u.id === where.id) ?? null;
         return null;
+      }),
+      findUniqueOrThrow: jest.fn(async ({ where }: { where: { id: string } }) => {
+        const found = users.find((u) => u.id === where.id);
+        if (!found) throw new Error('not found');
+        return found;
       }),
       // Plain-candidate signup (verifyOtp's non-employer branch) creates
       // directly via prisma.user.create, not through $transaction — role
@@ -33,6 +50,31 @@ function fakePrisma(users: UserRow[] = []) {
         };
         users.push(user);
         return user;
+      }),
+    },
+    orgMember: {
+      findUnique: jest.fn(async ({ where }: { where: { userId: string } }) => {
+        return orgMembers.find((m) => m.userId === where.userId) ?? null;
+      }),
+      create: jest.fn(async ({ data }: { data: { userId: string; organizationId: string } }) => {
+        const member: OrgMemberRow = { id: `member-${nextId++}`, ...data };
+        orgMembers.push(member);
+        return member;
+      }),
+    },
+    orgInvitation: {
+      findFirst: jest.fn(async ({ where }: { where: { email: string; status: OrgInvitationStatus } }) => {
+        return (
+          invitations
+            .filter((i) => i.email === where.email && i.status === where.status)
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null
+        );
+      }),
+      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Partial<InvitationRow> }) => {
+        const invitation = invitations.find((i) => i.id === where.id);
+        if (!invitation) throw new Error('not found');
+        Object.assign(invitation, data);
+        return invitation;
       }),
     },
     refreshToken: {
@@ -56,7 +98,11 @@ function fakePrisma(users: UserRow[] = []) {
           create: jest.fn(async ({ data }: { data: { name: string } }) => ({ id: `org-${nextId++}`, ...data })),
         },
         orgMember: {
-          create: jest.fn(async ({ data }: { data: unknown }) => ({ id: `member-${nextId++}`, ...(data as object) })),
+          create: jest.fn(async ({ data }: { data: { userId: string; organizationId: string } }) => {
+            const member: OrgMemberRow = { id: `member-${nextId++}`, ...data };
+            orgMembers.push(member);
+            return member;
+          }),
         },
       };
       return fn(tx);
@@ -70,8 +116,8 @@ interface SentEmail {
   html: string;
 }
 
-function makeService(users: UserRow[] = []) {
-  const prisma = fakePrisma(users);
+function makeService(users: UserRow[] = [], orgMembers: OrgMemberRow[] = [], invitations: InvitationRow[] = []) {
+  const prisma = fakePrisma(users, orgMembers, invitations);
   const jwt = { signAsync: jest.fn(async () => 'signed.jwt.token') };
   const emailProvider = { send: jest.fn(async (_params: SentEmail): Promise<void> => undefined) };
   const service = new AuthService(
@@ -81,7 +127,21 @@ function makeService(users: UserRow[] = []) {
     {} as never, // GithubOAuthProvider — ditto
     emailProvider as never,
   );
-  return { service, prisma, emailProvider, users };
+  return { service, prisma, emailProvider, users, orgMembers, invitations };
+}
+
+/** A PENDING invitation, 7 days out, matching OrgMembersService's own TTL — createdAt staggered slightly into the past so multiple invitations in one test sort deterministically. */
+function pendingInvitation(overrides: Partial<InvitationRow> = {}): InvitationRow {
+  return {
+    id: `invite-${Math.random().toString(36).slice(2)}`,
+    organizationId: 'org-1',
+    email: 'invitee@acme.com',
+    status: OrgInvitationStatus.PENDING,
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    acceptedAt: null,
+    createdAt: new Date(Date.now() - 1000),
+    ...overrides,
+  };
 }
 
 /** Dev-mode OTP is always this fixed value — see AuthService.issueOtp. */
@@ -463,6 +523,149 @@ describe('AuthService — candidate email OTP', () => {
       await service.requestEmailOtp('candidate@acme.com');
       await expect(service.verifyEmailOtp('candidate@acme.com', DEV_OTP, 'Acme Inc.')).rejects.toThrow(
         'This email is already registered as a candidate. Log in from the candidate app.',
+      );
+    });
+  });
+});
+
+describe('AuthService — team-invite acceptance', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  describe('requestInviteOtp', () => {
+    it('no pending invitation for this email: rejects rather than issuing a code', async () => {
+      process.env.NODE_ENV = 'test';
+      const { service, emailProvider } = makeService();
+
+      await expect(service.requestInviteOtp('nobody@acme.com')).rejects.toThrow(
+        'No pending invitation was found for this email.',
+      );
+      expect(emailProvider.send).not.toHaveBeenCalled();
+    });
+
+    it('a pending invitation exists: dev mode logs instead of sending', async () => {
+      process.env.NODE_ENV = 'test';
+      const invitation = pendingInvitation({ email: 'invitee@acme.com' });
+      const { service, emailProvider } = makeService([], [], [invitation]);
+
+      await expect(service.requestInviteOtp('invitee@acme.com')).resolves.toEqual({ message: 'OTP sent' });
+      expect(emailProvider.send).not.toHaveBeenCalled();
+    });
+
+    it("doesn't share rate-limit/otp state with the plain employer-signup email OTP for the same address", async () => {
+      process.env.NODE_ENV = 'test';
+      const invitation = pendingInvitation({ email: 'dual@acme.com' });
+      const { service } = makeService([], [], [invitation]);
+
+      // Would throw (cooldown) if requestEmailOtp and requestInviteOtp collided on the same otpStore key.
+      await service.requestEmailOtp('dual@acme.com');
+      await expect(service.requestInviteOtp('dual@acme.com')).resolves.toEqual({ message: 'OTP sent' });
+    });
+
+    it('an expired invitation is treated as if none exists, and is flipped to EXPIRED', async () => {
+      process.env.NODE_ENV = 'test';
+      const invitation = pendingInvitation({ email: 'late@acme.com', expiresAt: new Date(Date.now() - 1000) });
+      const { service, invitations } = makeService([], [], [invitation]);
+
+      await expect(service.requestInviteOtp('late@acme.com')).rejects.toThrow(
+        'No pending invitation was found for this email.',
+      );
+      expect(invitations[0].status).toBe(OrgInvitationStatus.EXPIRED);
+    });
+  });
+
+  describe('acceptInvite', () => {
+    it('brand-new email: creates an EMPLOYER_MEMBER (not ADMIN) linked to the inviting org, marks the invitation ACCEPTED', async () => {
+      process.env.NODE_ENV = 'test';
+      const invitation = pendingInvitation({ email: 'invitee@acme.com', organizationId: 'org-1' });
+      const { service, users, orgMembers, invitations } = makeService([], [], [invitation]);
+
+      await service.requestInviteOtp('invitee@acme.com');
+      const result = await service.acceptInvite('invitee@acme.com', DEV_OTP);
+
+      expect(result).toMatchObject({ accessToken: 'signed.jwt.token', refreshToken: expect.any(String) });
+      expect(users).toHaveLength(1);
+      expect(users[0]).toMatchObject({ email: 'invitee@acme.com', role: Role.EMPLOYER_MEMBER });
+      expect(orgMembers).toHaveLength(1);
+      expect(orgMembers[0]).toMatchObject({ userId: users[0].id, organizationId: 'org-1' });
+      expect(invitations[0].status).toBe(OrgInvitationStatus.ACCEPTED);
+      expect(invitations[0].acceptedAt).not.toBeNull();
+    });
+
+    it('never provisions an admin — only OrgMembersService.promote can create one', async () => {
+      process.env.NODE_ENV = 'test';
+      const invitation = pendingInvitation({ email: 'invitee@acme.com' });
+      const { service, users } = makeService([], [], [invitation]);
+
+      await service.requestInviteOtp('invitee@acme.com');
+      await service.acceptInvite('invitee@acme.com', DEV_OTP);
+
+      expect(users[0].role).not.toBe(Role.EMPLOYER_ADMIN);
+    });
+
+    it('an email already registered as a candidate is rejected, not silently converted to an employer', async () => {
+      process.env.NODE_ENV = 'test';
+      const existingCandidate: UserRow = { id: 'user-1', phone: null, email: 'candidate@acme.com', role: Role.CANDIDATE };
+      const invitation = pendingInvitation({ email: 'candidate@acme.com' });
+      const { service, orgMembers } = makeService([existingCandidate], [], [invitation]);
+
+      await service.requestInviteOtp('candidate@acme.com');
+      await expect(service.acceptInvite('candidate@acme.com', DEV_OTP)).rejects.toThrow(
+        'This email is already registered as a candidate account.',
+      );
+      expect(orgMembers).toHaveLength(0);
+    });
+
+    it('an existing employer who already belongs to an organization is rejected — one user, one org', async () => {
+      process.env.NODE_ENV = 'test';
+      const existingEmployer: UserRow = { id: 'user-1', phone: null, email: 'busy@other.com', role: Role.EMPLOYER_MEMBER };
+      const existingMembership: OrgMemberRow = { id: 'member-1', userId: 'user-1', organizationId: 'org-other' };
+      const invitation = pendingInvitation({ email: 'busy@other.com', organizationId: 'org-1' });
+      const { service, orgMembers } = makeService([existingEmployer], [existingMembership], [invitation]);
+
+      await service.requestInviteOtp('busy@other.com');
+      await expect(service.acceptInvite('busy@other.com', DEV_OTP)).rejects.toThrow(
+        'This email already belongs to an organization.',
+      );
+      // Unchanged — still only the one pre-existing membership, never a second row for the same user.
+      expect(orgMembers).toHaveLength(1);
+    });
+
+    it('wrong code: rejects and never creates a user or touches the invitation', async () => {
+      process.env.NODE_ENV = 'test';
+      const invitation = pendingInvitation({ email: 'invitee@acme.com' });
+      const { service, users, invitations } = makeService([], [], [invitation]);
+
+      await service.requestInviteOtp('invitee@acme.com');
+      await expect(service.acceptInvite('invitee@acme.com', '000000')).rejects.toThrow('Incorrect OTP.');
+
+      expect(users).toHaveLength(0);
+      expect(invitations[0].status).toBe(OrgInvitationStatus.PENDING);
+    });
+
+    it('email is normalized/case-insensitive between the invitation, request, and verify', async () => {
+      process.env.NODE_ENV = 'test';
+      const invitation = pendingInvitation({ email: 'jane@example.com' });
+      const { service, users } = makeService([], [], [invitation]);
+
+      await service.requestInviteOtp('Jane@Example.COM');
+      await service.acceptInvite('Jane@Example.COM', DEV_OTP);
+
+      expect(users[0].email).toBe('jane@example.com');
+    });
+
+    it('single-use: the same code cannot be verified twice', async () => {
+      process.env.NODE_ENV = 'test';
+      const invitation = pendingInvitation({ email: 'invitee@acme.com' });
+      const { service } = makeService([], [], [invitation]);
+
+      await service.requestInviteOtp('invitee@acme.com');
+      await service.acceptInvite('invitee@acme.com', DEV_OTP);
+      await expect(service.acceptInvite('invitee@acme.com', DEV_OTP)).rejects.toThrow(
+        'OTP expired or not requested. Request a new one.',
       );
     });
   });

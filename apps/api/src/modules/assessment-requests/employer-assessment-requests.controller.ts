@@ -18,12 +18,21 @@ import { InitiateAssessmentRequestDto, VerifyAssessmentRequestPaymentDto } from 
 export class EmployerAssessmentRequestsController {
   constructor(private readonly svc: AssessmentRequestsService) {}
 
+  /**
+   * Admin-only — overrides the controller's default @Roles below. This is
+   * the $5 paid-assessment trigger: it spends the organization's money, so
+   * it sits on the admin side of this feature's dividing line (see
+   * OrgMembersController's own doc comment for the same rule stated once).
+   */
   @Post()
+  @Roles(Role.EMPLOYER_ADMIN)
   initiate(@Req() req: OrgScopedRequest, @Body() dto: InitiateAssessmentRequestDto) {
     return this.svc.initiate(req.orgId, req.user.sub, dto.candidateId, dto.skillId, dto.level);
   }
 
+  /** Admin-only, same reasoning as initiate above — this is the step that actually completes the charge and creates the AssessmentRequest. */
   @Post('verify')
+  @Roles(Role.EMPLOYER_ADMIN)
   verify(@Req() req: OrgScopedRequest, @Body() dto: VerifyAssessmentRequestPaymentDto) {
     return this.svc.verifyAndCreate(req.orgId, dto.razorpay_order_id, dto.razorpay_payment_id, dto.razorpay_signature);
   }

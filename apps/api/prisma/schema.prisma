@@ -300,6 +300,7 @@ model User {
   profileViewsMade       ProfileView[]
   interviewSessions      InterviewSession[]
   assessmentRequestsMade AssessmentRequest[] @relation("AssessmentRequestRequestedBy")
+  invitationsSent        OrgInvitation[]     @relation("OrgInvitationInvitedBy")
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
@@ -339,6 +340,7 @@ model Organization {
   jobs               Job[]
   shortlistEntries   ShortlistEntry[]
   assessmentRequests AssessmentRequest[]
+  invitations        OrgInvitation[]
 }
 
 model OrgMember {
@@ -350,6 +352,41 @@ model OrgMember {
   createdAt      DateTime     @default(now())
 
   @@index([organizationId])
+}
+
+enum OrgInvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+/**
+ * A pending seat reservation for a team-member invite (see
+ * OrgMembersService.invite) — never contains a secret token of its own.
+ * Acceptance proves email ownership via the same email-OTP machinery
+ * AuthService already uses for employer signup (see
+ * AuthService.requestInviteOtp/acceptInvite), so the invitation row itself
+ * only needs to be *findable* by (organizationId, email), not guessable-proof.
+ * A PENDING row still counts toward the org's seat cap (see
+ * OrgMembersService.countUsedSeats) so an admin can't over-invite past the
+ * limit while invites are outstanding; EXPIRED/REVOKED/ACCEPTED rows don't.
+ */
+model OrgInvitation {
+  id              String              @id @default(uuid())
+  organizationId  String
+  organization    Organization        @relation(fields: [organizationId], references: [id])
+  email           String
+  invitedByUserId String
+  invitedBy       User                @relation("OrgInvitationInvitedBy", fields: [invitedByUserId], references: [id])
+  status          OrgInvitationStatus @default(PENDING)
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([organizationId])
+  @@index([email])
 }
 
 /**

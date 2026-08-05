@@ -82,6 +82,27 @@ export class CandidateEmailOtpVerifyDto {
 }
 
 /**
+ * Team-invite acceptance — see AuthService.requestInviteOtp/acceptInvite.
+ * Same shape as EmployerEmailOtpRequestDto/EmployerEmailRegisterDto minus
+ * orgName (the org comes from the pending OrgInvitation row, not the
+ * invitee), kept as its own pair rather than reused since it's a distinct
+ * flow (accepting a seat, not provisioning a new org).
+ */
+export class EmployerInviteOtpRequestDto {
+  @IsEmail()
+  email: string;
+}
+
+export class EmployerInviteOtpVerifyDto {
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  @Length(6, 6)
+  otp: string;
+}
+
+/**
  * Authorization-code exchange sent by web (confidential client, no
  * codeVerifier needed) or the mobile app (native SDK / PKCE, so
  * codeVerifier is required there).

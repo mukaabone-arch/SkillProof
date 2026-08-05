@@ -50,6 +50,19 @@ export interface PlanLimits {
   resumeTemplates: string[];
   /** Whether interview-prep content/features are available. */
   interviewPrep: boolean;
+  /**
+   * Employer team seats: max OrgMember rows (existing members + outstanding
+   * PENDING invitations — see OrgMembersService.countUsedSeats) an
+   * Organization may hold at once. Organizations have no subscription tier
+   * of their own today (only CandidateProfile does — see this file's own
+   * doc comment above), so OrgMembersService always reads this off
+   * PLANS.FREE regardless of which employer is asking; both tiers carry the
+   * same value for now so that reference point is arbitrary, not a claim
+   * that employer orgs are "free-tier." Kept here rather than a bare
+   * constant in OrgMembersService so it still obeys this file's own rule
+   * (never hardcode a limit outside PLANS) and stays one place to bump.
+   */
+  maxOrgMembers: number;
 }
 
 export const PLANS: Record<SubscriptionTier, PlanLimits> = {
@@ -65,6 +78,7 @@ export const PLANS: Record<SubscriptionTier, PlanLimits> = {
     resumeBranding: true,
     resumeTemplates: ['default'],
     interviewPrep: false,
+    maxOrgMembers: 5,
   },
   [SubscriptionTier.PREMIUM]: {
     assessmentsPerMonth: null,
@@ -97,5 +111,6 @@ export const PLANS: Record<SubscriptionTier, PlanLimits> = {
     // just render whatever this array contains.
     resumeTemplates: ['default'],
     interviewPrep: true,
+    maxOrgMembers: 5,
   },
 };

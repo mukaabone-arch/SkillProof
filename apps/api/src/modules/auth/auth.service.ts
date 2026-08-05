@@ -10,7 +10,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { IdentityProvider, Role, User } from '@prisma/client';
+import { IdentityProvider, OrgInvitationStatus, Role, User } from '@prisma/client';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EMAIL_PROVIDER, EmailProvider } from '../notifications/email-provider.interface';
@@ -135,6 +135,34 @@ export class AuthService {
       this.logger.log(`[DEV] Candidate signup OTP for ${email}: ${otp}`);
     } else {
       await this.sendCandidateOtpEmail(email, otp);
+    }
+
+    return { message: 'OTP sent' };
+  }
+
+  /**
+   * Request an OTP to accept a pending team-member invitation. Keyed with
+   * an "invite:" prefix (see inviteOtpKey) distinct from requestEmailOtp's
+   * plain-email key, so a concurrent employer-signup OTP request for the
+   * same address can never satisfy (or be satisfied by) this one — they're
+   * different flows that happen to share issueOtp/consumeOtp's machinery.
+   */
+  async requestInviteOtp(rawEmail: string): Promise<{ message: string }> {
+    const email = normalizeEmail(rawEmail);
+    const invitation = await this.findAcceptableInvitation(email);
+    if (!invitation) {
+      throw new BadRequestException(
+        'No pending invitation was found for this email. Ask your admin to send a new one.',
+      );
+    }
+
+    const otp = this.issueOtp(this.inviteOtpKey(email));
+    const isDev = process.env.NODE_ENV !== 'production';
+
+    if (isDev) {
+      this.logger.log(`[DEV] Invite-accept OTP for ${email}: ${otp}`);
+    } else {
+      await this.sendInviteOtpEmail(email, otp);
     }
 
     return { message: 'OTP sent' };
@@ -324,6 +352,112 @@ export class AuthService {
 
     const user = await this.prisma.user.create({ data: { email, profile: { create: {} } } });
     return this.issueTokens(user.id, user.role, this.publicUser(user));
+  }
+
+  /**
+   * Verifies the invite-accept OTP, then either links an existing account
+   * to the inviting org or provisions a brand-new EMPLOYER_MEMBER.
+   * loginEmployerWithIdentity's doc comment says employer accounts are
+   * "provisioned manually" and never auto-created on login — this is that
+   * manual provisioning step: an admin's own invite action, not a bare
+   * OAuth/OTP login inventing an org membership out of nothing.
+   */
+  async acceptInvite(rawEmail: string, otp: string) {
+    const email = normalizeEmail(rawEmail);
+    this.consumeOtp(this.inviteOtpKey(email), otp);
+
+    const invitation = await this.findAcceptableInvitation(email);
+    if (!invitation) {
+      throw new BadRequestException('This invitation is no longer available. Ask your admin to send a new one.');
+    }
+
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    let userId: string;
+    let role: Role;
+
+    if (existing) {
+      if (!EMPLOYER_ROLES.includes(existing.role)) {
+        throw new BadRequestException(
+          'This email is already registered as a candidate account. Use a different email to accept this invitation.',
+        );
+      }
+      const alreadyMember = await this.prisma.orgMember.findUnique({ where: { userId: existing.id } });
+      if (alreadyMember) {
+        throw new BadRequestException('This email already belongs to an organization.');
+      }
+      // An employer-role user with no OrgMember shouldn't exist under
+      // today's invariants (every path that sets an employer role creates
+      // OrgMember in the same transaction) — handled defensively rather
+      // than assumed impossible: link them without touching their role.
+      await this.prisma.orgMember.create({
+        data: { userId: existing.id, organizationId: invitation.organizationId },
+      });
+      userId = existing.id;
+      role = existing.role;
+    } else {
+      const created = await this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({ data: { email, role: Role.EMPLOYER_MEMBER } });
+        await tx.orgMember.create({ data: { userId: user.id, organizationId: invitation.organizationId } });
+        return user;
+      });
+      userId = created.id;
+      role = created.role;
+    }
+
+    await this.prisma.orgInvitation.update({
+      where: { id: invitation.id },
+      data: { status: OrgInvitationStatus.ACCEPTED, acceptedAt: new Date() },
+    });
+
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    return this.issueTokens(userId, role, this.publicUser(user));
+  }
+
+  /** Namespaced apart from requestEmailOtp's plain-email key — see requestInviteOtp's doc comment. */
+  private inviteOtpKey(email: string): string {
+    return `invite:${email}`;
+  }
+
+  /**
+   * The latest PENDING invitation for this email, or null if there isn't
+   * one — lazily flips an overdue-but-still-PENDING row to EXPIRED on the
+   * way out, same self-healing check OrgMembersService.expirePastDue does
+   * for the org-facing list, so accept can never succeed against a row
+   * that's actually past its deadline just because no sweep has run yet.
+   */
+  private async findAcceptableInvitation(email: string) {
+    const invitation = await this.prisma.orgInvitation.findFirst({
+      where: { email, status: OrgInvitationStatus.PENDING },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!invitation) return null;
+    if (invitation.expiresAt < new Date()) {
+      await this.prisma.orgInvitation.update({
+        where: { id: invitation.id },
+        data: { status: OrgInvitationStatus.EXPIRED },
+      });
+      return null;
+    }
+    return invitation;
+  }
+
+  /** Same delivery/error-propagation contract as sendOtpEmail — see that method's doc comment. */
+  private async sendInviteOtpEmail(email: string, otp: string): Promise<void> {
+    const subject = 'Your SkillProof invitation code';
+    const minutes = Math.round(this.OTP_TTL_MS / 60000);
+    const html = `
+      <p>You're accepting a team invitation on SkillProof.</p>
+      <p>Your verification code is:</p>
+      <p style="font-size: 28px; font-weight: 700; letter-spacing: 6px; margin: 16px 0;">${otp}</p>
+      <p>This code expires in ${minutes} minutes. If you didn't request this, you can safely ignore this email.</p>
+    `;
+
+    try {
+      await this.emailProvider.send({ to: email, subject, html });
+    } catch (err) {
+      this.logger.error(`Failed to send invite-accept OTP email: ${(err as Error).message}`);
+      throw new BadRequestException('Could not send the verification code. Please try again.');
+    }
   }
 
   /**

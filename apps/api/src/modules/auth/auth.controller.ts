@@ -6,6 +6,8 @@ import {
   CandidateEmailOtpVerifyDto,
   EmployerEmailOtpRequestDto,
   EmployerEmailRegisterDto,
+  EmployerInviteOtpRequestDto,
+  EmployerInviteOtpVerifyDto,
   EmployerRegisterDto,
   OAuthCodeDto,
   RequestOtpDto,
@@ -72,6 +74,25 @@ export class AuthController {
   @HttpCode(200)
   employerEmailRegister(@Body() dto: EmployerEmailRegisterDto) {
     return this.auth.verifyEmailOtp(dto.email, dto.otp, dto.orgName);
+  }
+
+  /**
+   * Team-invite acceptance, step 1: request a code for a pending
+   * invitation's email — see AuthService.requestInviteOtp. Distinct from
+   * /auth/employer/otp/request, which is plain employer signup/login; this
+   * 404s (via a 400) if there's no pending invitation for the email.
+   */
+  @Post('employer/invite/otp/request')
+  @HttpCode(200)
+  requestInviteOtp(@Body() dto: EmployerInviteOtpRequestDto) {
+    return this.auth.requestInviteOtp(dto.email);
+  }
+
+  /** Team-invite acceptance, step 2 — see AuthService.acceptInvite. */
+  @Post('employer/invite/otp/verify')
+  @HttpCode(200)
+  acceptInvite(@Body() dto: EmployerInviteOtpVerifyDto) {
+    return this.auth.acceptInvite(dto.email, dto.otp);
   }
 
   /**
