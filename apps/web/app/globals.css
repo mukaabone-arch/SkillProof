@@ -817,11 +817,34 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
 }
 .admin-sidebar a:hover { color: var(--ink); background: color-mix(in srgb, var(--brand-600) 12%, var(--card)); text-decoration: none; }
 .admin-sidebar a.active { color: var(--ink); background: color-mix(in srgb, var(--brand-600) 22%, var(--card)); }
+.admin-sidebar-group + .admin-sidebar-group { margin-top: 2px; }
+.admin-sidebar-group-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+  padding: 14px 14px 4px; margin: 0; background: transparent; border: none; cursor: pointer;
+  font: inherit; text-align: left; border-radius: var(--radius-md);
+}
+.admin-sidebar-group:first-child .admin-sidebar-group-header { padding-top: 0; }
+.admin-sidebar-group-header:hover .admin-sidebar-section-label { color: var(--ink-60); }
+.admin-sidebar-group-header:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
 .admin-sidebar-section-label {
-  padding: 14px 14px 4px; font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase;
+  font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--gray-600); font-weight: 600;
 }
-.admin-sidebar-section-label:first-child { padding-top: 0; }
+.admin-sidebar-group-meta { display: flex; align-items: center; gap: 6px; color: var(--ink-30); flex-shrink: 0; }
+.admin-sidebar-group-count {
+  font-size: 0.66rem; font-weight: 600; color: var(--ink-30);
+  border: 1px solid var(--ink-12); border-radius: var(--radius-full); padding: 1px 7px;
+}
+.admin-sidebar-group-chevron { flex-shrink: 0; transition: transform 0.18s ease; }
+.admin-sidebar-group-header.is-collapsed .admin-sidebar-group-chevron { transform: rotate(-90deg); }
+.admin-sidebar-group-items {
+  display: flex; flex-direction: column; gap: 2px; overflow: hidden;
+  max-height: 600px; transition: max-height 0.2s ease;
+}
+.admin-sidebar-group-items.is-collapsed { max-height: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .admin-sidebar-group-chevron, .admin-sidebar-group-items { transition: none; }
+}
 /* Not a real <a> — a roadmap placeholder can't navigate anywhere, so it's
    a non-interactive span rather than a disabled-looking link a keyboard
    or screen-reader user might expect to activate. */
