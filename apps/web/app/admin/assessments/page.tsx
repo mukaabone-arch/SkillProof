@@ -4,12 +4,10 @@
  * PLATFORM_ADMIN-only assessment builder. Access is gated by the backend
  * (RolesGuard) — this page just probes GET /admin/assessments and shows an
  * "admins only" message if that call is rejected, rather than duplicating
- * role logic on the client.
+ * role logic on the client. Sidebar/topbar come from app/admin/layout.tsx.
  */
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { api, getToken, type ApiError } from '@/lib/api';
-import AdminNav from '@/components/AdminNav';
 import { Badge } from '@/components/ui';
 
 interface Skill {
@@ -133,7 +131,6 @@ interface BulkImportErrorBody {
 }
 
 export default function AdminAssessmentsPage() {
-  const router = useRouter();
   const [status, setStatus] = useState<'loading' | 'forbidden' | 'ok'>('loading');
   const [domains, setDomains] = useState<Domain[]>([]);
   const [assessments, setAssessments] = useState<AdminAssessment[]>([]);
@@ -334,8 +331,6 @@ export default function AdminAssessmentsPage() {
   }
 
   return (
-    <>
-      <AdminNav onLoggedOut={() => router.push('/')} />
       <main className="hub">
       <h1>Admin: Assessments</h1>
       <p>Create assessments and MCQ questions without touching seed scripts.</p>
@@ -661,6 +656,5 @@ export default function AdminAssessmentsPage() {
         </div>
       ))}
       </main>
-    </>
   );
 }

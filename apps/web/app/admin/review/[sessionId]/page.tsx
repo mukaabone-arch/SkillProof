@@ -5,13 +5,13 @@
  * rule is enforced server-side (GET .../review never sends modelVerdict/
  * modelReason for an unreviewed claim) — this page has no way to "peek"
  * even if it wanted to; there's simply nothing to show until the reviewer's
- * own verdict is already committed.
+ * own verdict is already committed. Sidebar/topbar come from
+ * app/admin/layout.tsx.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api, getToken } from '@/lib/api';
-import AdminNav from '@/components/AdminNav';
 import { Badge, LoadingState } from '@/components/ui';
 
 interface Span {
@@ -166,7 +166,6 @@ function signalMarkerDetail(signals: TurnSignalsInfo | null): string | null {
 
 export default function ReviewCasePage() {
   const { sessionId } = useParams<{ sessionId: string }>();
-  const router = useRouter();
   const [status, setStatus] = useState<'loading' | 'forbidden' | 'ok'>('loading');
   const [data, setData] = useState<ReviewCase | null>(null);
   const [error, setError] = useState('');
@@ -325,8 +324,6 @@ export default function ReviewCasePage() {
   }
 
   return (
-    <>
-      <AdminNav onLoggedOut={() => router.push('/')} />
       <main className="hub">
         <p>
           <Link href="/admin/review">← Back to queue</Link>
@@ -457,6 +454,5 @@ export default function ReviewCasePage() {
           })}
         </details>
       </main>
-    </>
   );
 }

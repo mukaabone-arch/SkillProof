@@ -782,6 +782,74 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
   }
 }
 
+/* ---- admin console: sidebar shell ----
+   Same shape and same off-canvas-drawer behavior as the employer portal
+   shell just above (deliberately mirrored, not reused directly — own
+   class namespace for the same reason that block gives for not reusing
+   .appnav*: avoids a change here ever leaking into the employer shell it
+   was copied from, or vice versa). Two admin-only additions neither
+   employer shell needed: a plain-text section label to group sidebar
+   links under their named console section, and a disabled/"coming soon"
+   entry for roadmap sections with nothing to administer yet — see
+   AdminSidebarShell's own comment on why those exist rather than being
+   omitted outright. */
+.admin-shell { display: flex; flex-direction: column; min-height: 100vh; }
+.admin-topbar {
+  position: sticky; top: 0; z-index: 50; height: 64px; flex-shrink: 0;
+  display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-5);
+  background: rgba(22, 24, 38, 0.85); backdrop-filter: blur(10px); border-bottom: 1px solid var(--ink-12);
+}
+.admin-topbar .appnav-logout { margin-left: auto; }
+.admin-nav-toggle {
+  display: none; flex-direction: column; justify-content: center; gap: 4px;
+  width: 32px; height: 32px; padding: 0; background: transparent !important; border: none !important;
+}
+.admin-nav-toggle span { display: block; width: 20px; height: 2px; background: var(--ink); border-radius: 1px; }
+.admin-body { display: flex; flex: 1; min-height: 0; }
+.admin-sidebar {
+  flex-shrink: 0; width: 220px; padding: var(--space-5) var(--space-3);
+  display: flex; flex-direction: column; gap: 2px;
+  border-right: 1px solid var(--ink-12); background: var(--card);
+}
+.admin-sidebar a {
+  display: block; padding: 10px 14px; border-radius: var(--radius-md);
+  font-size: 0.92rem; font-weight: 500; color: var(--ink-60); text-decoration: none;
+}
+.admin-sidebar a:hover { color: var(--ink); background: color-mix(in srgb, var(--brand-600) 12%, var(--card)); text-decoration: none; }
+.admin-sidebar a.active { color: var(--ink); background: color-mix(in srgb, var(--brand-600) 22%, var(--card)); }
+.admin-sidebar-section-label {
+  padding: 14px 14px 4px; font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--gray-600); font-weight: 600;
+}
+.admin-sidebar-section-label:first-child { padding-top: 0; }
+/* Not a real <a> — a roadmap placeholder can't navigate anywhere, so it's
+   a non-interactive span rather than a disabled-looking link a keyboard
+   or screen-reader user might expect to activate. */
+.admin-sidebar-disabled {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 14px; font-size: 0.92rem; font-weight: 500; color: var(--ink-30); cursor: default;
+}
+.admin-sidebar-disabled-tag {
+  font-size: 0.65rem; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600;
+  color: var(--ink-30); border: 1px solid var(--ink-12); border-radius: var(--radius-full); padding: 2px 8px;
+}
+.admin-content { flex: 1; min-width: 0; }
+.admin-sidebar-scrim { display: none; }
+
+@media (max-width: 860px) {
+  .admin-nav-toggle { display: flex; }
+  .admin-sidebar {
+    position: fixed; top: 64px; bottom: 0; left: 0; z-index: 60; width: 260px;
+    transform: translateX(-100%); transition: transform 0.18s ease;
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.35); overflow-y: auto;
+  }
+  .admin-sidebar.is-open { transform: translateX(0); }
+  .admin-sidebar-scrim {
+    display: block; position: fixed; inset: 64px 0 0 0; z-index: 55;
+    background: rgba(0, 0, 0, 0.5);
+  }
+}
+
 /* ---- segmented journey progress (candidate dashboard) ----
    Three (or more) labeled points on a horizontal bar. Green is reserved
    exclusively for "verified" (badges, certificates, verified-skill chips) —

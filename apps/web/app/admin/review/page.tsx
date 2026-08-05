@@ -4,13 +4,12 @@
  * PLATFORM_ADMIN review queue for AI-scored assessment sessions. Access is
  * gated by the backend (RolesGuard) — this page just probes GET
  * /assessment-sessions/review-queue and shows an "admins only" message if
- * that call is rejected, same pattern as admin/assessments.
+ * that call is rejected, same pattern as admin/assessments. Sidebar/topbar
+ * come from app/admin/layout.tsx.
  */
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, getToken } from '@/lib/api';
-import AdminNav from '@/components/AdminNav';
 import { Badge, EmptyState, LoadingState } from '@/components/ui';
 
 interface ReviewQueueRow {
@@ -50,7 +49,6 @@ function priorityReason(row: ReviewQueueRow): string | null {
 }
 
 export default function ReviewQueuePage() {
-  const router = useRouter();
   const [status, setStatus] = useState<'loading' | 'forbidden' | 'ok'>('loading');
   const [rows, setRows] = useState<ReviewQueueRow[]>([]);
   const [error, setError] = useState('');
@@ -87,8 +85,6 @@ export default function ReviewQueuePage() {
   }
 
   return (
-    <>
-      <AdminNav onLoggedOut={() => router.push('/')} />
       <main className="hub">
         <h1>Session Reviews</h1>
         <p className="hub-subhead">
@@ -138,6 +134,5 @@ export default function ReviewQueuePage() {
           })
         )}
       </main>
-    </>
   );
 }

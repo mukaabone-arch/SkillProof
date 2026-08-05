@@ -23,9 +23,7 @@
  * anonymous candidateRef (mirrors /admin/review's "Case {id}" convention).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { api, getToken } from '@/lib/api';
-import AdminNav from '@/components/AdminNav';
 import { Badge, EmptyState, LoadingState } from '@/components/ui';
 
 type ActionType = 'DEACTIVATED' | 'REACTIVATED' | 'DELETED';
@@ -88,7 +86,6 @@ function attentionReason(row: AccountActionRow): string {
 }
 
 export default function CompliancePrivacyRequestsPage() {
-  const router = useRouter();
   const [status, setStatus] = useState<'loading' | 'forbidden' | 'ok'>('loading');
   const [rows, setRows] = useState<AccountActionRow[]>([]);
   const [error, setError] = useState('');
@@ -154,8 +151,6 @@ export default function CompliancePrivacyRequestsPage() {
   const needsAttention = rows.filter((r) => r.needsAttention);
 
   return (
-    <>
-      <AdminNav onLoggedOut={() => router.push('/')} />
       <main className="hub">
         <h1>Compliance Center — Privacy Requests</h1>
         <p className="hub-subhead">
@@ -269,6 +264,5 @@ export default function CompliancePrivacyRequestsPage() {
           )}
         </div>
       </main>
-    </>
   );
 }
