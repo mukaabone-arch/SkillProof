@@ -1,4 +1,4 @@
-import { IntegrityStatus, ReviewOutcome, SkillLevel, SubscriptionStatus, SubscriptionTier } from '@prisma/client';
+import { AccountActionType, IntegrityStatus, ReviewOutcome, SkillLevel, SubscriptionStatus, SubscriptionTier } from '@prisma/client';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -152,6 +152,32 @@ export class ListAttemptsQueryDto {
   @IsOptional()
   @IsEnum(IntegrityStatus)
   status?: IntegrityStatus;
+}
+
+/**
+ * Compliance Center / Privacy Requests filters — see
+ * AccountService.listActionsForAdmin. `status` filters on a *derived*
+ * flag (needsAttention), not a stored column: AccountAction itself has no
+ * status field, so "incomplete" is computed live from correlated
+ * Notification/AssessmentRequest state at read time — see that method's
+ * own doc comment for exactly what feeds it.
+ */
+export class ListAccountActionsQueryDto {
+  @IsOptional()
+  @IsEnum(AccountActionType)
+  type?: AccountActionType;
+
+  @IsOptional()
+  @IsDateString()
+  from?: string;
+
+  @IsOptional()
+  @IsDateString()
+  to?: string;
+
+  @IsOptional()
+  @IsEnum(['ALL', 'NEEDS_ATTENTION', 'CLEAN'])
+  status?: 'ALL' | 'NEEDS_ATTENTION' | 'CLEAN';
 }
 
 /** Admin decision on a FLAGGED attempt — the only thing that can invalidate an attempt/badge. */

@@ -1,5 +1,12 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { AccountActionType, NotificationType, Prisma, ShortlistStage } from '@prisma/client';
+import {
+  AccountActionType,
+  AssessmentRequestStatus,
+  NotificationStatus,
+  NotificationType,
+  Prisma,
+  ShortlistStage,
+} from '@prisma/client';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -242,12 +249,158 @@ export class AccountService {
     return { deleted: true };
   }
 
-  /** Admin-visible per the product-insight requirement this table exists for — no dedicated admin UI in this pass, just the query a future one would call. reasonText is always null by the time a DELETED row reaches here (see delete()); a DEACTIVATED row's reasonText is real until/unless that same candidate later deletes their account. */
-  async listActionsForAdmin(limit = 100) {
-    return this.prisma.accountAction.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: limit,
+  /**
+   * Compliance Center / Privacy Requests — a record-and-audit view over
+   * account actions that already executed, never an approval gate (see
+   * the Compliance Center's own framing: erasure is a legal right, not
+   * something granted here). reasonText is deliberately never returned —
+   * unlike reasonCategory (a closed enum, never identifying on its own),
+   * reasonText is candidate-authored free text that could contain
+   * anything, including on a still-active DEACTIVATED row that hasn't
+   * been scrubbed by a later deletion yet. A page whose whole purpose is
+   * demonstrating erasure must not be the one place that free text still
+   * surfaces.
+   *
+   * Two signals are correlated in from elsewhere, both deliberately
+   * *not* claimed as caused-by-this-action — the code has no FK or
+   * transactional link that would make that claim honest (see the
+   * Compliance Center audit this was built from):
+   *
+   *  - confirmationEmailStatus: the ACCOUNT_DEACTIVATED/ACCOUNT_DELETED
+   *    Notification this exact action sent. This one *is* safely
+   *    attributable despite no FK existing: deactivate()/delete() each
+   *    send exactly one such email, unconditionally, in strict
+   *    chronological lockstep with creating the AccountAction row — so
+   *    the Nth-oldest DEACTIVATED action for a user always pairs with the
+   *    Nth-oldest ACCOUNT_DEACTIVATED notification for that user, via
+   *    ascending-createdAt zip, not a fragile time-window guess. Null for
+   *    REACTIVATED — reactivate() sends no email at all.
+   *  - pipelinesUnavailable / candidateHasFailedRefund: live current
+   *    state (this candidate's ShortlistEntry rows still sitting in
+   *    CANDIDATE_UNAVAILABLE right now, and whether they have an
+   *    AssessmentRequest stuck at REFUND_FAILED right now), attached only
+   *    to a candidate's most recent DEACTIVATED/DELETED action *if* no
+   *    later REACTIVATED action has superseded it. There is no per-
+   *    pipeline or per-notification historical count anywhere in this
+   *    schema (see makeCandidateUnavailableToEmployers — it's a live
+   *    WHERE filter and a fire-and-forget email loop, not an audit
+   *    table), and refunds are not actually wired to fire from deletion
+   *    at all today (delete()'s own comment calls that an unwired seam) —
+   *    so this can only ever describe the candidate's current standing,
+   *    not what this specific action historically caused.
+   */
+  async listActionsForAdmin(query: {
+    type?: AccountActionType;
+    from?: string;
+    to?: string;
+    status?: 'ALL' | 'NEEDS_ATTENTION' | 'CLEAN';
+  } = {}) {
+    // Unfiltered on purpose — see confirmationEmailStatus's doc comment
+    // above: correct pairing needs every action for a user, in order,
+    // regardless of which slice the caller asked to see. Filters apply
+    // only to the final, already-computed rows below.
+    const actions = await this.prisma.accountAction.findMany({
+      orderBy: { createdAt: 'asc' },
+      include: { candidateProfile: { select: { id: true, userId: true, deletedAt: true, deactivatedAt: true } } },
     });
+
+    const candidateProfileIds = [...new Set(actions.map((a) => a.candidateProfileId))];
+    const userIds = [...new Set(actions.map((a) => a.candidateProfile.userId))];
+
+    const [pipelineCounts, refundFailedRows, confirmationEmails] = await Promise.all([
+      this.prisma.shortlistEntry.groupBy({
+        by: ['candidateId'],
+        where: { candidateId: { in: candidateProfileIds }, stage: ShortlistStage.CANDIDATE_UNAVAILABLE },
+        _count: { _all: true },
+      }),
+      this.prisma.assessmentRequest.findMany({
+        where: { candidateId: { in: candidateProfileIds }, status: AssessmentRequestStatus.REFUND_FAILED },
+        select: { candidateId: true },
+        distinct: ['candidateId'],
+      }),
+      this.prisma.notification.findMany({
+        where: {
+          userId: { in: userIds },
+          type: { in: [NotificationType.ACCOUNT_DEACTIVATED, NotificationType.ACCOUNT_DELETED] },
+        },
+        orderBy: { createdAt: 'asc' },
+        select: { userId: true, type: true, status: true },
+      }),
+    ]);
+
+    const pipelinesByCandidateId = new Map(pipelineCounts.map((p) => [p.candidateId, p._count._all]));
+    const refundFailedCandidateIds = new Set(refundFailedRows.map((r) => r.candidateId));
+
+    // FIFO queues per (userId, notification type) — shift() below consumes
+    // them in the same ascending-createdAt order `actions` is already in,
+    // which is what makes the zip-pairing correct (see this method's own
+    // doc comment).
+    const confirmationQueues = new Map<string, NotificationStatus[]>();
+    for (const n of confirmationEmails) {
+      const key = `${n.userId}:${n.type}`;
+      const queue = confirmationQueues.get(key) ?? [];
+      queue.push(n.status);
+      confirmationQueues.set(key, queue);
+    }
+
+    // Latest action per candidate — the one "currently in effect" row live
+    // state attaches to (see doc comment above).
+    const latestActionIdByCandidateId = new Map<string, string>();
+    for (const a of actions) latestActionIdByCandidateId.set(a.candidateProfileId, a.id); // ascending order — last write wins, i.e. the true latest
+
+    const rows = actions.map((a) => {
+      const confirmationEmailType =
+        a.type === AccountActionType.DEACTIVATED
+          ? NotificationType.ACCOUNT_DEACTIVATED
+          : a.type === AccountActionType.DELETED
+            ? NotificationType.ACCOUNT_DELETED
+            : null;
+      let confirmationEmailStatus: NotificationStatus | null = null;
+      if (confirmationEmailType) {
+        const key = `${a.candidateProfile.userId}:${confirmationEmailType}`;
+        confirmationEmailStatus = confirmationQueues.get(key)?.shift() ?? null;
+      }
+
+      const isCurrentUnavailabilityAction =
+        a.type !== AccountActionType.REACTIVATED &&
+        latestActionIdByCandidateId.get(a.candidateProfileId) === a.id;
+      const pipelinesUnavailable = isCurrentUnavailabilityAction
+        ? pipelinesByCandidateId.get(a.candidateProfileId) ?? 0
+        : null;
+      const candidateHasFailedRefund = isCurrentUnavailabilityAction && refundFailedCandidateIds.has(a.candidateProfileId);
+
+      const needsAttention = confirmationEmailStatus === NotificationStatus.FAILED || candidateHasFailedRefund;
+
+      return {
+        id: a.id,
+        type: a.type,
+        reasonCategory: a.reasonCategory,
+        createdAt: a.createdAt,
+        // Short, stable, never-identifying reference — same convention as
+        // the session-review queue's "Case {id.slice(0,8)}" (never the
+        // candidate's name), since a name is exactly what a DELETED row
+        // no longer has to show.
+        candidateRef: a.candidateProfileId.slice(0, 8),
+        candidateCurrentlyDeactivated: a.candidateProfile.deactivatedAt !== null,
+        candidateCurrentlyDeleted: a.candidateProfile.deletedAt !== null,
+        confirmationEmailStatus,
+        pipelinesUnavailable,
+        candidateHasFailedRefund,
+        needsAttention,
+      };
+    });
+
+    const filtered = rows.filter((r) => {
+      if (query.type && r.type !== query.type) return false;
+      if (query.from && r.createdAt < new Date(query.from)) return false;
+      if (query.to && r.createdAt > new Date(query.to)) return false;
+      if (query.status === 'NEEDS_ATTENTION' && !r.needsAttention) return false;
+      if (query.status === 'CLEAN' && r.needsAttention) return false;
+      return true;
+    });
+
+    filtered.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return filtered;
   }
 
   private async getOwnedProfile(userId: string) {

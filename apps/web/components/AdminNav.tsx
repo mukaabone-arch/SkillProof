@@ -9,6 +9,7 @@ import Logo from './Logo';
 const LINKS = [
   { href: '/admin/assessments', label: 'Assessments' },
   { href: '/admin/review', label: 'Session Reviews' },
+  { href: '/admin/compliance', label: 'Compliance Center' },
 ];
 
 interface Props {

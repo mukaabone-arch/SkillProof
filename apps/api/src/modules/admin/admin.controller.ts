@@ -8,6 +8,7 @@ import { AccountService } from '../account/account.service';
 import {
   CreateAssessmentDto,
   CreateQuestionDto,
+  ListAccountActionsQueryDto,
   ListAttemptsQueryDto,
   ReviewAttemptDto,
   SetSubscriptionDto,
@@ -23,10 +24,10 @@ export class AdminController {
     private readonly account: AccountService,
   ) {}
 
-  /** Product-insight visibility for AccountAction — see that model's own doc comment. No dedicated admin UI page in this pass, just the query it would call. */
+  /** Compliance Center / Privacy Requests — see AccountService.listActionsForAdmin's own doc comment for exactly what each derived field does and doesn't claim. */
   @Get('account-actions')
-  listAccountActions() {
-    return this.account.listActionsForAdmin();
+  listAccountActions(@Query() query: ListAccountActionsQueryDto) {
+    return this.account.listActionsForAdmin(query);
   }
 
   @Get('assessments')
