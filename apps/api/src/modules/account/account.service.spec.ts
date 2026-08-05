@@ -129,6 +129,11 @@ function fakePrisma(seed: {
         return u;
       }),
     },
+    // No test in this file seeds a paid assessment request — always empty,
+    // so refundPendingAssessmentRequests is a no-op here (see the dedicated
+    // account.service.list-for-admin.spec.ts / account.service.refund-on-
+    // unavailable.spec.ts files for that behavior under real test).
+    assessmentRequest: { findMany: jest.fn(async () => []) },
     identity: { deleteMany: jest.fn(async () => ({ count: 0 })) },
     refreshToken: { deleteMany: jest.fn(async () => ({ count: 0 })) },
     externalCredential: { updateMany: jest.fn(async () => ({ count: 0 })) },
@@ -153,8 +158,9 @@ function makeService(seed: Parameters<typeof fakePrisma>[0]) {
       sentEmails.push({ userId, type, subject });
     }),
   };
-  const service = new AccountService(prisma as never, notifications as never);
-  return { service, prisma, sentEmails, notifications };
+  const refundJob = { refundOne: jest.fn(async () => undefined) };
+  const service = new AccountService(prisma as never, notifications as never, refundJob as never);
+  return { service, prisma, sentEmails, notifications, refundJob };
 }
 
 const BASE_PROFILE: FakeProfile = {

@@ -18,5 +18,9 @@ import { RAZORPAY_GATEWAY, RazorpaySdkGateway } from './razorpay-gateway';
     AssessmentRequestsRefundJob,
     { provide: RAZORPAY_GATEWAY, useClass: RazorpaySdkGateway },
   ],
+  // AssessmentRequestsRefundJob — so AccountService can reuse its refundOne
+  // (atomic claim, double-refund guard, retry-via-REFUND_FAILED) when a
+  // candidate deactivates or deletes, instead of duplicating that logic.
+  exports: [AssessmentRequestsRefundJob],
 })
 export class AssessmentRequestsModule {}

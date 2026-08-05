@@ -15,6 +15,7 @@ import { renderNotificationEmail } from '../notifications/notification-email.tem
 import { WEB_BASE_URL } from '../../config/web-base-url';
 import { UPLOAD_DIR } from '../../config/upload-dir';
 import { DeactivateAccountDto, DeleteAccountDto } from './account.dto';
+import { AssessmentRequestsRefundJob } from '../assessment-requests/assessment-requests-refund.job';
 
 /** A live pipeline is one an employer is actively waiting on the candidate for — SHORTLISTED alone isn't (the employer hasn't reached out), and the terminal stages need no transition at all. */
 const LIVE_PIPELINE_STAGES: ShortlistStage[] = [ShortlistStage.INVITED, ShortlistStage.INTERVIEWING, ShortlistStage.OFFER];
@@ -26,6 +27,7 @@ export class AccountService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly refundJob: AssessmentRequestsRefundJob,
   ) {}
 
   async getStatus(userId: string) {
@@ -233,18 +235,11 @@ export class AccountService {
       }),
     ]);
 
-    // ---- Seam for feat/employer-triggered-assessment (not merged) ----
-    // That branch adds AssessmentRequest with a PAID_PENDING_START status
-    // and an expiry job that refunds an employer's payment if the
-    // candidate never starts within 5 days (see that branch's own
-    // AssessmentRequestsService). Once merged, this method should find
-    // this candidate's requests still in PAID_PENDING_START/REFUND_FAILED
-    // and immediately trigger that same refund path — an employer who paid
-    // for a specific candidate to be assessed shouldn't wait out 5 days to
-    // find out that candidate deleted their account and is never starting
-    // it. Intentionally not stubbed further than this comment: there's no
-    // AssessmentRequest model on this branch to reference yet, and a fake
-    // placeholder call would just be dead code until the real one merges.
+    // Any AssessmentRequest an employer paid for this candidate, still
+    // PAID_PENDING_START, was already refunded above — see
+    // makeCandidateUnavailableToEmployers -> refundPendingAssessmentRequests.
+    // No need to wait out the 5-day expiry window to find out this
+    // candidate deleted their account and is never starting it.
 
     return { deleted: true };
   }
@@ -281,13 +276,18 @@ export class AccountService {
    *    AssessmentRequest stuck at REFUND_FAILED right now), attached only
    *    to a candidate's most recent DEACTIVATED/DELETED action *if* no
    *    later REACTIVATED action has superseded it. There is no per-
-   *    pipeline or per-notification historical count anywhere in this
-   *    schema (see makeCandidateUnavailableToEmployers — it's a live
+   *    pipeline historical count anywhere in this schema (see
+   *    makeCandidateUnavailableToEmployers's pipeline loop — it's a live
    *    WHERE filter and a fire-and-forget email loop, not an audit
-   *    table), and refunds are not actually wired to fire from deletion
-   *    at all today (delete()'s own comment calls that an unwired seam) —
-   *    so this can only ever describe the candidate's current standing,
-   *    not what this specific action historically caused.
+   *    table). Refunds *are* now triggered synchronously from this exact
+   *    method (refundPendingAssessmentRequests, reusing
+   *    AssessmentRequestsRefundJob.refundOne) — but AssessmentRequest
+   *    itself still carries no field recording *why* a given refund ran,
+   *    so a REFUND_FAILED row on a deactivated/deleted candidate could
+   *    equally be this action's own trigger or the unrelated hourly
+   *    5-day-expiry sweep catching an unstarted request that predates it.
+   *    This field is honestly "the candidate currently has a stuck
+   *    refund," not "this action caused a stuck refund."
    */
   async listActionsForAdmin(query: {
     type?: AccountActionType;
@@ -447,6 +447,30 @@ export class AccountService {
       where: { candidateProfileId: profileId, status: { in: [...PENDING_APPLICATION_STATUSES] } },
       data: { status: 'WITHDRAWN' },
     });
+
+    await this.refundPendingAssessmentRequests(profileId);
+  }
+
+  /**
+   * The seam feat/employer-triggered-assessment's own comment left for
+   * this branch to fill: an employer who paid $5 for this candidate to
+   * take a specific assessment shouldn't have to wait out the 5-day expiry
+   * window to be made whole once the candidate is no longer reachable at
+   * all. Reuses AssessmentRequestsRefundJob.refundOne exactly as the hourly
+   * sweep does — same atomic PAID_PENDING_START claim (so a candidate
+   * mid-attempt right now can never be refunded out from under them),
+   * same double-refund guard, same REFUND_FAILED retry contract picked up
+   * by that job's next run if Razorpay itself fails here. Nothing about
+   * the refund mechanics is duplicated; only the trigger is new.
+   */
+  private async refundPendingAssessmentRequests(profileId: string): Promise<void> {
+    const pending = await this.prisma.assessmentRequest.findMany({
+      where: { candidateId: profileId, status: AssessmentRequestStatus.PAID_PENDING_START },
+      select: { id: true },
+    });
+    for (const { id } of pending) {
+      await this.refundJob.refundOne(id, 'CANDIDATE_UNAVAILABLE');
+    }
   }
 
   /** Best-effort, same convention as ProfilesService/CertificationsService's own file cleanup — a file already missing on disk must never block the rest of deletion. */

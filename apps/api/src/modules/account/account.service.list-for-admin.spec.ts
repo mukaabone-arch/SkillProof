@@ -92,7 +92,8 @@ function fakePrisma(seed: {
 
 function makeService(seed: Parameters<typeof fakePrisma>[0]) {
   const prisma = fakePrisma(seed);
-  const service = new AccountService(prisma as never, {} as never);
+  // listActionsForAdmin never touches notifications/refundJob — both unused here.
+  const service = new AccountService(prisma as never, {} as never, {} as never);
   return { service, prisma };
 }
 

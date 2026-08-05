@@ -50,7 +50,7 @@ export class AssessmentRequestsRefundJob {
       select: { id: true },
     });
     for (const { id } of candidates) {
-      await this.refundOne(id).catch((err) => {
+      await this.refundOne(id, 'EXPIRED').catch((err) => {
         // A single row's unexpected failure (not the ordinary "Razorpay
         // rejected the refund call" path, which refundOne already handles
         // by leaving it at REFUND_FAILED) must never abort the rest of the
@@ -85,8 +85,15 @@ export class AssessmentRequestsRefundJob {
    *    accidental attempt — e.g. a retry of a row that actually succeeded
    *    last run but failed to persist status=EXPIRED_REFUNDED for some
    *    other reason — from ever refunding twice.
+   *
+   * Public and reused as-is (not duplicated) by AccountService when a
+   * candidate deactivates or deletes their account — same atomic claim,
+   * same double-refund guard, same REFUND_FAILED retry contract, whether
+   * this row is being refunded because its 5-day window lapsed or because
+   * the candidate just became unavailable. `reason` only changes which
+   * copy notifyEmployer sends; every write above it is identical.
    */
-  private async refundOne(requestId: string): Promise<void> {
+  async refundOne(requestId: string, reason: 'EXPIRED' | 'CANDIDATE_UNAVAILABLE'): Promise<void> {
     let request = await this.prisma.assessmentRequest.findUnique({ where: { id: requestId } });
     if (!request) return;
 
@@ -96,8 +103,8 @@ export class AssessmentRequestsRefundJob {
         data: { status: AssessmentRequestStatus.REFUND_FAILED },
       });
       if (count === 0) {
-        // Lost the race — the candidate started it between sweep()'s list
-        // query and this claim attempt. Never refund a started request.
+        // Lost the race — the candidate started it between the caller's
+        // list query and this claim attempt. Never refund a started request.
         return;
       }
       request = await this.prisma.assessmentRequest.findUniqueOrThrow({ where: { id: requestId } });
@@ -127,7 +134,7 @@ export class AssessmentRequestsRefundJob {
         where: { id: requestId },
         data: { status: AssessmentRequestStatus.EXPIRED_REFUNDED, razorpayRefundId: refund.id },
       });
-      await this.notifyEmployerExpired(requestId);
+      await this.notifyEmployer(requestId, reason);
     } catch (err) {
       // Stays at REFUND_FAILED (already set above) — the *next* sweep
       // retries it. Never silently dropped: a row can only leave
@@ -136,20 +143,41 @@ export class AssessmentRequestsRefundJob {
     }
   }
 
-  private async notifyEmployerExpired(requestId: string): Promise<void> {
+  private async notifyEmployer(requestId: string, reason: 'EXPIRED' | 'CANDIDATE_UNAVAILABLE'): Promise<void> {
     try {
       const request = await this.prisma.assessmentRequest.findUniqueOrThrow({
         where: { id: requestId },
         include: { skill: true, candidateProfile: true },
       });
-      await this.notifications.sendEmail(
-        request.requestedByUserId,
-        NotificationType.ASSESSMENT_REQUEST_EXPIRED,
-        `Assessment request expired unused — ${request.candidateProfile.fullName ?? 'candidate'}`,
-        `<p>Your request for <strong>${request.candidateProfile.fullName ?? 'the candidate'}</strong> to take the ` +
-          `${request.skill.name} ${request.level} assessment expired after 5 days — they never started it.</p>` +
-          `<p>You've been automatically refunded.</p>`,
-      );
+
+      // CANDIDATE_UNAVAILABLE deliberately never names the candidate, even
+      // when the profile hasn't been anonymized (a deactivation, unlike a
+      // deletion, leaves fullName intact) — matching the privacy posture
+      // AccountService.makeCandidateUnavailableToEmployers already commits
+      // to for its own PIPELINE_CANDIDATE_UNAVAILABLE notification just
+      // above this same call site ("Deliberately never includes the
+      // candidate's stated reason... 'No longer available' is true and
+      // complete without it"). The EXPIRED case is unrelated to that
+      // policy — the candidate never became unavailable, they're simply
+      // slow — so it keeps using fullName exactly as before.
+      const { subject, body } =
+        reason === 'EXPIRED'
+          ? {
+              subject: `Assessment request expired unused — ${request.candidateProfile.fullName ?? 'candidate'}`,
+              body:
+                `<p>Your request for <strong>${request.candidateProfile.fullName ?? 'the candidate'}</strong> to take the ` +
+                `${request.skill.name} ${request.level} assessment expired after 5 days — they never started it.</p>` +
+                `<p>You've been automatically refunded.</p>`,
+            }
+          : {
+              subject: `Assessment request refunded — candidate no longer available`,
+              body:
+                `<p>The candidate you requested a ${request.skill.name} ${request.level} assessment for is no longer ` +
+                `available on SkillProof, and never started it.</p>` +
+                `<p>You've been automatically refunded.</p>`,
+            };
+
+      await this.notifications.sendEmail(request.requestedByUserId, NotificationType.ASSESSMENT_REQUEST_EXPIRED, subject, body);
     } catch {
       // Best-effort — same contract as every other NotificationsService caller.
     }
