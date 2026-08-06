@@ -5,6 +5,8 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { AdminService } from './admin.service';
 import { AccountService } from '../account/account.service';
+import { DataExportService } from '../data-export/data-export.service';
+import { ListExportRequestsQueryDto } from '../data-export/data-export.dto';
 import {
   CreateAssessmentDto,
   CreateQuestionDto,
@@ -22,6 +24,7 @@ export class AdminController {
   constructor(
     private readonly svc: AdminService,
     private readonly account: AccountService,
+    private readonly dataExport: DataExportService,
   ) {}
 
   /** Compliance Center / Privacy Requests — see AccountService.listActionsForAdmin's own doc comment for exactly what each derived field does and doesn't claim. */
@@ -87,5 +90,17 @@ export class AdminController {
   @Post('candidates/:candidateProfileId/subscription')
   setSubscription(@Param('candidateProfileId') candidateProfileId: string, @Body() dto: SetSubscriptionDto) {
     return this.svc.setSubscription(candidateProfileId, dto);
+  }
+
+  /** Compliance Center / Data Exports — status and timestamps only, never the exported content. See DataExportService.listForAdmin's own doc comment. */
+  @Get('export-requests')
+  listExportRequests(@Req() req: AuthenticatedRequest, @Query() query: ListExportRequestsQueryDto) {
+    return this.dataExport.listForAdmin(req.user.sub, query);
+  }
+
+  /** Resets a FAILED export back to REQUESTED so the generation sweep retries it — the only write this admin view can make. */
+  @Post('export-requests/:id/retry')
+  retryExportRequest(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.dataExport.retry(req.user.sub, id);
   }
 }

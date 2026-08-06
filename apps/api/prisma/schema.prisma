@@ -233,6 +233,13 @@ enum NotificationType {
    * reconciliation.
    */
   ASSESSMENT_REQUEST_RESULT
+  /**
+   * Candidate: their data export (GDPR Article 20 / DPDP portability
+   * request) finished generating and is ready to download — see
+   * DataExportJob. No failure counterpart: a failed generation is surfaced
+   * to the candidate by its status on GET /account/exports, not by email.
+   */
+  DATA_EXPORT_READY
 }
 
 enum NotificationChannel {
@@ -301,6 +308,7 @@ model User {
   interviewSessions      InterviewSession[]
   assessmentRequestsMade AssessmentRequest[] @relation("AssessmentRequestRequestedBy")
   invitationsSent        OrgInvitation[]     @relation("OrgInvitationInvitedBy")
+  adminAccessLogEntries  AdminAccessLog[]
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
@@ -511,16 +519,18 @@ model CandidateProfile {
   roleTitle      CandidateRoleTitle?
   roleTitleOther String?
 
-  skillClaims         SkillClaim[]
-  applications        Application[]
-  externalCredentials ExternalCredential[]
-  certifications      Certification[]
-  shortlistEntries    ShortlistEntry[]
-  subscription        Subscription?
-  usageCounters       UsageCounter[]
-  profileViews        ProfileView[]
-  accountActions      AccountAction[]
-  assessmentRequests  AssessmentRequest[]
+  skillClaims           SkillClaim[]
+  applications          Application[]
+  externalCredentials   ExternalCredential[]
+  certifications        Certification[]
+  shortlistEntries      ShortlistEntry[]
+  subscription          Subscription?
+  usageCounters         UsageCounter[]
+  profileViews          ProfileView[]
+  accountActions        AccountAction[]
+  assessmentRequests    AssessmentRequest[]
+  exportRequests        ExportRequest[]
+  adminAccessLogEntries AdminAccessLog[]
 }
 
 // ---------- Account lifecycle (deactivation, reactivation, deletion) ----------
@@ -574,6 +584,87 @@ model AccountAction {
   createdAt          DateTime             @default(now())
 
   @@index([candidateProfileId])
+}
+
+// ---------- Data export (GDPR Article 20 / DPDP portability) ----------
+
+enum ExportRequestStatus {
+  REQUESTED
+  PROCESSING
+  READY
+  FAILED
+  EXPIRED
+}
+
+/**
+ * One "download my data" request — see DataExportService/DataExportJob.
+ * Generation is asynchronous: a request is created here at REQUESTED, a
+ * @Cron sweep (DataExportJob) picks it up, and the same row tracks
+ * PROCESSING -> READY/FAILED. fileKey is a bare UPLOAD_DIR-relative
+ * filename, same convention as CandidateProfile.photoKey/resumeS3Key —
+ * never a public URL; the only way to turn it into bytes is the
+ * authenticated GET /account/exports/:id/download route, which also checks
+ * expiresAt. A FAILED row is retried by resetting status back to
+ * REQUESTED (DataExportService.retry, PLATFORM_ADMIN-only) — the same
+ * sweep picks it up again, same as AssessmentRequestsRefundJob's
+ * REFUND_FAILED retry contract. This is also the record the Compliance
+ * Center's export-requests admin view reads — see that page's own
+ * comment on why it can see status/timestamps but never the file content.
+ */
+model ExportRequest {
+  id               String              @id @default(uuid())
+  candidateId      String
+  candidateProfile CandidateProfile    @relation(fields: [candidateId], references: [id])
+  status           ExportRequestStatus @default(REQUESTED)
+  requestedAt      DateTime            @default(now())
+  startedAt        DateTime?
+  completedAt      DateTime?
+  /**
+   * Set once the row reaches READY (completedAt + a fixed retention
+   * window — see DataExportService.EXPORT_RETENTION_DAYS). The sweep
+   * flips a row past this to EXPIRED and deletes the underlying file;
+   * never retrievable after that, by candidate or admin.
+   */
+  expiresAt        DateTime?
+  failureReason    String?
+  fileKey          String?
+  fileSizeBytes    Int?
+  downloadCount    Int                 @default(0)
+  lastDownloadedAt DateTime?
+
+  @@index([candidateId, requestedAt])
+  @@index([status])
+}
+
+// ---------- Admin access audit (read-side, not the write-side AccountAction
+// trail above) ----------
+
+/**
+ * "Who looked at what, when" for admin reads of candidate-scoped data —
+ * the counterpart to AccountAction (which audits candidate-initiated
+ * writes) and to Attempt.reviewedByUserId/AssessmentSession.decidedByUserId
+ * (which audit admin writes on those specific rows). Nothing in this
+ * schema logged admin *reads* before this model; deliberately generic
+ * (action + targetType + targetId, not a dedicated column per surface) so
+ * a future admin candidate-profile-lookup view can write to the same
+ * table instead of growing its own parallel log. targetId is intentionally
+ * untyped/unvalidated against any specific table — this is an audit trail,
+ * not a foreign key, and must keep working even after its target is
+ * anonymised or gone.
+ */
+model AdminAccessLog {
+  id                 String            @id @default(uuid())
+  adminUserId        String
+  adminUser          User              @relation(fields: [adminUserId], references: [id])
+  action             String
+  targetType         String?
+  targetId           String?
+  candidateProfileId String?
+  candidateProfile   CandidateProfile? @relation(fields: [candidateProfileId], references: [id])
+  createdAt          DateTime          @default(now())
+
+  @@index([adminUserId, createdAt])
+  @@index([candidateProfileId, createdAt])
 }
 
 // ---------- Taxonomy (spec section 4.3) ----------

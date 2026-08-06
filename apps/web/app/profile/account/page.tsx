@@ -11,9 +11,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, logout, type ApiError } from '@/lib/api';
+import { api, apiBlob, downloadBlob, logout, type ApiError } from '@/lib/api';
 import CandidateNav from '@/components/CandidateNav';
-import { Card, ErrorState, LoadingState } from '@/components/ui';
+import { Badge, Card, ErrorState, LoadingState } from '@/components/ui';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 
 type ReasonCategory =
@@ -36,6 +36,151 @@ const REASON_OPTIONS: { value: ReasonCategory; label: string }[] = [
 interface AccountStatus {
   deactivated: boolean;
   deactivatedAt: string | null;
+}
+
+type ExportStatus = 'REQUESTED' | 'PROCESSING' | 'READY' | 'FAILED' | 'EXPIRED';
+
+interface ExportRequestRow {
+  id: string;
+  status: ExportStatus;
+  requestedAt: string;
+  completedAt: string | null;
+  expiresAt: string | null;
+  fileSizeBytes: number | null;
+}
+
+const EXPORT_STATUS_BADGE: Record<ExportStatus, { variant: 'neutral' | 'warning' | 'verified' | 'danger'; label: string }> = {
+  REQUESTED: { variant: 'neutral', label: 'Queued' },
+  PROCESSING: { variant: 'warning', label: 'Processing' },
+  READY: { variant: 'verified', label: 'Ready' },
+  FAILED: { variant: 'danger', label: 'Failed' },
+  EXPIRED: { variant: 'neutral', label: 'Expired' },
+};
+
+function formatBytes(n: number | null): string {
+  if (n == null) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * "Download my data" — same family of rights as deactivate/delete below,
+ * so it lives on the same page. Shown regardless of deactivation status
+ * (unlike the deactivate/delete cards themselves): a portability request
+ * shouldn't be gated by a reversible state like deactivation.
+ */
+function ExportsCard() {
+  const [exportsList, setExportsList] = useState<ExportRequestRow[] | null>(null);
+  const [loadError, setLoadError] = useState('');
+  const [requesting, setRequesting] = useState(false);
+  const [requestError, setRequestError] = useState('');
+  const [downloadingId, setDownloadingId] = useState('');
+  const [downloadError, setDownloadError] = useState('');
+
+  function load() {
+    api<ExportRequestRow[]>('/account/exports')
+      .then((rows) => {
+        setExportsList(rows);
+        setLoadError('');
+      })
+      .catch((e) => setLoadError((e as Error).message));
+  }
+
+  useEffect(() => {
+    load();
+    // Poll while anything is still in flight, so a REQUESTED/PROCESSING row
+    // flips to READY without the candidate having to reload the page.
+    const interval = setInterval(() => {
+      setExportsList((current) => {
+        if (current?.some((r) => r.status === 'REQUESTED' || r.status === 'PROCESSING')) load();
+        return current;
+      });
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  async function submitRequest() {
+    setRequesting(true);
+    setRequestError('');
+    try {
+      await api('/account/exports', { method: 'POST' });
+      load();
+    } catch (e) {
+      setRequestError((e as ApiError).message);
+    } finally {
+      setRequesting(false);
+    }
+  }
+
+  async function download(row: ExportRequestRow) {
+    setDownloadingId(row.id);
+    setDownloadError('');
+    try {
+      const blob = await apiBlob(`/account/exports/${row.id}/download`);
+      downloadBlob(blob, `skillproof-data-export-${row.id.slice(0, 8)}.json`);
+    } catch (e) {
+      setDownloadError((e as ApiError).message);
+    } finally {
+      setDownloadingId('');
+    }
+  }
+
+  const canRequest = !exportsList?.some((r) => r.status === 'REQUESTED' || r.status === 'PROCESSING');
+
+  return (
+    <Card elevated style={{ marginBottom: 32 }}>
+      <h2 style={{ marginTop: 0 }}>Download my data</h2>
+      <p>
+        A complete, machine-readable copy of your personal data on SkillProof — profile, badges, assessment and
+        discussion history, applications, and more. Generated in the background; you&apos;ll get an email when
+        it&apos;s ready, and the download link expires after 7 days.
+      </p>
+
+      {loadError && <ErrorState message={loadError} />}
+      {!exportsList && !loadError && <LoadingState />}
+
+      {exportsList && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+          {exportsList.length === 0 ? (
+            <p className="meta" style={{ margin: 0 }}>No export requested yet.</p>
+          ) : (
+            exportsList.map((row) => (
+              <div
+                key={row.id}
+                className="row"
+                style={{ justifyContent: 'space-between', margin: 0, alignItems: 'center' }}
+              >
+                <div className="row" style={{ margin: 0, alignItems: 'center', gap: 8 }}>
+                  <Badge variant={EXPORT_STATUS_BADGE[row.status].variant}>{EXPORT_STATUS_BADGE[row.status].label}</Badge>
+                  <span className="meta" style={{ margin: 0 }}>
+                    Requested {new Date(row.requestedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                    {row.fileSizeBytes != null && ` · ${formatBytes(row.fileSizeBytes)}`}
+                  </span>
+                </div>
+                {row.status === 'READY' && (
+                  <button
+                    className="btn-secondary"
+                    onClick={() => download(row)}
+                    disabled={downloadingId === row.id}
+                  >
+                    {downloadingId === row.id ? 'Downloading…' : 'Download'}
+                  </button>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {downloadError && <ErrorState message={downloadError} />}
+      {requestError && <ErrorState message={requestError} />}
+
+      <button onClick={submitRequest} disabled={requesting || !canRequest}>
+        {requesting ? 'Requesting…' : canRequest ? 'Request export' : 'Export in progress…'}
+      </button>
+    </Card>
+  );
 }
 
 /**
@@ -157,6 +302,8 @@ export default function AccountSettingsPage() {
 
         {loadError && <ErrorState message={loadError} />}
         {!status && !loadError && <LoadingState />}
+
+        {status && <ExportsCard />}
 
         {status?.deactivated && (
           <Card style={{ marginBottom: 24 }}>

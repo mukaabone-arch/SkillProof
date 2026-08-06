@@ -44,7 +44,10 @@ const GROUPS: NavGroup[] = [
   },
   {
     label: 'Compliance Center',
-    items: [{ kind: 'link', href: '/admin/compliance', label: 'Privacy Requests' }],
+    items: [
+      { kind: 'link', href: '/admin/compliance', label: 'Privacy Requests' },
+      { kind: 'link', href: '/admin/compliance/exports', label: 'Data Exports' },
+    ],
   },
   {
     label: 'Roadmap',
@@ -68,8 +71,27 @@ const GROUPS: NavGroup[] = [
 
 const EXPANDED_GROUPS_KEY = 'admin-sidebar-expanded-groups';
 
+const ALL_HREFS: string[] = [
+  TOP_LINK.href,
+  ...GROUPS.flatMap((g) => g.items.filter((i): i is Extract<NavLeaf, { kind: 'link' }> => i.kind === 'link').map((i) => i.href)),
+];
+
+/**
+ * Longest-prefix-match, not "does this one href match" — two nav hrefs can
+ * legitimately be prefixes of each other (e.g. /admin/compliance and
+ * /admin/compliance/exports), and a plain per-link startsWith check would
+ * light up both simultaneously while viewing the more specific page. Only
+ * the single best (longest) matching href across the whole nav is ever
+ * "active".
+ */
+function bestMatchHref(pathname: string): string | null {
+  const matches = ALL_HREFS.filter((href) => pathname === href || pathname.startsWith(`${href}/`));
+  if (matches.length === 0) return null;
+  return matches.reduce((best, h) => (h.length > best.length ? h : best));
+}
+
 function isLinkActive(href: string, pathname: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
+  return href === bestMatchHref(pathname);
 }
 
 function isGroupActive(group: NavGroup, pathname: string) {
