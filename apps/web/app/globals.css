@@ -106,6 +106,23 @@
   --brand-purple: var(--brand-600);
   --brand-green: var(--success);
 
+  /* ---- Brand lockup size (logo mark + "SkillProof..." wordmark together) ----
+     Two sizes, both defined here once so neither can drift per-usage again —
+     see .brand-logo/.brand-logo-hero below, the only two places that read
+     these. --logo-size-hero/--logo-text-size-hero is THE reference size
+     (candidate login page, OtpLogin.tsx) — full audit and the concrete
+     evidence for why nav bars stay smaller is in this file's own comment on
+     .brand-logo below, not repeated here. Values unchanged from what each
+     context already rendered before these were pulled into named tokens —
+     this is a refactor for a single source of truth, not a visual change. */
+  --logo-size-nav: 30px;
+  --logo-size-nav-mobile: 24px;
+  --logo-size-hero: 44px;
+  --logo-size-hero-mobile: 36px;
+  --logo-text-size-nav: 1.05rem;
+  --logo-text-size-nav-mobile: 0.92rem;
+  --logo-text-size-hero: 1.3rem;
+
   --card: #232532; /* cards/surfaces: Nocturne --color-surface — dark-theme fix, was white */
 
   /* ---- Spacing scale (4px base) ---- */
@@ -384,18 +401,40 @@ code { font-family: var(--font-body); }
 
 /* ---- flair future Intelligence branding ----
    logo.svg already bakes in its own dark rounded panel — never re-wrap it in
-   another background, just size it. Nav scale vs. hero scale (pre-login
-   pages) are the only two sizes used anywhere in the app, so both live here. */
-.brand-logo { height: 30px; width: auto; display: block; }
-.brand-logo-hero { height: 44px; width: auto; display: block; }
-.brand-product-name { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; letter-spacing: -0.01em; color: var(--ink); }
+   another background, just size it.
+
+   Two sizes — --logo-size-hero/--logo-size-nav above, THE single source of
+   truth for both — not an accidental drift between contexts. Audited (see
+   the feat/logo-size-standardization PR description for the full list):
+   every hero-context consumer (OtpLogin.tsx, EmployerOtpLogin.tsx,
+   OAuthCallback.tsx, EmployerInviteAccept.tsx) already used .brand-logo-hero
+   at the same size as this file's reference (the candidate login page);
+   every nav/sidebar-topbar consumer (CandidateNav, AdminNav, PublicNav,
+   EmployerSidebarShell, AdminSidebarShell) already used .brand-logo at the
+   same smaller size — zero drift within either group. The question was
+   whether nav could adopt the hero size instead of keeping its own: tested
+   by temporarily forcing every nav/topbar lockup to hero size and
+   screenshotting at 375px. It broke in three different ways: CandidateNav's
+   "Log out" button pushed fully off-screen (nav links + enlarged lockup no
+   longer fit `.appnav-inner`'s 64px-tall row); EmployerSidebarShell's
+   topbar clipped both the "SkillProof" text and the Log out button;
+   AdminSidebarShell's two-line "SkillProof / Admin" wordmark grew tall
+   enough to overflow the fixed 64px topbar height. Nav keeps its own
+   (smaller) size for exactly that reason — not because nobody thought to
+   unify it. */
+.brand-logo { height: var(--logo-size-nav); width: auto; display: block; }
+.brand-logo-hero { height: var(--logo-size-hero); width: auto; display: block; }
+.brand-product-name { font-family: var(--font-display); font-weight: 700; font-size: var(--logo-text-size-nav); letter-spacing: -0.01em; color: var(--ink); }
 .brand-lockup-hero { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
-.brand-lockup-hero .brand-product-name { font-size: 1.3rem; }
+.brand-lockup-hero .brand-product-name { font-size: var(--logo-text-size-hero); }
 .app-footer-credit { text-align: center; font-size: 0.78rem; color: var(--ink-30); margin-top: 40px; }
 @media (max-width: 480px) {
-  .brand-logo { height: 24px; }
-  .brand-logo-hero { height: 36px; }
-  .brand-product-name { font-size: 0.92rem; }
+  .brand-logo { height: var(--logo-size-nav-mobile); }
+  .brand-logo-hero { height: var(--logo-size-hero-mobile); }
+  /* Nav-only in practice — .brand-lockup-hero .brand-product-name's higher
+     specificity keeps hero text at --logo-text-size-hero even here; see
+     that rule above. Pre-existing behavior, unchanged by this pass. */
+  .brand-product-name { font-size: var(--logo-text-size-nav-mobile); }
 }
 
 /* ---- auth pages only (OTP login/signup) — never applied to app pages ----
