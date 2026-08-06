@@ -521,6 +521,124 @@ main.auth.auth-gradient {
      (1.6rem) already lands at a sensible mobile size on its own. */
 }
 
+/* ---- split-layout auth pages (OtpLogin.tsx / EmployerOtpLogin.tsx only) ----
+   Deliberately a parallel set of classes, not a restyle of .auth/.auth-gradient/
+   .auth-card/.auth-headline above — those four are still load-bearing for
+   OAuthCallback.tsx, ReactivatePrompt.tsx, EmployerInviteAccept.tsx and the
+   OAuth-callback Suspense fallbacks, none of which are part of this redesign
+   and must keep rendering exactly as before.
+
+   Replaces the full-bleed gradient-behind-a-glass-card layout with two
+   columns: an abstract decorative panel (never carries text) and a solid
+   surface panel that carries the headline, brand lockup and card. This is
+   what makes the contrast question trivial instead of delicate — headline/
+   sub-line/card text now sit on flat, already-audited app surfaces
+   (--gray-50 / --card) using the same tokens every other page's headings and
+   body copy already use, rather than on a variable-luminance treatment that
+   text placement had to be tuned around. See this file's own --gray-600 doc
+   comment (top of file) and .dashboard-hero-bg above for the two other
+   places that same "compute it once, reuse the audited pairing" approach was
+   already taken.
+   Computed (WCAG relative-luminance formula, this file's actual hex values):
+     ink (#E9E9ED) on --gray-50 (#161826) [headline]        -> 14.54:1
+     gray-600 (#CFD3E5) on --gray-50 (#161826) [sub-line]   -> 11.82:1
+     ink (#E9E9ED) on --card (#232532) [card text]          ->  12.55:1
+     gray-600 (#CFD3E5) on --card (#232532) [card .meta]    ->  10.20:1
+     gray-300/ink-30 (#B2B6CA) on --card [divider label]    ->   7.55:1
+   Worst case (divider label, 7.55:1) is still above the old gradient's
+   worst case (5.77:1) and above the stricter 7:1 AAA floor, not just AA's
+   4.5:1 — see the PR description for the full before/after table.
+*/
+.auth-split {
+  /* The base `main` rule (max-width: 640px; margin: 0 auto; padding: 64px
+     24px) applies to every <main> by default — main.auth cancels it the
+     same way for the same reason; without this, the grid below gets
+     squeezed into a 640px centered box instead of spanning the viewport. */
+  max-width: none; margin: 0; padding: 0;
+  min-height: 100vh;
+  display: grid;
+  /* Visual side flexes and gets *more* room on a wide monitor (a bigger
+     canvas for the treatment); panel side is clamped so the card and
+     headline never stretch into an awkward line length just because the
+     screen is wide. */
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 640px);
+}
+/* Purely decorative — aria-hidden in the markup, never carries text. Layered
+   radial "soft overlapping shapes" (first option offered) over a diagonal
+   base gradient, finished with a subtle grain film (third option's "with
+   subtle grain") — every color reads a --brand-* token via color-mix, so it
+   re-themes automatically if those tokens ever change, same discipline as
+   the rest of this file. Nothing here is constrained by text contrast (there
+   is none), unlike the old .auth-gradient, which is exactly why this side
+   can use the *full* brand ramp — including the pale 50/200 steps that were
+   off-limits before because white headline text had to sit on top of them. */
+.auth-split-visual {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 65% 55% at 12% 18%, color-mix(in srgb, var(--brand-400) 50%, transparent) 0%, transparent 72%),
+    radial-gradient(ellipse 60% 50% at 88% 12%, color-mix(in srgb, var(--brand-600) 65%, transparent) 0%, transparent 70%),
+    radial-gradient(ellipse 75% 60% at 28% 96%, color-mix(in srgb, var(--brand-200) 28%, transparent) 0%, transparent 68%),
+    radial-gradient(ellipse 55% 45% at 92% 82%, color-mix(in srgb, var(--brand-600) 45%, transparent) 0%, transparent 65%),
+    linear-gradient(160deg, var(--brand-900) 0%, var(--gray-50) 100%);
+}
+/* Grain film — see public/auth-visual-grain.svg's own doc comment for why
+   this is the one piece that isn't pure CSS (procedural noise needs
+   feTurbulence, which CSS alone can't produce) and why it needs no
+   attribution. mix-blend-mode: overlay lets it read as texture on the
+   gradient underneath rather than a flat gray haze on top of it. */
+.auth-split-visual::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: url('/auth-visual-grain.svg');
+  background-size: 180px 180px;
+  opacity: 0.4;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+.auth-split-panel {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 56px 40px;
+  background: var(--gray-50);
+}
+.auth-split-headline {
+  font-family: var(--font-body); font-weight: 700;
+  font-size: clamp(1.6rem, 5vw, 2.4rem); line-height: 1.15; letter-spacing: 0;
+  color: var(--ink); text-align: center;
+  margin: 0 0 var(--space-6); max-width: 440px;
+}
+.auth-split-card {
+  background: var(--card);
+  border: 1px solid var(--gray-100); border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 40px 36px; max-width: 440px; width: 100%;
+}
+/* A shade darker than the card itself, purely for definition — the old
+   .auth-card input kept the same --card fill as the glass card behind it
+   (that card was translucent, so it needed an explicit opaque fill at all);
+   this card is already opaque, so inputs get their own distinct surface
+   instead of blending into it. */
+.auth-split-card input { background: var(--gray-50); }
+/* .auth-divider-label has no unscoped rule (see its declaration above,
+   still only styled within .auth-gradient) — this is the split-layout
+   equivalent, using the same muted token every other de-emphasized label in
+   the app reads, now that this card is a normal opaque surface rather than
+   glass over a gradient. */
+.auth-split-card .auth-divider-label { color: var(--ink-30); }
+@media (max-width: 860px) {
+  /* Visual side collapses to a slim decorative band above the card rather
+     than disappearing outright — still never carries text, still never
+     competes with the card for a narrow screen's limited width. */
+  .auth-split { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .auth-split-visual { min-height: 140px; }
+  .auth-split-panel { padding: 40px 24px; }
+}
+@media (max-width: 480px) {
+  .auth-split-visual { min-height: 110px; }
+  .auth-split-panel { padding: 28px 18px; }
+  .auth-split-card { padding: 26px 22px; }
+}
+
 /* ---- assessment slice ---- */
 /* Deliberately not unified with .ui-card/<Card> (ui-primitives-adoption
    pass): every call site relies on the display:flex row below, either as-is

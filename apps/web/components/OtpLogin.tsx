@@ -97,111 +97,114 @@ export default function OtpLogin({ onLoggedIn }: Props) {
   const canVerify = otp.length === 6 && !busy;
 
   return (
-    <main className="auth auth-gradient">
-      <h1 className="auth-headline">Global AI Talent Hub</h1>
-      <div className="auth-card">
-        <div className="brand-lockup-hero">
-          <Logo className="brand-logo-hero" />
-          <span className="brand-product-name">SkillProof</span>
-        </div>
-        <p className="auth-subtitle" style={{ marginBottom: 4 }}>
-          Prove your AI skills, get matched to roles that want them.
-        </p>
-        <p className="meta" style={{ marginBottom: 20 }}>
-          Sign in with your email to get started.
-        </p>
-
-        {stage === 'email' && (
-          <div className="field">
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && canSend) sendCode();
-              }}
-            />
-            <button style={{ width: '100%', marginTop: 10 }} onClick={sendCode} disabled={!canSend}>
-              {busy ? 'Sending code…' : 'Send code'}
-            </button>
+    <main className="auth-split">
+      <div className="auth-split-visual" aria-hidden="true" />
+      <div className="auth-split-panel">
+        <h1 className="auth-split-headline">Global AI Talent Hub</h1>
+        <div className="auth-split-card">
+          <div className="brand-lockup-hero">
+            <Logo className="brand-logo-hero" />
+            <span className="brand-product-name">SkillProof</span>
           </div>
-        )}
+          <p className="auth-subtitle" style={{ marginBottom: 4 }}>
+            Prove your AI skills, get matched to roles that want them.
+          </p>
+          <p className="meta" style={{ marginBottom: 20 }}>
+            Sign in with your email to get started.
+          </p>
 
-        {stage === 'otp' && (
-          <>
-            <p className="meta">
-              We sent a 6-digit code to <strong>{email}</strong>. Enter it below to continue.
-            </p>
+          {stage === 'email' && (
             <div className="field">
-              <label htmlFor="otp">Verification code</label>
+              <label htmlFor="email">Email</label>
               <input
-                id="otp"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="123456"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                autoFocus
+                id="email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && canVerify) verify();
+                  if (e.key === 'Enter' && canSend) sendCode();
                 }}
               />
+              <button style={{ width: '100%', marginTop: 10 }} onClick={sendCode} disabled={!canSend}>
+                {busy ? 'Sending code…' : 'Send code'}
+              </button>
             </div>
-            <button style={{ width: '100%' }} onClick={verify} disabled={!canVerify}>
-              {busy ? 'Verifying…' : 'Verify and continue'}
+          )}
+
+          {stage === 'otp' && (
+            <>
+              <p className="meta">
+                We sent a 6-digit code to <strong>{email}</strong>. Enter it below to continue.
+              </p>
+              <div className="field">
+                <label htmlFor="otp">Verification code</label>
+                <input
+                  id="otp"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="123456"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && canVerify) verify();
+                  }}
+                />
+              </div>
+              <button style={{ width: '100%' }} onClick={verify} disabled={!canVerify}>
+                {busy ? 'Verifying…' : 'Verify and continue'}
+              </button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>
+                <button type="button" className="btn-link" onClick={useAnotherEmail} disabled={busy}>
+                  Use a different email
+                </button>
+                <button type="button" className="btn-link" onClick={sendCode} disabled={busy || resendIn > 0}>
+                  {resendIn > 0 ? `Resend code in ${resendIn}s` : 'Resend code'}
+                </button>
+              </div>
+            </>
+          )}
+
+          {error && <p className="error">{error}</p>}
+
+          <div
+            className="auth-divider-label"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              margin: '20px 0',
+              fontSize: '0.8rem',
+            }}
+          >
+            <span style={{ flex: 1, height: 1, background: 'var(--ink-12)' }} />
+            or continue with
+            <span style={{ flex: 1, height: 1, background: 'var(--ink-12)' }} />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ width: '100%' }}
+              onClick={() => signInWith('google')}
+            >
+              <GoogleIcon /> Sign in with Google
             </button>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>
-              <button type="button" className="btn-link" onClick={useAnotherEmail} disabled={busy}>
-                Use a different email
-              </button>
-              <button type="button" className="btn-link" onClick={sendCode} disabled={busy || resendIn > 0}>
-                {resendIn > 0 ? `Resend code in ${resendIn}s` : 'Resend code'}
-              </button>
-            </div>
-          </>
-        )}
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ width: '100%' }}
+              onClick={() => signInWith('github')}
+            >
+              <GithubIcon /> Sign in with GitHub
+            </button>
+          </div>
 
-        {error && <p className="error">{error}</p>}
-
-        <div
-          className="auth-divider-label"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            margin: '20px 0',
-            fontSize: '0.8rem',
-          }}
-        >
-          <span style={{ flex: 1, height: 1, background: 'var(--ink-12)' }} />
-          or continue with
-          <span style={{ flex: 1, height: 1, background: 'var(--ink-12)' }} />
+          {oauthError && <p className="error">{oauthError}</p>}
         </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            style={{ width: '100%' }}
-            onClick={() => signInWith('google')}
-          >
-            <GoogleIcon /> Sign in with Google
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            style={{ width: '100%' }}
-            onClick={() => signInWith('github')}
-          >
-            <GithubIcon /> Sign in with GitHub
-          </button>
-        </div>
-
-        {oauthError && <p className="error">{oauthError}</p>}
       </div>
     </main>
   );
