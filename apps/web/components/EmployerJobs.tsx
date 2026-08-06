@@ -6,7 +6,7 @@
  * the org's existing jobs. Nothing is auto-saved — the employer reviews the
  * AI suggestions before "Save job" ever calls the API.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { employerApi, downloadBlob } from '@/lib/api';
@@ -184,6 +184,11 @@ export default function EmployerJobs() {
   // applicants panel and scrolls to it, rather than landing on a plain list
   // the employer has to search through themselves.
   const openApplicantsJobId = useSearchParams().get('openApplicants');
+  // Tracks which openApplicantsJobId value has already been auto-opened, so
+  // the effect below fires at most once per deep-link value instead of on
+  // every state change — see that effect's own comment for the bug this
+  // fixes.
+  const autoOpenedApplicantsJobId = useRef<string | null>(null);
 
   useEffect(() => {
     api<Job[]>('/jobs').then(setJobs).catch((e) => setError(e.message));
@@ -201,11 +206,20 @@ export default function EmployerJobs() {
   }, []);
 
   useEffect(() => {
-    if (!openApplicantsJobId || jobs.length === 0 || applicantsForJob === openApplicantsJobId) return;
+    if (!openApplicantsJobId || jobs.length === 0) return;
+    // Without this guard, closing the panel this effect just opened
+    // (applicantsForJob -> null) made the old `applicantsForJob ===
+    // openApplicantsJobId` check false again, re-running viewApplicants and
+    // silently reopening it — "Hide applicants" looked like a no-op for any
+    // job reached via this link. Firing at most once per deep-link value
+    // (tracked by the ref, not by applicantsForJob) makes the toggle a
+    // normal, independent open/close after the initial auto-open.
+    if (autoOpenedApplicantsJobId.current === openApplicantsJobId) return;
+    autoOpenedApplicantsJobId.current = openApplicantsJobId;
     viewApplicants(openApplicantsJobId);
     document.getElementById(`job-${openApplicantsJobId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openApplicantsJobId, jobs, applicantsForJob]);
+  }, [openApplicantsJobId, jobs]);
 
   async function refresh() {
     setJobs(await api<Job[]>('/jobs'));
