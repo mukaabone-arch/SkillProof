@@ -38,15 +38,24 @@ interface StartIssueBody {
   message?: string;
 }
 /**
- * The 402 body for a blocked retake — same LIMIT_REACHED shape as the
- * monthly-quota case (see lib/limitReachedBus.ts), distinguished by
- * `metric`. retakeCooldownDays carries a real resetsAt (when the wait is
- * over — and Premium removes it outright); retakesPerSkillLifetime never
- * does (resetsAt: null) — that cap is permanent regardless of tier, only
- * its size changes (1 on Free, 3 on Premium), so "upgrade" only ever helps
- * if there's still headroom under the higher cap.
+ * The 402 body for a blocked attempt-start — same LIMIT_REACHED shape as
+ * lib/limitReachedBus.ts, distinguished by `metric`. Three cases reach this
+ * page (EntitlementsService throws the same exception shape for all three —
+ * see that service's checkRetakeEligibility/checkAndIncrement):
+ *  - retakeCooldownDays: real resetsAt (when the wait is over — Premium
+ *    removes it outright).
+ *  - retakesPerSkillLifetime: resetsAt is always null — that cap is
+ *    permanent regardless of tier, only its size changes (1 on Free, 3 on
+ *    Premium), so "upgrade" only ever helps if there's still headroom
+ *    under the higher cap.
+ *  - assessments: the monthly quota shared across every skill (not
+ *    per-skill like the two above) — also reaches the global
+ *    LimitReachedModal (lib/api.ts publishes to limitReachedBus for every
+ *    LIMIT_REACHED response, not just this one), but this page renders its
+ *    own inline version too rather than leaving nothing behind it once
+ *    that modal is dismissed — see limitIssue's render branch below.
  */
-interface RetakeLimitBody {
+interface LimitIssueBody {
   code?: 'LIMIT_REACHED';
   metric?: 'retakeCooldownDays' | 'retakesPerSkillLifetime' | 'assessments';
   limit?: number | null;
@@ -72,7 +81,7 @@ export default function TakeAssessmentPage() {
   const [result, setResult] = useState<Result>();
   const [error, setError] = useState('');
   const [startIssue, setStartIssue] = useState<StartIssueBody | null>(null);
-  const [retakeIssue, setRetakeIssue] = useState<RetakeLimitBody | null>(null);
+  const [limitIssue, setLimitIssue] = useState<LimitIssueBody | null>(null);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -108,19 +117,33 @@ export default function TakeAssessmentPage() {
       // The catalog page disables Start when the profile isn't ready — this
       // is the defense-in-depth path for reaching this page directly (a
       // stale tab, a bookmarked URL, a race with a profile edit elsewhere).
-      const body = (e as ApiError).body as (StartIssueBody & RetakeLimitBody) | undefined;
+      const body = (e as ApiError).body as (StartIssueBody & LimitIssueBody) | undefined;
       if (body?.code === 'PROFILE_INCOMPLETE_FOR_ASSESSMENT') {
         setStartIssue(body);
-      } else if (body?.code === 'LIMIT_REACHED' && (body.metric === 'retakeCooldownDays' || body.metric === 'retakesPerSkillLifetime')) {
-        // Handled inline here, not by the global LimitReachedModal — see
-        // that component's own doc comment on why it ignores these two
-        // metrics specifically (cooldown-until-date vs. permanent cap read
-        // very differently, and only one is solvable by upgrading).
-        setRetakeIssue(body);
+      } else if (
+        body?.code === 'LIMIT_REACHED' &&
+        (body.metric === 'retakeCooldownDays' || body.metric === 'retakesPerSkillLifetime' || body.metric === 'assessments')
+      ) {
+        // retakeCooldownDays/retakesPerSkillLifetime are handled inline
+        // here rather than by the global LimitReachedModal — see that
+        // component's own doc comment on why it ignores those two metrics
+        // specifically (cooldown-until-date vs. permanent cap read very
+        // differently, and only one is solvable by upgrading).
+        //
+        // assessments (the monthly quota) DOES also reach that modal — but
+        // this page renders its own copy too, not just to avoid depending
+        // on the modal for a page that has nothing else to show once
+        // dismissed: EntitlementLimitException's response body carries no
+        // `message` field at all (see EntitlementLimitException in
+        // apps/api), so without this branch the generic `else` below would
+        // set error to the bare fallback in lib/api.ts's buildApiError —
+        // "Request failed: 402" — which is exactly the raw status code a
+        // candidate should never see.
+        setLimitIssue(body);
       } else {
         setError((e as Error).message);
       }
-      // Any 4xx here (including the two retake ones above) is refunded
+      // Any 4xx here (including the limit ones above) is refunded
       // server-side — refetch rather than assume the meter is unaffected.
       void refetch();
     }
@@ -332,7 +355,7 @@ export default function TakeAssessmentPage() {
               attempts this candidate has burned on this specific skill, so
               it can't honestly claim "you're out of retakes" as a fact.
               "Try again" below still calls the real start endpoint and
-              surfaces the authoritative retakeIssue (see the acknowledgment
+              surfaces the authoritative limitIssue (see the acknowledgment
               screen above) if this really was the last one.
             */}
             {limits && limits.retakeCooldownDays === 0 ? (
@@ -430,15 +453,15 @@ export default function TakeAssessmentPage() {
           <Link href={`/profile?returnTo=/assessments/${id}`}>Complete your profile →</Link>
         </p>
       )}
-      {retakeIssue && (
+      {limitIssue && (
         <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-          {retakeIssue.metric === 'retakeCooldownDays' ? (
+          {limitIssue.metric === 'retakeCooldownDays' ? (
             <>
               <strong>Retake not available yet</strong>
               <p style={{ margin: 0 }}>
                 You&apos;re in the cooldown period after your last attempt at this skill
-                {retakeIssue.resetsAt && (
-                  <> — available again on {new Date(retakeIssue.resetsAt).toLocaleDateString()}</>
+                {limitIssue.resetsAt && (
+                  <> — available again on {new Date(limitIssue.resetsAt).toLocaleDateString()}</>
                 )}
                 .
               </p>
@@ -448,11 +471,11 @@ export default function TakeAssessmentPage() {
                 </p>
               )}
             </>
-          ) : (
+          ) : limitIssue.metric === 'retakesPerSkillLifetime' ? (
             <>
               <strong>Retake limit reached for this skill</strong>
               <p style={{ margin: 0 }}>
-                You&apos;ve used all {retakeIssue.limit} retake{retakeIssue.limit === 1 ? '' : 's'} allowed for
+                You&apos;ve used all {limitIssue.limit} retake{limitIssue.limit === 1 ? '' : 's'} allowed for
                 this skill — this cap doesn&apos;t reset.
               </p>
               {tier !== 'PREMIUM' && (
@@ -461,10 +484,28 @@ export default function TakeAssessmentPage() {
                 </p>
               )}
             </>
+          ) : (
+            <>
+              {/* metric === 'assessments' — the shared monthly quota, not per-skill like the two branches above. */}
+              <strong>Monthly assessment limit reached</strong>
+              <p style={{ margin: 0 }}>
+                You&apos;ve used all {limitIssue.limit} assessment start{limitIssue.limit === 1 ? '' : 's'}{' '}
+                included on your plan this month
+                {limitIssue.resetsAt && <> — more open up on {new Date(limitIssue.resetsAt).toLocaleDateString()}</>}.
+              </p>
+              {tier !== 'PREMIUM' && (
+                <p className="meta" style={{ margin: 0 }}>
+                  <Link href="/upgrade">Premium removes the monthly cap entirely →</Link>
+                </p>
+              )}
+              <p style={{ margin: 0 }}>
+                <Link href="/assessments">← Back to assessments</Link>
+              </p>
+            </>
           )}
         </div>
       )}
-      {loaded && !error && !startIssue && !retakeIssue && questions.length === 0 && (
+      {loaded && !error && !startIssue && !limitIssue && questions.length === 0 && (
         <p>This assessment has no questions yet — check back soon.</p>
       )}
 

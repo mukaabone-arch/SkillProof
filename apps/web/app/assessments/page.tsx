@@ -11,7 +11,7 @@
  * courtesy, not the enforcement; the server rejects a locked attempt too
  * (see BadgeResolverService.assertLevelAvailable).
  */
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { ReactNode, Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api, type ApiError } from '@/lib/api';
@@ -91,6 +91,53 @@ interface CatalogSkill {
  * drives Resume/In review/retake-cooldown exactly like the pre-restructure
  * page did (see the retake-cooldown feature this reuses verbatim).
  */
+/**
+ * Same LIMIT_REACHED shape as app/assessments/[id]/page.tsx's LimitIssueBody
+ * — this button hits the identical /assessment-sessions creation path, so
+ * the same three metrics (retakeCooldownDays, retakesPerSkillLifetime,
+ * assessments) can block it, and EntitlementLimitException carries no
+ * `message` field for any of them (see apps/api). Kept as a plain function
+ * rather than duplicating the take-flow page's full card-shaped rendering —
+ * this button's error slot is a single-line ErrorState, not a whole page —
+ * but the underlying bug it fixes is the same one: without this, `metric
+ * === 'assessments'` fell through to the generic `(e as Error).message`
+ * fallback, i.e. the raw "Request failed: 402" a candidate should never see.
+ */
+function describeLimitReached(
+  body: { metric?: string; limit?: number | null; resetsAt?: string | null },
+  tier: string | null,
+): ReactNode {
+  const resetDate = body.resetsAt ? new Date(body.resetsAt).toLocaleDateString() : null;
+  if (body.metric === 'retakeCooldownDays') {
+    return (
+      <>
+        You&apos;re in the cooldown period after your last attempt at this skill
+        {resetDate && <> — available again on {resetDate}</>}.{' '}
+        {tier !== 'PREMIUM' && <Link href="/upgrade">Premium removes retake cooldowns entirely →</Link>}
+      </>
+    );
+  }
+  if (body.metric === 'retakesPerSkillLifetime') {
+    return (
+      <>
+        You&apos;ve used all {body.limit} retake{body.limit === 1 ? '' : 's'} allowed for this skill — this cap
+        doesn&apos;t reset.{' '}
+        {tier !== 'PREMIUM' && <Link href="/upgrade">Premium allows more retakes per skill →</Link>}
+      </>
+    );
+  }
+  if (body.metric === 'assessments') {
+    return (
+      <>
+        You&apos;ve used all {body.limit} assessment start{body.limit === 1 ? '' : 's'} included on your plan this
+        month{resetDate && <> — more open up on {resetDate}</>}.{' '}
+        {tier !== 'PREMIUM' && <Link href="/upgrade">Premium removes the monthly cap entirely →</Link>}
+      </>
+    );
+  }
+  return 'This assessment format is not available right now.';
+}
+
 function DiscussionAction({
   discussion,
   durationMins,
@@ -103,12 +150,13 @@ function DiscussionAction({
   profileReady: boolean;
 }) {
   const router = useRouter();
+  const { tier } = useEntitlements();
   const [starting, setStarting] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<ReactNode>(null);
 
   async function start() {
     setStarting(true);
-    setError('');
+    setError(null);
     try {
       const created = await api<{ session: { id: string } }>('/assessment-sessions', { method: 'POST' });
       router.push(`/assessments/discussion/session/${created.session.id}`);
@@ -117,8 +165,16 @@ function DiscussionAction({
       // defense-in-depth path for a stale page or a race with a profile edit
       // in another tab — the server's PROFILE_INCOMPLETE_FOR_ASSESSMENT
       // message is already candidate-friendly, so surface it as-is.
-      const body = (e as ApiError).body as { code?: string; message?: string } | undefined;
-      setError(body?.code === 'PROFILE_INCOMPLETE_FOR_ASSESSMENT' && body.message ? body.message : (e as Error).message);
+      const body = (e as ApiError).body as
+        | { code?: string; message?: string; metric?: string; limit?: number | null; resetsAt?: string | null }
+        | undefined;
+      if (body?.code === 'PROFILE_INCOMPLETE_FOR_ASSESSMENT' && body.message) {
+        setError(body.message);
+      } else if (body?.code === 'LIMIT_REACHED') {
+        setError(describeLimitReached(body, tier));
+      } else {
+        setError((e as Error).message);
+      }
       setStarting(false);
     }
   }
