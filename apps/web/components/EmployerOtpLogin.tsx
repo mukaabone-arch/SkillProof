@@ -32,11 +32,32 @@ import { employerApi } from '@/lib/api';
 import { startOAuthLogin } from '@/lib/oauth';
 import Logo from './Logo';
 import { GoogleIcon } from './OAuthIcons';
+import AuthMessageRotator, { type AuthMessage } from './AuthMessageRotator';
 
 const { api, setTokens } = employerApi;
 
 /** Matches AuthService's RESEND_COOLDOWN_MS (60s) — purely a UX countdown; the server enforces the real limit regardless. */
 const RESEND_COOLDOWN_SECONDS = 60;
+
+/** Employer-facing value props — see AuthMessageRotator's own doc comment for why this is a prop rather than a fork. */
+const EMPLOYER_MESSAGES: AuthMessage[] = [
+  {
+    headline: 'Hire on evidence, not claims',
+    support: "Every badge is earned through a real assessment and reviewed by a person before it's issued.",
+  },
+  {
+    headline: 'Screen your shortlist in days, not weeks',
+    support: 'Send any candidate a verified assessment and get reviewed evidence back — no scheduling, no panel time.',
+  },
+  {
+    headline: 'See who can actually do the work',
+    support: "Verified skills and levels on every profile, so you're comparing ability rather than CV keywords.",
+  },
+  {
+    headline: 'One place from shortlist to hire',
+    support: 'Invite, interview, offer and track — every stage visible to both sides, nothing lost in inboxes.',
+  },
+];
 
 interface Props {
   onLoggedIn: () => void;
@@ -110,7 +131,9 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
 
   return (
     <main className="auth-split">
-      <div className="auth-split-visual" aria-hidden="true" />
+      <div className="auth-split-visual">
+        <AuthMessageRotator messages={EMPLOYER_MESSAGES} />
+      </div>
       <div className="auth-split-panel">
         <h1 className="auth-split-headline">Global AI Talent Hub</h1>
         <div className="auth-split-card">

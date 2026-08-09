@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 
-interface Message {
+export interface AuthMessage {
   headline: string;
   support: string;
 }
 
-const MESSAGES: Message[] = [
+/** Candidate login's messages (OtpLogin.tsx) — the default so that caller doesn't need to pass its own. */
+const CANDIDATE_MESSAGES: AuthMessage[] = [
   {
     headline: 'Apply in minutes, not hours',
     support: 'Your verified profile does the work — no re-typing the same details into every application.',
@@ -28,10 +29,18 @@ const MESSAGES: Message[] = [
 
 const ROTATE_MS = 7000;
 
+interface Props {
+  /** Defaults to the candidate set — EmployerOtpLogin.tsx passes its own employer-facing messages. */
+  messages?: AuthMessage[];
+}
+
 /**
- * Rotating value-prop messaging for the candidate login page's decorative
- * gradient panel (OtpLogin.tsx only — the employer split-layout keeps its
- * panel purely decorative, per .auth-split-visual's own CSS comment).
+ * Rotating value-prop messaging for a split-layout login page's decorative
+ * gradient panel — used by both OtpLogin.tsx (candidate, default messages)
+ * and EmployerOtpLogin.tsx (employer, own `messages` prop). Message content
+ * is the only thing that differs between the two; the rotation mechanics
+ * (interval, crossfade, pause, reduced-motion, dots) are shared so both
+ * portals stay in step rather than one drifting from the other via a fork.
  *
  * Deliberately restrained: a slow opacity crossfade every ROTATE_MS, never
  * continuous motion — something shifting in peripheral vision while someone
@@ -40,7 +49,7 @@ const ROTATE_MS = 7000;
  * rotation never starts at all (index stays 0 forever) rather than just
  * skipping the transition — a single static message, not a frozen carousel.
  */
-export default function AuthMessageRotator() {
+export default function AuthMessageRotator({ messages = CANDIDATE_MESSAGES }: Props) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -55,9 +64,9 @@ export default function AuthMessageRotator() {
 
   useEffect(() => {
     if (reducedMotion || paused) return;
-    const id = setInterval(() => setIndex((i) => (i + 1) % MESSAGES.length), ROTATE_MS);
+    const id = setInterval(() => setIndex((i) => (i + 1) % messages.length), ROTATE_MS);
     return () => clearInterval(id);
-  }, [reducedMotion, paused]);
+  }, [reducedMotion, paused, messages]);
 
   const activeIndex = reducedMotion ? 0 : index;
 
@@ -71,7 +80,7 @@ export default function AuthMessageRotator() {
     >
       <div className="auth-split-message-scrim" aria-hidden="true" />
       <div className="auth-split-message-stack">
-        {MESSAGES.map((m, i) => (
+        {messages.map((m, i) => (
           <div
             key={m.headline}
             className={i === activeIndex ? 'auth-split-message is-active' : 'auth-split-message'}
@@ -84,7 +93,7 @@ export default function AuthMessageRotator() {
       </div>
       {!reducedMotion && (
         <div className="auth-split-message-dots" aria-hidden="true">
-          {MESSAGES.map((m, i) => (
+          {messages.map((m, i) => (
             <span key={m.headline} className={i === activeIndex ? 'is-active' : ''} />
           ))}
         </div>
