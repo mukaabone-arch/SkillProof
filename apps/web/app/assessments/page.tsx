@@ -386,7 +386,42 @@ function LevelRow({ level, profileReady }: { level: CatalogLevel; profileReady: 
   );
 }
 
+/** EARNED and SUBSUMED are both "behind you, nothing to do here" states — the only two that get folded into the compact summary line. AVAILABLE (the "you are here" row) and LOCKED (what's ahead) always render in full, preserving the ladder's behind/ahead shape. */
+const BEHIND_STATES = new Set<LevelState>(['EARNED', 'SUBSUMED']);
+
+/**
+ * One line replacing every EARNED/SUBSUMED row in a skill card — a
+ * candidate holding L1+L2 doesn't need either row's full description and
+ * provenance just to see they're done; expanding reveals the exact same
+ * LevelRow markup (checkmark, verifiedBy, "covered by" text) this replaces,
+ * so nothing about earned badges' detail is actually lost, just deferred
+ * behind one click.
+ */
+function EarnedLevelsSummary({
+  levels,
+  expanded,
+  onToggle,
+}: {
+  levels: CatalogLevel[];
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const labels = levels.map((l) => l.level).join(', ');
+  // "complete" rather than "earned" — a SUBSUMED level (a grandfathered gap
+  // covered by a higher badge) has no badge of its own, so calling it
+  // "earned" would overclaim; "complete" is accurate for both states.
+  return (
+    <button type="button" className="assessment-earned-summary" onClick={onToggle} aria-expanded={expanded}>
+      ✓ {labels} complete — {expanded ? 'Hide details' : 'Show details'}
+    </button>
+  );
+}
+
 function SkillCard({ skill, profileReady }: { skill: CatalogSkill; profileReady: boolean }) {
+  const [showBehind, setShowBehind] = useState(false);
+  const behindLevels = skill.levels.filter((l) => BEHIND_STATES.has(l.state));
+  const aheadLevels = skill.levels.filter((l) => !BEHIND_STATES.has(l.state));
+
   return (
     <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
       <div style={{ marginBottom: 10 }}>
@@ -396,11 +431,76 @@ function SkillCard({ skill, profileReady }: { skill: CatalogSkill; profileReady:
           {skill.description && <div className="meta">{skill.description}</div>}
         </div>
       </div>
-      {skill.levels.map((level) => (
+      {behindLevels.length > 0 && (
+        <EarnedLevelsSummary levels={behindLevels} expanded={showBehind} onToggle={() => setShowBehind((v) => !v)} />
+      )}
+      {behindLevels.length > 0 && showBehind &&
+        behindLevels.map((level) => <LevelRow key={level.level} level={level} profileReady={profileReady} />)}
+      {aheadLevels.map((level) => (
         <LevelRow key={level.level} level={level} profileReady={profileReady} />
       ))}
     </div>
   );
+}
+
+/** A skill counts toward a category's "earned" summary count once it holds at least one badge, at any level. */
+function skillHasEarnedBadge(skill: CatalogSkill): boolean {
+  return skill.levels.some((l) => l.earned !== null);
+}
+
+/** Earned-or-in-progress: has a badge, or has ever started a (resumable/in-review/rejected) discussion session — the only "in progress" signal the catalog exposes, since MCQ tests grade synchronously and leave no persisted in-progress state. */
+function skillIsEarnedOrInProgress(skill: CatalogSkill): boolean {
+  return skill.levels.some((l) => l.earned !== null || l.discussion !== null);
+}
+
+function CategorySection({
+  domainName,
+  skills,
+  expanded,
+  onToggle,
+  profileReady,
+}: {
+  domainName: string;
+  skills: CatalogSkill[];
+  expanded: boolean;
+  onToggle: () => void;
+  profileReady: boolean;
+}) {
+  const earnedCount = skills.filter(skillHasEarnedBadge).length;
+  return (
+    <div className="assessment-category">
+      <button type="button" className="assessment-category-header" onClick={onToggle} aria-expanded={expanded}>
+        <span className="assessment-category-header-title">
+          <span className={`assessment-category-chevron${expanded ? ' is-open' : ''}`} aria-hidden="true">▸</span>
+          {domainName}
+        </span>
+        <span className="assessment-category-summary">
+          {skills.length} skill{skills.length === 1 ? '' : 's'} · {earnedCount} earned
+        </span>
+      </button>
+      {expanded && (
+        <div className="assessment-category-body">
+          {skills.map((skill) => (
+            <SkillCard key={skill.skillId} skill={skill} profileReady={profileReady} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Domain-grouped view of the catalog, preserving each domain's first-seen order in the catalog response — the API has no explicit domain ordering of its own to defer to instead. */
+function groupByDomain(skills: CatalogSkill[]): { domainName: string; skills: CatalogSkill[] }[] {
+  const order: string[] = [];
+  const byDomain = new Map<string, CatalogSkill[]>();
+  for (const skill of skills) {
+    if (!byDomain.has(skill.domainName)) {
+      byDomain.set(skill.domainName, []);
+      order.push(skill.domainName);
+    }
+    byDomain.get(skill.domainName)!.push(skill);
+  }
+  return order.map((domainName) => ({ domainName, skills: byDomain.get(domainName)! }));
 }
 
 function AssessmentsPageInner() {
@@ -417,6 +517,10 @@ function AssessmentsPageInner() {
     headline: string | null;
     yearsOfExp: number | null;
   } | null>(null);
+  // null = not yet decided. Computed once, synchronously during render (see
+  // below) rather than in an effect, so there's no visible flash of
+  // "everything expanded" before it narrows down.
+  const [expandedDomains, setExpandedDomains] = useState<Set<string> | null>(null);
 
   const load = useCallback(() => {
     api<CatalogSkill[]>('/assessments/catalog')
@@ -431,6 +535,34 @@ function AssessmentsPageInner() {
       .then(setProfile)
       .catch(() => undefined);
   }, [ready, load]);
+
+  const categories = groupByDomain(skills);
+
+  /**
+   * Sensible default, computed once the catalog first has data: with only a
+   * couple of categories there's nothing to gain from collapsing anything,
+   * so expand all of them. With more, expand only the ones holding a skill
+   * the candidate has earned or started — a returning candidate lands on
+   * their own progress, not a wall of collapsed headers. A brand-new
+   * candidate has nothing qualifying yet, so that would collapse
+   * *everything* on a first visit; falls back to expanding all instead.
+   */
+  if (expandedDomains === null && categories.length > 0) {
+    const withProgress = categories.filter((c) => c.skills.some(skillIsEarnedOrInProgress)).map((c) => c.domainName);
+    const initial = categories.length <= 3 || withProgress.length === 0
+      ? categories.map((c) => c.domainName)
+      : withProgress;
+    setExpandedDomains(new Set(initial));
+  }
+
+  function toggleDomain(domainName: string) {
+    setExpandedDomains((prev) => {
+      const next = new Set(prev ?? []);
+      if (next.has(domainName)) next.delete(domainName);
+      else next.add(domainName);
+      return next;
+    });
+  }
 
   if (!ready) return null;
 
@@ -503,8 +635,15 @@ function AssessmentsPageInner() {
           </p>
         )}
 
-        {skills.map((skill) => (
-          <SkillCard key={skill.skillId} skill={skill} profileReady={profileReady} />
+        {categories.map((cat) => (
+          <CategorySection
+            key={cat.domainName}
+            domainName={cat.domainName}
+            skills={cat.skills}
+            expanded={expandedDomains?.has(cat.domainName) ?? true}
+            onToggle={() => toggleDomain(cat.domainName)}
+            profileReady={profileReady}
+          />
         ))}
       </main>
     </>
