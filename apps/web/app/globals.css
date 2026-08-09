@@ -685,13 +685,12 @@ main.auth.auth-gradient {
    subtle grain film — every color reads a --brand-* token via color-mix, so
    it re-themes automatically if those tokens ever change, same discipline as
    the rest of this file.
-   EmployerOtpLogin.tsx still renders this with no children and
-   aria-hidden="true" — genuinely decorative there, nothing here is
-   constrained by text contrast on that page. OtpLogin.tsx (candidate only)
-   now layers AuthMessageRotator on top (see .auth-split-message-* below);
-   that component owns its own scrim + text-contrast guarantee rather than
-   this rule being tuned around text, so the *full* brand ramp here —
-   including the pale 50/200 steps — stays available to both pages. */
+   Both OtpLogin.tsx (candidate) and EmployerOtpLogin.tsx (employer) now
+   layer AuthMessageRotator on top, each with its own `messages` prop (see
+   .auth-split-message-* below) — that component owns its own scrim +
+   text-contrast guarantee rather than this rule being tuned around text,
+   so the *full* brand ramp here — including the pale 50/200 steps — stays
+   available to both pages regardless. */
 .auth-split-visual {
   position: relative;
   overflow: hidden;
@@ -716,8 +715,9 @@ main.auth.auth-gradient {
   mix-blend-mode: overlay;
   pointer-events: none;
 }
-/* AuthMessageRotator (OtpLogin.tsx only) — rotating value-prop copy over the
-   gradient above. Lower-third placement, generous margins on every side so
+/* AuthMessageRotator (OtpLogin.tsx and EmployerOtpLogin.tsx, each with its
+   own `messages` prop) — rotating value-prop copy over the gradient above.
+   Lower-third placement, generous margins on every side so
    text never runs edge-to-edge, and a from-the-bottom scrim so contrast
    holds regardless of exactly where the radial shapes above land at a given
    viewport width (rather than depending on picking one lucky spot in a
@@ -871,7 +871,9 @@ main.auth.auth-gradient {
    .appnav-links hide breakpoint elsewhere in this file, not a coincidence —
    same "not enough room to not look cramped" threshold reasoning. Below it,
    the band (140px/110px tall once the grid itself collapses at 860px) goes
-   back to purely decorative, same as it always was on the employer page. */
+   back to purely decorative — plain class selector, so this one rule
+   already covers both OtpLogin.tsx and EmployerOtpLogin.tsx without needing
+   a page-specific override. */
 @media (max-width: 1100px) {
   .auth-split-message-rotator { display: none; }
 }
