@@ -611,15 +611,18 @@ main.auth.auth-gradient {
      screen is wide. */
   grid-template-columns: minmax(0, 1fr) minmax(420px, 640px);
 }
-/* Purely decorative — aria-hidden in the markup, never carries text. Layered
-   radial "soft overlapping shapes" (first option offered) over a diagonal
-   base gradient, finished with a subtle grain film (third option's "with
-   subtle grain") — every color reads a --brand-* token via color-mix, so it
-   re-themes automatically if those tokens ever change, same discipline as
-   the rest of this file. Nothing here is constrained by text contrast (there
-   is none), unlike the old .auth-gradient, which is exactly why this side
-   can use the *full* brand ramp — including the pale 50/200 steps that were
-   off-limits before because white headline text had to sit on top of them. */
+/* Decorative gradient shared by both split-layout login pages. Layered radial
+   "soft overlapping shapes" over a diagonal base gradient, finished with a
+   subtle grain film — every color reads a --brand-* token via color-mix, so
+   it re-themes automatically if those tokens ever change, same discipline as
+   the rest of this file.
+   EmployerOtpLogin.tsx still renders this with no children and
+   aria-hidden="true" — genuinely decorative there, nothing here is
+   constrained by text contrast on that page. OtpLogin.tsx (candidate only)
+   now layers AuthMessageRotator on top (see .auth-split-message-* below);
+   that component owns its own scrim + text-contrast guarantee rather than
+   this rule being tuned around text, so the *full* brand ramp here —
+   including the pale 50/200 steps — stays available to both pages. */
 .auth-split-visual {
   position: relative;
   overflow: hidden;
@@ -643,6 +646,99 @@ main.auth.auth-gradient {
   opacity: 0.4;
   mix-blend-mode: overlay;
   pointer-events: none;
+}
+/* AuthMessageRotator (OtpLogin.tsx only) — rotating value-prop copy over the
+   gradient above. Lower-third placement, generous margins on every side so
+   text never runs edge-to-edge, and a from-the-bottom scrim so contrast
+   holds regardless of exactly where the radial shapes above land at a given
+   viewport width (rather than depending on picking one lucky spot in a
+   background that shifts with viewport size). Text sits in the same box on
+   every message (CSS grid stacking — every message shares grid-area 1/1) so
+   the crossfade never reflows the panel, and the container auto-sizes to
+   the tallest message so short ones don't leave a gap.
+   Measured, not eyeballed: rendered at 1280/1920/900/861px, screenshotted
+   the live .auth-split-visual element, decoded the actual pixels and
+   computed WCAG relative luminance per-pixel (see the PR description for
+   the sampling script). Without the scrim, the panel's own brightest spot
+   (the brand-400 radial highlight, upper-left) only reaches ~4.5:1 for the
+   support-line color at some widths — below the 4.5:1 AA floor, which is
+   exactly why a scrim is here rather than trusting the raw gradient. With
+   the scrim, the darkest/lightest points *within the text-bearing region*
+   across all four widths land in a narrow #0F101B..#1B1D2A band. Worst
+   case across every width tested:
+     headline #FFFFFF   vs darkest 18.5:1   vs lightest 16.7:1
+     support  #E4E4EE   vs darkest 14.6:1   vs lightest 13.2:1
+   Worst case overall (support line, 13.2:1) clears the 4.5:1 AA floor for
+   body text with wide margin, and clears the stricter 7:1 AAA floor too. */
+.auth-split-message-rotator {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0 64px 76px;
+}
+.auth-split-message-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(8, 9, 15, 0.88) 0%,
+    rgba(8, 9, 15, 0.72) 22%,
+    rgba(8, 9, 15, 0.32) 48%,
+    transparent 72%
+  );
+  pointer-events: none;
+}
+.auth-split-message-stack {
+  position: relative;
+  display: grid;
+  max-width: 480px;
+}
+.auth-split-message {
+  grid-area: 1 / 1;
+  opacity: 0;
+  transition: opacity 900ms ease;
+  pointer-events: none;
+}
+.auth-split-message.is-active {
+  opacity: 1;
+  pointer-events: auto;
+}
+.auth-split-message-headline {
+  font-family: var(--font-body); font-weight: 700;
+  font-size: clamp(1.35rem, 2.2vw, 1.85rem); line-height: 1.25;
+  color: #FFFFFF;
+  margin: 0 0 10px;
+}
+.auth-split-message-support {
+  font-size: 1rem; line-height: 1.55;
+  color: #E4E4EE;
+  max-width: 42ch;
+  margin: 0;
+}
+.auth-split-message-dots {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  margin-top: 22px;
+}
+.auth-split-message-dots span {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.32);
+  transition: background 500ms ease, transform 500ms ease;
+}
+.auth-split-message-dots span.is-active {
+  background: #FFFFFF;
+  transform: scale(1.35);
+}
+/* Belt-and-suspenders alongside AuthMessageRotator's own JS guard (which
+   never advances `index` under reduced motion, so is-active never moves off
+   message 0) — also kill the crossfade transition itself so no edge case
+   (e.g. a future code path) can animate opacity for these users. */
+@media (prefers-reduced-motion: reduce) {
+  .auth-split-message { transition: none; }
+  .auth-split-message-dots span { transition: none; }
 }
 .auth-split-panel {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -675,8 +771,8 @@ main.auth.auth-gradient {
 .auth-split-card .auth-divider-label { color: var(--ink-30); }
 @media (max-width: 860px) {
   /* Visual side collapses to a slim decorative band above the card rather
-     than disappearing outright — still never carries text, still never
-     competes with the card for a narrow screen's limited width.
+     than disappearing outright — still never competes with the card for a
+     narrow screen's limited width.
      minmax(0, 1fr), not a bare 1fr — a bare 1fr track's implicit minimum
      is its content's min-content size, not 0, so below ~421px viewport
      width the single column (and the card inside it) refused to shrink
@@ -694,6 +790,21 @@ main.auth.auth-gradient {
   .auth-split-visual { min-height: 110px; }
   .auth-split-panel { padding: 28px 18px; }
   .auth-split-card { padding: 26px 22px; }
+}
+/* AuthMessageRotator hides below 1100px rather than condensing — deliberately
+   a *higher* cutoff than the 860px collapse above. The desktop grid's second
+   column (.auth-split-panel, minmax(420px, 640px)) holds near its 640px max
+   even well above 860px, so the visual column it leaves behind keeps
+   shrinking the whole way down (measured: ~460px wide at 1100px total,
+   ~260px at 900px, ~220px at 861px) — comfortably wide enough to hide the
+   grain texture underneath, but not enough for a headline + support line +
+   the 64px side margins below without squeezing. 1100px matches the
+   .appnav-links hide breakpoint elsewhere in this file, not a coincidence —
+   same "not enough room to not look cramped" threshold reasoning. Below it,
+   the band (140px/110px tall once the grid itself collapses at 860px) goes
+   back to purely decorative, same as it always was on the employer page. */
+@media (max-width: 1100px) {
+  .auth-split-message-rotator { display: none; }
 }
 
 /* ---- assessment slice ---- */

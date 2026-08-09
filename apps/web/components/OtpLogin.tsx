@@ -23,6 +23,7 @@ import { api, setTokens } from '@/lib/api';
 import { startOAuthLogin } from '@/lib/oauth';
 import Logo from './Logo';
 import { GoogleIcon, GithubIcon } from './OAuthIcons';
+import AuthMessageRotator from './AuthMessageRotator';
 
 /** Matches AuthService's RESEND_COOLDOWN_MS (60s) — purely a UX countdown; the server enforces the real limit regardless. */
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -98,7 +99,9 @@ export default function OtpLogin({ onLoggedIn }: Props) {
 
   return (
     <main className="auth-split">
-      <div className="auth-split-visual" aria-hidden="true" />
+      <div className="auth-split-visual">
+        <AuthMessageRotator />
+      </div>
       <div className="auth-split-panel">
         <h1 className="auth-split-headline">Global AI Talent Hub</h1>
         <div className="auth-split-card">
