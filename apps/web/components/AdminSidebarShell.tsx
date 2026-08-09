@@ -263,6 +263,11 @@ export default function AdminSidebarShell({ onLoggedOut, children }: Props) {
               </div>
             );
           })}
+          {/* Duplicate of the topbar's own Log out button — CSS shows exactly
+              one of the two at any width (see .admin-sidebar-logout). */}
+          <button type="button" className="admin-sidebar-logout" onClick={handleLogout}>
+            Log out
+          </button>
         </nav>
         {mobileOpen && (
           <div

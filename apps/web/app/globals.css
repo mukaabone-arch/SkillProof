@@ -107,20 +107,18 @@
   --brand-green: var(--success);
 
   /* ---- Brand lockup size (logo mark + "SkillProof..." wordmark together) ----
-     Two sizes, both defined here once so neither can drift per-usage again —
-     see .brand-logo/.brand-logo-hero below, the only two places that read
-     these. --logo-size-hero/--logo-text-size-hero is THE reference size
-     (candidate login page, OtpLogin.tsx) — full audit and the concrete
-     evidence for why nav bars stay smaller is in this file's own comment on
-     .brand-logo below, not repeated here. Values unchanged from what each
-     context already rendered before these were pulled into named tokens —
-     this is a refactor for a single source of truth, not a visual change. */
-  --logo-size-nav: 30px;
-  --logo-size-nav-mobile: 24px;
+     One size, everywhere — .brand-logo and .brand-logo-hero both read these
+     same tokens now (see the shared rule below); there is no more nav-only
+     variant to drift out of sync with it. feat/nav-restructure-logo-size
+     removed the former --logo-size-nav/--logo-size-nav-mobile/
+     --logo-text-size-nav/--logo-text-size-nav-mobile — every nav/topbar
+     consumer (CandidateNav, AdminNav, PublicNav, EmployerSidebarShell,
+     AdminSidebarShell) restructured to fit this size instead (taller nav
+     rows, the wordmark hidden below a width where it and the logo can't
+     both fit — see .appnav-inner and .appnav-logo .brand-product-name
+     below for the specifics and the measured reasoning). */
   --logo-size-hero: 44px;
   --logo-size-hero-mobile: 36px;
-  --logo-text-size-nav: 1.05rem;
-  --logo-text-size-nav-mobile: 0.92rem;
   --logo-text-size-hero: 1.3rem;
 
   --card: #232532; /* cards/surfaces: Nocturne --color-surface — dark-theme fix, was white */
@@ -403,38 +401,49 @@ code { font-family: var(--font-body); }
    logo.svg already bakes in its own dark rounded panel — never re-wrap it in
    another background, just size it.
 
-   Two sizes — --logo-size-hero/--logo-size-nav above, THE single source of
-   truth for both — not an accidental drift between contexts. Audited (see
-   the feat/logo-size-standardization PR description for the full list):
-   every hero-context consumer (OtpLogin.tsx, EmployerOtpLogin.tsx,
-   OAuthCallback.tsx, EmployerInviteAccept.tsx) already used .brand-logo-hero
-   at the same size as this file's reference (the candidate login page);
-   every nav/sidebar-topbar consumer (CandidateNav, AdminNav, PublicNav,
-   EmployerSidebarShell, AdminSidebarShell) already used .brand-logo at the
-   same smaller size — zero drift within either group. The question was
-   whether nav could adopt the hero size instead of keeping its own: tested
-   by temporarily forcing every nav/topbar lockup to hero size and
-   screenshotting at 375px. It broke in three different ways: CandidateNav's
-   "Log out" button pushed fully off-screen (nav links + enlarged lockup no
-   longer fit `.appnav-inner`'s 64px-tall row); EmployerSidebarShell's
-   topbar clipped both the "SkillProof" text and the Log out button;
-   AdminSidebarShell's two-line "SkillProof / Admin" wordmark grew tall
-   enough to overflow the fixed 64px topbar height. Nav keeps its own
-   (smaller) size for exactly that reason — not because nobody thought to
-   unify it. */
-.brand-logo { height: var(--logo-size-nav); width: auto; display: block; }
-.brand-logo-hero { height: var(--logo-size-hero); width: auto; display: block; }
-.brand-product-name { font-family: var(--font-display); font-weight: 700; font-size: var(--logo-text-size-nav); letter-spacing: -0.01em; color: var(--ink); }
+   One size, everywhere (feat/nav-restructure-logo-size) — .brand-logo and
+   .brand-logo-hero are now the same rule reading the same tokens; there is
+   no more nav-scale variant for either to drift from. An earlier pass
+   (feat/logo-size-standardization) tried this and reverted nav back to a
+   smaller size instead, after forcing the hero size onto every nav/topbar
+   lockup broke three layouts at 375px: CandidateNav's "Log out" button
+   pushed fully off-screen, EmployerSidebarShell's topbar clipped both the
+   wordmark and Log out, and AdminSidebarShell's two-line wordmark
+   overflowed the fixed 64px topbar height. This pass fixes the nav
+   surfaces themselves instead of shrinking the logo back down:
+     - Nav/topbar rows are taller (76px, up from 64px — see .appnav-inner /
+       .employer-topbar / .admin-topbar) so the 44px mark fits with real
+       margin instead of nearly filling the row.
+     - The "SkillProof…" wordmark hides below 640px in nav/topbar contexts
+       specifically (.appnav-logo .brand-product-name below) — measured via
+       Playwright against the actual rendered logo (255px wide at 44px
+       tall, 209px at the 36px mobile-hero size — this mark is a wide
+       lockup, not a compact icon): even with the wordmark already hidden,
+       logo + Log out is a near-exact fit at 320px, so logo + wordmark +
+       Log out was never going to fit below several hundred px more of
+       width. The logo itself never shrinks to make room — only the
+       wordmark next to it does, and only in nav contexts; hero contexts
+       (.brand-lockup-hero) always show it, at any width.
+     - EmployerSidebarShell/AdminSidebarShell additionally move "Log out"
+       into the off-canvas drawer below that same width, freeing the
+       topbar of everything except the hamburger trigger and the lockup —
+       see those two components' own comments. */
+.brand-logo, .brand-logo-hero { height: var(--logo-size-hero); width: auto; display: block; }
+.brand-product-name { font-family: var(--font-display); font-weight: 700; font-size: var(--logo-text-size-hero); letter-spacing: -0.01em; color: var(--ink); }
 .brand-lockup-hero { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
-.brand-lockup-hero .brand-product-name { font-size: var(--logo-text-size-hero); }
 .app-footer-credit { text-align: center; font-size: 0.78rem; color: var(--ink-30); margin-top: 40px; }
 @media (max-width: 480px) {
-  .brand-logo { height: var(--logo-size-nav-mobile); }
-  .brand-logo-hero { height: var(--logo-size-hero-mobile); }
-  /* Nav-only in practice — .brand-lockup-hero .brand-product-name's higher
-     specificity keeps hero text at --logo-text-size-hero even here; see
-     that rule above. Pre-existing behavior, unchanged by this pass. */
-  .brand-product-name { font-size: var(--logo-text-size-nav-mobile); }
+  .brand-logo, .brand-logo-hero { height: var(--logo-size-hero-mobile); }
+}
+/* Nav/topbar-only — .appnav-logo is the wrapping <Link> class shared by all
+   five nav/topbar consumers (CandidateNav, AdminNav, PublicNav both use it
+   directly; EmployerSidebarShell/AdminSidebarShell's topbar brand link also
+   uses it, despite the rest of those two shells having their own class
+   namespace — see their own comments on why). .brand-lockup-hero, the hero
+   wrapper, is never matched by this selector, so hero contexts keep their
+   wordmark at every width unconditionally. */
+@media (max-width: 640px) {
+  .appnav-logo .brand-product-name { display: none; }
 }
 
 /* ---- auth pages only (OTP login/signup) — never applied to app pages ----
@@ -828,7 +837,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .list-page-sidebar {
   min-width: 0;
   position: sticky;
-  top: calc(64px + var(--space-6));
+  top: calc(76px + var(--space-6));
 }
 @media (max-width: 900px) {
   .list-page-columns { grid-template-columns: 1fr; gap: var(--space-6); }
@@ -862,7 +871,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
    app/layout.tsx / components/Providers.tsx, neither wraps children in an
    extra element) — so this tracks whatever tier each page actually uses
    with no prop-threading between page components and the nav. */
-.appnav-inner { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); height: 64px; max-width: 880px; margin: 0 auto; padding: 0 24px; }
+.appnav-inner { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); height: 76px; max-width: 880px; margin: 0 auto; padding: 0 24px; }
 body:has(main.container-reading) .appnav-inner,
 body:has(main.container-standard) .appnav-inner,
 body:has(main.container-wide) .appnav-inner {
@@ -882,12 +891,34 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
 @media (max-width: 900px) {
   body:has(main.container-wide) .appnav-inner { width: min(100% - (var(--container-gutter) * 2), var(--container-reading)); }
 }
+/* The 44px lockup (wordmark already hidden below 640px — see the branding
+   section) plus Log out is a near-exact fit at 320px with the standard
+   24px gutter/gap; below ~350px it isn't. Tightened here rather than by
+   shrinking the logo or the button. */
+@media (max-width: 350px) {
+  .appnav-inner { padding-left: 4px; padding-right: 4px; gap: 8px; }
+  body:has(main.container-reading) .appnav-inner,
+  body:has(main.container-standard) .appnav-inner,
+  body:has(main.container-wide) .appnav-inner {
+    width: calc(100% - 8px);
+  }
+}
 .appnav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
 .appnav-logo:hover { text-decoration: none; }
 .appnav-links { display: flex; gap: 24px; align-items: center; }
 .appnav-links a { font-size: 0.9rem; font-weight: 500; color: var(--ink-60); text-decoration: none; }
 .appnav-links a:hover { color: var(--ink); text-decoration: none; }
 .appnav-links a.active { color: var(--indigo); }
+/* Moved here from the unrelated dashboard-hub 720px block below (still has
+   its own rules there — this one just doesn't belong bundled with them)
+   and raised from 720px: measured (Playwright, CandidateNav — the one
+   .appnav consumer with enough links + the Upgrade link to matter) at
+   ~1038-1080px of natural content width once the lockup moved to the
+   hero size, so 720px was already letting the row overflow well before
+   links actually had room; 1100px carries real margin above that. */
+@media (max-width: 1100px) {
+  .appnav-links a:not(.appnav-logout-link) { display: none; }
+}
 .appnav-logout { background: transparent !important; color: var(--ink-60) !important; font-size: 0.85rem; padding: 8px 14px !important; border: 1px solid var(--ink-12) !important; white-space: nowrap; }
 .appnav-logout:hover { color: var(--ink) !important; transform: none !important; }
 
@@ -902,7 +933,7 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
    other app section. */
 .employer-shell { display: flex; flex-direction: column; min-height: 100vh; }
 .employer-topbar {
-  position: sticky; top: 0; z-index: 50; height: 64px; flex-shrink: 0;
+  position: sticky; top: 0; z-index: 50; height: 76px; flex-shrink: 0;
   display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-5);
   background: rgba(22, 24, 38, 0.85); backdrop-filter: blur(10px); border-bottom: 1px solid var(--ink-12);
 }
@@ -926,6 +957,16 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
 .employer-sidebar a.active { color: var(--ink); background: color-mix(in srgb, var(--brand-600) 22%, var(--card)); }
 .employer-content { flex: 1; min-width: 0; }
 .employer-sidebar-scrim { display: none; }
+/* Duplicate of the topbar's own Log out — hidden here by default (desktop
+   only shows the topbar one, via margin-left:auto). Below 480px the two
+   swap: see that breakpoint below for why (the topbar can no longer fit
+   hamburger + 44px logo + Log out at that width, wordmark already hidden
+   or not — moving Log out into the already-open-able drawer, rather than
+   shrinking it or the logo, is the same "follow the existing off-canvas
+   pattern" move this whole restructure leans on elsewhere). */
+.employer-sidebar-logout {
+  display: none;
+}
 
 /* Below this width the sidebar becomes an off-canvas drawer opened by the
    hamburger toggle in the topbar, rather than the fixed 220px rail above —
@@ -937,15 +978,33 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
 @media (max-width: 860px) {
   .employer-nav-toggle { display: flex; }
   .employer-sidebar {
-    position: fixed; top: 64px; bottom: 0; left: 0; z-index: 60; width: 260px;
+    position: fixed; top: 76px; bottom: 0; left: 0; z-index: 60; width: 260px;
     transform: translateX(-100%); transition: transform 0.18s ease;
     box-shadow: 4px 0 16px rgba(0, 0, 0, 0.35); overflow-y: auto;
   }
   .employer-sidebar.is-open { transform: translateX(0); }
   .employer-sidebar-scrim {
-    display: block; position: fixed; inset: 64px 0 0 0; z-index: 55;
+    display: block; position: fixed; inset: 76px 0 0 0; z-index: 55;
     background: rgba(0, 0, 0, 0.5);
   }
+}
+/* hamburger(32) + gap + the 44px-tall logo mark alone (~209px at this
+   width's mobile-hero size, measured — see the branding section's own
+   comment) already leaves no room left for a topbar Log out button below
+   this width, wordmark or no wordmark. The drawer already exists and is
+   already reachable via the hamburger at this width (see the 860px block
+   above) — Log out moves inside it instead of the topbar swapping to an
+   icon-only button or the logo shrinking. */
+@media (max-width: 480px) {
+  .employer-topbar .appnav-logout { display: none; }
+  .employer-sidebar-logout {
+    display: block; width: 100%; text-align: left;
+    padding: 10px 14px; margin-top: var(--space-3); border-top: 1px solid var(--ink-12);
+    font-size: 0.92rem; font-weight: 500; color: var(--ink-60);
+    background: transparent; border-left: none; border-right: none; border-bottom: none; border-radius: 0;
+    cursor: pointer;
+  }
+  .employer-sidebar-logout:hover { color: var(--ink); background: color-mix(in srgb, var(--brand-600) 12%, var(--card)); }
 }
 
 /* ---- admin console: sidebar shell ----
@@ -961,7 +1020,7 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
    omitted outright. */
 .admin-shell { display: flex; flex-direction: column; min-height: 100vh; }
 .admin-topbar {
-  position: sticky; top: 0; z-index: 50; height: 64px; flex-shrink: 0;
+  position: sticky; top: 0; z-index: 50; height: 76px; flex-shrink: 0;
   display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-5);
   background: rgba(22, 24, 38, 0.85); backdrop-filter: blur(10px); border-bottom: 1px solid var(--ink-12);
 }
@@ -1024,19 +1083,37 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
 }
 .admin-content { flex: 1; min-width: 0; }
 .admin-sidebar-scrim { display: none; }
+/* Mirrors .employer-sidebar-logout above — see that rule's own comment. */
+.admin-sidebar-logout {
+  display: none;
+}
 
 @media (max-width: 860px) {
   .admin-nav-toggle { display: flex; }
   .admin-sidebar {
-    position: fixed; top: 64px; bottom: 0; left: 0; z-index: 60; width: 260px;
+    position: fixed; top: 76px; bottom: 0; left: 0; z-index: 60; width: 260px;
     transform: translateX(-100%); transition: transform 0.18s ease;
     box-shadow: 4px 0 16px rgba(0, 0, 0, 0.35); overflow-y: auto;
   }
   .admin-sidebar.is-open { transform: translateX(0); }
   .admin-sidebar-scrim {
-    display: block; position: fixed; inset: 64px 0 0 0; z-index: 55;
+    display: block; position: fixed; inset: 76px 0 0 0; z-index: 55;
     background: rgba(0, 0, 0, 0.5);
   }
+}
+/* Mirrors the employer shell's own 480px block above — see its comment for
+   the measured reasoning (hamburger + 44px logo alone leaves no room for a
+   topbar Log out below this width). */
+@media (max-width: 480px) {
+  .admin-topbar .appnav-logout { display: none; }
+  .admin-sidebar-logout {
+    display: block; width: 100%; text-align: left;
+    padding: 10px 14px; margin-top: var(--space-3); border-top: 1px solid var(--ink-12);
+    font-size: 0.92rem; font-weight: 500; color: var(--ink-60);
+    background: transparent; border-left: none; border-right: none; border-bottom: none; border-radius: 0;
+    cursor: pointer;
+  }
+  .admin-sidebar-logout:hover { color: var(--ink); background: color-mix(in srgb, var(--brand-600) 12%, var(--card)); }
 }
 
 /* ---- segmented journey progress (candidate dashboard) ----
@@ -1273,7 +1350,6 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
   .status-grid { grid-template-columns: 1fr; }
   .copilot-panel { padding: var(--space-5); }
   .copilot-message { font-size: 1.25rem; }
-  .appnav-links a:not(.appnav-logout-link) { display: none; }
 }
 
 /* ---- journey feature strip (dashboard footer band) ----

@@ -76,6 +76,11 @@ export default function EmployerSidebarShell({ onLoggedOut, children }: Props) {
               </Link>
             );
           })}
+          {/* Duplicate of the topbar's own Log out button — CSS shows exactly
+              one of the two at any width (see .employer-sidebar-logout). */}
+          <button type="button" className="employer-sidebar-logout" onClick={handleLogout}>
+            Log out
+          </button>
         </nav>
         {mobileOpen && (
           <div
