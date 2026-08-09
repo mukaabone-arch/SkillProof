@@ -6,9 +6,11 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
+  Length,
   Max,
   MaxLength,
   Min,
@@ -29,10 +31,56 @@ export class CreateJobDto {
   @IsEnum(EmploymentType)
   employmentType: EmploymentType;
 
+  /**
+   * Structured city selection from GET /locations/search — sent together
+   * as one unit whenever the employer picks a suggestion from the
+   * dropdown. locationCountry is ISO 3166-1 alpha-2 (e.g. "US"), never a
+   * display name — see LocationSuggestion's own doc comment.
+   */
   @IsOptional()
   @IsString()
-  @MaxLength(160)
-  location?: string;
+  @MaxLength(120)
+  locationCity?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  locationRegion?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(2, 2)
+  locationCountry?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  locationPlaceId?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  locationLat?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  locationLng?: number;
+
+  /**
+   * Free text — written when the city dropdown is unusable (the search
+   * service failed) or from an AI job-description-parse suggestion, both
+   * of which can only ever produce unstructured text. Never populated by
+   * a real dropdown selection; that always sends the structured fields
+   * above instead. See Job.locationLegacy's own doc comment for why this
+   * is never silently dropped either way.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  locationLegacy?: string;
 
   @IsOptional()
   @IsBoolean()
@@ -83,8 +131,40 @@ export class UpdateJobDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(160)
-  location?: string;
+  @MaxLength(120)
+  locationCity?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  locationRegion?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(2, 2)
+  locationCountry?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  locationPlaceId?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  locationLat?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  locationLng?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  locationLegacy?: string;
 
   @IsOptional()
   @IsBoolean()

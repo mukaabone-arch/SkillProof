@@ -4,7 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../llm/llm.service';
 import { PLANS } from '../../config/plans.config';
 import { EntitlementsService } from '../entitlements/entitlements.service';
-import { formatCandidateLocation } from '../profiles/location-format.util';
+import { formatLocation } from '../locations/location-format.util';
 import { candidateVisibilityFilter } from '../account/account.util';
 import { CandidateSkillClaim, JobSkillRequirement, compareByMatchRank, scoreCandidate } from './scoring';
 
@@ -100,10 +100,10 @@ export class MatchingService {
         profileId: profile.id,
         fullName: profile.fullName,
         headline: profile.headline,
-        // Display only, not matching input — formatCandidateLocation just
-        // keeps this in sync with the structured-location migration; score
+        // Display only, not matching input — formatLocation just keeps
+        // this in sync with the structured-location migration; score
         // above is computed entirely from scoreCandidate, untouched here.
-        location: formatCandidateLocation(profile),
+        location: formatLocation(profile),
         yearsOfExp: profile.yearsOfExp,
         score: result.score,
         matched: result.matched

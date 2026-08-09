@@ -982,21 +982,44 @@ model ProfileView {
 // ---------- Job postings (employer side, step 3b) ----------
 
 model Job {
-  id             String         @id @default(uuid())
-  orgId          String
-  organization   Organization   @relation(fields: [orgId], references: [id])
-  title          String
-  description    String
-  employmentType EmploymentType
-  location       String?
-  remote         Boolean        @default(false)
-  experienceMin  Int?
-  experienceMax  Int?
-  salaryMin      Int?
-  salaryMax      Int?
-  status         JobStatus      @default(DRAFT)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id              String         @id @default(uuid())
+  orgId           String
+  organization    Organization   @relation(fields: [orgId], references: [id])
+  title           String
+  description     String
+  employmentType  EmploymentType
+  /**
+   * Structured city selection from GET /locations/search (Google Places
+   * Autocomplete — see LocationSearchService), same shape as
+   * CandidateProfile's location fields so matching/display compares like
+   * with like. locationCity is the presence signal ("has this job been
+   * given a structured location yet"). ISO 3166-1 alpha-2 for
+   * locationCountry (e.g. "US", "IN") — never a full country name.
+   */
+  locationCity    String?
+  locationRegion  String?
+  locationCountry String?
+  locationPlaceId String?
+  locationLat     Float?
+  locationLng     Float?
+  /**
+   * Pre-migration free-text location value — never silently dropped (see
+   * the add_structured_job_location migration's backfill). Jobs whose
+   * employer hasn't re-selected a city from the new dropdown yet still
+   * show this as their current location; formatLocation shows it only
+   * when locationCity is unset. Read-only from the client's point of view
+   * going forward — new saves always populate the structured fields
+   * above, never this column.
+   */
+  locationLegacy  String?
+  remote          Boolean        @default(false)
+  experienceMin   Int?
+  experienceMax   Int?
+  salaryMin       Int?
+  salaryMax       Int?
+  status          JobStatus      @default(DRAFT)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   skills           JobSkill[]
   applications     Application[]

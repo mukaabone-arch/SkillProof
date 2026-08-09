@@ -7,7 +7,7 @@ import { LlmService } from '../../llm/llm.service';
 import { EmployerCandidateAccessService } from '../access/employer-candidate-access.service';
 import { GenerateResumeDto, UpdateProfileDto } from './profiles.dto';
 import { buildResumePdf, VerifiedSkillEntry } from './resume-pdf.builder';
-import { formatCandidateLocation } from './location-format.util';
+import { formatLocation } from '../locations/location-format.util';
 import { UPLOAD_DIR } from '../../config/upload-dir';
 
 /** JwtAuthGuard's decoded token shape — just enough to decide viewer authorization. */
@@ -133,7 +133,7 @@ export class ProfilesService {
     return buildResumePdf({
       fullName: profile.fullName || 'SkillProof Candidate',
       headline: profile.headline,
-      location: formatCandidateLocation(profile),
+      location: formatLocation(profile),
       yearsOfExp: profile.yearsOfExp,
       githubUrl: profile.githubUrl,
       linkedinUrl: profile.linkedinUrl,

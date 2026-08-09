@@ -4,7 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { ProfileViewsService } from '../profile-views/profile-views.service';
 import { assertCandidateAvailableForPipeline } from '../account/account.util';
 import { AddShortlistEntryDto, UpdateShortlistEntryDto } from './shortlist.dto';
-import { formatCandidateLocation } from '../profiles/location-format.util';
+import { formatLocation } from '../locations/location-format.util';
 
 const shortlistEntryInclude = {
   candidateProfile: {
@@ -116,7 +116,7 @@ export class ShortlistService {
       headline: entry.candidateProfile.headline,
       roleTitle: entry.candidateProfile.roleTitle,
       roleTitleOther: entry.candidateProfile.roleTitleOther,
-      location: formatCandidateLocation(entry.candidateProfile),
+      location: formatLocation(entry.candidateProfile),
       yearsOfExp: entry.candidateProfile.yearsOfExp,
       githubUrl: entry.candidateProfile.githubUrl,
       linkedinUrl: entry.candidateProfile.linkedinUrl,

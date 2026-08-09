@@ -13,6 +13,7 @@ import { employerApi, downloadBlob } from '@/lib/api';
 import { Badge } from '@/components/ui';
 import ShortlistButton from './ShortlistButton';
 import ApplicantCard, { type ApplicantCardData } from './ApplicantCard';
+import { LocationAutocomplete, LocationSuggestion } from './LocationAutocomplete';
 
 const { api, apiBlob } = employerApi;
 
@@ -41,7 +42,21 @@ interface Job {
   title: string;
   description: string;
   employmentType: string;
-  location: string | null;
+  /**
+   * Structured city selection from GET /locations/search — non-null once
+   * the job has had a city re-selected from the dropdown; locationCity is
+   * the presence signal (see jobLocationDisplay below). ISO 3166-1
+   * alpha-2 for locationCountry (e.g. "US"), never a display name.
+   */
+  locationCity: string | null;
+  locationRegion: string | null;
+  locationCountry: string | null;
+  locationPlaceId: string | null;
+  locationLat: number | null;
+  locationLng: number | null;
+  /** Pre-migration free-text value — never dropped. Shown as the current
+   * location until locationCity is set; see jobLocationDisplay. */
+  locationLegacy: string | null;
   remote: boolean;
   experienceMin: number | null;
   experienceMax: number | null;
@@ -52,6 +67,12 @@ interface Job {
 }
 
 /** GET /jobs already returns every scalar Job column (no `select`, only `include: { skills }`) — description/salary were just never read by the frontend before Edit needed to prefill a form with them. */
+
+/** Structured-preferred display string, same precedence as the API's own formatLocation — never invented independently. */
+function jobLocationDisplay(j: Pick<Job, 'locationCity' | 'locationRegion' | 'locationCountry' | 'locationLegacy'>): string {
+  if (j.locationCity) return [j.locationCity, j.locationRegion, j.locationCountry].filter(Boolean).join(', ');
+  return j.locationLegacy ?? '';
+}
 
 const JOB_STATUS_BADGE: Record<JobStatus, { label: string; variant: 'default' | 'verified' | 'neutral' }> = {
   DRAFT: { label: 'Draft', variant: 'default' },
@@ -77,7 +98,18 @@ interface JobForm {
   title: string;
   description: string;
   employmentType: string;
-  location: string;
+  /** What's shown/typed in the location field — a formatted selection, the
+   * legacy free-text value, or whatever the employer is currently typing. */
+  locationText: string;
+  /** Non-null only when the employer picked a suggestion from the dropdown
+   * this session — that's what tells saveJob() to write the structured
+   * fields instead of locationLegacy. Typing (without picking) clears this
+   * back to null, same as a failed search falling back to free text. */
+  locationStructured: LocationSuggestion | null;
+  /** From the server at load — true means this job already has a
+   * structured city on file, so the "re-select from the dropdown" prompt
+   * never needs to show regardless of what's typed afterward. */
+  hasStructuredLocationOnServer: boolean;
   remote: boolean;
   experienceMin: string;
   experienceMax: string;
@@ -138,7 +170,9 @@ const emptyForm: JobForm = {
   title: '',
   description: '',
   employmentType: 'FULL_TIME',
-  location: '',
+  locationText: '',
+  locationStructured: null,
+  hasStructuredLocationOnServer: false,
   remote: false,
   experienceMin: '',
   experienceMax: '',
@@ -240,7 +274,9 @@ export default function EmployerJobs() {
       title: job.title,
       description: job.description,
       employmentType: job.employmentType,
-      location: job.location ?? '',
+      locationText: jobLocationDisplay(job),
+      locationStructured: null,
+      hasStructuredLocationOnServer: job.locationCity !== null,
       remote: job.remote,
       experienceMin: job.experienceMin !== null ? String(job.experienceMin) : '',
       experienceMax: job.experienceMax !== null ? String(job.experienceMax) : '',
@@ -435,10 +471,24 @@ export default function EmployerJobs() {
         title: form.title,
         description: form.description,
         employmentType: form.employmentType,
-        location: form.location || undefined,
         remote: form.remote,
         status: form.status,
       };
+      if (form.locationStructured) {
+        // A real dropdown pick this session — write the structured fields,
+        // never locationLegacy.
+        body.locationCity = form.locationStructured.city;
+        body.locationRegion = form.locationStructured.region || undefined;
+        body.locationCountry = form.locationStructured.country;
+        body.locationPlaceId = form.locationStructured.placeId;
+        body.locationLat = form.locationStructured.lat ?? undefined;
+        body.locationLng = form.locationStructured.lng ?? undefined;
+      } else {
+        // No structured pick this session (search failed, AI-parsed text,
+        // or the employer just hasn't re-selected yet) — free text, never
+        // dropped.
+        body.locationLegacy = form.locationText || undefined;
+      }
       if (form.experienceMin !== '') body.experienceMin = Number(form.experienceMin);
       if (form.experienceMax !== '') body.experienceMax = Number(form.experienceMax);
       if (form.salaryMin !== '') body.salaryMin = Number(form.salaryMin);
@@ -524,12 +574,28 @@ export default function EmployerJobs() {
 
           <div className="field">
             <label htmlFor="location">Location</label>
-            <input
+            <LocationAutocomplete
               id="location"
-              value={form.location}
-              onChange={(e) => setForm({ ...form, location: e.target.value })}
-              maxLength={160}
+              value={form.locationText}
+              onChangeText={(text) =>
+                setForm((f) => ({ ...f, locationText: text, locationStructured: null }))
+              }
+              onSelect={(s) =>
+                setForm((f) => ({
+                  ...f,
+                  locationText: [s.city, s.region, s.country].filter(Boolean).join(', '),
+                  locationStructured: s,
+                }))
+              }
+              placeholder="Start typing a city…"
+              apiFetch={api}
             />
+            {!form.hasStructuredLocationOnServer && !form.locationStructured && form.locationText && (
+              <p className="meta" style={{ margin: 0 }}>
+                This is the previously entered location — pick it from the dropdown above to make
+                it official and keep it consistent with candidate locations for matching.
+              </p>
+            )}
           </div>
 
           <label className="row" style={{ alignItems: 'center' }}>
@@ -646,7 +712,7 @@ export default function EmployerJobs() {
             <Badge variant={JOB_STATUS_BADGE[j.status].variant}>{JOB_STATUS_BADGE[j.status].label}</Badge>
           </div>
           <div className="meta">
-            {j.employmentType.replace('_', ' ')} · {j.remote ? 'Remote' : j.location || 'Location not set'}
+            {j.employmentType.replace('_', ' ')} · {j.remote ? 'Remote' : jobLocationDisplay(j) || 'Location not set'}
             {(j.experienceMin !== null || j.experienceMax !== null) &&
               ` · ${j.experienceMin ?? 0}–${j.experienceMax ?? '∞'} yrs`}
           </div>

@@ -4,7 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { ProfileViewsService } from '../profile-views/profile-views.service';
 import { candidateVisibilityFilter } from '../account/account.util';
 import { SearchCandidatesDto } from './candidates.dto';
-import { formatCandidateLocation } from '../profiles/location-format.util';
+import { formatLocation } from '../locations/location-format.util';
 
 const LEVEL_ORDER: SkillLevel[] = [SkillLevel.L1, SkillLevel.L2, SkillLevel.L3, SkillLevel.L4];
 
@@ -134,7 +134,7 @@ export class CandidatesService {
       headline: p.headline,
       roleTitle: p.roleTitle,
       roleTitleOther: p.roleTitleOther,
-      location: formatCandidateLocation(p),
+      location: formatLocation(p),
       yearsOfExp: p.yearsOfExp,
       verifiedSkills: p.skillClaims
         .filter((c) => c.badge) // only issued badges are linkable; should always be true for VERIFIED

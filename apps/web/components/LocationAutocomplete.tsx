@@ -27,17 +27,26 @@ interface Props {
   id: string;
   /** Current display text — a formatted "City, Region, Country" after a
    * selection, the pre-migration legacy string, or whatever free text the
-   * candidate is currently typing. Fully controlled by the parent. */
+   * candidate/employer is currently typing. Fully controlled by the parent. */
   value: string;
   onChangeText: (text: string) => void;
   onSelect: (suggestion: LocationSuggestion) => void;
   placeholder?: string;
+  /**
+   * Overrides which authenticated api client's Authorization token is sent
+   * with GET /locations/search — defaults to the candidate portal's `api`
+   * (`sp_token`). Every other portal (e.g. employer's `employerApi.api`,
+   * `sp_emp_token`) MUST pass its own client here: the candidate client's
+   * token isn't set at all in an employer-only session, and GET
+   * /locations/search would 401 without this.
+   */
+  apiFetch?: typeof api;
 }
 
 const DEBOUNCE_MS = 300;
 const MIN_QUERY_LENGTH = 2;
 
-export function LocationAutocomplete({ id, value, onChangeText, onSelect, placeholder }: Props) {
+export function LocationAutocomplete({ id, value, onChangeText, onSelect, placeholder, apiFetch = api }: Props) {
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [serviceDown, setServiceDown] = useState(false);
@@ -65,7 +74,7 @@ export function LocationAutocomplete({ id, value, onChangeText, onSelect, placeh
 
     debounceRef.current = setTimeout(async () => {
       try {
-        const results = await api<LocationSuggestion[]>(`/locations/search?q=${encodeURIComponent(query)}`);
+        const results = await apiFetch<LocationSuggestion[]>(`/locations/search?q=${encodeURIComponent(query)}`);
         setSuggestions(results);
         setOpen(results.length > 0);
         setServiceDown(false);

@@ -14,6 +14,7 @@ import { renderNotificationEmail } from '../notifications/notification-email.tem
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
 import { BrowseJobsDto } from './candidate-jobs.dto';
 import { isProfileReadyToApply } from '../profiles/profile-readiness';
+import { formatLocation } from '../locations/location-format.util';
 
 /**
  * One-line flip once assessment coverage across the taxonomy is sufficient
@@ -36,7 +37,10 @@ const JOB_LIST_SELECT = {
   id: true,
   title: true,
   employmentType: true,
-  location: true,
+  locationCity: true,
+  locationRegion: true,
+  locationCountry: true,
+  locationLegacy: true,
   remote: true,
   experienceMin: true,
   experienceMax: true,
@@ -73,7 +77,20 @@ export class CandidateJobsService {
     const { skillId, location, remote, limit, offset } = dto;
     const where: Prisma.JobWhereInput = {
       status: JobStatus.LIVE,
-      ...(location ? { location: { contains: location, mode: 'insensitive' } } : {}),
+      // Structured fields replaced the old free-text `location` column
+      // (see add_structured_job_location) — search across both, since
+      // jobs an employer hasn't re-selected a city for still only have
+      // locationLegacy populated.
+      ...(location
+        ? {
+            OR: [
+              { locationCity: { contains: location, mode: 'insensitive' } },
+              { locationRegion: { contains: location, mode: 'insensitive' } },
+              { locationCountry: { contains: location, mode: 'insensitive' } },
+              { locationLegacy: { contains: location, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
       ...(remote !== undefined ? { remote } : {}),
       ...(skillId ? { skills: { some: { skillId } } } : {}),
     };
@@ -349,7 +366,7 @@ export class CandidateJobsService {
       title: job.title,
       orgName: job.organization.name,
       employmentType: job.employmentType,
-      location: job.location,
+      location: formatLocation(job),
       remote: job.remote,
       experienceMin: job.experienceMin,
       experienceMax: job.experienceMax,

@@ -89,7 +89,7 @@ async function main() {
         title: record.title,
         description,
         employmentType: toEmploymentType(record.employmentType),
-        location: record.location,
+        locationLegacy: record.location,
         remote: isRemote(record.location),
         status: 'LIVE',
       },

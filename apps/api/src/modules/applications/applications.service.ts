@@ -5,6 +5,7 @@ import { WEB_BASE_URL } from '../../config/web-base-url';
 import { NotificationsService } from '../notifications/notifications.service';
 import { renderNotificationEmail } from '../notifications/notification-email.template';
 import { ProfileViewsService } from '../profile-views/profile-views.service';
+import { formatLocation } from '../locations/location-format.util';
 
 @Injectable()
 export class ApplicationsService {
@@ -27,7 +28,10 @@ export class ApplicationsService {
             id: true,
             title: true,
             employmentType: true,
-            location: true,
+            locationCity: true,
+            locationRegion: true,
+            locationCountry: true,
+            locationLegacy: true,
             remote: true,
             organization: { select: { name: true } },
           },
@@ -44,7 +48,7 @@ export class ApplicationsService {
         title: a.job.title,
         orgName: a.job.organization.name,
         employmentType: a.job.employmentType,
-        location: a.job.location,
+        location: formatLocation(a.job),
         remote: a.job.remote,
       },
     }));
