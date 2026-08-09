@@ -233,6 +233,75 @@ main.container-wide     { width: min(100% - (var(--container-gutter) * 2), var(-
   main.container-wide { width: min(100% - (var(--container-gutter) * 2), var(--container-reading)); }
 }
 
+/* ---- employer sidebar shell: narrowed content (Job Postings / Find
+   Candidates / Applicants only) ----
+   Page-level class, applied directly on each page's own <main> in place of
+   its container-tier class (app/employer/jobs/page.tsx,
+   app/employer/candidates/page.tsx, EmployerApplicants.tsx) — NOT a change
+   to EmployerSidebarShell.tsx or .employer-content. Dashboard, Shortlist
+   and Settings keep main.container-wide/-standard exactly as before and
+   are structurally untouched by this rule; there's no shared selector for
+   it to leak through.
+
+   The tier system above doesn't fit this job and isn't reused directly:
+   its `min(100% - small-gutter, cap)` shape is built for full-viewport
+   pages, where the 24px gutter is just an edge inset and the cap rarely
+   binds — at the sidebar-shell's typical widths (.employer-content is the
+   viewport minus the 220px rail, so ~1000-1400px on a 1280-1600px laptop)
+   both existing caps sit *above* that available width, so the formula
+   just resolves to ~100% of it. That's the "stretches nearly full width"
+   bug this class exists to fix. It also has no lower floor at all — by
+   design, since a full-viewport page has nothing beside it to protect
+   against. This class needs both a percentage term and a real floor, so
+   it's its own formula rather than a fourth tier bolted onto the same
+   shape. It does reuse two of the tier system's actual tokens, though,
+   rather than inventing new numbers: --container-standard (1200px, "the
+   default shape... comfortable on a laptop") as the ceiling, and
+   --container-reading (720px, "long lines hurt readability past this") as
+   the floor — both already mean exactly what's needed here.
+   width: clamp(min(var(--container-reading), 100%), 75%, var(--container-standard))
+     - 75% of .employer-content (the space beside the sidebar) is the
+       preferred value — percentages on <main> resolve against its
+       containing block, which here is .employer-content, not the
+       viewport, so this is already scoped to "beside the sidebar" for
+       free.
+     - Floor wrapped in min(720px, 100%): a bare 720px floor would
+       overflow .employer-content once available space drops below it
+       (happens just above the 860px sidebar-collapse point — e.g. 640px
+       available at 861px viewport). min(..., 100%) means the floor can
+       never ask for more than the container actually has; between ~960px
+       and ~1180px viewport it holds content at a comfortable 720px
+       instead of squeezing to a bare 75%, and below that it degrades to
+       exactly 100% (no overflow) rather than an artificial narrower
+       number.
+     - Ceiling 1200px stops growth on very wide monitors — 75% alone would
+       keep climbing forever (1754px at a 2560px viewport), which is the
+       same "uncomfortably wide form fields" problem this class exists to
+       fix, just at the top end instead of full width.
+   Measured effect at the three widths this feature targets (220px sidebar
+   + 1px border, so available = viewport - 221):
+     1280px viewport -> 1059px available -> 75% = 794px  (floor/ceiling inactive)
+     1600px viewport -> 1379px available -> 75% = 1034px (floor/ceiling inactive)
+     1920px viewport -> 1699px available -> 75% = 1274px -> ceiling caps at 1200px
+   margin: 0 auto (inherited from the base `main` rule, untouched) centers
+   the box with equal space on both sides in every case above. */
+main.employer-content-narrow {
+  max-width: none;
+  padding-left: 0;
+  padding-right: 0;
+  width: clamp(min(var(--container-reading), 100%), 75%, var(--container-standard));
+}
+/* Below the sidebar's own collapse point (.employer-sidebar's 860px
+   breakpoint) the rail becomes an off-canvas drawer and .employer-content
+   is the full viewport again — this class goes fully inert there rather
+   than keeping any percentage/floor/ceiling math, so mobile is pixel-for-
+   pixel what a plain container-wide page already looks like at this width
+   (both formulas resolve to the same ~100% - 2*gutter once neither cap
+   binds, which is always true this far down). */
+@media (max-width: 860px) {
+  main.employer-content-narrow { width: min(100% - (var(--container-gutter) * 2), var(--container-wide)); }
+}
+
 /* main.hub is now typography-only (see main.hub h1/h2 below) — its width
    is delegated to main.container-standard, added alongside it on the
    pages that use it (Dashboard, /resume), rather than duplicated here. */

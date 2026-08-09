@@ -6,7 +6,7 @@ import EmployerJobs from '@/components/EmployerJobs';
 
 export default function EmployerJobsPage() {
   return (
-    <main className="container-wide">
+    <main className="employer-content-narrow">
       <h1>Job Postings</h1>
       <Suspense fallback={<p className="meta">Loading…</p>}>
         <EmployerJobs />

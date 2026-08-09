@@ -97,7 +97,7 @@ export default function EmployerApplicants() {
   }
 
   return (
-    <main className="container-wide">
+    <main className="employer-content-narrow">
       <h1>Applicants</h1>
       <p>Every applicant across all your job postings, most recent first.</p>
 
