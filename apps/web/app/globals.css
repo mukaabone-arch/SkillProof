@@ -667,8 +667,17 @@ main.auth.auth-gradient {
 @media (max-width: 860px) {
   /* Visual side collapses to a slim decorative band above the card rather
      than disappearing outright — still never carries text, still never
-     competes with the card for a narrow screen's limited width. */
-  .auth-split { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+     competes with the card for a narrow screen's limited width.
+     minmax(0, 1fr), not a bare 1fr — a bare 1fr track's implicit minimum
+     is its content's min-content size, not 0, so below ~421px viewport
+     width the single column (and the card inside it) refused to shrink
+     any further and overflowed instead, cutting off part of the card
+     (confirmed via computed styles: gridTemplateColumns stayed pinned at
+     ~421px — coincidentally close to the desktop column's own
+     minmax(420px, 640px) floor — regardless of actual viewport width).
+     The *desktop* rule's first column already uses minmax(0, 1fr) for
+     exactly this reason; this mobile override just needed the same fix. */
+  .auth-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
   .auth-split-visual { min-height: 140px; }
   .auth-split-panel { padding: 40px 24px; }
 }
