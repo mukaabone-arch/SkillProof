@@ -507,8 +507,22 @@ export default function EmployerShortlist() {
                     <button className="btn-secondary" onClick={() => setInviteFormId(null)}>Cancel</button>
                   </div>
                 </div>
-              ) : (
+              ) : rejectFormId === e.id ? (
+                // Reject form (rendered below, shared with every other stage) is
+                // about to take the whole width below this button — leave Invite
+                // on its own line rather than cramming it into a row with a form.
                 <button onClick={() => { setInviteFormId(e.id); setInviteMessageDraft(''); }}>Invite to interview</button>
+              ) : (
+                // Both are bare trigger buttons with nothing between them, so
+                // without an explicit row they'd sit flush against each other
+                // (inline-block default, no implicit gap) — same fix as the
+                // Shortlisted/Remove pair above.
+                <div className="row" style={{ margin: 0 }}>
+                  <button onClick={() => { setInviteFormId(e.id); setInviteMessageDraft(''); }}>Invite to interview</button>
+                  <button className="btn-danger" onClick={() => { setRejectFormId(e.id); setRejectReasonDraft(''); }}>
+                    Reject
+                  </button>
+                </div>
               )
             )}
 
@@ -669,13 +683,18 @@ export default function EmployerShortlist() {
                   </div>
                 </div>
               ) : (
-                <button
-                  className="btn-danger"
-                  style={{ marginTop: 8 }}
-                  onClick={() => { setRejectFormId(e.id); setRejectReasonDraft(''); }}
-                >
-                  Reject
-                </button>
+                // SHORTLISTED's bare trigger button is rendered above instead,
+                // paired with Invite to interview in a shared row — rendering it
+                // here too would duplicate the button.
+                e.stage !== 'SHORTLISTED' && (
+                  <button
+                    className="btn-danger"
+                    style={{ marginTop: 8 }}
+                    onClick={() => { setRejectFormId(e.id); setRejectReasonDraft(''); }}
+                  >
+                    Reject
+                  </button>
+                )
               )
             )}
           </div>
