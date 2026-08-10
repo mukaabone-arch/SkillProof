@@ -2000,3 +2000,255 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 @media (max-width: 640px) {
   .resume-options { flex-direction: column; }
 }
+
+/* ============================================================================
+   Marketing landing page (/landing) — scoped `.lp-*` namespace
+   ----------------------------------------------------------------------------
+   Its own chrome, deliberately apart from the app (PublicNav/CandidateNav).
+   Reuses the Nocturne tokens, the Logo component and the bundled fonts only.
+   backdrop-filter lives on exactly one element here (.lp-header) — it sits
+   over the hero photo, so it earns the blur the login card gave up once it
+   stopped sitting over a busy background; it is not spread anywhere else.
+   ============================================================================ */
+/* Full-bleed: defeat the base `main` rule (max-width:640/padding) — landing
+   sections span the viewport and manage their own width via .lp-container. */
+main.lp-page { max-width: none; margin: 0; padding: 0; }
+.lp-page { background: var(--gray-50); color: var(--ink); }
+/* Smooth in-page anchor scrolling, scoped to this page only via :has, and
+   disabled under reduced-motion. */
+html:has(.lp-page) { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html:has(.lp-page) { scroll-behavior: auto; } }
+.lp-container { width: min(100% - 48px, 1200px); margin: 0 auto; }
+
+/* ---- Glass header (fixed over the hero) ---- */
+.lp-header {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  /* Translucent so the photo shows through (~22% at rest); a dark tint (not a
+     light one) because the links are near-white — over the bright left of the
+     photo, --ink text on this tint clears ~7.5:1 worst-case (pure-white pixel
+     under it). backdrop blur is the glassmorphism, scoped to this element. */
+  background: rgba(18, 20, 32, 0.78);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+/* More opaque once scrolled off the hero onto the darker sections, so the
+   links never lose contrast as the backdrop behind them changes. */
+.lp-header.is-scrolled {
+  background: rgba(18, 20, 32, 0.94);
+  border-bottom-color: rgba(255, 255, 255, 0.12);
+}
+/* No backdrop-filter support (older mobile WebViews): near-opaque instead of
+   a see-through tint, since there's no blur to obscure the photo behind it. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .lp-header { background: rgba(18, 20, 32, 0.95); }
+}
+.lp-header-inner {
+  position: relative;
+  width: min(100% - 48px, 1200px); margin: 0 auto; height: 72px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.lp-brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; }
+.lp-brand .brand-product-name { color: var(--ink); }
+.lp-nav { display: flex; align-items: center; gap: 28px; }
+.lp-nav-link {
+  color: var(--ink); text-decoration: none;
+  font-family: var(--font-body); font-size: 0.95rem; font-weight: 500; opacity: 0.92;
+}
+.lp-nav-link:hover { opacity: 1; text-decoration: underline; }
+.lp-menu-btn {
+  display: none; background: transparent; border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: var(--radius-sm); color: #fff; width: 42px; height: 42px;
+  align-items: center; justify-content: center; cursor: pointer;
+}
+.lp-menu-icon { font-size: 1.1rem; line-height: 1; }
+
+/* ---- Hero ---- */
+.lp-hero {
+  position: relative; display: flex; align-items: center; overflow: hidden;
+  min-height: 90vh; padding: 148px 0 96px;
+  /* Drop the office photo at public/hero-office.jpg. If absent, the scrim
+     simply falls onto the dark page bg — still legible, never broken. */
+  background-image: url('/hero-office.jpg');
+  background-size: cover; background-position: center right; background-repeat: no-repeat;
+}
+/* Scrim — the whole reason white text is legible on a light photo.
+   MOBILE-FIRST base: heavy and fairly uniform (min 0.80) because the hero
+   text spans most of a narrow viewport, so every part of the text region
+   stays dark. Worst case (a PURE-WHITE photo pixel, i.e. the brightest the
+   image could be) the text sits on ~rgb(59,61,65): #fff headline ≈ 11.0:1,
+   --gray-600 sub-line ≈ 7.4:1 — both comfortably above AA (4.5:1) and AAA
+   (7:1). A vertical layer fades the very bottom into the page bg so the hero
+   joins the sections with no seam. Real warm-neutral pixels are darker than
+   pure white, so these are conservative lower bounds — re-verify once the
+   real hero-office.jpg is in place. */
+.lp-hero-scrim {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(90deg,
+      rgba(10, 12, 18, 0.97) 0%,
+      rgba(10, 12, 18, 0.90) 50%,
+      rgba(10, 12, 18, 0.80) 100%),
+    linear-gradient(180deg,
+      rgba(10, 12, 18, 0.30) 0%, rgba(10, 12, 18, 0) 26%,
+      rgba(10, 12, 18, 0) 72%, var(--gray-50) 100%);
+}
+.lp-hero-inner { position: relative; z-index: 1; }
+.lp-hero-inner > * { max-width: 620px; }
+.lp-eyebrow {
+  font-family: var(--font-body); text-transform: uppercase; letter-spacing: 0.1em;
+  font-size: 0.75rem; font-weight: 600; color: var(--brand-400); margin-bottom: 18px;
+}
+.lp-hero-title {
+  font-family: var(--font-display); font-weight: 700; color: #fff;
+  font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 1.05; letter-spacing: -0.03em;
+  margin-bottom: 20px;
+}
+.lp-hero-sub {
+  font-family: var(--font-body); color: var(--gray-600);
+  font-size: 1.12rem; line-height: 1.55; max-width: 52ch; margin-bottom: 8px;
+}
+.lp-hero-ctas { display: flex; flex-wrap: wrap; gap: 22px; margin-top: 30px; }
+.lp-cta-block { display: flex; flex-direction: column; gap: 8px; max-width: 260px; }
+.lp-cta-caption { color: rgba(255, 255, 255, 0.85); font-size: 0.85rem; line-height: 1.4; }
+
+/* ---- Buttons ---- */
+.lp-btn {
+  display: inline-flex; align-items: center; justify-content: center; align-self: flex-start;
+  font-family: var(--font-body); font-weight: 600; font-size: 1rem;
+  padding: 13px 26px; border-radius: var(--radius-md); text-decoration: none; cursor: pointer;
+  transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.lp-btn-primary { background: var(--brand-600); color: #fff; border: 1.5px solid var(--brand-600); }
+.lp-btn-primary:hover { background: var(--brand-800); border-color: var(--brand-800); color: var(--gray-50); transform: translateY(-1px); }
+.lp-btn-secondary { background: rgba(255, 255, 255, 0.06); color: #fff; border: 1.5px solid rgba(255, 255, 255, 0.5); }
+.lp-btn-secondary:hover { background: rgba(255, 255, 255, 0.14); border-color: #fff; transform: translateY(-1px); }
+
+/* ---- Sections ---- */
+.lp-section { padding: 88px 0; scroll-margin-top: 88px; }
+.lp-section-alt { background: color-mix(in srgb, var(--card) 60%, var(--gray-50)); }
+.lp-section-eyebrow {
+  font-family: var(--font-body); text-transform: uppercase; letter-spacing: 0.1em;
+  font-size: 0.72rem; font-weight: 600; color: var(--brand-400); margin-bottom: 12px;
+}
+.lp-section-title {
+  font-family: var(--font-display); font-weight: 700; color: var(--ink);
+  font-size: clamp(1.7rem, 3.4vw, 2.4rem); line-height: 1.12; letter-spacing: -0.02em;
+  max-width: 24ch; margin-bottom: 40px;
+}
+
+/* ---- Card grids (capabilities, employers) ---- */
+.lp-card-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+.lp-card-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.lp-card { background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-lg); padding: 28px 26px; }
+.lp-card-title { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; color: var(--ink); letter-spacing: -0.01em; margin-bottom: 10px; }
+.lp-card-body { color: var(--ink-60); font-size: 0.96rem; line-height: 1.55; }
+
+/* ---- Steps (how verification works) ---- */
+.lp-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.lp-step { background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-lg); padding: 28px 26px; }
+.lp-step-num {
+  font-family: var(--font-body); font-weight: 600; font-size: 0.72rem; letter-spacing: 0.06em;
+  color: var(--brand-400); background: color-mix(in srgb, var(--brand-600) 24%, transparent);
+  padding: 4px 10px; border-radius: var(--radius-sm); display: inline-block; margin-bottom: 16px;
+}
+.lp-step-title { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; color: var(--ink); letter-spacing: -0.01em; margin-bottom: 10px; }
+.lp-step-body { color: var(--ink-60); font-size: 0.96rem; line-height: 1.55; }
+.lp-inline-cta { margin-top: 36px; }
+
+/* ---- Prose (About / Contact) + placeholder tag ---- */
+.lp-prose-body { color: var(--ink-60); font-size: 1.05rem; line-height: 1.6; max-width: 62ch; }
+.lp-prose-body strong { color: var(--ink); }
+.lp-placeholder-tag {
+  display: inline-block; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--warning);
+  border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
+  border-radius: var(--radius-full); padding: 2px 9px; margin-right: 8px;
+}
+
+/* ---- FAQ (native <details>) ---- */
+.lp-faq { display: grid; gap: 12px; max-width: 760px; }
+.lp-faq-item { background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-md); padding: 0 20px; }
+.lp-faq-q {
+  font-family: var(--font-display); font-weight: 600; font-size: 1.02rem; color: var(--ink);
+  cursor: pointer; padding: 16px 0; list-style: none; display: flex; justify-content: space-between; gap: 16px; align-items: center;
+}
+.lp-faq-q::-webkit-details-marker { display: none; }
+.lp-faq-q::after { content: '+'; color: var(--brand-400); font-size: 1.3rem; line-height: 1; }
+.lp-faq-item[open] .lp-faq-q::after { content: '\2212'; }
+.lp-faq-a { color: var(--ink-60); font-size: 0.96rem; line-height: 1.55; padding: 0 0 18px; }
+
+/* ---- Footer ---- */
+.lp-footer { border-top: 1px solid var(--ink-12); padding: 48px 0; background: var(--gray-50); }
+.lp-footer-inner { display: flex; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
+.lp-footer-brand .brand-product-name { color: var(--ink); }
+.lp-footer-company { color: var(--ink); font-weight: 600; margin-top: 8px; }
+.lp-footer-copy { color: var(--ink-30); font-size: 0.8rem; margin-top: 4px; }
+.lp-footer-links { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+.lp-footer-links a { color: var(--ink-60); text-decoration: none; font-size: 0.9rem; }
+.lp-footer-links a:hover { color: var(--ink); text-decoration: underline; }
+
+/* ---- Legal stub pages (/privacy, /terms) ---- */
+.legal-stub {
+  max-width: 560px; text-align: center; min-height: 72vh;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+}
+.legal-stub-brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; margin-bottom: 20px; }
+.legal-stub-brand .brand-product-name { color: var(--ink); }
+.legal-stub-title { font-family: var(--font-display); font-weight: 700; font-size: 1.8rem; color: var(--ink); margin-bottom: 6px; }
+.legal-stub-badge {
+  display: inline-block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--warning); border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
+  border-radius: var(--radius-full); padding: 3px 12px; margin-bottom: 16px;
+}
+.legal-stub-body { color: var(--ink-60); font-size: 1rem; line-height: 1.6; max-width: 46ch; }
+.legal-stub-body a { color: var(--brand-400); }
+.legal-stub-company { color: var(--ink-30); font-size: 0.85rem; margin-top: 24px; }
+
+/* ---- Landing: desktop scrim (text is a left column, so the right of the
+   photo can show through more) ---- */
+@media (min-width: 1024px) {
+  .lp-hero-scrim {
+    background:
+      linear-gradient(90deg,
+        rgba(10, 12, 18, 0.97) 0%,
+        rgba(10, 12, 18, 0.90) 44%,
+        rgba(10, 12, 18, 0.58) 66%,
+        rgba(10, 12, 18, 0.12) 100%),
+      linear-gradient(180deg,
+        rgba(10, 12, 18, 0.30) 0%, rgba(10, 12, 18, 0) 26%,
+        rgba(10, 12, 18, 0) 72%, var(--gray-50) 100%);
+  }
+}
+
+/* ---- Landing: collapse header links into a menu below the lockup budget
+   (the ~278px lockup + 3 links won't fit a tablet/phone) ---- */
+@media (max-width: 860px) {
+  .lp-menu-btn { display: inline-flex; }
+  .lp-nav {
+    position: absolute; top: calc(100% + 1px); right: 0; left: 0;
+    flex-direction: column; align-items: stretch; gap: 0;
+    background: rgba(18, 20, 32, 0.97);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 6px 0; display: none;
+  }
+  .lp-nav.is-open { display: flex; }
+  .lp-nav-link { padding: 14px 24px; opacity: 1; }
+}
+
+/* ---- Landing: tablet/grid collapse ---- */
+@media (max-width: 900px) {
+  .lp-card-grid, .lp-card-grid-3, .lp-steps { grid-template-columns: 1fr 1fr; }
+}
+
+/* ---- Landing: phone ---- */
+@media (max-width: 640px) {
+  .lp-hero { min-height: auto; padding: 116px 0 64px; }
+  .lp-hero-inner > * { max-width: none; }
+  .lp-card-grid, .lp-card-grid-3, .lp-steps { grid-template-columns: 1fr; }
+  .lp-hero-ctas { flex-direction: column; gap: 24px; }
+  .lp-cta-block { max-width: none; }
+  .lp-section { padding: 64px 0; }
+  .lp-footer-inner { flex-direction: column; gap: 24px; }
+}
