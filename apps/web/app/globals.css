@@ -499,7 +499,48 @@ code { font-family: var(--font-body); }
        see those two components' own comments. */
 .brand-logo, .brand-logo-hero { height: var(--logo-size-hero); width: auto; display: block; }
 .brand-product-name { font-family: var(--font-display); font-weight: 700; font-size: var(--logo-text-size-hero); letter-spacing: -0.01em; color: var(--ink); }
-.brand-lockup-hero { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+.brand-lockup-hero { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 20px; }
+/* Without flex-wrap, the logo and wordmark are forced onto one line
+   sharing .brand-lockup-hero's fixed width (the card's inner content
+   box). Under ordinary single-line flexbox rules, both children default
+   to flex-shrink:1, so whenever their combined natural width exceeds the
+   row's available width, the browser shrinks BOTH — including the logo,
+   an SVG with only a viewBox (no width/height attributes), whose
+   intrinsic aspect ratio (380:60) means a narrower assigned box doesn't
+   just crop it, it re-triggers preserveAspectRatio's default "meet"
+   scaling and shrinks the *visible artwork* below the nominal 44px
+   height, even though the CSS height itself stays 44px.
+   Measured before this fix, at 1280px (natural width at 44px height =
+   44 * 380/60 = 278.67px):
+     OtpLogin (single-word "SkillProof")            255.08px (~8% short)
+     EmployerOtpLogin ("SkillProof for Employers",
+       wraps to two lines within its box)            189.48px (~32% short)
+   Both were already short of natural size — just far more on the employer
+   card, since its longer wordmark demands more of the row's fixed width,
+   leaving less for the logo once flex-shrink distributes the deficit.
+
+   flex-shrink: 0 (below) pins the logo to its full natural size
+   unconditionally. That alone isn't sufficient, though: "SkillProof" is
+   one unbreakable word (~97px min-content at this font), and forcing the
+   wordmark to stay on the logo's line would mean the *word itself* has to
+   either overflow past its box (invisible at 1280px, where enough card
+   padding absorbed the ~24px spillover before hitting a hard edge — but
+   clipped hard at 375px, where the same math left no room and the text
+   ran off the viewport) or break mid-word (technically no overflow, but
+   "SkillPr" / "oof" split across two lines is not an acceptable look).
+   flex-wrap: wrap on the row sidesteps both: when the wordmark doesn't
+   fit beside the already-full-size logo, it drops to its own new line
+   below the logo — at full width there, comfortably fitting even
+   "SkillProof for Employers" on one or two whole-word lines — rather
+   than either child being squeezed. Row gap is `8px 14px` (row-gap
+   column-gap) so the two wrapped lines get sensible vertical spacing too,
+   not just the horizontal gap that only mattered for the single-line
+   case. Scoped to .brand-lockup-hero specifically (the four hero-card
+   consumers: OtpLogin/EmployerOtpLogin/OAuthCallback/
+   EmployerInviteAccept) — nav/topbar lockups already solve their own
+   width pressure by hiding the wordmark outright below 640px (see this
+   rule's own comment above) and never faced this failure mode. */
+.brand-lockup-hero .brand-logo-hero { flex-shrink: 0; }
 .app-footer-credit { text-align: center; font-size: 0.78rem; color: var(--ink-30); margin-top: 40px; }
 @media (max-width: 480px) {
   .brand-logo, .brand-logo-hero { height: var(--logo-size-hero-mobile); }
