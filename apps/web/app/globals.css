@@ -2237,16 +2237,27 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .legal-stub-body a { color: var(--brand-400); }
 .legal-stub-company { color: var(--ink-30); font-size: 0.85rem; margin-top: 24px; }
 
-/* ---- Landing: desktop scrim (text is a left column, so the right of the
-   photo can show through more) ---- */
+/* ---- Landing: desktop scrim ----
+   The text is a left column ending ~51% across (the 1200px container centers,
+   so that edge is stable at ~51% for 1280/1600/1920). The photo, right-
+   anchored, puts the bright empty wall on the left, the laptop ~40-63%, the
+   woman's face ~63-74% and the man ~80-100%. So the scrim stays DENSE through
+   the text (≈0.83 at the 51% edge — where #fff headline measures 12.2:1 and
+   the --gray-600 sub-line 8.2:1 over a worst-case pure-white pixel, both
+   above the earlier ~10.9/~7.3 floors and well past AAA), then FALLS OFF FAST
+   (0.82 → 0.20 between 52% and 60%), clearing to ~0.10 by ~63% so the figures
+   and laptop render at close to the photo's natural brightness rather than a
+   flat dim. Contrast stays scrim-dominated in the text region, independent of
+   the pixels behind it. */
 @media (min-width: 1024px) {
   .lp-hero-scrim {
     background:
       linear-gradient(90deg,
         rgba(10, 12, 18, 0.97) 0%,
         rgba(10, 12, 18, 0.90) 44%,
-        rgba(10, 12, 18, 0.58) 66%,
-        rgba(10, 12, 18, 0.12) 100%),
+        rgba(10, 12, 18, 0.82) 52%,
+        rgba(10, 12, 18, 0.20) 60%,
+        rgba(10, 12, 18, 0) 68%),
       linear-gradient(180deg,
         rgba(10, 12, 18, 0.30) 0%, rgba(10, 12, 18, 0) 26%,
         rgba(10, 12, 18, 0) 72%, var(--gray-50) 100%);
