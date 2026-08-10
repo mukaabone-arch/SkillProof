@@ -7,6 +7,28 @@ import { SKILL_LEVEL as DISCUSSION_LEVEL, SKILL_NAME as DISCUSSION_SKILL_NAME } 
 export const LEVEL_ORDER: SkillLevel[] = [SkillLevel.L1, SkillLevel.L2, SkillLevel.L3, SkillLevel.L4];
 
 /**
+ * Standard credential validity window — both issuance paths
+ * (AssessmentsService.issueBadge, ReviewService.issueBadge) call this
+ * exclusively rather than each computing their own date, so they can't
+ * drift out of sync again (they previously both hardcoded the same
+ * `* 1000 * 60 * 60 * 24 * 365 * 1.5` 18-month literal independently).
+ * setFullYear rather than a fixed millisecond offset, so leap years land on
+ * the correct calendar date a year out instead of being ~6 hours short/long
+ * over four cycles.
+ *
+ * Existing badges issued before this shipped keep whatever expiresAt they
+ * already have (still computed at their original 18-month rate) —
+ * deliberately not backfilled/shortened. This function only ever runs at
+ * the moment a *new* badge is minted.
+ */
+export const BADGE_VALIDITY_YEARS = 1;
+export function badgeExpiresAt(issuedAt: Date = new Date()): Date {
+  const d = new Date(issuedAt);
+  d.setFullYear(d.getFullYear() + BADGE_VALIDITY_YEARS);
+  return d;
+}
+
+/**
  * Per-level unlock status for strict sequential leveling: a candidate may
  * only attempt the one level immediately after their highest earned level
  * in a skill. Computed over a skill's own *offered* levels (see
@@ -66,6 +88,19 @@ const VERIFICATION_PRECEDENCE: Record<BadgeVerificationMethod, number> = {
  * and every read path that needs "the candidate's current standing for
  * skill X" (the assessments catalog, SkillClaim sync) goes through this
  * service — the comparison itself must never be reimplemented per surface.
+ *
+ * Expiry (Badge.expiresAt) is enforced here too, not layered on top:
+ * resolveLevelMap silently excludes anything past its expiresAt, the same
+ * way it silently excludes anything revoked — an expired badge must not
+ * count as held anywhere, but the row itself is never touched (expiry is
+ * not deletion; see resolveLevelMapWithExpired for callers that need the
+ * historical record). Every consumer elsewhere in the codebase that reads
+ * SkillClaim.status directly (matching, employer search, the apply-gate,
+ * applicant views — see the badge-expiry feature's own audit for the full
+ * list) depends on that status staying accurate over time, not just at
+ * mint — see syncSkillClaim's own doc comment and BadgeExpirySweepService
+ * for how that's kept true even when a badge lapses with no new activity
+ * to naturally re-trigger a sync.
  */
 @Injectable()
 export class BadgeResolverService {
@@ -81,13 +116,48 @@ export class BadgeResolverService {
   }
 
   /**
-   * All non-revoked badges a user holds for one skill, grouped by level and
-   * collapsed to the single strongest badge per level via pickBest. Levels
-   * with no non-revoked badge at all are simply absent from the result.
+   * All non-revoked, non-expired badges a user holds for one skill, grouped
+   * by level and collapsed to the single strongest badge per level via
+   * pickBest. Levels with nothing currently valid are simply absent from
+   * the result — an expired badge must not count as held anywhere this
+   * feeds (assertLevelAvailable, the catalog's EARNED/SUBSUMED states,
+   * syncSkillClaim, the employer-triggered assessment's already-badged
+   * short-circuit), but the row itself is never touched — expiry is not
+   * deletion. Use resolveLevelMapWithExpired instead if a caller
+   * specifically needs historical "you held this until X" context (the
+   * catalog does, to show an expired badge honestly rather than rendering
+   * it identically to "never attempted").
    */
   async resolveLevelMap(userId: string, skillId: string): Promise<Partial<Record<SkillLevel, Badge>>> {
+    return this.resolveLevelMapInternal(userId, skillId, { includeExpired: false });
+  }
+
+  /**
+   * Same shape and precedence rules as resolveLevelMap, but including
+   * badges that have already expired (still excludes revoked ones — a
+   * revoked badge's evidence was invalidated, not just time-lapsed, so it
+   * should never resurface anywhere, including history). Never use this
+   * for anything that decides whether a level counts as currently held —
+   * that's resolveLevelMap's job. This exists solely so a caller can show
+   * "you earned this, it has since expired" instead of silently reverting
+   * to a bare "never attempted" state once time passes.
+   */
+  async resolveLevelMapWithExpired(userId: string, skillId: string): Promise<Partial<Record<SkillLevel, Badge>>> {
+    return this.resolveLevelMapInternal(userId, skillId, { includeExpired: true });
+  }
+
+  private async resolveLevelMapInternal(
+    userId: string,
+    skillId: string,
+    opts: { includeExpired: boolean },
+  ): Promise<Partial<Record<SkillLevel, Badge>>> {
     const badges = await this.prisma.badge.findMany({
-      where: { userId, skillId, revokedAt: null },
+      where: {
+        userId,
+        skillId,
+        revokedAt: null,
+        ...(opts.includeExpired ? {} : { expiresAt: { gt: new Date() } }),
+      },
     });
 
     const byLevel = new Map<SkillLevel, Badge[]>();
@@ -170,18 +240,38 @@ export class BadgeResolverService {
   }
 
   /**
-   * Recomputes and upserts SkillClaim after a new Badge is minted — the
-   * only place SkillClaim.level/badgeId are ever written. Both mint paths
-   * call this instead of upserting to whatever was just issued, so a later
+   * Recomputes SkillClaim from the current resolver state — the only place
+   * SkillClaim.status/level/badgeId are ever written. Two callers: both
+   * mint paths (a new Badge just issued), and BadgeExpirySweepService (time
+   * passed with no new activity, and the badge backing an existing claim
+   * has since expired). Never upserts to whatever was just issued — always
+   * re-resolves from every non-revoked badge this user holds, so a later
    * weaker proof (by level or by verification method) can never overwrite a
    * stronger one this resolver would still pick.
+   *
+   * When nothing currently resolves (every badge for this skill is revoked
+   * or expired), demotes an existing VERIFIED claim to EXPIRED rather than
+   * leaving it frozen at its last state — level/badgeId are deliberately
+   * left untouched (still pointing at the last-held badge/level), so a
+   * consumer reading the claim directly still has enough context to say
+   * "was L2, until it expired" rather than just "not verified." Never
+   * *creates* a claim here: a claim only ever comes into existence backed
+   * by a real currently-valid badge (the branch below).
    */
   async syncSkillClaim(userId: string, skillId: string): Promise<void> {
     const profile = await this.prisma.candidateProfile.findUnique({ where: { userId } });
     if (!profile) return;
 
     const current = await this.resolveCurrentClaim(userId, skillId);
-    if (!current) return;
+    if (!current) {
+      const existing = await this.prisma.skillClaim.findUnique({
+        where: { profileId_skillId: { profileId: profile.id, skillId } },
+      });
+      if (existing && existing.status !== ClaimStatus.EXPIRED) {
+        await this.prisma.skillClaim.update({ where: { id: existing.id }, data: { status: ClaimStatus.EXPIRED } });
+      }
+      return;
+    }
 
     await this.prisma.skillClaim.upsert({
       where: { profileId_skillId: { profileId: profile.id, skillId } },

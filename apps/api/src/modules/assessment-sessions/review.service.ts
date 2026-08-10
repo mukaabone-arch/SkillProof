@@ -13,7 +13,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { Span } from './scoring.service';
 import { CLAIM_ORDER, SKILL_LEVEL, SKILL_NAME } from './rag-systems-l2.rubric';
-import { BadgeResolverService } from '../badges/badge-resolver.service';
+import { badgeExpiresAt, BadgeResolverService } from '../badges/badge-resolver.service';
 
 /**
  * Distance on the quality scale, used only for the "two-band-disagreement
@@ -400,8 +400,8 @@ export class ReviewService {
 
   /**
    * Mirrors AssessmentsService.issueBadge (MCQ path) field-for-field — same
-   * verifyHash generation, same 18-month expiry policy — just keyed by
-   * sessionId instead of attemptId and verifiedBy DISCUSSION instead of
+   * verifyHash generation, same badgeExpiresAt validity policy — just keyed
+   * by sessionId instead of attemptId and verifiedBy DISCUSSION instead of
    * TEST. SkillClaim is synced through BadgeResolverService rather than a
    * raw upsert, same reuse principle as the MCQ path: same tables, same
    * verification semantics, same public /badges/verify/:hash flow, same
@@ -416,7 +416,7 @@ export class ReviewService {
         level,
         verifiedBy: BadgeVerificationMethod.DISCUSSION,
         verifyHash: randomBytes(12).toString('hex'),
-        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 1.5), // 18 months
+        expiresAt: badgeExpiresAt(),
       },
     });
 

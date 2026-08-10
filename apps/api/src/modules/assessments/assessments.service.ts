@@ -9,7 +9,7 @@ import { AttemptStatus, BadgeVerificationMethod, IntegrityEventType, IntegritySt
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RecordIntegrityEventDto } from './assessments.dto';
-import { BadgeResolverService, deriveLevelStates, LEVEL_ORDER } from '../badges/badge-resolver.service';
+import { badgeExpiresAt, BadgeResolverService, deriveLevelStates, LEVEL_ORDER } from '../badges/badge-resolver.service';
 import { AssessmentSessionsService } from '../assessment-sessions/assessment-sessions.service';
 import { DISCUSSION_DURATION_MINS, DISCUSSION_SLUG, SKILL_LEVEL as DISCUSSION_LEVEL, SKILL_NAME as DISCUSSION_SKILL_NAME } from '../assessment-sessions/rag-systems-l2.rubric';
 import { CandidateJobsService } from '../jobs/candidate-jobs.service';
@@ -143,6 +143,9 @@ export class AssessmentsService {
     const skills = [];
     for (const b of bySkill.values()) {
       const levelMap = await this.badgeResolver.resolveLevelMap(userId, b.skillId);
+      // Only queried to backfill `expired` below — never used for state/
+      // earned, so a lapsed badge still can't count as held here either.
+      const levelMapWithExpired = await this.badgeResolver.resolveLevelMapWithExpired(userId, b.skillId);
       const offeredLevels = LEVEL_ORDER.filter((level) => b.levels.has(level));
       // Strict sequential leveling — same derivation assertLevelAvailable
       // enforces at attempt/session creation, so display and enforcement
@@ -154,11 +157,21 @@ export class AssessmentsService {
         const badge = levelMap[level];
         const hasDiscussion = formats.some((f) => f.type === 'DISCUSSION');
         const state = stateMap.get(level)!;
+        // A level with no *currently valid* badge (state !== EARNED) but a
+        // since-expired one on record — lets the UI say "you held this
+        // until X, retake to renew" instead of silently reverting to a
+        // bare "never attempted" state. Never populated alongside `earned`
+        // — the two are mutually exclusive by construction (badge is only
+        // undefined here when state isn't EARNED).
+        const expiredBadge = !badge ? levelMapWithExpired[level] : undefined;
         return {
           level,
           formats,
           earned: badge
-            ? { verifiedBy: badge.verifiedBy, verifyHash: badge.verifyHash, issuedAt: badge.issuedAt }
+            ? { verifiedBy: badge.verifiedBy, verifyHash: badge.verifyHash, issuedAt: badge.issuedAt, expiresAt: badge.expiresAt }
+            : null,
+          expired: expiredBadge
+            ? { verifiedBy: expiredBadge.verifiedBy, verifyHash: expiredBadge.verifyHash, issuedAt: expiredBadge.issuedAt, expiresAt: expiredBadge.expiresAt }
             : null,
           discussion: hasDiscussion ? discussionState : null,
           state,
@@ -754,7 +767,7 @@ export class AssessmentsService {
         level,
         verifiedBy: BadgeVerificationMethod.TEST,
         verifyHash: randomBytes(12).toString('hex'),
-        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 1.5), // 18 months
+        expiresAt: badgeExpiresAt(),
         attemptNumber,
       },
     });

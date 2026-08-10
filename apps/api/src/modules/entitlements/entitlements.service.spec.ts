@@ -154,7 +154,30 @@ function fakePrisma() {
 
   const attempts: { userId: string; status: AttemptStatus; skillId: string; submittedAt: Date | null; createdAt: Date }[] = [];
 
+  // Non-revoked badges, used only by checkRetakeEligibility's most-recent-lapse
+  // lookup. `expiresAt` in the future = still valid; in the past = lapsed.
+  const badges: { userId: string; skillId: string; revokedAt: Date | null; expiresAt: Date }[] = [];
+
   const prisma: Record<string, any> = {
+    badge: {
+      findFirst: jest.fn(async ({ where, orderBy }: any) => {
+        const matches = badges
+          .filter(
+            (b) =>
+              b.userId === where.userId &&
+              b.skillId === where.skillId &&
+              b.revokedAt === null &&
+              b.expiresAt.getTime() <= where.expiresAt.lte.getTime(),
+          )
+          .sort((a, b) =>
+            orderBy?.expiresAt === 'desc'
+              ? b.expiresAt.getTime() - a.expiresAt.getTime()
+              : a.expiresAt.getTime() - b.expiresAt.getTime(),
+          );
+        const first = matches[0];
+        return first ? { expiresAt: first.expiresAt } : null;
+      }),
+    },
     candidateProfile: {
       findUnique: jest.fn(async ({ where }: any) => ({ id: where.userId ? `profile-${where.userId}` : where.id })),
       create: jest.fn(async ({ data }: any) => ({ id: `profile-${data.userId}` })),
@@ -176,7 +199,7 @@ function fakePrisma() {
     },
   };
 
-  return { prisma, usageCounterRows, attempts };
+  return { prisma, usageCounterRows, attempts, badges };
 }
 
 describe('EntitlementsService.checkAndIncrement', () => {
@@ -326,6 +349,84 @@ describe('EntitlementsService.checkRetakeEligibility', () => {
 
     await expect(svc.checkRetakeEligibility('user-1', 'skill-1')).rejects.toMatchObject({
       response: { code: 'LIMIT_REACHED', metric: 'retakesPerSkillLifetime', limit: 3, resetsAt: null },
+    });
+  });
+
+  function withBadges(
+    badges: ReturnType<typeof fakePrisma>['badges'],
+    userId: string,
+    skillId: string,
+    entries: { expiresInDays: number; revoked?: boolean }[],
+  ) {
+    const now = Date.now();
+    for (const e of entries) {
+      badges.push({
+        userId,
+        skillId,
+        revokedAt: e.revoked ? new Date() : null,
+        expiresAt: new Date(now + e.expiresInDays * DAY_MS),
+      });
+    }
+  }
+
+  it('FREE: the lifetime cap that blocked a 3rd attempt is reset once the backing badge lapses — only attempts after the lapse count', async () => {
+    const { prisma, attempts, badges } = fakePrisma();
+    // Two prior attempts spent the FREE budget (1 original + 1 retake) and earned
+    // a badge that has since expired 10 days ago. Both attempts predate the lapse.
+    withAttempts(attempts, 'user-1', 'skill-1', [{ daysAgo: 400 }, { daysAgo: 380 }]);
+    withBadges(badges, 'user-1', 'skill-1', [{ expiresInDays: -10 }]);
+    prisma.subscription.findUnique.mockResolvedValue(
+      fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+    );
+    const svc = new EntitlementsService(prisma as any);
+
+    // Without the lapse reset this would throw the lifetime cap; instead the
+    // window reopens and the renewal attempt is allowed as attempt #3.
+    const result = await svc.checkRetakeEligibility('user-1', 'skill-1');
+    expect(result.attemptNumber).toBe(3);
+  });
+
+  it('FREE: after a lapse, the fresh window itself still caps — an attempt made post-lapse counts toward the reopened budget', async () => {
+    const { prisma, attempts, badges } = fakePrisma();
+    // One attempt before the lapse, then two attempts after it: the post-lapse
+    // window already holds original+retake, so a further retake is blocked again.
+    withAttempts(attempts, 'user-1', 'skill-1', [{ daysAgo: 400 }, { daysAgo: 5 }, { daysAgo: 3 }]);
+    withBadges(badges, 'user-1', 'skill-1', [{ expiresInDays: -10 }]);
+    prisma.subscription.findUnique.mockResolvedValue(
+      fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+    );
+    const svc = new EntitlementsService(prisma as any);
+
+    await expect(svc.checkRetakeEligibility('user-1', 'skill-1')).rejects.toMatchObject({
+      response: { code: 'LIMIT_REACHED', metric: 'retakesPerSkillLifetime', limit: 1, resetsAt: null },
+    });
+  });
+
+  it('a revoked badge past its expiresAt does NOT open a fresh window (revocation is not a lapse)', async () => {
+    const { prisma, attempts, badges } = fakePrisma();
+    withAttempts(attempts, 'user-1', 'skill-1', [{ daysAgo: 400 }, { daysAgo: 380 }]);
+    withBadges(badges, 'user-1', 'skill-1', [{ expiresInDays: -10, revoked: true }]);
+    prisma.subscription.findUnique.mockResolvedValue(
+      fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+    );
+    const svc = new EntitlementsService(prisma as any);
+
+    await expect(svc.checkRetakeEligibility('user-1', 'skill-1')).rejects.toMatchObject({
+      response: { code: 'LIMIT_REACHED', metric: 'retakesPerSkillLifetime', limit: 1, resetsAt: null },
+    });
+  });
+
+  it('a still-valid badge (expiresAt in the future) is not a lapse — the lifetime cap applies unchanged', async () => {
+    const { prisma, attempts, badges } = fakePrisma();
+    withAttempts(attempts, 'user-1', 'skill-1', [{ daysAgo: 200 }, { daysAgo: 100 }]);
+    withBadges(badges, 'user-1', 'skill-1', [{ expiresInDays: 300 }]);
+    prisma.subscription.findUnique.mockResolvedValue(
+      fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+    );
+    const svc = new EntitlementsService(prisma as any);
+
+    await expect(svc.checkRetakeEligibility('user-1', 'skill-1')).rejects.toMatchObject({
+      response: { code: 'LIMIT_REACHED', metric: 'retakesPerSkillLifetime', limit: 1, resetsAt: null },
     });
   });
 });

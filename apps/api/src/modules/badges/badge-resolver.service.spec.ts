@@ -1,5 +1,5 @@
 import { Badge, SkillLevel } from '@prisma/client';
-import { deriveLevelStates } from './badge-resolver.service';
+import { badgeExpiresAt, BADGE_VALIDITY_YEARS, deriveLevelStates } from './badge-resolver.service';
 
 /** Only truthiness of a levelMap entry matters to deriveLevelStates — a minimal stub is enough. */
 function fakeBadge(): Badge {
@@ -51,5 +51,29 @@ describe('deriveLevelStates', () => {
   it('a skill offering only a single level (e.g. RAG Systems L2 today) has that level AVAILABLE to a fresh candidate — no phantom L1 gate', () => {
     const states = deriveLevelStates([L2], {});
     expect(states.get(L2)).toBe('AVAILABLE');
+  });
+});
+
+describe('badgeExpiresAt', () => {
+  it('lands on the same calendar date BADGE_VALIDITY_YEARS out, not a fixed millisecond offset', () => {
+    const issuedAt = new Date('2026-08-10T12:00:00.000Z');
+    const expiry = badgeExpiresAt(issuedAt);
+    expect(expiry.getFullYear()).toBe(issuedAt.getFullYear() + BADGE_VALIDITY_YEARS);
+    expect(expiry.getMonth()).toBe(issuedAt.getMonth());
+    expect(expiry.getDate()).toBe(issuedAt.getDate());
+  });
+
+  it('does not mutate the passed issuedAt', () => {
+    const issuedAt = new Date('2026-08-10T12:00:00.000Z');
+    const before = issuedAt.getTime();
+    badgeExpiresAt(issuedAt);
+    expect(issuedAt.getTime()).toBe(before);
+  });
+
+  it('a Feb-29 issuance lands on a real calendar date a year out (setFullYear normalises, never NaN)', () => {
+    const leapDay = new Date('2028-02-29T09:00:00.000Z');
+    const expiry = badgeExpiresAt(leapDay);
+    expect(Number.isNaN(expiry.getTime())).toBe(false);
+    expect(expiry.getFullYear()).toBe(2029);
   });
 });

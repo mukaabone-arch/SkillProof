@@ -59,6 +59,7 @@ interface CatalogEarned {
   verifiedBy: VerificationMethod;
   verifyHash: string;
   issuedAt: string;
+  expiresAt: string;
 }
 interface CatalogDiscussionState {
   sessionId: string;
@@ -70,10 +71,24 @@ interface CatalogLevel {
   level: SkillLevelName;
   formats: CatalogFormat[];
   earned: CatalogEarned | null;
+  /**
+   * Set only when `earned` is null but a badge that once counted here has
+   * since expired — the server never lets an expired badge appear as
+   * `earned` (see BadgeResolverService.resolveLevelMap), but it also never
+   * pretends the level was simply never attempted. See renderExpired below.
+   */
+  expired: CatalogEarned | null;
   discussion: CatalogDiscussionState | null;
   state: LevelState;
   unlocksAfterLevel: SkillLevelName | null;
   coveredByLevel: SkillLevelName | null;
+}
+
+/** 30 days is the conventional pre-lapse warning window. */
+const EXPIRY_WARNING_DAYS = 30;
+
+function daysUntil(iso: string): number {
+  return Math.ceil((new Date(iso).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 interface CatalogSkill {
   skillId: string;
@@ -240,6 +255,28 @@ function DiscussionAction({
  * badge and why a candidate might pick one over the other, rather than
  * leaving "test or discussion" as an unexplained choice.
  */
+/**
+ * Shared by both EARNED branches below — a plain "valid until" line, or a
+ * warning once within EXPIRY_WARNING_DAYS of lapsing. A credential vanishing
+ * with no notice is a bad experience, so this fires well before expiresAt
+ * actually passes rather than only informing after the fact (at which
+ * point the level would already have reverted to the `expired` branch in
+ * LevelRow, not this one).
+ */
+function ExpiryMeta({ expiresAt }: { expiresAt: string }) {
+  const days = daysUntil(expiresAt);
+  const dateStr = new Date(expiresAt).toLocaleDateString();
+  if (days <= EXPIRY_WARNING_DAYS) {
+    return (
+      <div className="meta assessment-expiry-warning">
+        ⚠ Expires {dateStr} ({days <= 0 ? 'today' : `in ${days} day${days === 1 ? '' : 's'}`}) — retake before
+        then to keep this badge current.
+      </div>
+    );
+  }
+  return <div className="meta">Valid until {dateStr}.</div>;
+}
+
 function AvailabilityMeta({ level }: { level: CatalogLevel }) {
   const test = level.formats.find((f) => f.type === 'TEST');
   const discussion = level.formats.find((f) => f.type === 'DISCUSSION');
@@ -304,6 +341,7 @@ function LevelRow({ level, profileReady }: { level: CatalogLevel; profileReady: 
           <div className="meta assessment-earned">
             ✓ Badge earned — verified by a live discussion review employers can independently confirm.
           </div>
+          <ExpiryMeta expiresAt={level.earned.expiresAt} />
         </div>
       </div>
     );
@@ -337,12 +375,57 @@ function LevelRow({ level, profileReady }: { level: CatalogLevel; profileReady: 
           <div className="meta assessment-earned">
             ✓ Badge earned — verified by an automated test employers can independently confirm.
           </div>
+          <ExpiryMeta expiresAt={level.earned.expiresAt} />
           {discussionFormat && (
             <div className="meta" style={{ marginTop: 4 }}>
               Optional: retake this level via a live discussion for stronger evidence — a reviewer sees your
               reasoning, not just your score. Your test-verified badge stays valid either way.
             </div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  // AVAILABLE with a since-expired badge on record — same actions as the
+  // plain-AVAILABLE case below (retaking is exactly how this gets renewed),
+  // but says so honestly instead of rendering identically to "never
+  // attempted." Expiry is not deletion: the old badge/verify link still
+  // exists and still shows "expired" honestly on its own public page (see
+  // /badges/[hash]) — this just surfaces that same history here too.
+  if (level.expired) {
+    return (
+      <div className="assessment-row">
+        <div className="assessment-info">
+          <div className="assessment-row-header">
+            <LevelHeading level={level.level} />
+            <div className="assessment-actions">
+              {test && (
+                profileReady ? (
+                  <Link href={`/assessments/${test.assessmentId}`}>
+                    <button>{discussionFormat ? `Test · ${test.durationMins} min` : 'Retake'}</button>
+                  </Link>
+                ) : (
+                  <button disabled title="Complete your profile to unlock">
+                    {discussionFormat ? `Test · ${test.durationMins} min` : 'Retake'}
+                  </button>
+                )
+              )}
+              {discussionFormat && (
+                <DiscussionAction
+                  discussion={level.discussion}
+                  durationMins={discussionFormat.durationMins}
+                  namedChoice={!!test}
+                  profileReady={profileReady}
+                />
+              )}
+            </div>
+          </div>
+          <div className="meta">{LEVEL_INFO[level.level].description}</div>
+          <div className="meta assessment-expired">
+            Previously earned {new Date(level.expired.issuedAt).toLocaleDateString()} — expired{' '}
+            {new Date(level.expired.expiresAt).toLocaleDateString()}. Retake to renew this badge.
+          </div>
         </div>
       </div>
     );

@@ -185,6 +185,24 @@ export class EntitlementsService {
    * gated by either rule regardless of tier. Scoped to skill, not
    * skill+level, per this feature's own spec: a candidate's retake budget
    * is shared across a skill's whole ladder, not reset per level.
+   *
+   * attemptNumber itself is always the true lifetime count, never reset —
+   * it's copied onto Badge.attemptNumber and shown publicly ("earned on
+   * attempt #N"), and that's an honest historical fact regardless of any
+   * badge expiring later (see Badge's own doc comment: a permanent,
+   * immutable log of evidence). Only the *cap check* below is windowed.
+   *
+   * Without the reset below, a candidate who spent their retake budget
+   * earning a badge could never recover it once that badge expires — on
+   * FREE tier (retakesPerSkillLifetime: 1) this is guaranteed to happen to
+   * anyone who failed once before passing: their 2 lifetime attempts are
+   * both already spent the moment they first earn the badge, a year before
+   * it even lapses. Once the most recently expired (non-revoked) badge for
+   * this skill is found, only attempts *after* that badge's own expiresAt
+   * count toward the cap — each lapse opens exactly one fresh window, not
+   * a permanently growing exemption if a candidate lets several badges
+   * expire over time. Level-agnostic, matching this cap's own existing
+   * "shared across a skill's whole ladder" scope.
    */
   async checkRetakeEligibility(userId: string, skillId: string): Promise<{ attemptNumber: number }> {
     const candidateId = await this.ensureProfileId(userId);
@@ -201,8 +219,17 @@ export class EntitlementsService {
     const attemptNumber = priorCount + 1;
     if (priorCount === 0) return { attemptNumber };
 
+    const mostRecentLapse = await this.prisma.badge.findFirst({
+      where: { userId, skillId, revokedAt: null, expiresAt: { lte: new Date() } },
+      orderBy: { expiresAt: 'desc' },
+      select: { expiresAt: true },
+    });
+    const attemptsSinceLapse = mostRecentLapse
+      ? priorAttempts.filter((a) => a.createdAt > mostRecentLapse.expiresAt).length
+      : priorCount;
+
     const totalAllowedAttempts = 1 + retakesPerSkillLifetime;
-    if (priorCount >= totalAllowedAttempts) {
+    if (attemptsSinceLapse >= totalAllowedAttempts) {
       throw new EntitlementLimitException('retakesPerSkillLifetime', retakesPerSkillLifetime, null);
     }
 

@@ -946,6 +946,12 @@ main.auth.auth-gradient {
    accent-600 fails 4.5:1 AA at this ~13.6px body-text size (verified: 3.53:1); accent-800 passes
    at 8.44:1. accent-600 stays reserved for non-text UI (the checkmark glyph, .badge-card's border). */
 .assessment-earned { color: var(--accent-800); }
+/* Pre-lapse warning (ExpiryMeta, within EXPIRY_WARNING_DAYS) and the
+   already-expired/retake-available state (LevelRow's `level.expired`
+   branch) — --warning text directly on --card measures 8.91:1, comfortably
+   past AA (4.5:1) and AAA (7:1), so no color-mix-tinted background is
+   needed the way .ui-badge-warning uses one for a small pill. */
+.assessment-expiry-warning, .assessment-expired { color: var(--warning); }
 .assessment-info { min-width: 0; flex: 1; }
 .assessment-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Groups a level's name with its own action(s) on one line, so the button
