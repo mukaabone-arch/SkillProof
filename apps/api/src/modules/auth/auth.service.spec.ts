@@ -1,8 +1,16 @@
 import { HttpException } from '@nestjs/common';
 import { OrgInvitationStatus, Role } from '@prisma/client';
 import { AuthService } from './auth.service';
+import { PRIVACY_VERSION, TERMS_VERSION } from './legal-terms';
 
 type UserRow = { id: string; phone: string | null; email: string | null; role: Role };
+type TermsAcceptanceRow = {
+  userId: string;
+  termsVersion: string;
+  privacyVersion: string;
+  ageConfirmed: boolean;
+  acceptedAt: Date;
+};
 type OrgMemberRow = { id: string; userId: string; organizationId: string };
 type InvitationRow = {
   id: string;
@@ -22,8 +30,33 @@ type InvitationRow = {
  * a test so findUnique sees what $transaction's tx.user.create (or a direct
  * write) just wrote, same as a real DB would.
  */
-function fakePrisma(users: UserRow[] = [], orgMembers: OrgMemberRow[] = [], invitations: InvitationRow[] = []) {
+function fakePrisma(
+  users: UserRow[] = [],
+  orgMembers: OrgMemberRow[] = [],
+  invitations: InvitationRow[] = [],
+  termsAcceptances: TermsAcceptanceRow[] = [],
+) {
   let nextId = 1;
+
+  // Mirrors Prisma's nested-relation write: when a user.create carries
+  // `termsAcceptances: { create: {...} }`, the related row is persisted in
+  // the same operation. Captured here so tests can assert the acceptance
+  // record really is written on every creation path (including inside
+  // $transaction and the OAuth path), exactly as a real DB would.
+  const captureAcceptance = (
+    userId: string,
+    data: { termsAcceptances?: { create?: Partial<TermsAcceptanceRow> } },
+  ) => {
+    const create = data.termsAcceptances?.create;
+    if (!create) return;
+    termsAcceptances.push({
+      userId,
+      termsVersion: create.termsVersion as string,
+      privacyVersion: create.privacyVersion as string,
+      ageConfirmed: create.ageConfirmed ?? true,
+      acceptedAt: create.acceptedAt ?? new Date(),
+    });
+  };
 
   return {
     user: {
@@ -38,10 +71,17 @@ function fakePrisma(users: UserRow[] = [], orgMembers: OrgMemberRow[] = [], invi
         if (!found) throw new Error('not found');
         return found;
       }),
+      // Verified-email auto-link lookup (findVerifiedEmailMatch). Case-
+      // insensitive, matching the real query's `mode: 'insensitive'`.
+      findFirst: jest.fn(async ({ where }: { where: { email?: { equals?: string } } }) => {
+        const target = where.email?.equals?.toLowerCase();
+        if (!target) return null;
+        return users.find((u) => u.email?.toLowerCase() === target) ?? null;
+      }),
       // Plain-candidate signup (verifyOtp's non-employer branch) creates
       // directly via prisma.user.create, not through $transaction — role
       // isn't passed, mirroring the schema's @default(CANDIDATE).
-      create: jest.fn(async ({ data }: { data: Partial<UserRow> }) => {
+      create: jest.fn(async ({ data }: { data: Partial<UserRow> & { termsAcceptances?: { create?: Partial<TermsAcceptanceRow> } } }) => {
         const user: UserRow = {
           id: `user-${nextId++}`,
           phone: data.phone ?? null,
@@ -49,7 +89,17 @@ function fakePrisma(users: UserRow[] = [], orgMembers: OrgMemberRow[] = [], invi
           role: data.role ?? Role.CANDIDATE,
         };
         users.push(user);
+        captureAcceptance(user.id, data);
         return user;
+      }),
+    },
+    termsAcceptance: {
+      findFirst: jest.fn(async ({ where }: { where: { userId: string } }) => {
+        return (
+          termsAcceptances
+            .filter((t) => t.userId === where.userId)
+            .sort((a, b) => b.acceptedAt.getTime() - a.acceptedAt.getTime())[0] ?? null
+        );
       }),
     },
     orgMember: {
@@ -77,20 +127,26 @@ function fakePrisma(users: UserRow[] = [], orgMembers: OrgMemberRow[] = [], invi
         return invitation;
       }),
     },
+    identity: {
+      // No pre-existing identity in these tests — the OAuth paths under test
+      // provision brand-new accounts, so (provider, providerId) never resolves.
+      findUnique: jest.fn(async () => null),
+    },
     refreshToken: {
       create: jest.fn(async ({ data }: { data: unknown }) => data),
     },
     $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
       const tx = {
         user: {
-          create: jest.fn(async ({ data }: { data: Partial<UserRow> & { role: Role } }) => {
+          create: jest.fn(async ({ data }: { data: Partial<UserRow> & { role?: Role; termsAcceptances?: { create?: Partial<TermsAcceptanceRow> } } }) => {
             const user: UserRow = {
               id: `user-${nextId++}`,
               phone: data.phone ?? null,
               email: data.email ?? null,
-              role: data.role,
+              role: data.role ?? Role.CANDIDATE,
             };
             users.push(user);
+            captureAcceptance(user.id, data);
             return user;
           }),
         },
@@ -104,6 +160,9 @@ function fakePrisma(users: UserRow[] = [], orgMembers: OrgMemberRow[] = [], invi
             return member;
           }),
         },
+        identity: {
+          create: jest.fn(async ({ data }: { data: unknown }) => data),
+        },
       };
       return fn(tx);
     }),
@@ -116,18 +175,24 @@ interface SentEmail {
   html: string;
 }
 
-function makeService(users: UserRow[] = [], orgMembers: OrgMemberRow[] = [], invitations: InvitationRow[] = []) {
-  const prisma = fakePrisma(users, orgMembers, invitations);
+function makeService(
+  users: UserRow[] = [],
+  orgMembers: OrgMemberRow[] = [],
+  invitations: InvitationRow[] = [],
+  oauth: { google?: unknown; github?: unknown } = {},
+) {
+  const termsAcceptances: TermsAcceptanceRow[] = [];
+  const prisma = fakePrisma(users, orgMembers, invitations, termsAcceptances);
   const jwt = { signAsync: jest.fn(async () => 'signed.jwt.token') };
   const emailProvider = { send: jest.fn(async (_params: SentEmail): Promise<void> => undefined) };
   const service = new AuthService(
     prisma as never,
     jwt as never,
-    {} as never, // GoogleOAuthProvider — unused by the OTP paths under test
-    {} as never, // GithubOAuthProvider — ditto
+    (oauth.google ?? {}) as never, // GoogleOAuthProvider — a real stub only for the OAuth tests
+    (oauth.github ?? {}) as never, // GithubOAuthProvider — ditto
     emailProvider as never,
   );
-  return { service, prisma, emailProvider, users, orgMembers, invitations };
+  return { service, prisma, emailProvider, users, orgMembers, invitations, termsAcceptances };
 }
 
 /** A PENDING invitation, 7 days out, matching OrgMembersService's own TTL — createdAt staggered slightly into the past so multiple invitations in one test sort deterministically. */
@@ -430,8 +495,15 @@ describe('AuthService — candidate email OTP', () => {
       expect(users).toHaveLength(1);
       expect(users[0]).toMatchObject({ email: 'new@candidate.com', role: Role.CANDIDATE });
       // Provisioned via the plain prisma.user.create path (matching the
-      // phone candidate branch exactly), never the org-creating transaction.
-      expect(prisma.user.create).toHaveBeenCalledWith({ data: { email: 'new@candidate.com', profile: { create: {} } } });
+      // phone candidate branch exactly), never the org-creating transaction —
+      // and with the acceptance record nested into that same create.
+      expect(prisma.user.create).toHaveBeenCalledWith({
+        data: {
+          email: 'new@candidate.com',
+          profile: { create: {} },
+          termsAcceptances: { create: { termsVersion: TERMS_VERSION, privacyVersion: PRIVACY_VERSION, ageConfirmed: true } },
+        },
+      });
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
@@ -668,5 +740,135 @@ describe('AuthService — team-invite acceptance', () => {
         'OTP expired or not requested. Request a new one.',
       );
     });
+  });
+});
+
+describe('AuthService — terms/privacy acceptance is recorded on every creation path', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  /** The shape every path must produce: user pinned, both versions in force, 18+ confirmed. */
+  function expectAcceptanceFor(termsAcceptances: TermsAcceptanceRow[], userId: string) {
+    const rows = termsAcceptances.filter((t) => t.userId === userId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      termsVersion: TERMS_VERSION,
+      privacyVersion: PRIVACY_VERSION,
+      ageConfirmed: true,
+    });
+  }
+
+  it('candidate phone OTP signup writes an acceptance record', async () => {
+    process.env.NODE_ENV = 'test';
+    const { service, users, termsAcceptances } = makeService();
+
+    await service.requestOtp('+919999900001');
+    await service.verifyOtp('+919999900001', DEV_OTP);
+
+    expectAcceptanceFor(termsAcceptances, users[0].id);
+  });
+
+  it('candidate email OTP signup writes an acceptance record', async () => {
+    process.env.NODE_ENV = 'test';
+    const { service, users, termsAcceptances } = makeService();
+
+    await service.requestCandidateEmailOtp('new@candidate.com');
+    await service.verifyCandidateEmailOtp('new@candidate.com', DEV_OTP);
+
+    expectAcceptanceFor(termsAcceptances, users[0].id);
+  });
+
+  it('employer email OTP signup writes an acceptance record (nested in the org-creating transaction)', async () => {
+    process.env.NODE_ENV = 'test';
+    const { service, users, termsAcceptances } = makeService();
+
+    await service.requestEmailOtp('new@acme.com');
+    await service.verifyEmailOtp('new@acme.com', DEV_OTP, 'Acme Inc.');
+
+    expectAcceptanceFor(termsAcceptances, users[0].id);
+  });
+
+  it('employer phone OTP signup writes an acceptance record', async () => {
+    process.env.NODE_ENV = 'test';
+    const { service, users, termsAcceptances } = makeService();
+
+    await service.requestOtp('+919999900002');
+    await service.verifyOtp('+919999900002', DEV_OTP, 'Acme Inc.');
+
+    expectAcceptanceFor(termsAcceptances, users[0].id);
+  });
+
+  it('team-invite acceptance (brand-new member) writes an acceptance record', async () => {
+    process.env.NODE_ENV = 'test';
+    const invitation = pendingInvitation({ email: 'invitee@acme.com' });
+    const { service, users, termsAcceptances } = makeService([], [], [invitation]);
+
+    await service.requestInviteOtp('invitee@acme.com');
+    await service.acceptInvite('invitee@acme.com', DEV_OTP);
+
+    expectAcceptanceFor(termsAcceptances, users[0].id);
+  });
+
+  it('OAuth self-provisioning (the path that never shows a signup card) writes an acceptance record', async () => {
+    process.env.NODE_ENV = 'test';
+    // Provider-verified email, but no existing user/identity → createUserWithIdentity.
+    const profile = { providerId: 'google-sub-123', email: 'oauth@candidate.com', emailVerified: true };
+    const google = { exchange: jest.fn(async () => profile) };
+    const { service, users, termsAcceptances } = makeService([], [], [], { google });
+
+    await service.loginWithGoogle({ code: 'auth-code', redirectUri: 'https://app/cb' });
+
+    expect(users).toHaveLength(1);
+    expectAcceptanceFor(termsAcceptances, users[0].id);
+  });
+
+  it('the recorded acceptance is retrievable per user via getTermsAcceptance', async () => {
+    process.env.NODE_ENV = 'test';
+    const { service, users } = makeService();
+
+    await service.requestCandidateEmailOtp('retrieve@candidate.com');
+    await service.verifyCandidateEmailOtp('retrieve@candidate.com', DEV_OTP);
+
+    const record = await service.getTermsAcceptance(users[0].id);
+    expect(record).toMatchObject({
+      termsVersion: TERMS_VERSION,
+      privacyVersion: PRIVACY_VERSION,
+      ageConfirmed: true,
+    });
+  });
+
+  it('getTermsAcceptance returns null for a pre-existing account never given a record (no backfill)', async () => {
+    process.env.NODE_ENV = 'test';
+    const existing: UserRow = { id: 'legacy-1', phone: null, email: 'legacy@candidate.com', role: Role.CANDIDATE };
+    const { service } = makeService([existing]);
+
+    expect(await service.getTermsAcceptance('legacy-1')).toBeNull();
+  });
+
+  it('a returning user logging in does NOT write a second acceptance record', async () => {
+    process.env.NODE_ENV = 'test';
+    const existing: UserRow = { id: 'user-1', phone: null, email: 'returning@candidate.com', role: Role.CANDIDATE };
+    const { service, termsAcceptances } = makeService([existing]);
+
+    await service.requestCandidateEmailOtp('returning@candidate.com');
+    await service.verifyCandidateEmailOtp('returning@candidate.com', DEV_OTP);
+
+    expect(termsAcceptances).toHaveLength(0);
+  });
+
+  it('an existing employer accepting an invite (linked, not created) does NOT write an acceptance record', async () => {
+    process.env.NODE_ENV = 'test';
+    // Employer-role user with no OrgMember yet — the defensive link branch in acceptInvite.
+    const existing: UserRow = { id: 'user-1', phone: null, email: 'member@acme.com', role: Role.EMPLOYER_MEMBER };
+    const invitation = pendingInvitation({ email: 'member@acme.com', organizationId: 'org-1' });
+    const { service, termsAcceptances } = makeService([existing], [], [invitation]);
+
+    await service.requestInviteOtp('member@acme.com');
+    await service.acceptInvite('member@acme.com', DEV_OTP);
+
+    expect(termsAcceptances).toHaveLength(0);
   });
 });

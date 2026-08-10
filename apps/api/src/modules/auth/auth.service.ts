@@ -18,6 +18,7 @@ import { GithubOAuthProvider } from './oauth/github-oauth.provider';
 import { GoogleOAuthProvider } from './oauth/google-oauth.provider';
 import { ExternalProfile, OAuthCodeExchange } from './oauth/oauth.types';
 import { normalizeEmail } from './normalize-email';
+import { PRIVACY_VERSION, TERMS_VERSION } from './legal-terms';
 
 const EMPLOYER_ROLES: Role[] = [Role.EMPLOYER_ADMIN, Role.EMPLOYER_MEMBER];
 
@@ -287,7 +288,9 @@ export class AuthService {
 
     const user = isEmployerFlow
       ? await this.createEmployer(orgName as string, { phone })
-      : await this.prisma.user.create({ data: { phone, profile: { create: {} } } });
+      : await this.prisma.user.create({
+          data: { phone, profile: { create: {} }, termsAcceptances: this.termsAcceptanceWrite() },
+        });
 
     return this.issueTokens(user.id, user.role, {
       id: user.id,
@@ -350,7 +353,9 @@ export class AuthService {
       return this.issueTokens(existing.id, existing.role, this.publicUser(existing));
     }
 
-    const user = await this.prisma.user.create({ data: { email, profile: { create: {} } } });
+    const user = await this.prisma.user.create({
+      data: { email, profile: { create: {} }, termsAcceptances: this.termsAcceptanceWrite() },
+    });
     return this.issueTokens(user.id, user.role, this.publicUser(user));
   }
 
@@ -396,7 +401,9 @@ export class AuthService {
       role = existing.role;
     } else {
       const created = await this.prisma.$transaction(async (tx) => {
-        const user = await tx.user.create({ data: { email, role: Role.EMPLOYER_MEMBER } });
+        const user = await tx.user.create({
+          data: { email, role: Role.EMPLOYER_MEMBER, termsAcceptances: this.termsAcceptanceWrite() },
+        });
         await tx.orgMember.create({ data: { userId: user.id, organizationId: invitation.organizationId } });
         return user;
       });
@@ -615,6 +622,10 @@ export class AuthService {
             // target for whoever actually owns that address.
             email: profile.emailVerified && profile.email ? normalizeEmail(profile.email) : null,
             profile: { create: {} },
+            // OAuth self-provisions accounts without ever showing the signup
+            // card, so this is the path most at risk of skipping the record —
+            // stamped here so it never can (see termsAcceptanceWrite).
+            termsAcceptances: this.termsAcceptanceWrite(),
           },
         });
         await tx.identity.create({
@@ -677,6 +688,44 @@ export class AuthService {
     return { ok: true, alreadyConnected: false };
   }
 
+  /**
+   * The nested-write payload that stamps a Terms/Privacy acceptance onto a
+   * User at the moment it's created. Inlined into every user.create (nested,
+   * so it lands in the same statement/transaction as the account itself) —
+   * an account can never come into existence without its acceptance row,
+   * which is the whole point: it must evidence what was agreed to, when, and
+   * against which document versions. ageConfirmed captures the passive "you
+   * confirm you are 18 or over" the signup line states; the versions pin the
+   * documents in force (see legal-terms.ts). Every self-provisioning path —
+   * including OAuth, which never shows a signup card — goes through a
+   * user.create, so routing this through one shared payload is what keeps
+   * the OAuth path from silently being the one that's missing a record.
+   */
+  private termsAcceptanceWrite() {
+    return {
+      create: {
+        termsVersion: TERMS_VERSION,
+        privacyVersion: PRIVACY_VERSION,
+        ageConfirmed: true,
+      },
+    };
+  }
+
+  /**
+   * The most recent acceptance on record for a user, or null for an account
+   * created before this feature shipped (deliberately never backfilled).
+   * Exposed via GET /auth/terms-acceptance so a record is retrievable per
+   * user — for support/audit or a future re-acceptance flow. Ordered
+   * newest-first against the day the model allows more than one row.
+   */
+  async getTermsAcceptance(userId: string) {
+    return this.prisma.termsAcceptance.findFirst({
+      where: { userId },
+      orderBy: { acceptedAt: 'desc' },
+      select: { termsVersion: true, privacyVersion: true, ageConfirmed: true, acceptedAt: true },
+    });
+  }
+
   private publicUser(user: { id: string; phone: string | null; email: string | null; role: Role }) {
     return { id: user.id, phone: user.phone, email: user.email, role: user.role };
   }
@@ -735,7 +784,9 @@ export class AuthService {
    */
   private async createEmployer(orgName: string, identity: { phone: string } | { email: string }) {
     return this.prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({ data: { ...identity, role: Role.EMPLOYER_ADMIN } });
+      const user = await tx.user.create({
+        data: { ...identity, role: Role.EMPLOYER_ADMIN, termsAcceptances: this.termsAcceptanceWrite() },
+      });
       const organization = await tx.organization.create({ data: { name: orgName } });
       await tx.orgMember.create({ data: { userId: user.id, organizationId: organization.id } });
       return user;

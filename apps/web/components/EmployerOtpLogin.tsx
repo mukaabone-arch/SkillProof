@@ -33,6 +33,7 @@ import { startOAuthLogin } from '@/lib/oauth';
 import Logo from './Logo';
 import { GoogleIcon } from './OAuthIcons';
 import AuthMessageRotator, { type AuthMessage } from './AuthMessageRotator';
+import LegalAcceptanceNote from './LegalAcceptanceNote';
 
 const { api, setTokens } = employerApi;
 
@@ -252,6 +253,7 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
 
           {oauthError && <p className="error">{oauthError}</p>}
         </div>
+        <LegalAcceptanceNote />
       </div>
     </main>
   );

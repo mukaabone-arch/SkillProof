@@ -24,6 +24,7 @@ import { startOAuthLogin } from '@/lib/oauth';
 import Logo from './Logo';
 import { GoogleIcon, GithubIcon } from './OAuthIcons';
 import AuthMessageRotator from './AuthMessageRotator';
+import LegalAcceptanceNote from './LegalAcceptanceNote';
 
 /** Matches AuthService's RESEND_COOLDOWN_MS (60s) — purely a UX countdown; the server enforces the real limit regardless. */
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -208,6 +209,7 @@ export default function OtpLogin({ onLoggedIn }: Props) {
 
           {oauthError && <p className="error">{oauthError}</p>}
         </div>
+        <LegalAcceptanceNote />
       </div>
     </main>
   );

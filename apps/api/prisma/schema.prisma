@@ -309,6 +309,7 @@ model User {
   assessmentRequestsMade AssessmentRequest[] @relation("AssessmentRequestRequestedBy")
   invitationsSent        OrgInvitation[]     @relation("OrgInvitationInvitedBy")
   adminAccessLogEntries  AdminAccessLog[]
+  termsAcceptances       TermsAcceptance[]
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
@@ -333,6 +334,33 @@ model Identity {
   createdAt     DateTime         @default(now())
 
   @@unique([provider, providerId])
+  @@index([userId])
+}
+
+/// Evidence, written once at account creation, that a user passed through a
+/// signup surface stating "you confirm you are 18 or over and agree to our
+/// Terms of Service and Privacy Policy" (India DPDP Act: under-18s are
+/// children whose data — including the assessment integrity telemetry —
+/// needs a different consent basis). Acceptance is *passive*: continuing
+/// past that line is the act, there is no checkbox. termsVersion/
+/// privacyVersion pin which documents were in force at that moment (see
+/// legal-terms.ts) so the row stays meaningful once those documents change.
+/// One row is written per creation path (OTP, OAuth self-provision, invite
+/// accept); accounts predating this model simply have none and are not
+/// backfilled. Kept as its own table, not columns on User, so a future
+/// re-acceptance flow can append rather than overwrite.
+model TermsAcceptance {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  termsVersion   String
+  privacyVersion String
+  // The 18-or-over confirmation the signup line states. Always true at
+  // write time today (continuing is the confirmation); stored explicitly so
+  // the record is self-describing rather than implied by the row existing.
+  ageConfirmed   Boolean  @default(true)
+  acceptedAt     DateTime @default(now())
+
   @@index([userId])
 }
 

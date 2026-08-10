@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Param, Post, HttpCode, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, HttpCode, Req, UseGuards } from '@nestjs/common';
 import { IdentityProvider } from '@prisma/client';
 import { AuthService } from './auth.service';
 import {
@@ -144,6 +144,17 @@ export class AuthController {
       throw new BadRequestException('Unsupported provider');
     }
     return this.auth.connectProvider(req.user.sub, normalized, dto);
+  }
+
+  /**
+   * The current user's most recent Terms/Privacy acceptance record (or null
+   * for accounts created before acceptance was recorded). Makes the record
+   * retrievable per user — see AuthService.getTermsAcceptance.
+   */
+  @Get('terms-acceptance')
+  @UseGuards(JwtAuthGuard)
+  getTermsAcceptance(@Req() req: AuthenticatedRequest) {
+    return this.auth.getTermsAcceptance(req.user.sub);
   }
 
   @Post('refresh')

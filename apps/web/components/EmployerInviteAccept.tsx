@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { employerApi } from '@/lib/api';
 import Logo from './Logo';
+import LegalAcceptanceNote from './LegalAcceptanceNote';
 
 const { api, setTokens } = employerApi;
 
@@ -156,6 +157,7 @@ export default function EmployerInviteAccept({ initialEmail }: Props) {
 
         {error && <p className="error">{error}</p>}
       </div>
+      <LegalAcceptanceNote />
     </main>
   );
 }
