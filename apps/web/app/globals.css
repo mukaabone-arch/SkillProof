@@ -2165,6 +2165,13 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 /* ---- Card grids (capabilities, employers) ---- */
 .lp-card-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
 .lp-card-grid-3 { grid-template-columns: repeat(3, 1fr); }
+/* Heading-only platform cards: a compact 4-across row so a single line of
+   text reads as an intentional strip, not a big card left half-empty. The
+   shared @900/@640 rules below (which target .lp-card-grid) still collapse
+   this to 2-up then 1-up on tablet/phone. */
+.lp-card-grid-features { grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.lp-card-feature { padding: 20px 22px; min-height: 96px; display: flex; align-items: center; }
+.lp-card-feature .lp-card-title { margin-bottom: 0; font-size: 1.05rem; text-wrap: balance; }
 .lp-card { background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-lg); padding: 28px 26px; }
 .lp-card-title { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; color: var(--ink); letter-spacing: -0.01em; margin-bottom: 10px; }
 .lp-card-body { color: var(--ink-60); font-size: 0.96rem; line-height: 1.55; }

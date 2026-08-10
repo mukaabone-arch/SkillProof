@@ -26,24 +26,16 @@ export const metadata: Metadata = {
     'SkillProof verifies real AI ability through assessments reviewed by a person. Candidates get matched to roles that want their proven skills; employers hire on evidence, not keywords.',
 };
 
-/** Candidate value props — the substance is the candidate login rotator (AuthMessageRotator.tsx). */
+/**
+ * Candidate value props — headings only (the substance is the candidate
+ * login rotator, AuthMessageRotator.tsx). Rendered as a compact row of
+ * heading-only feature cards; see .lp-card-feature in globals.css.
+ */
 const CAPABILITIES = [
-  {
-    title: 'Proof, not promises',
-    body: 'Skills verified through a real assessment and reviewed by a person — evidence employers can independently check, not a self-reported tag.',
-  },
-  {
-    title: 'A co-pilot for your next move',
-    body: 'See exactly which skill is holding you back, and which roles open up once you prove it — guidance, not a black box.',
-  },
-  {
-    title: 'Talk directly to companies hiring',
-    body: 'No black-hole applications. Reach companies hiring for AI skills and track every interview, round and offer in one place.',
-  },
-  {
-    title: 'Apply in minutes, not hours',
-    body: 'Your verified profile does the work — no re-typing the same details into every application.',
-  },
+  'Proof, not promises',
+  'A co-pilot for your next move',
+  'Talk directly to companies hiring',
+  'Apply in minutes, not hours',
 ];
 
 /** How verification works — drawn from existing positioning; no invented specifics (turnaround, pricing). */
@@ -135,11 +127,10 @@ export default function LandingPage() {
           <h2 id="lp-cap-heading" className="lp-section-title">
             Everything a proven candidate needs — and nothing that wastes an employer&apos;s time
           </h2>
-          <div className="lp-card-grid">
-            {CAPABILITIES.map((c) => (
-              <div className="lp-card" key={c.title}>
-                <h3 className="lp-card-title">{c.title}</h3>
-                <p className="lp-card-body">{c.body}</p>
+          <div className="lp-card-grid lp-card-grid-features">
+            {CAPABILITIES.map((title) => (
+              <div className="lp-card lp-card-feature" key={title}>
+                <h3 className="lp-card-title">{title}</h3>
               </div>
             ))}
           </div>
