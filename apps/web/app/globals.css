@@ -2164,7 +2164,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 
 /* ---- Card grids (capabilities, employers) ---- */
 .lp-card-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-.lp-card-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.lp-card-grid-3 { grid-template-columns: repeat(3, 1fr); gap: 16px; }
 /* Heading-only platform cards: a compact 4-across row so a single line of
    text reads as an intentional strip, not a big card left half-empty. The
    shared @900/@640 rules below (which target .lp-card-grid) still collapse
@@ -2174,18 +2174,25 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .lp-card-feature .lp-card-title { margin-bottom: 0; font-size: 1.05rem; text-wrap: balance; }
 .lp-card { background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-lg); padding: 28px 26px; }
 .lp-card-title { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; color: var(--ink); letter-spacing: -0.01em; margin-bottom: 10px; }
-.lp-card-body { color: var(--ink-60); font-size: 0.96rem; line-height: 1.55; }
 
 /* ---- Steps (how verification works) ---- */
-.lp-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-.lp-step { background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-lg); padding: 28px 26px; }
+.lp-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+/* Heading-only step cards: compact, and the number+heading vertically
+   centred as ONE block (align-items:flex-start keeps the number pill its
+   natural width). The number keeps its brand-tinted pill directly above the
+   heading with only a small gap, so "01" still reads as that step's marker
+   sitting with its label rather than floating in a tall empty card. */
+.lp-step {
+  background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-lg);
+  padding: 22px 24px; min-height: 104px;
+  display: flex; flex-direction: column; justify-content: center; align-items: flex-start;
+}
 .lp-step-num {
   font-family: var(--font-body); font-weight: 600; font-size: 0.72rem; letter-spacing: 0.06em;
   color: var(--brand-400); background: color-mix(in srgb, var(--brand-600) 24%, transparent);
-  padding: 4px 10px; border-radius: var(--radius-sm); display: inline-block; margin-bottom: 16px;
+  padding: 4px 10px; border-radius: var(--radius-sm); display: inline-block; margin-bottom: 10px;
 }
-.lp-step-title { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; color: var(--ink); letter-spacing: -0.01em; margin-bottom: 10px; }
-.lp-step-body { color: var(--ink-60); font-size: 0.96rem; line-height: 1.55; }
+.lp-step-title { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; color: var(--ink); letter-spacing: -0.01em; margin-bottom: 0; text-wrap: balance; }
 .lp-inline-cta { margin-top: 36px; }
 
 /* ---- Prose (About / Contact) + placeholder tag ---- */

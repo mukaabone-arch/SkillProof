@@ -38,39 +38,26 @@ const CAPABILITIES = [
   'Apply in minutes, not hours',
 ];
 
-/** How verification works — drawn from existing positioning; no invented specifics (turnaround, pricing). */
+/**
+ * How verification works — numbered step markers + headings only (drawn from
+ * existing positioning; no invented specifics like turnaround or pricing).
+ * Rendered as compact cards; see .lp-step in globals.css.
+ */
 const STEPS = [
-  {
-    num: '01',
-    title: 'Take a rigorous assessment',
-    body: 'Prove a skill through a written assessment or a live technical discussion — practical, not keyword trivia.',
-  },
-  {
-    num: '02',
-    title: 'Reviewed by a person',
-    body: 'A human reviewer confirms the evidence behind every badge before it is issued — automated scores alone never issue one.',
-  },
-  {
-    num: '03',
-    title: 'Get matched, verifiably',
-    body: 'Earn a shareable verified badge and a benchmarked profile. Employers search verified talent first and see exactly why you fit.',
-  },
+  { num: '01', title: 'Take a rigorous assessment' },
+  { num: '02', title: 'Reviewed by a person' },
+  { num: '03', title: 'Get matched, verifiably' },
 ];
 
-/** Employer-facing framing — substance from the employer login rotator (EmployerOtpLogin.tsx). */
+/**
+ * Employer-facing framing — headings only (substance from the employer login
+ * rotator, EmployerOtpLogin.tsx). Rendered as compact heading-only cards, the
+ * same .lp-card-feature treatment as the platform strip.
+ */
 const EMPLOYER_POINTS = [
-  {
-    title: 'Hire on evidence, not claims',
-    body: "Every badge is earned through a real assessment and reviewed by a person before it's issued.",
-  },
-  {
-    title: 'See who can actually do the work',
-    body: 'Verified skills and levels on every profile, so you compare ability rather than CV keywords.',
-  },
-  {
-    title: 'One place from shortlist to hire',
-    body: 'Invite, assess, interview, offer and track — every stage visible to both sides, nothing lost in inboxes.',
-  },
+  'Hire on evidence, not claims',
+  'See who can actually do the work',
+  'One place from shortlist to hire',
 ];
 
 /**
@@ -149,7 +136,6 @@ export default function LandingPage() {
               <div className="lp-step" key={s.num}>
                 <span className="lp-step-num">{s.num}</span>
                 <h3 className="lp-step-title">{s.title}</h3>
-                <p className="lp-step-body">{s.body}</p>
               </div>
             ))}
           </div>
@@ -164,10 +150,9 @@ export default function LandingPage() {
             Stop screening keywords. Start reading proof.
           </h2>
           <div className="lp-card-grid lp-card-grid-3">
-            {EMPLOYER_POINTS.map((p) => (
-              <div className="lp-card" key={p.title}>
-                <h3 className="lp-card-title">{p.title}</h3>
-                <p className="lp-card-body">{p.body}</p>
+            {EMPLOYER_POINTS.map((title) => (
+              <div className="lp-card lp-card-feature" key={title}>
+                <h3 className="lp-card-title">{title}</h3>
               </div>
             ))}
           </div>
