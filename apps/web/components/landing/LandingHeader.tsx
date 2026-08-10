@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Glassmorphism header for the marketing landing page (/landing) ONLY —
+ * Glassmorphism header for the marketing landing page (the domain root "/") ONLY —
  * deliberately NOT PublicNav or the app chrome. It's fixed over the hero
  * photo, translucent with a backdrop blur so the image shows through, and
  * grows more opaque on scroll so its links stay legible once it passes from

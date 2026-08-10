@@ -153,7 +153,7 @@ export default function ResumePage() {
         <p>Generate a clean, one-page PDF resume — including your verified skill badges.</p>
 
         {!loggedIn && (
-          <ErrorState message={<>You are not logged in — <Link href="/">log in first</Link> to build a resume.</>} />
+          <ErrorState message={<>You are not logged in — <Link href="/candidate">log in first</Link> to build a resume.</>} />
         )}
 
         {loggedIn && error && <ErrorState message={error} />}

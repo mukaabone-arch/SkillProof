@@ -101,7 +101,7 @@ export default function TakeAssessmentPage() {
   const finishedRef = useRef(false);
 
   const start = useCallback(async () => {
-    if (!getToken()) { router.push('/'); return; }
+    if (!getToken()) { router.push('/candidate'); return; }
     try {
       const attempt = await api<{ id: string }>(`/assessments/${id}/attempts`, { method: 'POST' });
       setAttemptId(attempt.id);

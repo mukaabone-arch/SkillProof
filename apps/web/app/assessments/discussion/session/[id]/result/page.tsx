@@ -79,7 +79,7 @@ export default function DiscussionResultPage() {
 
   const load = useCallback(async () => {
     if (!getToken()) {
-      router.replace('/');
+      router.replace('/candidate');
       return;
     }
     try {

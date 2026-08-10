@@ -22,7 +22,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (!getToken()) {
-      router.replace('/');
+      router.replace('/candidate');
       return;
     }
     setReady(true);
@@ -31,7 +31,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!ready) return null;
 
   return (
-    <AdminSidebarShell onLoggedOut={() => router.replace('/')}>
+    <AdminSidebarShell onLoggedOut={() => router.replace('/candidate')}>
       {children}
     </AdminSidebarShell>
   );

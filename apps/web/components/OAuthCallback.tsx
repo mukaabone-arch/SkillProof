@@ -25,7 +25,7 @@ export default function OAuthCallback({ provider }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
-  const [backHref, setBackHref] = useState<'/' | '/employer'>('/');
+  const [backHref, setBackHref] = useState<'/candidate' | '/employer'>('/candidate');
   // Guards against React StrictMode's dev-only double-invoke of effects —
   // without it, the second invocation would find consumeStoredState()
   // already emptied by the first and wrongly report an expired session.
@@ -40,7 +40,7 @@ export default function OAuthCallback({ provider }: Props) {
     // Which login page kicked off this flow — read (and cleared) once,
     // up front, so every early-return below can still route back correctly.
     const portal = consumeStoredPortal(provider);
-    const backHref = portal === 'employer' ? '/employer' : '/';
+    const backHref = portal === 'employer' ? '/employer' : '/candidate';
     setBackHref(backHref);
 
     // The provider itself reports a problem (most commonly the user hit

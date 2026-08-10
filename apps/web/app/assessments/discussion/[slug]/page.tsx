@@ -31,7 +31,7 @@ export default function DiscussionSetupPage() {
 
   useEffect(() => {
     if (!getToken()) {
-      router.replace('/');
+      router.replace('/candidate');
       return;
     }
     api<MineSession | null>('/assessment-sessions/mine')

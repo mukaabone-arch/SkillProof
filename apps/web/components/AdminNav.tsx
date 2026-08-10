@@ -26,7 +26,7 @@ export default function AdminNav({ onLoggedOut }: Props) {
   async function handleLogout() {
     await logout();
     onLoggedOut();
-    router.replace('/');
+    router.replace('/candidate');
   }
 
   return (

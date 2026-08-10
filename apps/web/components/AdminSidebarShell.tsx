@@ -186,7 +186,7 @@ export default function AdminSidebarShell({ onLoggedOut, children }: Props) {
   async function handleLogout() {
     await logout();
     onLoggedOut();
-    router.replace('/');
+    router.replace('/candidate');
   }
 
   return (

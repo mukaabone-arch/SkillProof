@@ -262,7 +262,7 @@ export default function AccountSettingsPage() {
         }),
       });
       await logout();
-      router.replace('/');
+      router.replace('/candidate');
     } catch (e) {
       setDeactivateError((e as ApiError).message);
       setDeactivating(false);
@@ -282,7 +282,7 @@ export default function AccountSettingsPage() {
         }),
       });
       await logout();
-      router.replace('/');
+      router.replace('/candidate');
     } catch (e) {
       setDeleteError((e as ApiError).message);
       setDeleting(false);

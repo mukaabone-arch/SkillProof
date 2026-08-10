@@ -24,10 +24,13 @@ export default function PublicNav() {
     if (employerApi.getToken()) {
       setDashboardHref('/employer');
     } else if (getToken()) {
-      // "/" resolves to the right dashboard for both roles that share this
-      // token scope — the candidate dashboard, or the admin console if the
-      // account is PLATFORM_ADMIN (see app/page.tsx's role check).
-      setDashboardHref('/');
+      // "/candidate" resolves to the right dashboard for both roles that
+      // share this token scope — the candidate dashboard, or the admin
+      // console if the account is PLATFORM_ADMIN (see the role check in
+      // app/candidate/page.tsx). The logo below stays "/" (the public
+      // marketing landing) — the right home for a logged-out visitor who
+      // followed a certificate link here.
+      setDashboardHref('/candidate');
     }
   }, []);
 

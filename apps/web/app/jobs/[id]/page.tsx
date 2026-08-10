@@ -188,7 +188,7 @@ export default function JobDetailPage() {
   if (!loggedIn) {
     return (
       <main className="container-standard">
-        <ErrorState message={<>You are not logged in — <Link href="/">log in first</Link> to view this job.</>} />
+        <ErrorState message={<>You are not logged in — <Link href="/candidate">log in first</Link> to view this job.</>} />
       </main>
     );
   }

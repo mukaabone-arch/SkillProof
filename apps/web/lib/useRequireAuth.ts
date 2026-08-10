@@ -7,8 +7,9 @@ import { getToken } from '@/lib/api';
 /**
  * Client-side entry guard for candidate-only pages. Tokens live in
  * localStorage, so this can't be Next middleware — the check runs in an
- * effect on mount, and redirects to the landing page ('/') when there's no
- * token. Callers must not render authenticated content until this returns
+ * effect on mount, and redirects to the candidate sign-in ('/candidate')
+ * when there's no token — never to the marketing landing at '/'. Callers
+ * must not render authenticated content until this returns
  * true (e.g. `if (!useRequireAuth()) return null;` before any real markup),
  * so a logged-out visitor never sees a flash of real data.
  */
@@ -18,7 +19,7 @@ export function useRequireAuth(): boolean {
 
   useEffect(() => {
     if (!getToken()) {
-      router.replace('/');
+      router.replace('/candidate');
       return;
     }
     setReady(true);

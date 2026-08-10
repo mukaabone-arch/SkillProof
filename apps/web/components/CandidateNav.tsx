@@ -8,7 +8,7 @@ import { useEntitlements } from '@/lib/entitlements';
 import Logo from './Logo';
 
 const LINKS = [
-  { href: '/', label: 'Dashboard' },
+  { href: '/candidate', label: 'Dashboard' },
   { href: '/profile', label: 'Profile' },
   { href: '/assessments', label: 'Assessments' },
   { href: '/jobs', label: 'Jobs' },
@@ -35,13 +35,13 @@ export default function CandidateNav({ onLoggedOut }: Props) {
   async function handleLogout() {
     await logout();
     onLoggedOut?.();
-    router.replace('/');
+    router.replace('/candidate');
   }
 
   return (
     <div className="appnav">
       <div className="appnav-inner">
-        <Link href="/" className="appnav-logo">
+        <Link href="/candidate" className="appnav-logo">
           <Logo className="brand-logo" />
           <span className="brand-product-name">SkillProof</span>
         </Link>

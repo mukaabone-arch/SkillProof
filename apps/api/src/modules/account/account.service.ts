@@ -71,7 +71,9 @@ export class AccountService {
       renderNotificationEmail(
         `<p>Your account is now deactivated — your profile is hidden from employer search and matching, and you won't be newly shortlisted or invited while it's off.</p>` +
           `<p>Everything is still there. Sign back in any time to reactivate.</p>`,
-        { label: 'Sign in to SkillProof', url: WEB_BASE_URL },
+        // The candidate sign-in lives at /candidate (the root "/" is the
+        // marketing landing) — this CTA must reach the login, not marketing.
+        { label: 'Sign in to SkillProof', url: `${WEB_BASE_URL}/candidate` },
       ),
     );
 
