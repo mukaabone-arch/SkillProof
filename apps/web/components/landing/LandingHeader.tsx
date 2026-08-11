@@ -12,7 +12,7 @@
  * one component.
  *
  * The brand lockup (Logo hero mark + "SkillProof" wordmark) is ~278px wide,
- * which together with three direct links doesn't fit a phone. Below a
+ * which together with the direct links doesn't fit a phone. Below a
  * breakpoint the links collapse into a toggled menu rather than wrapping or
  * shrinking the lockup.
  */
@@ -59,6 +59,9 @@ export default function LandingHeader({ candidateHref, employerHref }: Props) {
         <nav id="lp-primary-nav" className={`lp-nav${menuOpen ? ' is-open' : ''}`} aria-label="Primary">
           <a href="#about" className="lp-nav-link" onClick={() => setMenuOpen(false)}>
             About
+          </a>
+          <a href="/contact" className="lp-nav-link" onClick={() => setMenuOpen(false)}>
+            Contact
           </a>
           <a href={candidateHref} className="lp-nav-link" onClick={() => setMenuOpen(false)}>
             Candidate

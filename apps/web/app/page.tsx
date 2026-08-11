@@ -190,9 +190,14 @@ export default function LandingPage() {
             Get in touch
           </h2>
           <p className="lp-prose-body">
-            <span className="lp-placeholder-tag">Placeholder</span> Contact details will be published here. Content
-            to be supplied.
+            Questions about verification, support, partnerships or press — send us a message and we&apos;ll get back
+            to you.
           </p>
+          <div className="lp-inline-cta">
+            <a className="lp-btn lp-btn-primary" href="/contact">
+              Contact us
+            </a>
+          </div>
         </div>
       </section>
 
@@ -229,7 +234,7 @@ export default function LandingPage() {
           </div>
           <nav className="lp-footer-links" aria-label="Footer">
             <a href="#about">About Us</a>
-            <a href="#contact">Contact</a>
+            <a href="/contact">Contact</a>
             <a href="/privacy">Privacy Policy</a>
             <a href="/terms">Terms of Service</a>
             <a href="#faq">FAQs</a>

@@ -2267,6 +2267,74 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .lp-footer-links a { color: var(--ink-60); text-decoration: none; font-size: 0.9rem; }
 .lp-footer-links a:hover { color: var(--ink); text-decoration: underline; }
 
+/* ---- Contact form (/contact) ----
+   Its own route, styled in the .lp-* namespace so it reads as part of the
+   marketing surface (Nocturne tokens, brand lockup, .lp-btn actions) rather
+   than the app chrome. Form controls get an explicit surface/border here:
+   the global `input` rule (globals.css top) only sets padding/radius/border
+   and leaves the fill transparent, which looks unfinished on the dark card. */
+.lp-contact-page { min-height: 100vh; display: flex; }
+.lp-contact-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 48px 0 72px; gap: 28px; width: min(100% - 48px, 620px);
+}
+.lp-contact-brand { align-self: center; }
+.lp-contact-card {
+  width: 100%; background: var(--card); border: 1px solid var(--ink-12);
+  border-radius: var(--radius-lg); padding: 32px;
+}
+.lp-contact-intro { margin-bottom: 24px; }
+
+.lp-form { display: flex; flex-direction: column; gap: 18px; }
+.lp-field { display: flex; flex-direction: column; gap: 7px; }
+.lp-field label { font-size: 0.85rem; font-weight: 600; color: var(--ink); }
+.lp-field-labelrow { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.lp-char-counter { font-size: 0.78rem; color: var(--ink-30); font-variant-numeric: tabular-nums; }
+.lp-char-counter.is-over { color: var(--error); }
+.lp-form input,
+.lp-form select,
+.lp-form textarea {
+  width: 100%; background: var(--gray-50); color: var(--ink);
+  border: 1.5px solid var(--ink-12); border-radius: var(--radius-md);
+  padding: 12px 14px;
+}
+.lp-form input::placeholder,
+.lp-form textarea::placeholder { color: var(--ink-30); }
+.lp-form input:focus,
+.lp-form select:focus,
+.lp-form textarea:focus {
+  outline: none; border-color: var(--brand-400);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-400) 30%, transparent);
+}
+.lp-form textarea { resize: vertical; min-height: 128px; }
+
+/* Honeypot: removed from view and the tab order without display:none (some
+   bots skip display:none fields) — off-screen but still submittable. */
+.lp-hp {
+  position: absolute; left: -9999px; width: 1px; height: 1px;
+  overflow: hidden; opacity: 0;
+}
+
+.lp-contact-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+.lp-contact-actions .lp-btn { align-self: auto; }
+.lp-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.lp-contact-error { margin-top: -4px; }
+
+.lp-contact-result { text-align: center; padding: 12px 0; }
+.lp-contact-result .lp-prose-body { max-width: none; }
+.lp-contact-result-icon {
+  width: 56px; height: 56px; margin: 0 auto 16px; border-radius: var(--radius-full);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.6rem; font-weight: 700; color: var(--success);
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--success) 45%, transparent);
+}
+.lp-contact-result .lp-contact-actions { justify-content: center; }
+
+@media (max-width: 640px) {
+  .lp-contact-card { padding: 24px 20px; }
+}
+
 /* ---- Legal stub pages (/privacy, /terms) ---- */
 .legal-stub {
   max-width: 560px; text-align: center; min-height: 72vh;
@@ -2312,7 +2380,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 }
 
 /* ---- Landing: collapse header links into a menu below the lockup budget
-   (the ~278px lockup + 3 links won't fit a tablet/phone) ---- */
+   (the ~278px lockup + the nav links won't fit a tablet/phone) ---- */
 @media (max-width: 860px) {
   .lp-menu-btn { display: inline-flex; }
   .lp-nav {

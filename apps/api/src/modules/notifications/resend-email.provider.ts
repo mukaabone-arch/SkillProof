@@ -15,8 +15,8 @@ export class ResendEmailProvider implements EmailProvider {
     this.from = process.env.RESEND_FROM_EMAIL || DEFAULT_FROM;
   }
 
-  async send({ to, subject, html }: SendEmailParams): Promise<void> {
-    const { error } = await this.client.emails.send({ from: this.from, to, subject, html });
+  async send({ to, subject, html, replyTo }: SendEmailParams): Promise<void> {
+    const { error } = await this.client.emails.send({ from: this.from, to, subject, html, replyTo });
     if (error) {
       this.logger.error(`Resend API error: ${error.name}`);
       throw new Error(error.message);
