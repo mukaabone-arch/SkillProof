@@ -61,18 +61,6 @@ const EMPLOYER_POINTS = [
   'One place from shortlist to hire',
 ];
 
-/**
- * FAQ answers are deliberate placeholders — real copy (how assessments work,
- * pricing, review turnaround) will be supplied and must not be invented here.
- */
-const FAQS = [
-  'How do the skill assessments work?',
-  'Is SkillProof free for candidates?',
-  'How long does verification take?',
-  'How do employers use verified profiles?',
-  'Which AI skills and levels can I get verified?',
-];
-
 export default function LandingPage() {
   return (
     <>
@@ -183,31 +171,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ---------- FAQ ----------
-           Non-alt (base) on purpose: the Contact section that used to sit
-           between About (alt) and FAQ was removed, so FAQ flips to base to keep
-           content sections alternating — otherwise About and FAQ would share the
-           alt background and read as one merged block. */}
-      <section className="lp-section" id="faq" aria-labelledby="lp-faq-heading">
-        <div className="lp-container lp-prose">
-          <p className="lp-section-eyebrow">FAQ</p>
-          <h2 id="lp-faq-heading" className="lp-section-title">
-            Frequently asked questions
-          </h2>
-          <div className="lp-faq">
-            {FAQS.map((q) => (
-              <details className="lp-faq-item" key={q}>
-                <summary className="lp-faq-q">{q}</summary>
-                <p className="lp-faq-a">
-                  <span className="lp-placeholder-tag">Placeholder</span> Answer to be supplied — not drafted here to
-                  avoid inventing specifics about assessments, pricing, or review turnaround.
-                </p>
-              </details>
-            ))}
-          </div>
-        </div>
-      </section>
-
       </main>
 
       {/* ---------- Footer ---------- */}
@@ -226,7 +189,7 @@ export default function LandingPage() {
             <a href="/contact">Contact</a>
             <a href="/privacy">Privacy Policy</a>
             <a href="/terms">Terms of Service</a>
-            <a href="#faq">FAQs</a>
+            <a href="/faq">FAQs</a>
           </nav>
         </div>
       </footer>

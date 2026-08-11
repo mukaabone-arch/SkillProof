@@ -2298,6 +2298,19 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 }
 .lp-contact-intro { margin-bottom: 24px; }
 
+/* FAQ page (/faq) chrome — mirrors the contact sub-page: a centered Nocturne
+   column with the brand lockup linking home at the top. No outer card: each
+   .lp-faq-item is already its own card (see .lp-faq-item above), so a wrapper
+   card would nest two same-background surfaces. The column runs a touch wider
+   than contact's form (700 vs 620) to give the questions room. */
+.lp-faq-page { min-height: 100vh; display: flex; }
+.lp-faq-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 48px 0 72px; gap: 28px; width: min(100% - 48px, 700px);
+}
+.lp-faq-brand { align-self: center; }
+.lp-faq-panel { width: 100%; }
+
 .lp-form { display: flex; flex-direction: column; gap: 18px; }
 .lp-field { display: flex; flex-direction: column; gap: 7px; }
 .lp-field label { font-size: 0.85rem; font-weight: 600; color: var(--ink); }
