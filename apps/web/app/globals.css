@@ -2112,6 +2112,16 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   align-items: center; justify-content: center; cursor: pointer;
 }
 .lp-menu-icon { font-size: 1.1rem; line-height: 1; }
+/* Same fix the app navs use (.appnav-logo .brand-product-name at 640px), but
+   .lp-brand is its own class so it can't reuse that nav/topbar-scoped rule —
+   it needs its own. Below 640px the ~278px lockup + wordmark + menu button
+   overflowed the viewport (worst at 320px) and clipped the button off the
+   right edge; dropping the wordmark frees the horizontal space while the logo
+   stays at its fixed hero size (never compressed). The menu button already
+   shows at ≤860px, so this is strictly below where the row still fits. */
+@media (max-width: 640px) {
+  .lp-brand .brand-product-name { display: none; }
+}
 
 /* ---- Hero ---- */
 .lp-hero {
