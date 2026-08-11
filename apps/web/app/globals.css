@@ -541,6 +541,17 @@ code { font-family: var(--font-body); }
    width pressure by hiding the wordmark outright below 640px (see this
    rule's own comment above) and never faced this failure mode. */
 .brand-lockup-hero .brand-logo-hero { flex-shrink: 0; }
+/* Three hero-card entry surfaces (OtpLogin, EmployerOtpLogin,
+   EmployerInviteAccept) render the lockup as a link home to "/" (the
+   landing). Rest state is the plain lockup untouched — same ~278x44 hero
+   size, same colors — so only a hover/focus affordance is added to signal
+   it's clickable; nothing about the lockup's appearance changes otherwise.
+   (OAuthCallback keeps a plain, non-linked lockup — it's a transient
+   mid-auth state with its own contextual "Back to login".) */
+.brand-lockup-link { text-decoration: none; color: inherit; border-radius: 10px; transition: opacity 0.15s ease; }
+.brand-lockup-link:hover { opacity: 0.85; }
+.brand-lockup-link:hover .brand-product-name { text-decoration: underline; text-underline-offset: 3px; }
+.brand-lockup-link:focus-visible { outline: 2px solid var(--brand-400); outline-offset: 4px; }
 .app-footer-credit { text-align: center; font-size: 0.78rem; color: var(--ink-30); margin-top: 40px; }
 @media (max-width: 480px) {
   .brand-logo, .brand-logo-hero { height: var(--logo-size-hero-mobile); }

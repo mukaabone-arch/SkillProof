@@ -28,6 +28,7 @@
  * decision, not a signal that the route itself is going away.
  */
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { employerApi } from '@/lib/api';
 import { startOAuthLogin } from '@/lib/oauth';
 import Logo from './Logo';
@@ -138,12 +139,12 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
       <div className="auth-split-panel">
         <h1 className="auth-split-headline">Global AI Talent Hub</h1>
         <div className="auth-split-card">
-          <div className="brand-lockup-hero">
+          <Link href="/" className="brand-lockup-hero brand-lockup-link" aria-label="SkillProof home">
             <Logo className="brand-logo-hero" />
             <span className="brand-product-name">
               SkillProof <span style={{ color: 'var(--ink-60)', fontWeight: 500 }}>for Employers</span>
             </span>
-          </div>
+          </Link>
           <p className="auth-subtitle" style={{ marginBottom: 4 }}>
             Hire on proven skills, not keywords.
           </p>

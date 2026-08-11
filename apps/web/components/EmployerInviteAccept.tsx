@@ -12,6 +12,7 @@
  * definition not logged in yet.
  */
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { employerApi } from '@/lib/api';
 import Logo from './Logo';
@@ -86,12 +87,12 @@ export default function EmployerInviteAccept({ initialEmail }: Props) {
     <main className="auth auth-gradient">
       <h1 className="auth-headline">You&apos;ve been invited</h1>
       <div className="auth-card">
-        <div className="brand-lockup-hero">
+        <Link href="/" className="brand-lockup-hero brand-lockup-link" aria-label="SkillProof home">
           <Logo className="brand-logo-hero" />
           <span className="brand-product-name">
             SkillProof <span style={{ color: 'var(--auth-text-secondary)', fontWeight: 500 }}>for Employers</span>
           </span>
-        </div>
+        </Link>
         <p className="auth-subtitle" style={{ marginBottom: 4 }}>
           Join your team on SkillProof.
         </p>

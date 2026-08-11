@@ -19,6 +19,7 @@
  * still self-provisions for candidates).
  */
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { api, setTokens } from '@/lib/api';
 import { startOAuthLogin } from '@/lib/oauth';
 import Logo from './Logo';
@@ -106,10 +107,10 @@ export default function OtpLogin({ onLoggedIn }: Props) {
       <div className="auth-split-panel">
         <h1 className="auth-split-headline">Global AI Talent Hub</h1>
         <div className="auth-split-card">
-          <div className="brand-lockup-hero">
+          <Link href="/" className="brand-lockup-hero brand-lockup-link" aria-label="SkillProof home">
             <Logo className="brand-logo-hero" />
             <span className="brand-product-name">SkillProof</span>
-          </div>
+          </Link>
           <p className="auth-subtitle" style={{ marginBottom: 4 }}>
             Prove your AI skills, get matched to roles that want them.
           </p>
