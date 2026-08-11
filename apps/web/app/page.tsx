@@ -115,8 +115,9 @@ export default function LandingPage() {
             Everything a proven candidate needs — and nothing that wastes an employer&apos;s time
           </h2>
           <div className="lp-card-grid lp-card-grid-features">
-            {CAPABILITIES.map((title) => (
+            {CAPABILITIES.map((title, i) => (
               <div className="lp-card lp-card-feature" key={title}>
+                <span className="lp-step-num">{String(i + 1).padStart(2, '0')}</span>
                 <h3 className="lp-card-title">{title}</h3>
               </div>
             ))}
@@ -150,8 +151,9 @@ export default function LandingPage() {
             Stop screening keywords. Start reading proof.
           </h2>
           <div className="lp-card-grid lp-card-grid-3">
-            {EMPLOYER_POINTS.map((title) => (
+            {EMPLOYER_POINTS.map((title, i) => (
               <div className="lp-card lp-card-feature" key={title}>
+                <span className="lp-step-num">{String(i + 1).padStart(2, '0')}</span>
                 <h3 className="lp-card-title">{title}</h3>
               </div>
             ))}

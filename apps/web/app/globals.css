@@ -2181,7 +2181,12 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    shared @900/@640 rules below (which target .lp-card-grid) still collapse
    this to 2-up then 1-up on tablet/phone. */
 .lp-card-grid-features { grid-template-columns: repeat(4, 1fr); gap: 14px; }
-.lp-card-feature { padding: 20px 22px; min-height: 96px; display: flex; align-items: center; }
+/* Heading-only feature cards (platform strip + employer section). Same
+   column layout as .lp-step so the shared .lp-step-num marker sits directly
+   above the heading, consistent with the "How verification works" cards.
+   Padding and the 96px min-height floor are unchanged — a number pill plus a
+   single-line heading fits within it, so the card sizing holds. */
+.lp-card-feature { padding: 20px 22px; min-height: 96px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; }
 .lp-card-feature .lp-card-title { margin-bottom: 0; font-size: 1.05rem; text-wrap: balance; }
 .lp-card { background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-lg); padding: 28px 26px; }
 .lp-card-title { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; color: var(--ink); letter-spacing: -0.01em; margin-bottom: 10px; }
