@@ -964,15 +964,32 @@ describe('AuthService — add-identifier linking (phone/email onto one account)'
     expect(users[0]).toMatchObject({ id: 'user-1', phone: '+919999900012', email: 'new@candidate.com' });
   });
 
-  it('rejects linking a phone that already belongs to another account', async () => {
+  it('rejects linking a phone that already belongs to another account — with a non-leaky message, and no OTP sent', async () => {
     process.env.NODE_ENV = 'test';
     const me: UserRow = { id: 'user-1', phone: null, email: 'me@candidate.com', role: Role.CANDIDATE };
     const other: UserRow = { id: 'user-2', phone: '+919999900013', email: null, role: Role.CANDIDATE };
+    const { service, smsProvider } = makeService([me, other]);
+
+    // The message must NOT confirm the number already has an account (no
+    // enumeration oracle) — it reads like a typo/ineligible-value hint instead.
+    await expect(service.requestLinkPhoneOtp('user-1', '+919999900013')).rejects.toThrow(
+      "This phone number can't be added to your account. Double-check it and try again.",
+    );
+    await expect(service.requestLinkPhoneOtp('user-1', '+919999900013')).rejects.not.toThrow(/another|in use|already/i);
+    expect(smsProvider.sendOtp).not.toHaveBeenCalled(); // refused before any send
+  });
+
+  it('rejects linking an email that already belongs to another account — with a non-leaky message', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: '+919999900021', email: null, role: Role.CANDIDATE };
+    const other: UserRow = { id: 'user-2', phone: null, email: 'taken@candidate.com', role: Role.CANDIDATE };
     const { service } = makeService([me, other]);
 
-    await expect(service.requestLinkPhoneOtp('user-1', '+919999900013')).rejects.toThrow(
-      'This phone number is already linked to another SkillProof account.',
+    // Case-insensitive match still hits (assertEmailLinkable), and the copy stays vague.
+    await expect(service.requestLinkEmailOtp('user-1', 'Taken@Candidate.com')).rejects.toThrow(
+      "This email address can't be added to your account. Double-check it and try again.",
     );
+    await expect(service.requestLinkEmailOtp('user-1', 'Taken@Candidate.com')).rejects.not.toThrow(/another|in use|already/i);
   });
 
   it('rejects linking a phone when the account already has one', async () => {

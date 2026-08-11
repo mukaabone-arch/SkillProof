@@ -25,6 +25,29 @@ const EMPLOYER_ROLES: Role[] = [Role.EMPLOYER_ADMIN, Role.EMPLOYER_MEMBER];
 
 const NOT_AN_EMPLOYER_MESSAGE = "This account isn't registered as an employer. Contact your administrator.";
 
+/**
+ * Deliberately vague — the add-identifier flow must never confirm whether a
+ * phone/email already belongs to *some other* account. A message like "already
+ * in use" would turn the authenticated link endpoint into an enumeration
+ * oracle: a logged-in attacker could probe numbers/addresses and read back
+ * which ones have a SkillProof account. This copy instead reads like a typo /
+ * ineligible-value hint, and is returned identically at both the request-time
+ * guard (assert*Linkable) and the commit-time unique-constraint race, so those
+ * two paths can't be distinguished from each other either.
+ *
+ * Residual, accepted on purpose: refusing is still observably different from
+ * the "OTP sent" success path, so a determined attacker can still infer *that*
+ * a value is taken (just not from the wording). We keep refusing anyway — the
+ * only way to erase that difference is to always send the code, which would let
+ * this same endpoint be abused to spam SMS/email to arbitrary third parties.
+ * The "your account already has a phone/email" case below is a separate message
+ * because it's about the caller's *own* account and leaks nothing.
+ */
+const PHONE_NOT_LINKABLE_MESSAGE =
+  "This phone number can't be added to your account. Double-check it and try again.";
+const EMAIL_NOT_LINKABLE_MESSAGE =
+  "This email address can't be added to your account. Double-check it and try again.";
+
 /** NestJS has no built-in 429 exception, so we define one. */
 class TooManyRequestsException extends HttpException {
   constructor(message: string) {
@@ -744,7 +767,10 @@ export class AuthService {
       await this.prisma.user.update({ where: { id: userId }, data: { phone } });
     } catch (err) {
       if (this.isUniqueConstraintError(err, 'phone')) {
-        throw new ConflictException('This phone number was just linked to another account. Please try again.');
+        // Same vague copy as the request-time guard — the constraint firing
+        // here means another account took the number during the OTP window,
+        // which we must not disclose any more than at request time.
+        throw new ConflictException(PHONE_NOT_LINKABLE_MESSAGE);
       }
       throw err;
     }
@@ -772,7 +798,8 @@ export class AuthService {
       await this.prisma.user.update({ where: { id: userId }, data: { email } });
     } catch (err) {
       if (this.isUniqueConstraintError(err, 'email')) {
-        throw new ConflictException('This email was just linked to another account. Please try again.');
+        // Same vague copy as the request-time guard — see the phone path above.
+        throw new ConflictException(EMAIL_NOT_LINKABLE_MESSAGE);
       }
       throw err;
     }
@@ -787,7 +814,7 @@ export class AuthService {
     }
     const taken = await this.prisma.user.findUnique({ where: { phone } });
     if (taken && taken.id !== userId) {
-      throw new BadRequestException('This phone number is already linked to another SkillProof account.');
+      throw new BadRequestException(PHONE_NOT_LINKABLE_MESSAGE);
     }
   }
 
@@ -801,7 +828,7 @@ export class AuthService {
       where: { email: { equals: email, mode: 'insensitive' } },
     });
     if (taken && taken.id !== userId) {
-      throw new BadRequestException('This email is already linked to another SkillProof account.');
+      throw new BadRequestException(EMAIL_NOT_LINKABLE_MESSAGE);
     }
   }
 
