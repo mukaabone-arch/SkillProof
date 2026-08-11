@@ -2261,6 +2261,19 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .lp-footer { border-top: 1px solid var(--ink-12); padding: 48px 0; background: var(--gray-50); }
 .lp-footer-inner { display: flex; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
 .lp-footer-brand .brand-product-name { color: var(--ink); }
+/* Brand lockup (Logo + wordmark) at the standard brand-logo-hero size — the
+   nav/hero size the standardisation unified to (44px, 36px below 480px), same
+   as the header and login lockups, so it's not compressed or a bespoke size.
+   flex-shrink:0 pins the logo to its full natural width (it's an SVG with only
+   a viewBox; a shrunk box would rescale the artwork, not just crop it — see the
+   .brand-lockup-hero note above). The wordmark hides ≤640px exactly like the
+   header does: at 320px the mobile logo alone is ~228px in a ~272px column, so
+   logo + wordmark would overflow — measured, not assumed. */
+.lp-footer-lockup { display: inline-flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.lp-footer-lockup .brand-logo-hero { flex-shrink: 0; }
+@media (max-width: 640px) {
+  .lp-footer-lockup .brand-product-name { display: none; }
+}
 .lp-footer-company { color: var(--ink); font-weight: 600; margin-top: 8px; }
 .lp-footer-copy { color: var(--ink-30); font-size: 0.8rem; margin-top: 4px; }
 .lp-footer-links { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }

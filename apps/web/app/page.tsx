@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import LandingHeader from '@/components/landing/LandingHeader';
+import Logo from '@/components/Logo';
 
 /**
  * Marketing landing page — served at the domain root ("/"). The candidate
@@ -213,7 +214,10 @@ export default function LandingPage() {
       <footer className="lp-footer">
         <div className="lp-container lp-footer-inner">
           <div className="lp-footer-brand">
-            <span className="brand-product-name">SkillProof</span>
+            <div className="lp-footer-lockup">
+              <Logo className="brand-logo-hero" />
+              <span className="brand-product-name">SkillProof</span>
+            </div>
             <p className="lp-footer-company">Mukaab Technologies Private Limited</p>
             <p className="lp-footer-copy">© {new Date().getFullYear()} Mukaab Technologies Private Limited</p>
           </div>
