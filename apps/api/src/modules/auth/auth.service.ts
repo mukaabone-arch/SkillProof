@@ -14,6 +14,7 @@ import { IdentityProvider, OrgInvitationStatus, Role, User } from '@prisma/clien
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EMAIL_PROVIDER, EmailProvider } from '../notifications/email-provider.interface';
+import { SMS_PROVIDER, SmsProvider } from '../notifications/sms-provider.interface';
 import { GithubOAuthProvider } from './oauth/github-oauth.provider';
 import { GoogleOAuthProvider } from './oauth/google-oauth.provider';
 import { ExternalProfile, OAuthCodeExchange } from './oauth/oauth.types';
@@ -78,6 +79,7 @@ export class AuthService {
     private readonly google: GoogleOAuthProvider,
     private readonly github: GithubOAuthProvider,
     @Inject(EMAIL_PROVIDER) private readonly emailProvider: EmailProvider,
+    @Inject(SMS_PROVIDER) private readonly smsProvider: SmsProvider,
   ) {}
 
   async requestOtp(phone: string): Promise<{ message: string }> {
@@ -87,11 +89,26 @@ export class AuthService {
     if (isDev) {
       this.logger.log(`[DEV] OTP for ${phone}: ${otp}`);
     } else {
-      // TODO: await this.smsProvider.sendOtp(phone, otp);
-      this.logger.warn('Production OTP send not implemented yet (MSG91 integration pending).');
+      await this.sendOtpSms(phone, otp);
     }
 
     return { message: 'OTP sent' };
+  }
+
+  /**
+   * Phone counterpart to sendOtpEmail — same error-surface contract: a failed
+   * send throws a BadRequestException the candidate sees, never a silent "OTP
+   * sent" that leaves them waiting for a code that never arrives. The OTP is
+   * still consumed from the rate-limit budget on a failed send (issueOtp
+   * already ran), matching the email path's lack of special-cased rollback.
+   */
+  private async sendOtpSms(phone: string, otp: string): Promise<void> {
+    try {
+      await this.smsProvider.sendOtp({ to: phone, otp });
+    } catch (err) {
+      this.logger.error(`Failed to send OTP SMS: ${(err as Error).message}`);
+      throw new BadRequestException('Could not send the verification code. Please try again.');
+    }
   }
 
   /**
@@ -686,6 +703,124 @@ export class AuthService {
       },
     });
     return { ok: true, alreadyConnected: false };
+  }
+
+  /**
+   * OTP-verified linking of a SECOND login identifier (phone or email) onto
+   * the CURRENT account — the authenticated counterpart to connectProvider
+   * above, and the answer to the phone/email split-account problem: a User
+   * already has both a phone and an email column, so a candidate who signed
+   * up one way can attach the other to the SAME row instead of creating a
+   * second account with split badges. Only ever ADDS a missing identifier
+   * (assert*Linkable below); changing an existing one is deliberately out of
+   * scope. OTP keys are namespaced (linkPhoneOtpKey/linkEmailOtpKey) so a link
+   * code can never be satisfied by — or satisfy — a concurrent login OTP for
+   * the same value, the same isolation the invite flow uses.
+   */
+  private linkPhoneOtpKey(phone: string): string {
+    return `link-phone:${phone}`;
+  }
+  private linkEmailOtpKey(email: string): string {
+    return `link-email:${email}`;
+  }
+
+  async requestLinkPhoneOtp(userId: string, phone: string): Promise<{ message: string }> {
+    await this.assertPhoneLinkable(userId, phone);
+    const otp = this.issueOtp(this.linkPhoneOtpKey(phone));
+    const isDev = process.env.NODE_ENV !== 'production';
+    if (isDev) {
+      this.logger.log(`[DEV] Link-phone OTP for ${phone}: ${otp}`);
+    } else {
+      await this.sendOtpSms(phone, otp);
+    }
+    return { message: 'OTP sent' };
+  }
+
+  async verifyLinkPhoneOtp(userId: string, phone: string, otp: string) {
+    this.consumeOtp(this.linkPhoneOtpKey(phone), otp);
+    // Re-check at commit — the request-time guard can go stale across the OTP window.
+    await this.assertPhoneLinkable(userId, phone);
+    try {
+      await this.prisma.user.update({ where: { id: userId }, data: { phone } });
+    } catch (err) {
+      if (this.isUniqueConstraintError(err, 'phone')) {
+        throw new ConflictException('This phone number was just linked to another account. Please try again.');
+      }
+      throw err;
+    }
+    return { ok: true, phone };
+  }
+
+  async requestLinkEmailOtp(userId: string, rawEmail: string): Promise<{ message: string }> {
+    const email = normalizeEmail(rawEmail);
+    await this.assertEmailLinkable(userId, email);
+    const otp = this.issueOtp(this.linkEmailOtpKey(email));
+    const isDev = process.env.NODE_ENV !== 'production';
+    if (isDev) {
+      this.logger.log(`[DEV] Link-email OTP for ${email}: ${otp}`);
+    } else {
+      await this.sendLinkOtpEmail(email, otp);
+    }
+    return { message: 'OTP sent' };
+  }
+
+  async verifyLinkEmailOtp(userId: string, rawEmail: string, otp: string) {
+    const email = normalizeEmail(rawEmail);
+    this.consumeOtp(this.linkEmailOtpKey(email), otp);
+    await this.assertEmailLinkable(userId, email);
+    try {
+      await this.prisma.user.update({ where: { id: userId }, data: { email } });
+    } catch (err) {
+      if (this.isUniqueConstraintError(err, 'email')) {
+        throw new ConflictException('This email was just linked to another account. Please try again.');
+      }
+      throw err;
+    }
+    return { ok: true, email };
+  }
+
+  /** The current account must not already carry a phone, and the phone must not belong to another account. */
+  private async assertPhoneLinkable(userId: string, phone: string): Promise<void> {
+    const me = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (me.phone) {
+      throw new BadRequestException('Your account already has a phone number.');
+    }
+    const taken = await this.prisma.user.findUnique({ where: { phone } });
+    if (taken && taken.id !== userId) {
+      throw new BadRequestException('This phone number is already linked to another SkillProof account.');
+    }
+  }
+
+  /** Email counterpart to assertPhoneLinkable — case-insensitive match, same as findVerifiedEmailMatch. */
+  private async assertEmailLinkable(userId: string, email: string): Promise<void> {
+    const me = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (me.email) {
+      throw new BadRequestException('Your account already has an email address.');
+    }
+    const taken = await this.prisma.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+    });
+    if (taken && taken.id !== userId) {
+      throw new BadRequestException('This email is already linked to another SkillProof account.');
+    }
+  }
+
+  /** Add-email-to-account copy — distinct from the signup email (sendCandidateOtpEmail). */
+  private async sendLinkOtpEmail(email: string, otp: string): Promise<void> {
+    const subject = 'Your SkillProof verification code';
+    const minutes = Math.round(this.OTP_TTL_MS / 60000);
+    const html = `
+      <p>You're adding this email to your SkillProof account.</p>
+      <p>Your verification code is:</p>
+      <p style="font-size: 28px; font-weight: 700; letter-spacing: 6px; margin: 16px 0;">${otp}</p>
+      <p>This code expires in ${minutes} minutes. If you didn't request this, you can safely ignore this email.</p>
+    `;
+    try {
+      await this.emailProvider.send({ to: email, subject, html });
+    } catch (err) {
+      this.logger.error(`Failed to send link-email OTP: ${(err as Error).message}`);
+      throw new BadRequestException('Could not send the verification code. Please try again.');
+    }
   }
 
   /**

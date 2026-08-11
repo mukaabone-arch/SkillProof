@@ -183,6 +183,174 @@ function ExportsCard() {
   );
 }
 
+interface MeIdentifiers {
+  phone: string | null;
+  email: string | null;
+}
+
+/**
+ * Login methods: shows the phone and email on this account and lets the
+ * candidate ADD whichever is missing, OTP-verified, onto the SAME account
+ * (POST /auth/link/{phone,email}/request|verify). This is what keeps phone
+ * and email as one account instead of two with split badges — see
+ * AuthService's linking methods.
+ */
+function LoginMethodsCard() {
+  const [me, setMe] = useState<MeIdentifiers | null>(null);
+  const [loadError, setLoadError] = useState('');
+  const [adding, setAdding] = useState<'phone' | 'email' | null>(null);
+  const [value, setValue] = useState('');
+  const [otp, setOtp] = useState('');
+  const [stage, setStage] = useState<'input' | 'otp'>('input');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  function load() {
+    api<MeIdentifiers>('/users/me')
+      .then((u) => setMe({ phone: u.phone, email: u.email }))
+      .catch((e) => setLoadError((e as Error).message));
+  }
+  useEffect(() => {
+    load();
+  }, []);
+
+  function startAdd(method: 'phone' | 'email') {
+    setAdding(method);
+    setValue('');
+    setOtp('');
+    setStage('input');
+    setError('');
+    setSuccess('');
+  }
+  function cancel() {
+    setAdding(null);
+    setValue('');
+    setOtp('');
+    setStage('input');
+    setError('');
+  }
+
+  async function sendCode() {
+    if (!adding) return;
+    setError('');
+    setBusy(true);
+    try {
+      await api(`/auth/link/${adding}/request`, { method: 'POST', body: JSON.stringify({ [adding]: value.trim() }) });
+      setStage('otp');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verify() {
+    if (!adding) return;
+    setError('');
+    setBusy(true);
+    try {
+      await api(`/auth/link/${adding}/verify`, {
+        method: 'POST',
+        body: JSON.stringify({ [adding]: value.trim(), otp }),
+      });
+      setSuccess(adding === 'phone' ? 'Phone number added to your account.' : 'Email added to your account.');
+      setAdding(null);
+      setOtp('');
+      setStage('input');
+      load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card elevated style={{ marginBottom: 32 }}>
+      <h2 style={{ marginTop: 0 }}>Login methods</h2>
+      <p>
+        Sign in with either your email or your phone. Adding the one you&apos;re missing keeps everything on this one
+        account — badges, history and all — instead of creating a second one.
+      </p>
+
+      {loadError && <ErrorState message={loadError} />}
+      {!me && !loadError && <LoadingState />}
+      {success && <p className="ok">{success}</p>}
+
+      {me && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {(['email', 'phone'] as const).map((m) => {
+            const current = me[m];
+            return (
+              <div key={m} className="row" style={{ justifyContent: 'space-between', margin: 0, alignItems: 'center' }}>
+                <div className="row" style={{ margin: 0, alignItems: 'center', gap: 8 }}>
+                  <Badge variant={current ? 'verified' : 'neutral'}>{m === 'email' ? 'Email' : 'Phone'}</Badge>
+                  <span className="meta" style={{ margin: 0 }}>{current ?? 'Not added'}</span>
+                </div>
+                {!current && adding !== m && (
+                  <button className="btn-secondary" onClick={() => startAdd(m)}>
+                    Add {m === 'email' ? 'email' : 'phone'}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+
+          {adding && (
+            <div className="field" style={{ marginTop: 4 }}>
+              {stage === 'input' ? (
+                <>
+                  <label htmlFor="link-value">{adding === 'email' ? 'Email' : 'Phone number'}</label>
+                  <input
+                    id="link-value"
+                    type={adding === 'email' ? 'email' : 'tel'}
+                    inputMode={adding === 'email' ? 'email' : 'tel'}
+                    autoComplete={adding === 'email' ? 'email' : 'tel'}
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    placeholder={adding === 'email' ? 'you@example.com' : '+91 98765 43210'}
+                  />
+                  <div className="row" style={{ margin: '10px 0 0', gap: 8 }}>
+                    <button onClick={sendCode} disabled={busy || value.trim().length === 0}>
+                      {busy ? 'Sending…' : 'Send code'}
+                    </button>
+                    <button type="button" className="btn-link" onClick={cancel} disabled={busy}>
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <label htmlFor="link-otp">Enter the 6-digit code sent to {value.trim()}</label>
+                  <input
+                    id="link-otp"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="123456"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                  />
+                  <div className="row" style={{ margin: '10px 0 0', gap: 8 }}>
+                    <button onClick={verify} disabled={busy || otp.length !== 6}>
+                      {busy ? 'Verifying…' : `Verify and add ${adding === 'email' ? 'email' : 'phone'}`}
+                    </button>
+                    <button type="button" className="btn-link" onClick={cancel} disabled={busy}>
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {error && <ErrorState message={error} />}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 /**
  * Shared by both flows below — a single-select plus optional free text,
  * always skippable. Neither field is ever required to submit; see
@@ -302,6 +470,8 @@ export default function AccountSettingsPage() {
 
         {loadError && <ErrorState message={loadError} />}
         {!status && !loadError && <LoadingState />}
+
+        <LoginMethodsCard />
 
         {status && <ExportsCard />}
 

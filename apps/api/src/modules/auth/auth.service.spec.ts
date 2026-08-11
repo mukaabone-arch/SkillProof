@@ -92,6 +92,14 @@ function fakePrisma(
         captureAcceptance(user.id, data);
         return user;
       }),
+      // Used by the add-phone/add-email linking flow to attach an identifier
+      // onto an existing row.
+      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Partial<UserRow> }) => {
+        const u = users.find((x) => x.id === where.id);
+        if (!u) throw new Error('not found');
+        Object.assign(u, data);
+        return u;
+      }),
     },
     termsAcceptance: {
       findFirst: jest.fn(async ({ where }: { where: { userId: string } }) => {
@@ -185,14 +193,16 @@ function makeService(
   const prisma = fakePrisma(users, orgMembers, invitations, termsAcceptances);
   const jwt = { signAsync: jest.fn(async () => 'signed.jwt.token') };
   const emailProvider = { send: jest.fn(async (_params: SentEmail): Promise<void> => undefined) };
+  const smsProvider = { sendOtp: jest.fn(async (_params: { to: string; otp: string }): Promise<void> => undefined) };
   const service = new AuthService(
     prisma as never,
     jwt as never,
     (oauth.google ?? {}) as never, // GoogleOAuthProvider — a real stub only for the OAuth tests
     (oauth.github ?? {}) as never, // GithubOAuthProvider — ditto
     emailProvider as never,
+    smsProvider as never,
   );
-  return { service, prisma, emailProvider, users, orgMembers, invitations, termsAcceptances };
+  return { service, prisma, emailProvider, smsProvider, users, orgMembers, invitations, termsAcceptances };
 }
 
 /** A PENDING invitation, 7 days out, matching OrgMembersService's own TTL — createdAt staggered slightly into the past so multiple invitations in one test sort deterministically. */
@@ -870,5 +880,128 @@ describe('AuthService — terms/privacy acceptance is recorded on every creation
     await service.acceptInvite('member@acme.com', DEV_OTP);
 
     expect(termsAcceptances).toHaveLength(0);
+  });
+});
+
+describe('AuthService — phone OTP SMS delivery (MSG91 seam)', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  it('dev mode: logs the code instead of sending, never calls the SMS provider', async () => {
+    process.env.NODE_ENV = 'test';
+    const { service, smsProvider } = makeService();
+
+    await expect(service.requestOtp('+919999900007')).resolves.toEqual({ message: 'OTP sent' });
+    expect(smsProvider.sendOtp).not.toHaveBeenCalled();
+  });
+
+  it('production: sends the code via the SMS provider, addressed to the phone', async () => {
+    process.env.NODE_ENV = 'production';
+    const { service, smsProvider } = makeService();
+
+    await service.requestOtp('+919999900007');
+
+    expect(smsProvider.sendOtp).toHaveBeenCalledTimes(1);
+    const arg = smsProvider.sendOtp.mock.calls[0][0];
+    expect(arg.to).toBe('+919999900007');
+    expect(arg.otp).toMatch(/^\d{6}$/);
+  });
+
+  it('production: a failed send surfaces as an error, not a silent "OTP sent"', async () => {
+    process.env.NODE_ENV = 'production';
+    const { service, smsProvider } = makeService();
+    smsProvider.sendOtp.mockRejectedValueOnce(new Error('MSG91 send failed'));
+
+    await expect(service.requestOtp('+919999900007')).rejects.toThrow(
+      'Could not send the verification code. Please try again.',
+    );
+  });
+
+  it('phone and email OTP delivery stay on separate channels (SMS request never emails)', async () => {
+    process.env.NODE_ENV = 'production';
+    const { service, smsProvider, emailProvider } = makeService();
+
+    await service.requestOtp('+919999900008');
+
+    expect(smsProvider.sendOtp).toHaveBeenCalledTimes(1);
+    expect(emailProvider.send).not.toHaveBeenCalled();
+  });
+});
+
+describe('AuthService — add-identifier linking (phone/email onto one account)', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  it('links a phone onto an email-first account — same row, no second account', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: null, email: 'me@candidate.com', role: Role.CANDIDATE };
+    const { service, smsProvider, users } = makeService([me]);
+
+    await service.requestLinkPhoneOtp('user-1', '+919999900011');
+    expect(smsProvider.sendOtp).not.toHaveBeenCalled(); // dev logs, never sends
+    const result = await service.verifyLinkPhoneOtp('user-1', '+919999900011', DEV_OTP);
+
+    expect(result).toMatchObject({ ok: true, phone: '+919999900011' });
+    expect(users).toHaveLength(1); // no new account
+    expect(users[0]).toMatchObject({ id: 'user-1', email: 'me@candidate.com', phone: '+919999900011' });
+  });
+
+  it('links an email onto a phone-first account — same row', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: '+919999900012', email: null, role: Role.CANDIDATE };
+    const { service, users } = makeService([me]);
+
+    await service.requestLinkEmailOtp('user-1', 'New@Candidate.com');
+    const result = await service.verifyLinkEmailOtp('user-1', 'new@candidate.com', DEV_OTP);
+
+    expect(result).toMatchObject({ ok: true, email: 'new@candidate.com' });
+    expect(users).toHaveLength(1);
+    expect(users[0]).toMatchObject({ id: 'user-1', phone: '+919999900012', email: 'new@candidate.com' });
+  });
+
+  it('rejects linking a phone that already belongs to another account', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: null, email: 'me@candidate.com', role: Role.CANDIDATE };
+    const other: UserRow = { id: 'user-2', phone: '+919999900013', email: null, role: Role.CANDIDATE };
+    const { service } = makeService([me, other]);
+
+    await expect(service.requestLinkPhoneOtp('user-1', '+919999900013')).rejects.toThrow(
+      'This phone number is already linked to another SkillProof account.',
+    );
+  });
+
+  it('rejects linking a phone when the account already has one', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: '+919999900014', email: 'me@candidate.com', role: Role.CANDIDATE };
+    const { service } = makeService([me]);
+
+    await expect(service.requestLinkPhoneOtp('user-1', '+919999900099')).rejects.toThrow(
+      'Your account already has a phone number.',
+    );
+  });
+
+  it('a wrong link-OTP does not attach the phone', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: null, email: 'me@candidate.com', role: Role.CANDIDATE };
+    const { service, users } = makeService([me]);
+
+    await service.requestLinkPhoneOtp('user-1', '+919999900015');
+    await expect(service.verifyLinkPhoneOtp('user-1', '+919999900015', '000000')).rejects.toThrow('Incorrect OTP.');
+    expect(users[0].phone).toBeNull();
+  });
+
+  it('a link-phone OTP is namespaced apart from a login OTP for the same number', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: null, email: 'me@candidate.com', role: Role.CANDIDATE };
+    const { service } = makeService([me]);
+
+    // Would throw (cooldown) if link and login shared the same otpStore key.
+    await service.requestOtp('+919999900016');
+    await expect(service.requestLinkPhoneOtp('user-1', '+919999900016')).resolves.toEqual({ message: 'OTP sent' });
   });
 });

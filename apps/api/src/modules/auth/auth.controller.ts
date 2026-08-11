@@ -147,6 +147,40 @@ export class AuthController {
   }
 
   /**
+   * Add a second login identifier to the CURRENT account (phone or email),
+   * OTP-verified — how a candidate who signed up one way attaches the other
+   * to the same account instead of creating a second one. See
+   * AuthService.requestLinkPhoneOtp / verifyLinkPhoneOtp (and the email pair).
+   */
+  @Post('link/phone/request')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  requestLinkPhoneOtp(@Req() req: AuthenticatedRequest, @Body() dto: RequestOtpDto) {
+    return this.auth.requestLinkPhoneOtp(req.user.sub, dto.phone);
+  }
+
+  @Post('link/phone/verify')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  verifyLinkPhoneOtp(@Req() req: AuthenticatedRequest, @Body() dto: VerifyOtpDto) {
+    return this.auth.verifyLinkPhoneOtp(req.user.sub, dto.phone, dto.otp);
+  }
+
+  @Post('link/email/request')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  requestLinkEmailOtp(@Req() req: AuthenticatedRequest, @Body() dto: CandidateEmailOtpRequestDto) {
+    return this.auth.requestLinkEmailOtp(req.user.sub, dto.email);
+  }
+
+  @Post('link/email/verify')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  verifyLinkEmailOtp(@Req() req: AuthenticatedRequest, @Body() dto: CandidateEmailOtpVerifyDto) {
+    return this.auth.verifyLinkEmailOtp(req.user.sub, dto.email, dto.otp);
+  }
+
+  /**
    * The current user's most recent Terms/Privacy acceptance record (or null
    * for accounts created before acceptance was recorded). Makes the record
    * retrievable per user — see AuthService.getTermsAcceptance.

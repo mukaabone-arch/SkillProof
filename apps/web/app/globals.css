@@ -903,6 +903,20 @@ main.auth.auth-gradient {
    this card is already opaque, so inputs get their own distinct surface
    instead of blending into it. */
 .auth-split-card input { background: var(--gray-50); }
+/* Email/Phone sign-in method toggle (OtpLogin). Segmented control on the
+   inset input surface (--gray-50), the active segment raised to the card
+   fill (--card, a shade lighter). */
+.auth-method-toggle {
+  display: flex; gap: 4px; margin-bottom: 18px; padding: 4px;
+  background: var(--gray-50); border: 1px solid var(--gray-100); border-radius: var(--radius-md);
+}
+.auth-method-toggle button {
+  flex: 1; padding: 8px 10px; border: none; background: transparent; cursor: pointer;
+  font-family: var(--font-body); font-weight: 600; font-size: 0.9rem; color: var(--ink-60);
+  border-radius: var(--radius-sm); transition: background 0.12s ease, color 0.12s ease;
+}
+.auth-method-toggle button.is-active { background: var(--card); color: var(--ink); }
+.auth-method-toggle button:not(.is-active):hover { color: var(--ink); }
 /* .auth-divider-label has no unscoped rule (see its declaration above,
    still only styled within .auth-gradient) — this is the split-layout
    equivalent, using the same muted token every other de-emphasized label in
