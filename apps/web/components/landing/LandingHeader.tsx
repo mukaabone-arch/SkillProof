@@ -57,9 +57,6 @@ export default function LandingHeader({ candidateHref, employerHref }: Props) {
         </button>
 
         <nav id="lp-primary-nav" className={`lp-nav${menuOpen ? ' is-open' : ''}`} aria-label="Primary">
-          <a href="#about" className="lp-nav-link" onClick={() => setMenuOpen(false)}>
-            About
-          </a>
           <a href="/contact" className="lp-nav-link" onClick={() => setMenuOpen(false)}>
             Contact
           </a>
