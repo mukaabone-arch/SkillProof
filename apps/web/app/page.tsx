@@ -182,27 +182,12 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ---------- Contact ---------- */}
-      <section className="lp-section" id="contact" aria-labelledby="lp-contact-heading">
-        <div className="lp-container lp-prose">
-          <p className="lp-section-eyebrow">Contact</p>
-          <h2 id="lp-contact-heading" className="lp-section-title">
-            Get in touch
-          </h2>
-          <p className="lp-prose-body">
-            Questions about verification, support, partnerships or press — send us a message and we&apos;ll get back
-            to you.
-          </p>
-          <div className="lp-inline-cta">
-            <a className="lp-btn lp-btn-primary" href="/contact">
-              Contact us
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* ---------- FAQ ---------- */}
-      <section className="lp-section lp-section-alt" id="faq" aria-labelledby="lp-faq-heading">
+      {/* ---------- FAQ ----------
+           Non-alt (base) on purpose: the Contact section that used to sit
+           between About (alt) and FAQ was removed, so FAQ flips to base to keep
+           content sections alternating — otherwise About and FAQ would share the
+           alt background and read as one merged block. */}
+      <section className="lp-section" id="faq" aria-labelledby="lp-faq-heading">
         <div className="lp-container lp-prose">
           <p className="lp-section-eyebrow">FAQ</p>
           <h2 id="lp-faq-heading" className="lp-section-title">

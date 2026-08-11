@@ -19,7 +19,7 @@ export default function LegalStub({ title }: { title: string }) {
       <p className="legal-stub-badge">Coming soon</p>
       <p className="legal-stub-body">
         This document is being finalised and will be published here. In the meantime, questions can go to{' '}
-        <Link href="/#contact">SkillProof</Link>.
+        <Link href="/contact">SkillProof</Link>.
       </p>
       <p className="legal-stub-company">Mukaab Technologies Private Limited</p>
     </main>
