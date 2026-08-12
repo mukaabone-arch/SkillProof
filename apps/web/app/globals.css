@@ -2405,6 +2405,36 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   }
 }
 
+/* ---- Landing hero: mobile art direction (≤768px) ----
+   The mobile-first base scrim above is a HORIZONTAL gradient (0.80–0.97 across
+   the full width), tuned for the desktop landscape composition. On a narrow
+   phone it blankets the entire photo, so the hero read as a flat dark block
+   with no visible image. Two phone-scoped fixes:
+   1. Swap the landscape photo for a 3:4 portrait crop (hero-mobile-3x4.jpg)
+      shaped for a tall viewport — `cover` barely crops it, so the two subjects
+      stay in frame instead of being scaled out of it (the landscape source, at
+      cover, loses most of its height on a portrait viewport). Same
+      background-image swap the codebase already uses; there is no <picture>
+      pattern here. Anchored `center top` to hold the faces (upper third).
+   2. Replace that flat overlay with a VERTICAL scrim: dark at top and bottom
+      for text legibility, clear through the middle so the photo shows through. */
+@media (max-width: 768px) {
+  .lp-hero {
+    background-image: url('/hero-mobile-3x4.jpg');
+    background-position: center top;
+  }
+  .lp-hero-scrim {
+    background: linear-gradient(
+      to bottom,
+      rgba(12, 12, 24, 0.92) 0%,
+      rgba(12, 12, 24, 0.55) 22%,
+      rgba(12, 12, 24, 0.15) 48%,
+      rgba(12, 12, 24, 0.55) 78%,
+      rgba(12, 12, 24, 0.95) 100%
+    );
+  }
+}
+
 /* ---- Landing: collapse header links into a menu below the lockup budget
    (the ~278px lockup + the nav links won't fit a tablet/phone) ---- */
 @media (max-width: 860px) {
