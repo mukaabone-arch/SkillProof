@@ -2165,6 +2165,9 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 1.05; letter-spacing: -0.03em;
   margin-bottom: 20px;
 }
+/* Base = desktop: show the full headline, hide the short (mobile) variant. The
+   swap to the short one happens in the ≤768px block below. */
+.lp-hero-title-sm { display: none; }
 .lp-hero-sub {
   font-family: var(--font-body); color: var(--gray-600);
   font-size: 1.12rem; line-height: 1.55; max-width: 52ch; margin-bottom: 8px;
@@ -2438,6 +2441,24 @@ html:has(.lp-page) { scroll-behavior: smooth; }
     background-image: url('/hero-mobile-3x4.jpg');
     background-position: center top;
   }
+  /* Swap to the shorter headline (fits two lines, lifts the text block off the
+     faces) and even out its wrapping. text-wrap: balance kills the lone-word
+     orphan ("it") that the full headline dropped onto a 4th line; it's a
+     progressive enhancement (Chrome 114+/Safari 17.5+) that degrades harmlessly
+     where unsupported. Slightly smaller, viewport-scaled size + tighter metrics
+     for the narrow column. */
+  .lp-hero-title-lg { display: none; }
+  .lp-hero-title-sm { display: inline; }
+  .lp-hero-title {
+    text-wrap: balance;
+    font-size: clamp(2rem, 8.5vw, 2.75rem);
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+  }
+  /* Drop the CTA helper captions on mobile — each just restates the button
+     directly above it, and cutting both frees ~90px so the block sits higher,
+     clear of the subjects. Desktop keeps them (see .lp-cta-caption). */
+  .lp-cta-caption { display: none; }
 }
 
 /* ---- Landing: collapse header links into a menu below the lockup budget

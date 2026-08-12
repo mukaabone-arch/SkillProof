@@ -71,8 +71,15 @@ export default function LandingPage() {
         <div className="lp-hero-scrim" aria-hidden="true" />
         <div className="lp-container lp-hero-inner">
           <p className="lp-eyebrow">Verified AI talent</p>
+          {/* Two headline variants, toggled by CSS at 768px (see .lp-hero-title-lg/-sm
+              in globals.css). Desktop keeps the full line (3 balanced lines over the
+              empty left of the landscape shot); mobile uses a shorter one that fits two
+              lines and lifts the text block off the subjects' faces, which share the
+              clear-middle band of the scrim. Exactly one span is display:none at any
+              width, so only one contributes to the h1's accessible name. */}
           <h1 id="lp-hero-heading" className="lp-hero-title">
-            Where proven AI skill meets the companies hiring for it
+            <span className="lp-hero-title-lg">Where proven AI skill meets the companies hiring for it</span>
+            <span className="lp-hero-title-sm">Proven AI skill, meet the companies hiring</span>
           </h1>
           <p className="lp-hero-sub">
             SkillProof turns real ability into verified proof — assessments reviewed by a person, not
