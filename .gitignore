@@ -7,6 +7,9 @@ dist/
 *.log
 *.tsbuildinfo
 .DS_Store
+# Windows alternate-data-stream artifacts WSL surfaces as files when copying in
+# assets from the Windows side (e.g. public/foo.jpg:Zone.Identifier).
+*:Zone.Identifier
 apps/api/uploads/
 # Flutter
 apps/mobile/build/

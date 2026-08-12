@@ -2132,26 +2132,27 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   background-image: url('/hero-office.jpg');
   background-size: cover; background-position: center right; background-repeat: no-repeat;
 }
-/* Scrim — the whole reason white text is legible on a light photo.
-   MOBILE-FIRST base: heavy and fairly uniform (min 0.80) because the hero
-   text spans most of a narrow viewport, so every part of the text region
-   stays dark. Worst case (a PURE-WHITE photo pixel, i.e. the brightest the
-   image could be) the text sits on ~rgb(59,61,65): #fff headline ≈ 11.0:1,
-   --gray-600 sub-line ≈ 7.4:1 — both comfortably above AA (4.5:1) and AAA
-   (7:1). A vertical layer fades the very bottom into the page bg so the hero
-   joins the sections with no seam. Real warm-neutral pixels are darker than
-   pure white, so these are conservative lower bounds — re-verify once the
-   real hero-office.jpg is in place. */
+/* Scrim — the whole reason white text is legible on the photo.
+   MOBILE-FIRST base = a VERTICAL "clear middle" scrim, used on every phone and
+   tablet (≤1023px). Dark at the top and bottom for text legibility, but clear
+   through the middle so the photo shows through. This replaces the old
+   horizontal base (0.80–0.97 across the full width), which was tuned for the
+   desktop landscape composition and, on a narrow/portrait viewport, blanketed
+   the whole image edge-to-edge — the hero read as a flat dark block. The
+   desktop override (≥1024px, below) swaps back to the horizontal fade-right
+   that suits the landscape shot. Trade-off of clearing the middle: the gray
+   sub-line can no longer ride on a heavy scrim, so it's lifted to near-white
+   wherever this scrim applies (≤1023px — see .lp-hero-sub below). */
 .lp-hero-scrim {
   position: absolute; inset: 0; pointer-events: none;
-  background:
-    linear-gradient(90deg,
-      rgba(10, 12, 18, 0.97) 0%,
-      rgba(10, 12, 18, 0.90) 50%,
-      rgba(10, 12, 18, 0.80) 100%),
-    linear-gradient(180deg,
-      rgba(10, 12, 18, 0.30) 0%, rgba(10, 12, 18, 0) 26%,
-      rgba(10, 12, 18, 0) 72%, var(--gray-50) 100%);
+  background: linear-gradient(
+    to bottom,
+    rgba(12, 12, 24, 0.92) 0%,
+    rgba(12, 12, 24, 0.55) 22%,
+    rgba(12, 12, 24, 0.15) 48%,
+    rgba(12, 12, 24, 0.55) 78%,
+    rgba(12, 12, 24, 0.95) 100%
+  );
 }
 .lp-hero-inner { position: relative; z-index: 1; }
 .lp-hero-inner > * { max-width: 620px; }
@@ -2405,33 +2406,37 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   }
 }
 
+/* ---- Landing hero: sub-line legibility on the clear-middle scrim (≤1023px) ----
+   The base sub-line is --gray-600 (gray) — that only reads because the DESKTOP
+   scrim lays a heavy overlay under it. Wherever the vertical clear-middle scrim
+   applies (phone + tablet), that overlay is gone, so gray text falls onto the
+   photo (worst over the bright wall on the left of the landscape shot at tablet
+   widths). Lift the sub-line to near-white with a soft shadow instead of
+   darkening the scrim — clears AA over the photo without giving back any of the
+   image visibility the scrim was changed to protect. Scoped to ≤1023px so the
+   desktop gray-on-scrim treatment is untouched. */
+@media (max-width: 1023px) {
+  .lp-hero-sub {
+    color: rgba(255, 255, 255, 0.92);
+    text-shadow: 0 1px 12px rgba(10, 12, 18, 0.6);
+  }
+}
+
 /* ---- Landing hero: mobile art direction (≤768px) ----
-   The mobile-first base scrim above is a HORIZONTAL gradient (0.80–0.97 across
-   the full width), tuned for the desktop landscape composition. On a narrow
-   phone it blankets the entire photo, so the hero read as a flat dark block
-   with no visible image. Two phone-scoped fixes:
-   1. Swap the landscape photo for a 3:4 portrait crop (hero-mobile-3x4.jpg)
-      shaped for a tall viewport — `cover` barely crops it, so the two subjects
-      stay in frame instead of being scaled out of it (the landscape source, at
-      cover, loses most of its height on a portrait viewport). Same
-      background-image swap the codebase already uses; there is no <picture>
-      pattern here. Anchored `center top` to hold the faces (upper third).
-   2. Replace that flat overlay with a VERTICAL scrim: dark at top and bottom
-      for text legibility, clear through the middle so the photo shows through. */
+   Swap the landscape photo for a 3:4 portrait crop (hero-mobile-3x4.jpg) shaped
+   for a tall viewport — `cover` barely crops it, so the two subjects stay in
+   frame instead of being scaled out of it (the landscape source, at cover,
+   loses most of its height on a portrait viewport). Same background-image swap
+   the codebase already uses; there is no <picture> pattern here. Anchored
+   `center top` to hold the faces. Note this is a NARROWER breakpoint than the
+   vertical scrim above (≤1023px): the landscape image is fine on a tablet's
+   wider viewport — only the horizontal scrim was leaking in there — so tablets
+   (769–1023px) keep the landscape shot under the new vertical scrim, and only
+   phones get the portrait crop. */
 @media (max-width: 768px) {
   .lp-hero {
     background-image: url('/hero-mobile-3x4.jpg');
     background-position: center top;
-  }
-  .lp-hero-scrim {
-    background: linear-gradient(
-      to bottom,
-      rgba(12, 12, 24, 0.92) 0%,
-      rgba(12, 12, 24, 0.55) 22%,
-      rgba(12, 12, 24, 0.15) 48%,
-      rgba(12, 12, 24, 0.55) 78%,
-      rgba(12, 12, 24, 0.95) 100%
-    );
   }
 }
 
