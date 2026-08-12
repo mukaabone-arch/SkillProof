@@ -1,4 +1,4 @@
-// SkillProof Phase 1 schema — mirrors tech spec §5 conventions:
+// Myambii Phase 1 schema — mirrors tech spec §5 conventions:
 // UUID PKs, createdAt/updatedAt everywhere, soft deletes on user-facing entities.
 
 generator client {

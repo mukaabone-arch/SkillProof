@@ -39,7 +39,7 @@ export default function PublicNav() {
       <div className="appnav-inner">
         <Link href="/" className="appnav-logo">
           <Logo className="brand-logo" />
-          <span className="brand-product-name">SkillProof</span>
+          <span className="brand-product-name">Myambii</span>
         </Link>
         {dashboardHref && (
           <div className="appnav-links">

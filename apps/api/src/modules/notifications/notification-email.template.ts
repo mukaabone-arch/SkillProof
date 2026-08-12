@@ -26,7 +26,7 @@ export function renderNotificationEmail(bodyHtml: string, cta: NotificationCta):
       <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;background-color:#ffffff;border-radius:8px;font-family:Arial,Helvetica,sans-serif;">
         <tr>
           <td style="background-color:${BRAND_COLOR};padding:20px 32px;border-radius:8px 8px 0 0;">
-            <span style="color:#ffffff;font-size:18px;font-weight:bold;">SkillProof</span>
+            <span style="color:#ffffff;font-size:18px;font-weight:bold;">Myambii</span>
           </td>
         </tr>
         <tr>

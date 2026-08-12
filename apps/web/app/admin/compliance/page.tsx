@@ -65,7 +65,7 @@ const TYPE_BADGE_VARIANT: Record<ActionType, 'neutral' | 'verified' | 'danger'> 
 
 /** Matches profile/account/page.tsx's REASON_OPTIONS wording exactly — same exit-survey copy, read back here. */
 const REASON_LABEL: Record<ReasonCategory, string> = {
-  FOUND_JOB_SKILLPROOF: 'Found a job through SkillProof',
+  FOUND_JOB_SKILLPROOF: 'Found a job through Myambii',
   FOUND_JOB_ELSEWHERE: 'Found a job elsewhere',
   NOT_FINDING_ROLES: 'Not finding relevant roles',
   TOO_MANY_EMAILS: 'Too many emails',

@@ -522,11 +522,11 @@ export class AssessmentsService {
     });
     if (!badge || badge.revokedAt) throw new NotFoundException('Badge not found or revoked');
     return {
-      candidate: badge.user.profile?.fullName ?? 'SkillProof candidate',
+      candidate: badge.user.profile?.fullName ?? 'Myambii candidate',
       /**
        * Deliberately distinct from the plain no-name fallback above — a
        * candidate who simply never set a name and one whose account was
-       * deleted both show "SkillProof candidate", but only the latter
+       * deleted both show "Myambii candidate", but only the latter
        * should read as "this person is gone", not "this person didn't fill
        * in a field". Badges are never revoked or hidden for either
        * deactivation or deletion (see AccountService's own doc comment on

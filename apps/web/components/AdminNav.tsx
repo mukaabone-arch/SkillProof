@@ -35,7 +35,7 @@ export default function AdminNav({ onLoggedOut }: Props) {
         <Link href="/admin/assessments" className="appnav-logo">
           <Logo className="brand-logo" />
           <span className="brand-product-name">
-            SkillProof <span style={{ color: 'var(--ink-60)', fontWeight: 500 }}>Admin</span>
+            Myambii <span style={{ color: 'var(--ink-60)', fontWeight: 500 }}>Admin</span>
           </span>
         </Link>
         <div className="appnav-links">

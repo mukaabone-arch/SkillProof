@@ -11,15 +11,15 @@ import Logo from '../Logo';
 export default function LegalStub({ title }: { title: string }) {
   return (
     <main className="legal-stub">
-      <Link href="/" className="legal-stub-brand" aria-label="SkillProof home">
+      <Link href="/" className="legal-stub-brand" aria-label="Myambii home">
         <Logo className="brand-logo-hero" />
-        <span className="brand-product-name">SkillProof</span>
+        <span className="brand-product-name">Myambii</span>
       </Link>
       <h1 className="legal-stub-title">{title}</h1>
       <p className="legal-stub-badge">Coming soon</p>
       <p className="legal-stub-body">
         This document is being finalised and will be published here. In the meantime, questions can go to{' '}
-        <Link href="/contact">SkillProof</Link>.
+        <Link href="/contact">Myambii</Link>.
       </p>
       <p className="legal-stub-company">Mukaab Technologies Private Limited</p>
     </main>

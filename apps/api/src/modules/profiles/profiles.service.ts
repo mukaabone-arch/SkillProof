@@ -131,7 +131,7 @@ export class ProfilesService {
     const verifiedSkills = await this.getVerifiedSkillsForResume(profile.id);
 
     return buildResumePdf({
-      fullName: profile.fullName || 'SkillProof Candidate',
+      fullName: profile.fullName || 'Myambii Candidate',
       headline: profile.headline,
       location: formatLocation(profile),
       yearsOfExp: profile.yearsOfExp,

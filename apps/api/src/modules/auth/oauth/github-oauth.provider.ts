@@ -51,7 +51,7 @@ export class GithubOAuthProvider {
 
     const headers = {
       Authorization: `Bearer ${tokenBody.access_token}`,
-      'User-Agent': 'skillproof-api',
+      'User-Agent': 'myambii-api',
       Accept: 'application/vnd.github+json',
     };
 

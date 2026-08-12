@@ -309,7 +309,7 @@ export class CandidateJobsService {
   }
 
   /**
-   * Satisfied by any of: a verified SkillProof SkillClaim (currently-valid —
+   * Satisfied by any of: a verified Myambii SkillClaim (currently-valid —
    * an admin-invalidated/revoked one doesn't count), a verified external
    * credential from the legacy Credly-only ExternalCredential table, or a
    * VERIFIED Certification (its multi-issuer successor — see that model's

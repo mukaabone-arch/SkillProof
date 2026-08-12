@@ -133,9 +133,9 @@ export default function OtpLogin({ onLoggedIn }: Props) {
       <div className="auth-split-panel">
         <h1 className="auth-split-headline">Global AI Talent Hub</h1>
         <div className="auth-split-card">
-          <Link href="/" className="brand-lockup-hero brand-lockup-link" aria-label="SkillProof home">
+          <Link href="/" className="brand-lockup-hero brand-lockup-link" aria-label="Myambii home">
             <Logo className="brand-logo-hero" />
-            <span className="brand-product-name">SkillProof</span>
+            <span className="brand-product-name">Myambii</span>
           </Link>
           <p className="auth-subtitle" style={{ marginBottom: 4 }}>
             Prove your AI skills, get matched to roles that want them.

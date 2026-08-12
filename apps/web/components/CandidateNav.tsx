@@ -43,7 +43,7 @@ export default function CandidateNav({ onLoggedOut }: Props) {
       <div className="appnav-inner">
         <Link href="/candidate" className="appnav-logo">
           <Logo className="brand-logo" />
-          <span className="brand-product-name">SkillProof</span>
+          <span className="brand-product-name">Myambii</span>
         </Link>
         <div className="appnav-links">
           {LINKS.map((l) => (

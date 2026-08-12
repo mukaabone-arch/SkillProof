@@ -22,9 +22,9 @@ const CANDIDATE_HREF = `${APP_ORIGIN}/candidate`;
 const EMPLOYER_HREF = `${APP_ORIGIN}/employer`;
 
 export const metadata: Metadata = {
-  title: 'SkillProof — Hire on proven AI skills, not keywords',
+  title: 'Myambii — Hire on proven AI skills, not keywords',
   description:
-    'SkillProof verifies real AI ability through assessments reviewed by a person. Candidates get matched to roles that want their proven skills; employers hire on evidence, not keywords.',
+    'Myambii verifies real AI ability through assessments reviewed by a person. Candidates get matched to roles that want their proven skills; employers hire on evidence, not keywords.',
 };
 
 /**
@@ -82,7 +82,7 @@ export default function LandingPage() {
             <span className="lp-hero-title-sm">Proven AI skill, meet the companies hiring</span>
           </h1>
           <p className="lp-hero-sub">
-            SkillProof turns real ability into verified proof — assessments reviewed by a person, not
+            Myambii turns real ability into verified proof — assessments reviewed by a person, not
             keyword-matched. Candidates get matched on evidence; employers hire on it.
           </p>
 
@@ -170,7 +170,7 @@ export default function LandingPage() {
             Built to make AI skill legible
           </h2>
           <p className="lp-prose-body">
-            SkillProof is a product of <strong>Mukaab Technologies Private Limited</strong>. We believe hiring for
+            Myambii is a product of <strong>Mukaab Technologies Private Limited</strong>. We believe hiring for
             AI should rest on demonstrated ability rather than keywords on a résumé — so we verify skills through
             real assessments, put a person in the loop before any badge is issued, and give employers evidence they
             can check.
@@ -186,7 +186,7 @@ export default function LandingPage() {
           <div className="lp-footer-brand">
             <div className="lp-footer-lockup">
               <Logo className="brand-logo-hero" />
-              <span className="brand-product-name">SkillProof</span>
+              <span className="brand-product-name">Myambii</span>
             </div>
             <p className="lp-footer-company">Mukaab Technologies Private Limited</p>
             <p className="lp-footer-copy">© {new Date().getFullYear()} Mukaab Technologies Private Limited</p>

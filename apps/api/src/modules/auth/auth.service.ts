@@ -30,7 +30,7 @@ const NOT_AN_EMPLOYER_MESSAGE = "This account isn't registered as an employer. C
  * phone/email already belongs to *some other* account. A message like "already
  * in use" would turn the authenticated link endpoint into an enumeration
  * oracle: a logged-in attacker could probe numbers/addresses and read back
- * which ones have a SkillProof account. This copy instead reads like a typo /
+ * which ones have a Myambii account. This copy instead reads like a typo /
  * ineligible-value hint, and is returned identically at both the request-time
  * guard (assert*Linkable) and the commit-time unique-constraint race, so those
  * two paths can't be distinguished from each other either.
@@ -211,10 +211,10 @@ export class AuthService {
 
   /** Candidate-facing copy for sendOtpEmail's employer version — same delivery/error-propagation contract, see that method's doc comment. */
   private async sendCandidateOtpEmail(email: string, otp: string): Promise<void> {
-    const subject = 'Your SkillProof verification code';
+    const subject = 'Your Myambii verification code';
     const minutes = Math.round(this.OTP_TTL_MS / 60000);
     const html = `
-      <p>You're signing up for SkillProof.</p>
+      <p>You're signing up for Myambii.</p>
       <p>Your verification code is:</p>
       <p style="font-size: 28px; font-weight: 700; letter-spacing: 6px; margin: 16px 0;">${otp}</p>
       <p>This code expires in ${minutes} minutes. If you didn't request this, you can safely ignore this email.</p>
@@ -270,10 +270,10 @@ export class AuthService {
    * lack of any special-cased retry/rollback on send failure.
    */
   private async sendOtpEmail(email: string, otp: string): Promise<void> {
-    const subject = 'Your SkillProof for Employers signup code';
+    const subject = 'Your Myambii for Employers signup code';
     const minutes = Math.round(this.OTP_TTL_MS / 60000);
     const html = `
-      <p>You're signing up for SkillProof for Employers.</p>
+      <p>You're signing up for Myambii for Employers.</p>
       <p>Your verification code is:</p>
       <p style="font-size: 28px; font-weight: 700; letter-spacing: 6px; margin: 16px 0;">${otp}</p>
       <p>This code expires in ${minutes} minutes. If you didn't request this, you can safely ignore this email.</p>
@@ -490,10 +490,10 @@ export class AuthService {
 
   /** Same delivery/error-propagation contract as sendOtpEmail — see that method's doc comment. */
   private async sendInviteOtpEmail(email: string, otp: string): Promise<void> {
-    const subject = 'Your SkillProof invitation code';
+    const subject = 'Your Myambii invitation code';
     const minutes = Math.round(this.OTP_TTL_MS / 60000);
     const html = `
-      <p>You're accepting a team invitation on SkillProof.</p>
+      <p>You're accepting a team invitation on Myambii.</p>
       <p>Your verification code is:</p>
       <p style="font-size: 28px; font-weight: 700; letter-spacing: 6px; margin: 16px 0;">${otp}</p>
       <p>This code expires in ${minutes} minutes. If you didn't request this, you can safely ignore this email.</p>
@@ -712,7 +712,7 @@ export class AuthService {
         return { ok: true, alreadyConnected: true };
       }
       throw new ConflictException(
-        `This ${provider} account is already linked to a different SkillProof account.`,
+        `This ${provider} account is already linked to a different Myambii account.`,
       );
     }
 
@@ -834,10 +834,10 @@ export class AuthService {
 
   /** Add-email-to-account copy — distinct from the signup email (sendCandidateOtpEmail). */
   private async sendLinkOtpEmail(email: string, otp: string): Promise<void> {
-    const subject = 'Your SkillProof verification code';
+    const subject = 'Your Myambii verification code';
     const minutes = Math.round(this.OTP_TTL_MS / 60000);
     const html = `
-      <p>You're adding this email to your SkillProof account.</p>
+      <p>You're adding this email to your Myambii account.</p>
       <p>Your verification code is:</p>
       <p style="font-size: 28px; font-weight: 700; letter-spacing: 6px; margin: 16px 0;">${otp}</p>
       <p>This code expires in ${minutes} minutes. If you didn't request this, you can safely ignore this email.</p>

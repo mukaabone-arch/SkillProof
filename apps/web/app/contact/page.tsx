@@ -87,9 +87,9 @@ export default function ContactPage() {
   return (
     <main className="lp-page lp-contact-page" id="top">
       <div className="lp-container lp-contact-wrap">
-        <Link href="/" className="lp-brand lp-contact-brand" aria-label="SkillProof home">
+        <Link href="/" className="lp-brand lp-contact-brand" aria-label="Myambii home">
           <Logo className="brand-logo-hero" />
-          <span className="brand-product-name">SkillProof</span>
+          <span className="brand-product-name">Myambii</span>
         </Link>
 
         <div className="lp-contact-card">

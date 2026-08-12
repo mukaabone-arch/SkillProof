@@ -103,7 +103,7 @@ export default function OAuthCallback({ provider }: Props) {
       <div className="auth-card">
         <div className="brand-lockup-hero">
           <Logo className="brand-logo-hero" />
-          <span className="brand-product-name">SkillProof</span>
+          <span className="brand-product-name">Myambii</span>
         </div>
         {error ? (
           <>

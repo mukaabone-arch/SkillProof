@@ -3,7 +3,7 @@ import './globals.css';
 import Providers from '@/components/Providers';
 
 export const metadata: Metadata = {
-  title: 'SkillProof — Verified AI talent',
+  title: 'Myambii — Verified AI talent',
   description: 'Take rigorous AI-skill assessments, earn verified badges, get matched.',
 };
 

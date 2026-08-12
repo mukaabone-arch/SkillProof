@@ -248,7 +248,7 @@ describe('AuthService — employer email OTP', () => {
       expect(emailProvider.send).toHaveBeenCalledTimes(1);
       const call = emailProvider.send.mock.calls[0][0];
       expect(call.to).toBe('jane@example.com');
-      expect(call.subject).toContain('SkillProof for Employers');
+      expect(call.subject).toContain('Myambii for Employers');
       expect(call.html).toMatch(/\b\d{6}\b/);
     });
 
@@ -447,8 +447,8 @@ describe('AuthService — candidate email OTP', () => {
       expect(emailProvider.send).toHaveBeenCalledTimes(1);
       const call = emailProvider.send.mock.calls[0][0];
       expect(call.to).toBe('jane@example.com');
-      expect(call.subject).toBe('Your SkillProof verification code');
-      // Distinct from the employer copy ("SkillProof for Employers") — this
+      expect(call.subject).toBe('Your Myambii verification code');
+      // Distinct from the employer copy ("Myambii for Employers") — this
       // is what a first-time candidate reads.
       expect(call.subject).not.toContain('Employers');
       expect(call.html).not.toContain('Employers');

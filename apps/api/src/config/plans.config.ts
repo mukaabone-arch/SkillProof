@@ -40,7 +40,7 @@ export interface PlanLimits {
    * actually means today (never salary-band mapping, and why).
    */
   gapAnalysis: 'basic' | 'detailed';
-  /** Whether SkillProof branding appears on the generated resume PDF. */
+  /** Whether Myambii branding appears on the generated resume PDF. */
   resumeBranding: boolean;
   /**
    * Resume template ids available to choose from. Both tiers currently

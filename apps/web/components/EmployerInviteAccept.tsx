@@ -87,14 +87,14 @@ export default function EmployerInviteAccept({ initialEmail }: Props) {
     <main className="auth auth-gradient">
       <h1 className="auth-headline">You&apos;ve been invited</h1>
       <div className="auth-card">
-        <Link href="/" className="brand-lockup-hero brand-lockup-link" aria-label="SkillProof home">
+        <Link href="/" className="brand-lockup-hero brand-lockup-link" aria-label="Myambii home">
           <Logo className="brand-logo-hero" />
           <span className="brand-product-name">
-            SkillProof <span style={{ color: 'var(--auth-text-secondary)', fontWeight: 500 }}>for Employers</span>
+            Myambii <span style={{ color: 'var(--auth-text-secondary)', fontWeight: 500 }}>for Employers</span>
           </span>
         </Link>
         <p className="auth-subtitle" style={{ marginBottom: 4 }}>
-          Join your team on SkillProof.
+          Join your team on Myambii.
         </p>
         <p className="meta" style={{ marginBottom: 20 }}>
           Confirm the email your invitation was sent to, and we&apos;ll send a code to verify it&apos;s you.

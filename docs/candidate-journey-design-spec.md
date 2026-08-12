@@ -1,4 +1,4 @@
-# SkillProof — Candidate Journey Design Spec
+# Myambii — Candidate Journey Design Spec
 
 **Design decisions (locked):**
 - **Resume-first** profile creation: upload resume → AI extracts → candidate confirms → profile populated.

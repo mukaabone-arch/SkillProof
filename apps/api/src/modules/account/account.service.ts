@@ -67,13 +67,13 @@ export class AccountService {
     await this.notifications.sendEmail(
       userId,
       NotificationType.ACCOUNT_DEACTIVATED,
-      'Your SkillProof account is deactivated',
+      'Your Myambii account is deactivated',
       renderNotificationEmail(
         `<p>Your account is now deactivated — your profile is hidden from employer search and matching, and you won't be newly shortlisted or invited while it's off.</p>` +
           `<p>Everything is still there. Sign back in any time to reactivate.</p>`,
         // The candidate sign-in lives at /candidate (the root "/" is the
         // marketing landing) — this CTA must reach the login, not marketing.
-        { label: 'Sign in to SkillProof', url: `${WEB_BASE_URL}/candidate` },
+        { label: 'Sign in to Myambii', url: `${WEB_BASE_URL}/candidate` },
       ),
     );
 
@@ -150,12 +150,12 @@ export class AccountService {
     await this.notifications.sendEmail(
       userId,
       NotificationType.ACCOUNT_DELETED,
-      'Your SkillProof account has been deleted',
+      'Your Myambii account has been deleted',
       renderNotificationEmail(
-        `<p>Your SkillProof account and personal data have been deleted, as you requested. This can't be undone.</p>` +
+        `<p>Your Myambii account and personal data have been deleted, as you requested. This can't be undone.</p>` +
           `<p>Any verified skill badge you earned stays independently verifiable to anyone who already has the link — it's shown without your name attached.</p>` +
           `<p>If this wasn't you, or you didn't mean to, please contact support right away.</p>`,
-        { label: 'Visit SkillProof', url: WEB_BASE_URL },
+        { label: 'Visit Myambii', url: WEB_BASE_URL },
       ),
     );
 
@@ -431,7 +431,7 @@ export class AccountService {
       const roleLine = entry.job ? ` for ${entry.job.title}` : '';
       // Deliberately never includes the candidate's stated reason (job
       // found elsewhere, too many emails, privacy concerns, ...) — that's
-      // between the candidate and SkillProof, not something an employer is
+      // between the candidate and Myambii, not something an employer is
       // owed an explanation for. "No longer available" is true and
       // complete without it.
       await this.notifications.sendEmail(
@@ -439,7 +439,7 @@ export class AccountService {
         NotificationType.PIPELINE_CANDIDATE_UNAVAILABLE,
         `A candidate${roleLine} is no longer available`,
         renderNotificationEmail(
-          `<p>A candidate you were in an active pipeline with${roleLine} is no longer available on SkillProof.</p>`,
+          `<p>A candidate you were in an active pipeline with${roleLine} is no longer available on Myambii.</p>`,
           { label: 'View your shortlist', url: `${WEB_BASE_URL}/employer/shortlist` },
         ),
       );

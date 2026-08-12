@@ -14,7 +14,7 @@ function validDto(overrides: Partial<ContactSubmissionDto> = {}): ContactSubmiss
     fullName: 'Ada Lovelace',
     email: 'ada@example.com',
     reason: 'general_enquiry',
-    description: 'Hello, I have a question about SkillProof.',
+    description: 'Hello, I have a question about Myambii.',
     ...overrides,
   };
 }

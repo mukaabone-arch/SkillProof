@@ -291,12 +291,12 @@ export default function ResumePage() {
                 <label>Template &amp; branding</label>
                 {limits.resumeBranding ? (
                   <p className="meta" style={{ margin: 0 }}>
-                    Your PDF includes a &quot;Verified by SkillProof&quot; footer.{' '}
+                    Your PDF includes a &quot;Verified by Myambii&quot; footer.{' '}
                     <Link href="/upgrade">Premium removes this →</Link>
                   </p>
                 ) : (
                   <p className="meta" style={{ margin: 0 }}>
-                    Your PDF has no SkillProof branding — Premium benefit.
+                    Your PDF has no Myambii branding — Premium benefit.
                   </p>
                 )}
                 {/*

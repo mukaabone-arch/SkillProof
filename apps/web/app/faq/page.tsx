@@ -15,13 +15,13 @@ import Logo from '@/components/Logo';
  * pricing, review turnaround) will be supplied and must not be invented here.
  */
 export const metadata: Metadata = {
-  title: 'FAQ — SkillProof',
-  description: 'Frequently asked questions about SkillProof — how verification works, and what it means for candidates and employers.',
+  title: 'FAQ — Myambii',
+  description: 'Frequently asked questions about Myambii — how verification works, and what it means for candidates and employers.',
 };
 
 const FAQS = [
   'How do the skill assessments work?',
-  'Is SkillProof free for candidates?',
+  'Is Myambii free for candidates?',
   'How long does verification take?',
   'How do employers use verified profiles?',
   'Which AI skills and levels can I get verified?',
@@ -31,9 +31,9 @@ export default function FaqPage() {
   return (
     <main className="lp-page lp-faq-page" id="top">
       <div className="lp-container lp-faq-wrap">
-        <Link href="/" className="lp-brand lp-faq-brand" aria-label="SkillProof home">
+        <Link href="/" className="lp-brand lp-faq-brand" aria-label="Myambii home">
           <Logo className="brand-logo-hero" />
-          <span className="brand-product-name">SkillProof</span>
+          <span className="brand-product-name">Myambii</span>
         </Link>
 
         <div className="lp-faq-panel">

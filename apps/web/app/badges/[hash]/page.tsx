@@ -86,7 +86,7 @@ export default function BadgeVerifyPage() {
           </p>
           {badge.accountStatus === 'inactive' && (
             <p className="meta">
-              This candidate is not currently active on SkillProof. The credential itself was genuinely earned and
+              This candidate is not currently active on Myambii. The credential itself was genuinely earned and
               remains valid.
             </p>
           )}

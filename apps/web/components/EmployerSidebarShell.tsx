@@ -57,7 +57,7 @@ export default function EmployerSidebarShell({ onLoggedOut, children }: Props) {
         </button>
         <Link href="/employer/dashboard" className="appnav-logo">
           <Logo className="brand-logo" />
-          <span className="brand-product-name">SkillProof</span>
+          <span className="brand-product-name">Myambii</span>
         </Link>
         <button type="button" className="appnav-logout" onClick={handleLogout}>Log out</button>
       </header>

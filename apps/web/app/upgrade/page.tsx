@@ -61,7 +61,7 @@ const FEATURE_ROWS: { label: string; format: (l: PlanLimits) => string }[] = [
   },
   {
     label: 'Resume branding',
-    format: (l) => (l.resumeBranding ? '"Verified by SkillProof" mark included' : 'No SkillProof branding'),
+    format: (l) => (l.resumeBranding ? '"Verified by Myambii" mark included' : 'No Myambii branding'),
   },
   {
     label: 'Resume templates',

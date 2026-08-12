@@ -77,9 +77,9 @@ const STAGES: Stage[] = [
 
 export default function FeatureStrip() {
   return (
-    <section className="fstrip" aria-label="How SkillProof works">
+    <section className="fstrip" aria-label="How Myambii works">
       <p className="visually-hidden">
-        Your SkillProof journey: verify your skills, earn badges, match with roles, interview, and get hired.
+        Your Myambii journey: verify your skills, earn badges, match with roles, interview, and get hired.
       </p>
       <div className="fstrip-rail" aria-hidden="true">
         <div className="fstrip-line">

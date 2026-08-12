@@ -139,10 +139,10 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
       <div className="auth-split-panel">
         <h1 className="auth-split-headline">Global AI Talent Hub</h1>
         <div className="auth-split-card">
-          <Link href="/" className="brand-lockup-hero brand-lockup-link" aria-label="SkillProof home">
+          <Link href="/" className="brand-lockup-hero brand-lockup-link" aria-label="Myambii home">
             <Logo className="brand-logo-hero" />
             <span className="brand-product-name">
-              SkillProof <span style={{ color: 'var(--ink-60)', fontWeight: 500 }}>for Employers</span>
+              Myambii <span style={{ color: 'var(--ink-60)', fontWeight: 500 }}>for Employers</span>
             </span>
           </Link>
           <p className="auth-subtitle" style={{ marginBottom: 4 }}>
@@ -244,7 +244,7 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
               <span style={{ flex: 1, height: 1, background: 'var(--ink-12)' }} />
             </div>
             <p className="meta" style={{ margin: 0, textAlign: 'center' }}>
-              Sign in with Google if your organization is already set up on SkillProof.
+              Sign in with Google if your organization is already set up on Myambii.
             </p>
           </div>
 

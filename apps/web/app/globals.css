@@ -1,7 +1,7 @@
 /*
  * Design system foundation — originally extracted from a light theme
  * (public/landing.html, the OTP/auth pages, the dashboard hub); re-themed
- * dark ("Nocturne") to match the SkillProof Dashboard design import
+ * dark ("Nocturne") to match the Myambii Dashboard design import
  * (claude.ai/design project 8cae981e, nocturne-1d7b12b4 design system).
  * Every token below keeps its ORIGINAL NAME and semantic role (page bg,
  * card surface, primary text, THE primary accent, etc.) — only the hex
@@ -106,7 +106,7 @@
   --brand-purple: var(--brand-600);
   --brand-green: var(--success);
 
-  /* ---- Brand lockup size (logo mark + "SkillProof..." wordmark together) ----
+  /* ---- Brand lockup size (logo mark + "Myambii..." wordmark together) ----
      One size, everywhere — .brand-logo and .brand-logo-hero both read these
      same tokens now (see the shared rule below); there is no more nav-only
      variant to drift out of sync with it. feat/nav-restructure-logo-size
@@ -483,7 +483,7 @@ code { font-family: var(--font-body); }
      - Nav/topbar rows are taller (76px, up from 64px — see .appnav-inner /
        .employer-topbar / .admin-topbar) so the 44px mark fits with real
        margin instead of nearly filling the row.
-     - The "SkillProof…" wordmark hides below 640px in nav/topbar contexts
+     - The "Myambii…" wordmark hides below 640px in nav/topbar contexts
        specifically (.appnav-logo .brand-product-name below) — measured via
        Playwright against the actual rendered logo (255px wide at 44px
        tall, 209px at the 36px mobile-hero size — this mark is a wide
@@ -512,15 +512,15 @@ code { font-family: var(--font-body); }
    height, even though the CSS height itself stays 44px.
    Measured before this fix, at 1280px (natural width at 44px height =
    44 * 380/60 = 278.67px):
-     OtpLogin (single-word "SkillProof")            255.08px (~8% short)
-     EmployerOtpLogin ("SkillProof for Employers",
+     OtpLogin (single-word "Myambii")            255.08px (~8% short)
+     EmployerOtpLogin ("Myambii for Employers",
        wraps to two lines within its box)            189.48px (~32% short)
    Both were already short of natural size — just far more on the employer
    card, since its longer wordmark demands more of the row's fixed width,
    leaving less for the logo once flex-shrink distributes the deficit.
 
    flex-shrink: 0 (below) pins the logo to its full natural size
-   unconditionally. That alone isn't sufficient, though: "SkillProof" is
+   unconditionally. That alone isn't sufficient, though: "Myambii" is
    one unbreakable word (~97px min-content at this font), and forcing the
    wordmark to stay on the logo's line would mean the *word itself* has to
    either overflow past its box (invisible at 1280px, where enough card
@@ -531,7 +531,7 @@ code { font-family: var(--font-body); }
    flex-wrap: wrap on the row sidesteps both: when the wordmark doesn't
    fit beside the already-full-size logo, it drops to its own new line
    below the logo — at full width there, comfortably fitting even
-   "SkillProof for Employers" on one or two whole-word lines — rather
+   "Myambii for Employers" on one or two whole-word lines — rather
    than either child being squeezed. Row gap is `8px 14px` (row-gap
    column-gap) so the two wrapped lines get sensible vertical spacing too,
    not just the horizontal gap that only mattered for the single-line
@@ -1157,7 +1157,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 /* `gap` is a floor, independent of justify-content: space-between's
    distributed space — without it, the brand group and the links group
-   touch directly (e.g. "SkillProofDashboard") in the ~721–880px band,
+   touch directly (e.g. "MyambiiDashboard") in the ~721–880px band,
    where content is wide enough that space-between has no slack left to
    distribute (below 720px the links are hidden entirely; above ~880px
    there's enough room regardless). */
@@ -1541,7 +1541,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
    speaking directly to what it can already see. Indigo-tinted, not a new
    hue: same accent family as the rest of the hub, just given more room to
    breathe than a standard .ui-card.
-   Restyled to match the "CLOSE THE GAP" panel in the SkillProof Dashboard
+   Restyled to match the "CLOSE THE GAP" panel in the Myambii Dashboard
    Nocturne import: a dark accent-to-accent-900 gradient card (not a subtle
    wash on --card) with a lit border, near-white message text, and a pop
    button that inverts (light fill, dark text) against the dark gradient. */
@@ -1604,7 +1604,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 }
 
 /* ---- signal chips ----
-   .chip (unchanged, green) is the reserved "SkillProof verified this"
+   .chip (unchanged, green) is the reserved "Myambii verified this"
    signal — badges only. .chip-external is the same shape recolored indigo
    for external credentials (Credly etc.), so the two proof tiers stay
    visually distinct at a glance, matching the rule already enforced on the

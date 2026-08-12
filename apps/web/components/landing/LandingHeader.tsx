@@ -11,7 +11,7 @@
  * sits over a photo, so it earns its place, and it stays contained to this
  * one component.
  *
- * The brand lockup (Logo hero mark + "SkillProof" wordmark) is ~278px wide,
+ * The brand lockup (Logo hero mark + "Myambii" wordmark) is ~278px wide,
  * which together with the direct links doesn't fit a phone. Below a
  * breakpoint the links collapse into a toggled menu rather than wrapping or
  * shrinking the lockup.
@@ -40,9 +40,9 @@ export default function LandingHeader({ candidateHref, employerHref }: Props) {
   return (
     <header className={`lp-header${scrolled ? ' is-scrolled' : ''}`}>
       <div className="lp-header-inner">
-        <a href="#top" className="lp-brand" aria-label="SkillProof home" onClick={() => setMenuOpen(false)}>
+        <a href="#top" className="lp-brand" aria-label="Myambii home" onClick={() => setMenuOpen(false)}>
           <Logo className="brand-logo-hero" />
-          <span className="brand-product-name">SkillProof</span>
+          <span className="brand-product-name">Myambii</span>
         </a>
 
         <button

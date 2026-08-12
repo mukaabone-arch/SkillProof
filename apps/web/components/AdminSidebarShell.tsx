@@ -206,7 +206,7 @@ export default function AdminSidebarShell({ onLoggedOut, children }: Props) {
         <Link href="/admin/dashboard" className="appnav-logo">
           <Logo className="brand-logo" />
           <span className="brand-product-name">
-            SkillProof <span style={{ color: 'var(--ink-60)', fontWeight: 500 }}>Admin</span>
+            Myambii <span style={{ color: 'var(--ink-60)', fontWeight: 500 }}>Admin</span>
           </span>
         </Link>
         <button type="button" className="appnav-logout" onClick={handleLogout}>Log out</button>
