@@ -2145,7 +2145,6 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    stays at its fixed hero size (never compressed). The menu button already
    shows at ≤860px, so this is strictly below where the row still fits. */
 @media (max-width: 640px) {
-  .lp-brand .brand-product-name { display: none; }
 }
 
 /* ---- Hero ---- */
@@ -2301,7 +2300,6 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .lp-footer-lockup { display: inline-flex; align-items: center; gap: 12px; margin-bottom: 4px; }
 .lp-footer-lockup .brand-logo-hero { flex-shrink: 0; }
 @media (max-width: 640px) {
-  .lp-footer-lockup .brand-product-name { display: none; }
 }
 .lp-footer-company { color: var(--ink); font-weight: 600; margin-top: 8px; }
 .lp-footer-copy { color: var(--ink-30); font-size: 0.8rem; margin-top: 4px; }
