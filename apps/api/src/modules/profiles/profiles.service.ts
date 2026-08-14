@@ -1,14 +1,13 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { CandidateProfile, ClaimStatus, Prisma, Role } from '@prisma/client';
-import { promises as fs } from 'fs';
-import { extname, join } from 'path';
+import { extname } from 'path';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../llm/llm.service';
 import { EmployerCandidateAccessService } from '../access/employer-candidate-access.service';
 import { GenerateResumeDto, UpdateProfileDto } from './profiles.dto';
 import { buildResumePdf, VerifiedSkillEntry } from './resume-pdf.builder';
 import { formatLocation } from '../locations/location-format.util';
-import { UPLOAD_DIR } from '../../config/upload-dir';
+import { STORAGE_SERVICE, StorageService } from '../../storage/storage.interface';
 
 /** JwtAuthGuard's decoded token shape — just enough to decide viewer authorization. */
 interface Requester {
@@ -47,6 +46,7 @@ export class ProfilesService {
     private readonly prisma: PrismaService,
     private readonly llm: LlmService,
     private readonly employerAccess: EmployerCandidateAccessService,
+    @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
   ) {}
 
   async getMe(userId: string) {
@@ -86,16 +86,12 @@ export class ProfilesService {
     }
   }
 
-  /**
-   * Records the uploaded PDF's filename within UPLOAD_DIR. Reuses
-   * CandidateProfile.resumeS3Key (named for the original S3 design — still
-   * local disk for now, see UPLOAD_DIR's own doc comment on why).
-   */
-  async saveResume(userId: string, filename: string) {
+  /** Records the uploaded PDF's storage key. CandidateProfile.resumeS3Key now matches its name — see StorageService. */
+  async saveResume(userId: string, key: string) {
     await this.ensureProfile(userId);
     return this.prisma.candidateProfile.update({
       where: { userId },
-      data: { resumeS3Key: filename },
+      data: { resumeS3Key: key },
     });
   }
 
@@ -168,7 +164,7 @@ export class ProfilesService {
     if (!profile.resumeS3Key) {
       throw new BadRequestException('Upload a resume before parsing it.');
     }
-    return this.readResumeFileFromDisk(profile.resumeS3Key);
+    return this.readResumeFile(profile.resumeS3Key);
   }
 
   /**
@@ -185,7 +181,7 @@ export class ProfilesService {
     if (!profile?.resumeS3Key) {
       throw new NotFoundException('This candidate has not uploaded a resume.');
     }
-    const buffer = await this.readResumeFileFromDisk(profile.resumeS3Key);
+    const buffer = await this.readResumeFile(profile.resumeS3Key);
     // Candidate-controlled fullName, sanitized before it ever reaches a
     // Content-Disposition header — strip everything but word chars/spaces/
     // dashes so it can't break out of the quoted filename.
@@ -193,32 +189,32 @@ export class ProfilesService {
     return { buffer, filename: `${safeName || 'resume'}.pdf` };
   }
 
-  /** The only place any resume-serving path touches UPLOAD_DIR — shared by the owner (parse/improve) and employer (getResumeForCandidate) reads. */
-  private async readResumeFileFromDisk(resumeS3Key: string): Promise<Buffer> {
+  /** The only place any resume-serving path touches storage — shared by the owner (parse/improve) and employer (getResumeForCandidate) reads. */
+  private async readResumeFile(resumeS3Key: string): Promise<Buffer> {
     try {
-      return await fs.readFile(join(UPLOAD_DIR, resumeS3Key));
+      return await this.storage.read(resumeS3Key);
     } catch {
       throw new NotFoundException('Stored resume file could not be read. Try re-uploading.');
     }
   }
 
   /**
-   * Records the uploaded image's filename within UPLOAD_DIR, same storage
-   * as resumes (see saveResume). Unlike saveResume, this deletes the
-   * previous file first — a photo is expected to be replaced repeatedly
-   * over a candidate's account lifetime, and letting old ones accumulate
-   * unreferenced on disk was explicitly called out as something to avoid
-   * for this feature (resumes don't have this cleanup; that's an existing
-   * gap out of scope here, not one to introduce for photos too).
+   * Records the uploaded image's storage key, same backend as resumes (see
+   * saveResume). Unlike saveResume, this deletes the previous file first —
+   * a photo is expected to be replaced repeatedly over a candidate's
+   * account lifetime, and letting old ones accumulate unreferenced in
+   * storage was explicitly called out as something to avoid for this
+   * feature (resumes don't have this cleanup; that's an existing gap out
+   * of scope here, not one to introduce for photos too).
    */
-  async savePhoto(userId: string, filename: string) {
+  async savePhoto(userId: string, key: string) {
     const profile = await this.ensureProfile(userId);
     if (profile.photoKey) {
       await this.deleteStoredFile(profile.photoKey);
     }
     const updated = await this.prisma.candidateProfile.update({
       where: { userId },
-      data: { photoKey: filename },
+      data: { photoKey: key },
     });
     return withHasPhoto(updated);
   }
@@ -251,7 +247,7 @@ export class ProfilesService {
     if (!profile.photoKey) throw new NotFoundException('No photo set for this candidate.');
 
     try {
-      const buffer = await fs.readFile(join(UPLOAD_DIR, profile.photoKey));
+      const buffer = await this.storage.read(profile.photoKey);
       return { buffer, contentType: this.contentTypeFor(profile.photoKey) };
     } catch {
       throw new NotFoundException('Stored photo could not be read.');
@@ -289,12 +285,12 @@ export class ProfilesService {
     return PHOTO_CONTENT_TYPE_BY_EXTENSION[extname(filename).toLowerCase()] ?? 'application/octet-stream';
   }
 
-  /** Best-effort — a file already missing on disk (manual cleanup, an
-   * ephemeral-disk redeploy wipe, see UPLOAD_DIR's doc comment) shouldn't
-   * block clearing or replacing the DB pointer. */
-  private async deleteStoredFile(filename: string): Promise<void> {
+  /** Best-effort — a file already missing in storage (manual cleanup, an
+   * ephemeral-disk redeploy wipe on the local driver) shouldn't block
+   * clearing or replacing the DB pointer. */
+  private async deleteStoredFile(key: string): Promise<void> {
     try {
-      await fs.unlink(join(UPLOAD_DIR, filename));
+      await this.storage.delete(key);
     } catch {
       // Ignored — see doc comment above.
     }

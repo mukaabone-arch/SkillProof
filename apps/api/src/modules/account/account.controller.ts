@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Param, Post, Req, StreamableFile, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { AuthenticatedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -47,11 +47,14 @@ export class AccountController {
     return this.exports.listMine(req.user.sub);
   }
 
-  /** Streams the export JSON as an attachment — never a public URL; every download goes through this authenticated, owner-only route. */
+  /**
+   * Returns a short-lived, single-use download URL — never a public one;
+   * only reachable by first hitting this authenticated, owner-only route.
+   * The client fetches this JSON, then navigates to `url` directly to
+   * download, rather than the API proxying the export's bytes itself.
+   */
   @Get('exports/:id/download')
-  @Header('Content-Type', 'application/json')
-  async downloadExport(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    const { buffer, filename } = await this.exports.downloadExport(req.user.sub, id);
-    return new StreamableFile(buffer, { type: 'application/json', disposition: `attachment; filename="${filename}"` });
+  async downloadExport(@Req() req: AuthenticatedRequest, @Param('id') id: string): Promise<{ url: string }> {
+    return this.exports.downloadExport(req.user.sub, id);
   }
 }

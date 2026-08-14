@@ -1,9 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { promises as fs } from 'fs';
-import { extname, join } from 'path';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { extname } from 'path';
 import { RagL2Claim } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { UPLOAD_DIR } from '../../config/upload-dir';
+import { STORAGE_SERVICE, StorageService } from '../../storage/storage.interface';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 
 const FILE_MIME_BY_EXTENSION: Record<string, string> = {
@@ -55,6 +54,7 @@ export class DataExportBuilderService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly entitlements: EntitlementsService,
+    @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
   ) {}
 
   async build(candidateProfileId: string): Promise<Record<string, unknown>> {
@@ -122,11 +122,11 @@ export class DataExportBuilderService {
         orderBy: { startedAt: 'asc' },
       }),
       this.entitlements.getEntitlements(userId).catch(() => null),
-      embedFile(profile.photoKey),
-      embedFile(profile.resumeS3Key),
+      this.embedFile(profile.photoKey),
+      this.embedFile(profile.resumeS3Key),
     ]);
 
-    const certFiles = await Promise.all(certifications.map((c) => embedFile(c.fileUrl)));
+    const certFiles = await Promise.all(certifications.map((c) => this.embedFile(c.fileUrl)));
 
     return {
       exportedAt: new Date().toISOString(),
@@ -345,6 +345,20 @@ export class DataExportBuilderService {
       })),
     };
   }
+
+  private async embedFile(filename: string | null): Promise<EmbeddedFile | null> {
+    if (!filename) return null;
+    try {
+      const buffer = await this.storage.read(filename);
+      const ext = extname(filename).toLowerCase();
+      return { filename, mimeType: FILE_MIME_BY_EXTENSION[ext] ?? 'application/octet-stream', base64: buffer.toString('base64') };
+    } catch {
+      // A stored key with no readable file in storage (ephemeral-disk
+      // redeploy wipe on the local driver, manual cleanup) must not fail
+      // the whole export; the rest of the candidate's data still ships.
+      return null;
+    }
+  }
 }
 
 const CLAIM_ORDER: RagL2Claim[] = [
@@ -355,17 +369,3 @@ const CLAIM_ORDER: RagL2Claim[] = [
   RagL2Claim.EVALUATION,
   RagL2Claim.COST,
 ];
-
-async function embedFile(filename: string | null): Promise<EmbeddedFile | null> {
-  if (!filename) return null;
-  try {
-    const buffer = await fs.readFile(join(UPLOAD_DIR, filename));
-    const ext = extname(filename).toLowerCase();
-    return { filename, mimeType: FILE_MIME_BY_EXTENSION[ext] ?? 'application/octet-stream', base64: buffer.toString('base64') };
-  } catch {
-    // A stored key with no readable file on disk (ephemeral-disk redeploy
-    // wipe, manual cleanup — see UPLOAD_DIR's own doc comment) must not
-    // fail the whole export; the rest of the candidate's data still ships.
-    return null;
-  }
-}

@@ -11,7 +11,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, apiBlob, downloadBlob, logout, type ApiError } from '@/lib/api';
+import { api, logout, type ApiError } from '@/lib/api';
 import CandidateNav from '@/components/CandidateNav';
 import { Badge, Card, ErrorState, LoadingState } from '@/components/ui';
 import { useRequireAuth } from '@/lib/useRequireAuth';
@@ -117,8 +117,13 @@ function ExportsCard() {
     setDownloadingId(row.id);
     setDownloadError('');
     try {
-      const blob = await apiBlob(`/account/exports/${row.id}/download`);
-      downloadBlob(blob, `myambii-data-export-${row.id.slice(0, 8)}.json`);
+      // The API hands back a short-lived, single-use presigned URL rather
+      // than the file's bytes — navigate straight to it; Content-Disposition
+      // on that response (set server-side) triggers the browser's save-to-disk.
+      const { url } = await api<{ url: string }>(`/account/exports/${row.id}/download`);
+      const a = document.createElement('a');
+      a.href = url;
+      a.click();
     } catch (e) {
       setDownloadError((e as ApiError).message);
     } finally {

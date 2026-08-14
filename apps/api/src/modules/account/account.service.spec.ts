@@ -159,7 +159,8 @@ function makeService(seed: Parameters<typeof fakePrisma>[0]) {
     }),
   };
   const refundJob = { refundOne: jest.fn(async () => undefined) };
-  const service = new AccountService(prisma as never, notifications as never, refundJob as never);
+  const storage = { delete: jest.fn(async () => undefined) };
+  const service = new AccountService(prisma as never, notifications as never, refundJob as never, storage as never);
   return { service, prisma, sentEmails, notifications, refundJob };
 }
 

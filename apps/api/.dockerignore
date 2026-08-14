@@ -1,0 +1,13 @@
+node_modules
+dist
+.env
+.env.*
+!.env.example
+uploads
+*.log
+.git
+.gitignore
+test
+coverage
+*.md
+*:Zone.Identifier

@@ -29,11 +29,13 @@ import { InterviewSessionsModule } from './modules/interview-sessions/interview-
 import { AccountModule } from './modules/account/account.module';
 import { AssessmentRequestsModule } from './modules/assessment-requests/assessment-requests.module';
 import { ContactModule } from './modules/contact/contact.module';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
+    StorageModule,
     PrismaModule,
     HealthModule,
     AuthModule,

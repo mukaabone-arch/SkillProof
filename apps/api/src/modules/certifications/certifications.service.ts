@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import {
   CertIssuer,
   CertVerificationSource,
@@ -7,12 +7,16 @@ import {
   CredentialVerificationState,
   Prisma,
 } from '@prisma/client';
-import { promises as fs } from 'fs';
-import { extname, join } from 'path';
+import { extname } from 'path';
 import { PrismaService } from '../../prisma/prisma.service';
-import { UPLOAD_DIR } from '../../config/upload-dir';
+import { STORAGE_SERVICE, StorageService } from '../../storage/storage.interface';
 import { CredlyVerificationService } from '../external-credentials/credly-verification.service';
 import { CertificationFieldsDto } from './certifications.dto';
+
+/** A file already written to storage by CertificationsController, awaiting the key CertificationsService should persist as fileUrl. */
+export interface UploadedCertFile {
+  key: string;
+}
 
 const UPCOMING_EXPIRY_WINDOW_DAYS = 60;
 
@@ -63,14 +67,15 @@ export class CertificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly credly: CredlyVerificationService,
+    @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
   ) {}
 
-  async create(userId: string, dto: CertificationFieldsDto, file?: Express.Multer.File): Promise<CertificationDto> {
+  async create(userId: string, dto: CertificationFieldsDto, upload?: UploadedCertFile): Promise<CertificationDto> {
     const profile = await this.ensureProfile(userId);
-    await this.assertHasProofOfCredential(dto, file);
+    await this.assertHasProofOfCredential(dto, upload);
     await this.assertSkillTagsExist(dto.skillTags);
 
-    const { verificationStatus, verificationSource } = await this.determineVerification(dto, file);
+    const { verificationStatus, verificationSource } = await this.determineVerification(dto, upload);
 
     try {
       const created = await this.prisma.certification.create({
@@ -83,7 +88,7 @@ export class CertificationsService {
           expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : null,
           credentialId: dto.credentialId ?? null,
           credentialUrl: dto.credentialUrl ?? null,
-          fileUrl: file?.filename ?? null,
+          fileUrl: upload?.key ?? null,
           verificationStatus: this.applyExpiry(verificationStatus, dto.expiryDate),
           verificationSource,
           skillTags: dto.skillTags ?? [],
@@ -102,23 +107,23 @@ export class CertificationsService {
     userId: string,
     id: string,
     dto: CertificationFieldsDto,
-    file?: Express.Multer.File,
+    upload?: UploadedCertFile,
   ): Promise<CertificationDto> {
     const existing = await this.getOwned(userId, id);
     // Keep the previously-uploaded file unless this request attaches a new
     // one — the edit form resubmits every field, but a file input left
     // untouched sends nothing, not the original file back.
-    const keepsExistingFile = !file && !!existing.fileUrl;
-    await this.assertHasProofOfCredential(dto, file, keepsExistingFile);
+    const keepsExistingFile = !upload && !!existing.fileUrl;
+    await this.assertHasProofOfCredential(dto, upload, keepsExistingFile);
     await this.assertSkillTagsExist(dto.skillTags);
 
     const { verificationStatus, verificationSource } = await this.determineVerification(
       dto,
-      file,
+      upload,
       keepsExistingFile,
     );
 
-    if (file && existing.fileUrl) {
+    if (upload && existing.fileUrl) {
       await this.deleteStoredFile(existing.fileUrl);
     }
 
@@ -132,7 +137,7 @@ export class CertificationsService {
         expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : null,
         credentialId: dto.credentialId ?? null,
         credentialUrl: dto.credentialUrl ?? null,
-        fileUrl: file ? file.filename : keepsExistingFile ? existing.fileUrl : null,
+        fileUrl: upload ? upload.key : keepsExistingFile ? existing.fileUrl : null,
         verificationStatus: this.applyExpiry(verificationStatus, dto.expiryDate),
         verificationSource,
         skillTags: dto.skillTags ?? [],
@@ -163,7 +168,7 @@ export class CertificationsService {
     const existing = await this.getOwned(userId, id);
     if (!existing.fileUrl) throw new NotFoundException('No file uploaded for this certification.');
     try {
-      const buffer = await fs.readFile(join(UPLOAD_DIR, existing.fileUrl));
+      const buffer = await this.storage.read(existing.fileUrl);
       const ext = extname(existing.fileUrl).toLowerCase();
       return { buffer, contentType: FILE_CONTENT_TYPE_BY_EXTENSION[ext] ?? 'application/octet-stream' };
     } catch {
@@ -184,10 +189,10 @@ export class CertificationsService {
   /** "At least one of credential URL or file" — see the spec. keepsExistingFile covers edits that don't touch the file input. */
   private async assertHasProofOfCredential(
     dto: CertificationFieldsDto,
-    file: Express.Multer.File | undefined,
+    upload: UploadedCertFile | undefined,
     keepsExistingFile = false,
   ): Promise<void> {
-    if (!dto.credentialUrl && !file && !keepsExistingFile) {
+    if (!dto.credentialUrl && !upload && !keepsExistingFile) {
       throw new BadRequestException('Provide either a credential URL or an upload (PDF/PNG/JPG).');
     }
   }
@@ -212,7 +217,7 @@ export class CertificationsService {
    */
   private async determineVerification(
     dto: CertificationFieldsDto,
-    file: Express.Multer.File | undefined,
+    upload: UploadedCertFile | undefined,
     keepsExistingFile = false,
   ): Promise<{ verificationStatus: CertVerificationStatus; verificationSource: CertVerificationSource }> {
     if (dto.issuer === CertIssuer.CREDLY && dto.credentialUrl) {
@@ -224,7 +229,7 @@ export class CertificationsService {
     if (dto.credentialUrl) {
       return { verificationStatus: CertVerificationStatus.LINK_PROVIDED, verificationSource: CertVerificationSource.URL };
     }
-    if (file || keepsExistingFile) {
+    if (upload || keepsExistingFile) {
       return {
         verificationStatus: CertVerificationStatus.SELF_REPORTED,
         verificationSource: CertVerificationSource.MANUAL_UPLOAD,
@@ -296,10 +301,10 @@ export class CertificationsService {
     return cert;
   }
 
-  /** Best-effort — a file already missing on disk shouldn't block clearing or replacing the DB pointer. */
-  private async deleteStoredFile(filename: string): Promise<void> {
+  /** Best-effort — a file already missing in storage shouldn't block clearing or replacing the DB pointer. */
+  private async deleteStoredFile(key: string): Promise<void> {
     try {
-      await fs.unlink(join(UPLOAD_DIR, filename));
+      await this.storage.delete(key);
     } catch {
       // Ignored — see doc comment above.
     }

@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import {
   AccountActionType,
   AssessmentRequestStatus,
@@ -7,13 +7,11 @@ import {
   Prisma,
   ShortlistStage,
 } from '@prisma/client';
-import { promises as fs } from 'fs';
-import { join } from 'path';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { renderNotificationEmail } from '../notifications/notification-email.template';
 import { WEB_BASE_URL } from '../../config/web-base-url';
-import { UPLOAD_DIR } from '../../config/upload-dir';
+import { STORAGE_SERVICE, StorageService } from '../../storage/storage.interface';
 import { DeactivateAccountDto, DeleteAccountDto } from './account.dto';
 import { AssessmentRequestsRefundJob } from '../assessment-requests/assessment-requests-refund.job';
 
@@ -28,6 +26,7 @@ export class AccountService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly refundJob: AssessmentRequestsRefundJob,
+    @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
   ) {}
 
   async getStatus(userId: string) {
@@ -475,19 +474,15 @@ export class AccountService {
     }
   }
 
-  /** Best-effort, same convention as ProfilesService/CertificationsService's own file cleanup — a file already missing on disk must never block the rest of deletion. */
+  /** Best-effort, same convention as ProfilesService/CertificationsService's own file cleanup — a file already missing in storage must never block the rest of deletion. */
   private async deleteStoredFiles(profileId: string, photoKey: string | null, resumeS3Key: string | null): Promise<void> {
     const certFiles = await this.prisma.certification.findMany({
       where: { profileId, fileUrl: { not: null } },
       select: { fileUrl: true },
     });
-    const filenames = [photoKey, resumeS3Key, ...certFiles.map((c) => c.fileUrl)].filter(
-      (f): f is string => f != null,
+    const keys = [photoKey, resumeS3Key, ...certFiles.map((c) => c.fileUrl)].filter(
+      (k): k is string => k != null,
     );
-    await Promise.all(
-      filenames.map((filename) =>
-        fs.unlink(join(UPLOAD_DIR, filename)).catch(() => undefined),
-      ),
-    );
+    await Promise.all(keys.map((key) => this.storage.delete(key).catch(() => undefined)));
   }
 }

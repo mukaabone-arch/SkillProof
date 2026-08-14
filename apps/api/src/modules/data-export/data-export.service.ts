@@ -1,11 +1,8 @@
-import { ConflictException, HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConflictException, HttpException, HttpStatus, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ExportRequestStatus, NotificationType } from '@prisma/client';
-import { promises as fs } from 'fs';
-import { mkdirSync } from 'fs';
-import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
-import { UPLOAD_DIR } from '../../config/upload-dir';
+import { STORAGE_SERVICE, StorageService } from '../../storage/storage.interface';
 import { NotificationsService } from '../notifications/notifications.service';
 import { renderNotificationEmail } from '../notifications/notification-email.template';
 import { WEB_BASE_URL } from '../../config/web-base-url';
@@ -33,6 +30,7 @@ export class DataExportService {
     private readonly prisma: PrismaService,
     private readonly builder: DataExportBuilderService,
     private readonly notifications: NotificationsService,
+    @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
   ) {}
 
   // ---------- Candidate-facing ----------
@@ -56,8 +54,16 @@ export class DataExportService {
     return rows.map((r) => this.toCandidateDto(r));
   }
 
-  /** Authenticated download — 404s for both "doesn't exist" and "not yours," same not-found-vs-not-yours convention as InterviewsService.getOwnedEntry, so a candidate can never probe for another's export id. */
-  async downloadExport(userId: string, exportRequestId: string): Promise<{ buffer: Buffer; filename: string }> {
+  /**
+   * Authenticated download — 404s for both "doesn't exist" and "not yours,"
+   * same not-found-vs-not-yours convention as InterviewsService.getOwnedEntry,
+   * so a candidate can never probe for another's export id. Returns a
+   * short-lived presigned URL rather than proxying bytes — unlike the
+   * photo/resume/cert-file reads, nothing here depends on a stable response
+   * shape across clients, and an export file is exactly the kind of
+   * one-shot, sizeable download presigned URLs exist for.
+   */
+  async downloadExport(userId: string, exportRequestId: string): Promise<{ url: string }> {
     const profile = await this.getOwnedProfile(userId);
     const request = await this.prisma.exportRequest.findUnique({ where: { id: exportRequestId } });
     if (!request || request.candidateId !== profile.id) throw new NotFoundException('Export not found');
@@ -71,19 +77,16 @@ export class DataExportService {
       throw new NotFoundException('This export has expired — request a new one.');
     }
 
-    let buffer: Buffer;
-    try {
-      buffer = await fs.readFile(join(UPLOAD_DIR, request.fileKey));
-    } catch {
-      throw new NotFoundException('Stored export file could not be read.');
-    }
+    const url = await this.storage.getPresignedDownloadUrl(request.fileKey, {
+      filename: `myambii-data-export-${exportRequestId.slice(0, 8)}.json`,
+    });
 
     await this.prisma.exportRequest.update({
       where: { id: exportRequestId },
       data: { downloadCount: { increment: 1 }, lastDownloadedAt: new Date() },
     });
 
-    return { buffer, filename: `myambii-data-export-${exportRequestId.slice(0, 8)}.json` };
+    return { url };
   }
 
   private async assertNotRateLimited(candidateId: string): Promise<void> {
@@ -220,9 +223,8 @@ export class DataExportService {
     const json = JSON.stringify(payload, null, 2);
     const buffer = Buffer.from(json, 'utf-8');
 
-    mkdirSync(UPLOAD_DIR, { recursive: true });
     const fileKey = `${randomUUID()}.json`;
-    await fs.writeFile(join(UPLOAD_DIR, fileKey), buffer);
+    await this.storage.write(fileKey, buffer, 'application/json');
 
     const now = new Date();
     await this.prisma.exportRequest.update({
@@ -276,7 +278,7 @@ export class DataExportService {
     });
     for (const row of expired) {
       if (row.fileKey) {
-        await fs.unlink(join(UPLOAD_DIR, row.fileKey)).catch(() => undefined);
+        await this.storage.delete(row.fileKey).catch(() => undefined);
       }
       await this.prisma.exportRequest
         .update({ where: { id: row.id }, data: { status: ExportRequestStatus.EXPIRED, fileKey: null } })

@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Header,
+  Inject,
   Param,
   Patch,
   Post,
@@ -15,13 +16,12 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
+import { memoryStorage } from 'multer';
 import { randomUUID } from 'crypto';
-import { mkdirSync } from 'fs';
 import { JwtAuthGuard, AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { ProfilesService } from './profiles.service';
 import { GenerateResumeDto, UpdateProfileDto } from './profiles.dto';
-import { UPLOAD_DIR } from '../../config/upload-dir';
+import { STORAGE_SERVICE, StorageService } from '../../storage/storage.interface';
 
 const MAX_RESUME_BYTES = 5 * 1024 * 1024;
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
@@ -39,7 +39,10 @@ const PHOTO_EXTENSION_BY_MIME: Record<string, string> = {
 @Controller('profiles')
 @UseGuards(JwtAuthGuard)
 export class ProfilesController {
-  constructor(private readonly svc: ProfilesService) {}
+  constructor(
+    private readonly svc: ProfilesService,
+    @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
+  ) {}
 
   @Get('me')
   me(@Req() req: AuthenticatedRequest) {
@@ -54,13 +57,7 @@ export class ProfilesController {
   @Post('me/resume')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (_req, _file, cb) => {
-          mkdirSync(UPLOAD_DIR, { recursive: true });
-          cb(null, UPLOAD_DIR);
-        },
-        filename: (_req, _file, cb) => cb(null, `${randomUUID()}.pdf`),
-      }),
+      storage: memoryStorage(),
       limits: { fileSize: MAX_RESUME_BYTES },
       fileFilter: (_req, file, cb) => {
         if (file.mimetype !== 'application/pdf') {
@@ -70,13 +67,14 @@ export class ProfilesController {
       },
     }),
   )
-  uploadResume(@Req() req: AuthenticatedRequest, @UploadedFile() file: Express.Multer.File) {
+  async uploadResume(@Req() req: AuthenticatedRequest, @UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('No file uploaded');
-    // Bare filename, resolved against UPLOAD_DIR wherever it's read back
-    // (ProfilesService.readStoredResume) — not a path fragment baked
-    // around a hardcoded "uploads/" prefix, so this stays correct
-    // regardless of what UPLOAD_DIR is configured to.
-    return this.svc.saveResume(req.user.sub, file.filename);
+    // Bare storage key, resolved against the configured backend wherever
+    // it's read back (ProfilesService.readStoredResume) — not a path
+    // fragment baked around any one backend's layout.
+    const key = `${randomUUID()}.pdf`;
+    await this.storage.write(key, file.buffer, file.mimetype);
+    return this.svc.saveResume(req.user.sub, key);
   }
 
   @Post('me/resume/parse')
@@ -102,13 +100,7 @@ export class ProfilesController {
   @Post('me/photo')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (_req, _file, cb) => {
-          mkdirSync(UPLOAD_DIR, { recursive: true });
-          cb(null, UPLOAD_DIR);
-        },
-        filename: (_req, file, cb) => cb(null, `${randomUUID()}${PHOTO_EXTENSION_BY_MIME[file.mimetype]}`),
-      }),
+      storage: memoryStorage(),
       limits: { fileSize: MAX_PHOTO_BYTES },
       fileFilter: (_req, file, cb) => {
         if (!(file.mimetype in PHOTO_EXTENSION_BY_MIME)) {
@@ -118,12 +110,14 @@ export class ProfilesController {
       },
     }),
   )
-  uploadPhoto(@Req() req: AuthenticatedRequest, @UploadedFile() file: Express.Multer.File) {
+  async uploadPhoto(@Req() req: AuthenticatedRequest, @UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('No file uploaded');
-    // Same filename convention as saveResume — a bare filename resolved
-    // against UPLOAD_DIR wherever it's read back, not a path fragment
-    // baked around a hardcoded prefix.
-    return this.svc.savePhoto(req.user.sub, file.filename);
+    // Same key convention as uploadResume — a bare key resolved against
+    // the configured backend wherever it's read back, not a path fragment
+    // baked around any one backend's layout.
+    const key = `${randomUUID()}${PHOTO_EXTENSION_BY_MIME[file.mimetype]}`;
+    await this.storage.write(key, file.buffer, file.mimetype);
+    return this.svc.savePhoto(req.user.sub, key);
   }
 
   @Delete('me/photo')

@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Header,
+  Inject,
   Param,
   Patch,
   Post,
@@ -15,15 +16,14 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
+import { memoryStorage } from 'multer';
 import { randomUUID } from 'crypto';
-import { mkdirSync } from 'fs';
 import { Role } from '@prisma/client';
 import { AuthenticatedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { UPLOAD_DIR } from '../../config/upload-dir';
-import { CertificationsService } from './certifications.service';
+import { STORAGE_SERVICE, StorageService } from '../../storage/storage.interface';
+import { CertificationsService, UploadedCertFile } from './certifications.service';
 import { CertificationFieldsDto } from './certifications.dto';
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -36,13 +36,7 @@ const EXTENSION_BY_MIME: Record<string, string> = {
 };
 
 const FILE_INTERCEPTOR_OPTIONS = {
-  storage: diskStorage({
-    destination: (_req, _file, cb) => {
-      mkdirSync(UPLOAD_DIR, { recursive: true });
-      cb(null, UPLOAD_DIR);
-    },
-    filename: (_req, file, cb) => cb(null, `${randomUUID()}${EXTENSION_BY_MIME[file.mimetype]}`),
-  }),
+  storage: memoryStorage(),
   limits: { fileSize: MAX_FILE_BYTES },
   fileFilter: (_req: unknown, file: Express.Multer.File, cb: (err: Error | null, accept: boolean) => void) => {
     if (!(file.mimetype in EXTENSION_BY_MIME)) {
@@ -82,7 +76,10 @@ const FILE_INTERCEPTOR_OPTIONS = {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.CANDIDATE)
 export class CertificationsController {
-  constructor(private readonly svc: CertificationsService) {}
+  constructor(
+    private readonly svc: CertificationsService,
+    @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
+  ) {}
 
   @Get()
   list(@Req() req: AuthenticatedRequest) {
@@ -91,23 +88,33 @@ export class CertificationsController {
 
   @Post()
   @UseInterceptors(FileInterceptor('file', FILE_INTERCEPTOR_OPTIONS))
-  create(
+  async create(
     @Req() req: AuthenticatedRequest,
     @Body() dto: CertificationFieldsDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.svc.create(req.user.sub, dto, file);
+    const upload = await this.storeUpload(file);
+    return this.svc.create(req.user.sub, dto, upload);
   }
 
   @Patch(':id')
   @UseInterceptors(FileInterceptor('file', FILE_INTERCEPTOR_OPTIONS))
-  update(
+  async update(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
     @Body() dto: CertificationFieldsDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.svc.update(req.user.sub, id, dto, file);
+    const upload = await this.storeUpload(file);
+    return this.svc.update(req.user.sub, id, dto, upload);
+  }
+
+  /** Writes the multipart file (if any) to storage and returns the key CertificationsService should persist as fileUrl. */
+  private async storeUpload(file: Express.Multer.File | undefined): Promise<UploadedCertFile | undefined> {
+    if (!file) return undefined;
+    const key = `${randomUUID()}${EXTENSION_BY_MIME[file.mimetype]}`;
+    await this.storage.write(key, file.buffer, file.mimetype);
+    return { key };
   }
 
   @Delete(':id')

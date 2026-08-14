@@ -1,8 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
-import { mkdirSync } from 'fs';
 import { AppModule } from './app.module';
-import { UPLOAD_DIR } from './config/upload-dir';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -27,11 +25,7 @@ async function bootstrap() {
   }
   app.enableCors({ origin: process.env.CORS_ORIGIN?.split(',') ?? true, credentials: true });
 
-  // Render's disk is ephemeral unless a persistent Disk is attached and
-  // mounted at UPLOAD_DIR — created here so a fresh instance/redeploy never
-  // 500s on the first resume upload just because the directory is missing.
-  mkdirSync(UPLOAD_DIR, { recursive: true });
-  logger.log(`Resume upload dir: ${UPLOAD_DIR}`);
+  logger.log(`Storage driver: ${process.env.STORAGE_DRIVER === 's3' ? 's3' : 'local'}`);
 
   const port = process.env.PORT ?? 4000;
   await app.listen(port, '0.0.0.0');
