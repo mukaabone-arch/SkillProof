@@ -123,7 +123,7 @@ export default function AssessCandidateAction({ candidateId }: { candidateId: st
         amount: result.amount,
         currency: result.currency,
         order_id: result.orderId,
-        name: 'Myambii — assessment request',
+        name: 'MyAmbii — assessment request',
         description: `${(result.amount / 100).toFixed(2)} ${result.currency} — verified skill assessment`,
         theme: { color: '#5B4FE0' },
         handler: (response) => {

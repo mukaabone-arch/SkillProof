@@ -11,13 +11,13 @@
  * sits over a photo, so it earns its place, and it stays contained to this
  * one component.
  *
- * The brand lockup (Logo hero mark + "Myambii" wordmark) is ~278px wide,
+ * The brand lockup (Logo hero mark + "MyAmbii" wordmark) is ~278px wide,
  * which together with the direct links doesn't fit a phone. Below a
  * breakpoint the links collapse into a toggled menu rather than wrapping or
  * shrinking the lockup.
  */
 import { useEffect, useState } from 'react';
-import Logo from '../Logo';
+import Image from 'next/image';
 
 interface Props {
   /** Candidate sign-in target (see the landing page's own constant + report). */
@@ -40,9 +40,9 @@ export default function LandingHeader({ candidateHref, employerHref }: Props) {
   return (
     <header className={`lp-header${scrolled ? ' is-scrolled' : ''}`}>
       <div className="lp-header-inner">
-        <a href="#top" className="lp-brand" aria-label="Myambii home" onClick={() => setMenuOpen(false)}>
-          <Logo className="brand-logo-hero" />
-          <span className="brand-product-name">Myambii</span>
+        <a href="#top" className="lp-brand" aria-label="MyAmbii home" onClick={() => setMenuOpen(false)}>
+          <Image src="/Myambii-Logo-64px.png" alt="" width={64} height={64} className="brand-logo-hero" priority />
+          <span className="brand-product-name">MyAmbii</span>
         </a>
 
         <button

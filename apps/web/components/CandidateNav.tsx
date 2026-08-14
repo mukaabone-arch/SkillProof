@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '@/lib/api';
 import { useEntitlements } from '@/lib/entitlements';
-import Logo from './Logo';
+import BrandLockup from './BrandLockup';
 
 const LINKS = [
   { href: '/candidate', label: 'Dashboard' },
@@ -41,10 +41,7 @@ export default function CandidateNav({ onLoggedOut }: Props) {
   return (
     <div className="appnav">
       <div className="appnav-inner">
-        <Link href="/candidate" className="appnav-logo">
-          <Logo className="brand-logo" />
-          <span className="brand-product-name">Myambii</span>
-        </Link>
+        <BrandLockup variant="nav" href="/candidate" />
         <div className="appnav-links">
           {LINKS.map((l) => (
             <Link

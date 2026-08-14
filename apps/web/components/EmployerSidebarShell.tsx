@@ -14,7 +14,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { employerApi } from '@/lib/api';
-import Logo from './Logo';
+import BrandLockup from './BrandLockup';
 
 const SECTIONS = [
   { href: '/employer/dashboard', label: 'Dashboard' },
@@ -55,10 +55,7 @@ export default function EmployerSidebarShell({ onLoggedOut, children }: Props) {
           <span />
           <span />
         </button>
-        <Link href="/employer/dashboard" className="appnav-logo">
-          <Logo className="brand-logo" />
-          <span className="brand-product-name">Myambii</span>
-        </Link>
+        <BrandLockup variant="nav" href="/employer/dashboard" />
         <button type="button" className="appnav-logout" onClick={handleLogout}>Log out</button>
       </header>
       <div className="employer-body">

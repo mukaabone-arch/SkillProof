@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import LandingHeader from '@/components/landing/LandingHeader';
-import Logo from '@/components/Logo';
 
 /**
  * Marketing landing page — served at the domain root ("/"). The candidate
@@ -22,9 +22,9 @@ const CANDIDATE_HREF = `${APP_ORIGIN}/candidate`;
 const EMPLOYER_HREF = `${APP_ORIGIN}/employer`;
 
 export const metadata: Metadata = {
-  title: 'Myambii — Hire on proven AI skills, not keywords',
+  title: 'MyAmbii — Hire on proven AI skills, not keywords',
   description:
-    'Myambii verifies real AI ability through assessments reviewed by a person. Candidates get matched to roles that want their proven skills; employers hire on evidence, not keywords.',
+    'MyAmbii verifies real AI ability through assessments reviewed by a person. Candidates get matched to roles that want their proven skills; employers hire on evidence, not keywords.',
 };
 
 /**
@@ -82,7 +82,7 @@ export default function LandingPage() {
             <span className="lp-hero-title-sm">Proven AI skill, meet the companies hiring</span>
           </h1>
           <p className="lp-hero-sub">
-            Myambii turns real ability into verified proof — assessments reviewed by a person, not
+            MyAmbii turns real ability into verified proof — assessments reviewed by a person, not
             keyword-matched. Candidates get matched on evidence; employers hire on it.
           </p>
 
@@ -165,12 +165,12 @@ export default function LandingPage() {
       {/* ---------- About ---------- */}
       <section className="lp-section lp-section-alt" id="about" aria-labelledby="lp-about-heading">
         <div className="lp-container lp-prose">
-          <p className="lp-section-eyebrow">About</p>
+          <p className="lp-section-eyebrow">About Us</p>
           <h2 id="lp-about-heading" className="lp-section-title">
             Built to make AI skill legible
           </h2>
           <p className="lp-prose-body">
-            Myambii is a product of <strong>Mukaab Technologies Private Limited</strong>. We believe hiring for
+            MyAmbii is a product built on the <strong>flAIr future Intelligence</strong> platform by <strong>Mukaab Technologies Private Limited</strong>. We believe hiring for
             AI should rest on demonstrated ability rather than keywords on a résumé — so we verify skills through
             real assessments, put a person in the loop before any badge is issued, and give employers evidence they
             can check.
@@ -185,8 +185,8 @@ export default function LandingPage() {
         <div className="lp-container lp-footer-inner">
           <div className="lp-footer-brand">
             <div className="lp-footer-lockup">
-              <Logo className="brand-logo-hero" />
-              <span className="brand-product-name">Myambii</span>
+              <Image src="/Myambii-Logo-64px.png" alt="" width={64} height={64} className="brand-logo-hero" />
+              <span className="brand-product-name">MyAmbii</span>
             </div>
             <p className="lp-footer-company">Mukaab Technologies Private Limited</p>
             <p className="lp-footer-copy">© {new Date().getFullYear()} Mukaab Technologies Private Limited</p>

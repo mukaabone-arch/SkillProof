@@ -173,7 +173,7 @@ export class AssessmentRequestsRefundJob {
               subject: `Assessment request refunded — candidate no longer available`,
               body:
                 `<p>The candidate you requested a ${request.skill.name} ${request.level} assessment for is no longer ` +
-                `available on Myambii, and never started it.</p>` +
+                `available on MyAmbii, and never started it.</p>` +
                 `<p>You've been automatically refunded.</p>`,
             };
 

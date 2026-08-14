@@ -25,7 +25,7 @@ type ReasonCategory =
   | 'OTHER';
 
 const REASON_OPTIONS: { value: ReasonCategory; label: string }[] = [
-  { value: 'FOUND_JOB_SKILLPROOF', label: 'Found a job through Myambii' },
+  { value: 'FOUND_JOB_SKILLPROOF', label: 'Found a job through MyAmbii' },
   { value: 'FOUND_JOB_ELSEWHERE', label: 'Found a job elsewhere' },
   { value: 'NOT_FINDING_ROLES', label: 'Not finding relevant roles' },
   { value: 'TOO_MANY_EMAILS', label: 'Too many emails' },
@@ -137,7 +137,7 @@ function ExportsCard() {
     <Card elevated style={{ marginBottom: 32 }}>
       <h2 style={{ marginTop: 0 }}>Download my data</h2>
       <p>
-        A complete, machine-readable copy of your personal data on Myambii — profile, badges, assessment and
+        A complete, machine-readable copy of your personal data on MyAmbii — profile, badges, assessment and
         discussion history, applications, and more. Generated in the background; you&apos;ll get an email when
         it&apos;s ready, and the download link expires after 7 days.
       </p>

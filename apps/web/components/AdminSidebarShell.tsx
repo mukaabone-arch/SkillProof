@@ -19,7 +19,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { logout } from '@/lib/api';
-import Logo from './Logo';
+import BrandLockup from './BrandLockup';
 
 type NavLeaf =
   | { kind: 'link'; href: string; label: string }
@@ -203,12 +203,7 @@ export default function AdminSidebarShell({ onLoggedOut, children }: Props) {
           <span />
           <span />
         </button>
-        <Link href="/admin/dashboard" className="appnav-logo">
-          <Logo className="brand-logo" />
-          <span className="brand-product-name">
-            Myambii <span style={{ color: 'var(--ink-60)', fontWeight: 500 }}>Admin</span>
-          </span>
-        </Link>
+        <BrandLockup variant="nav" href="/admin/dashboard" suffix="Admin" />
         <button type="button" className="appnav-logout" onClick={handleLogout}>Log out</button>
       </header>
       <div className="admin-body">

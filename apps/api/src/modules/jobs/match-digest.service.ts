@@ -120,7 +120,7 @@ export class MatchDigestService {
       await this.notifications.sendEmail(
         candidate.userId,
         NotificationType.MATCH_DIGEST,
-        `${matches.length} new job match${matches.length === 1 ? '' : 'es'} for you on Myambii`,
+        `${matches.length} new job match${matches.length === 1 ? '' : 'es'} for you on MyAmbii`,
         this.buildDigestHtml(matches),
         matches.map(({ job }) => job.id),
       );

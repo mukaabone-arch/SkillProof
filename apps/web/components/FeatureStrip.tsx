@@ -77,9 +77,9 @@ const STAGES: Stage[] = [
 
 export default function FeatureStrip() {
   return (
-    <section className="fstrip" aria-label="How Myambii works">
+    <section className="fstrip" aria-label="How MyAmbii works">
       <p className="visually-hidden">
-        Your Myambii journey: verify your skills, earn badges, match with roles, interview, and get hired.
+        Your MyAmbii journey: verify your skills, earn badges, match with roles, interview, and get hired.
       </p>
       <div className="fstrip-rail" aria-hidden="true">
         <div className="fstrip-line">

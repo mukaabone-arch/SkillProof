@@ -433,7 +433,7 @@ export default function Dashboard({ onLoggedOut }: Props) {
   const claims = me.profile?.skillClaims ?? [];
   const badges = claims.filter((c) => c.status === 'VERIFIED' && c.badge);
   // Verified external credentials get their own indigo signal chip — never
-  // folded into the green badge count above, since only a Myambii-graded
+  // folded into the green badge count above, since only a MyAmbii-graded
   // assessment earns that particular color (see .chip / .chip-external in
   // globals.css).
   const verifiedCredentials = credentials.filter((c) => c.verificationState === 'VERIFIED');
@@ -479,7 +479,7 @@ export default function Dashboard({ onLoggedOut }: Props) {
   const greeting = profile.fullName
     ? `${timeOfDayGreeting()}, ${profile.fullName}`
     : isFirstSession
-      ? 'Welcome to Myambii'
+      ? 'Welcome to MyAmbii'
       : 'Welcome back';
 
   const sortedMatches = [...matched.jobs].sort((a, b) => b.score - a.score);

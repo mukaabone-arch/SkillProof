@@ -20,10 +20,9 @@
  * server records acceptance on every creation path (phone included).
  */
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { api, setTokens } from '@/lib/api';
 import { startOAuthLogin } from '@/lib/oauth';
-import Logo from './Logo';
+import BrandLockup from './BrandLockup';
 import { GoogleIcon, GithubIcon } from './OAuthIcons';
 import AuthMessageRotator from './AuthMessageRotator';
 import LegalAcceptanceNote from './LegalAcceptanceNote';
@@ -133,10 +132,7 @@ export default function OtpLogin({ onLoggedIn }: Props) {
       <div className="auth-split-panel">
         <h1 className="auth-split-headline">Global AI Talent Hub</h1>
         <div className="auth-split-card">
-          <Link href="/" className="brand-lockup-hero brand-lockup-link" aria-label="Myambii home">
-            <Logo className="brand-logo-hero" />
-            <span className="brand-product-name">Myambii</span>
-          </Link>
+          <BrandLockup variant="hero" href="/" ariaLabel="MyAmbii home" />
           <p className="auth-subtitle" style={{ marginBottom: 4 }}>
             Prove your AI skills, get matched to roles that want them.
           </p>

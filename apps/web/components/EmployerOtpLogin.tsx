@@ -28,10 +28,9 @@
  * decision, not a signal that the route itself is going away.
  */
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { employerApi } from '@/lib/api';
 import { startOAuthLogin } from '@/lib/oauth';
-import Logo from './Logo';
+import BrandLockup from './BrandLockup';
 import { GoogleIcon } from './OAuthIcons';
 import AuthMessageRotator, { type AuthMessage } from './AuthMessageRotator';
 import LegalAcceptanceNote from './LegalAcceptanceNote';
@@ -139,12 +138,7 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
       <div className="auth-split-panel">
         <h1 className="auth-split-headline">Global AI Talent Hub</h1>
         <div className="auth-split-card">
-          <Link href="/" className="brand-lockup-hero brand-lockup-link" aria-label="Myambii home">
-            <Logo className="brand-logo-hero" />
-            <span className="brand-product-name">
-              Myambii <span style={{ color: 'var(--ink-60)', fontWeight: 500 }}>for Employers</span>
-            </span>
-          </Link>
+          <BrandLockup variant="hero" href="/" ariaLabel="MyAmbii home" suffix="Employers" />
           <p className="auth-subtitle" style={{ marginBottom: 4 }}>
             Hire on proven skills, not keywords.
           </p>
@@ -244,7 +238,7 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
               <span style={{ flex: 1, height: 1, background: 'var(--ink-12)' }} />
             </div>
             <p className="meta" style={{ margin: 0, textAlign: 'center' }}>
-              Sign in with Google if your organization is already set up on Myambii.
+              Sign in with Google if your organization is already set up on MyAmbii.
             </p>
           </div>
 

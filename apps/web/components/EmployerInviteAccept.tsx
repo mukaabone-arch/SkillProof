@@ -12,10 +12,9 @@
  * definition not logged in yet.
  */
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { employerApi } from '@/lib/api';
-import Logo from './Logo';
+import BrandLockup from './BrandLockup';
 import LegalAcceptanceNote from './LegalAcceptanceNote';
 
 const { api, setTokens } = employerApi;
@@ -87,14 +86,9 @@ export default function EmployerInviteAccept({ initialEmail }: Props) {
     <main className="auth auth-gradient">
       <h1 className="auth-headline">You&apos;ve been invited</h1>
       <div className="auth-card">
-        <Link href="/" className="brand-lockup-hero brand-lockup-link" aria-label="Myambii home">
-          <Logo className="brand-logo-hero" />
-          <span className="brand-product-name">
-            Myambii <span style={{ color: 'var(--auth-text-secondary)', fontWeight: 500 }}>for Employers</span>
-          </span>
-        </Link>
+        <BrandLockup variant="hero" href="/" ariaLabel="MyAmbii home" suffix="Employers" />
         <p className="auth-subtitle" style={{ marginBottom: 4 }}>
-          Join your team on Myambii.
+          Join your team on MyAmbii.
         </p>
         <p className="meta" style={{ marginBottom: 20 }}>
           Confirm the email your invitation was sent to, and we&apos;ll send a code to verify it&apos;s you.

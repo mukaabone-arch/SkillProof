@@ -245,9 +245,9 @@ export class OrgMembersService {
 
   private async sendInviteEmail(email: string, orgName: string): Promise<void> {
     const link = `${WEB_BASE_URL}/employer-invite?email=${encodeURIComponent(email)}`;
-    const subject = `You've been invited to join ${orgName} on Myambii`;
+    const subject = `You've been invited to join ${orgName} on MyAmbii`;
     const html = `
-      <p>You've been invited to join <strong>${orgName}</strong> on Myambii as a team member.</p>
+      <p>You've been invited to join <strong>${orgName}</strong> on MyAmbii as a team member.</p>
       <p><a href="${link}">Accept your invitation</a> and sign in with a verification code sent to this address.</p>
       <p>This invitation expires in 7 days.</p>
     `;

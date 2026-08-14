@@ -245,7 +245,7 @@ export class DataExportService {
     await this.notifications.sendEmail(
       userId,
       NotificationType.DATA_EXPORT_READY,
-      'Your Myambii data export is ready',
+      'Your MyAmbii data export is ready',
       renderNotificationEmail(
         `<p>The data export you requested is ready to download from your account settings.</p>` +
           `<p>For your security, this download link expires in ${EXPORT_RETENTION_DAYS} days.</p>`,

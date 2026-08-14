@@ -7,7 +7,7 @@
  * LinkedIn Learning, PMI, PeopleCert, AWS, Microsoft, Google, Scrum
  * Alliance, Udemy, edX, NPTEL, Credly, or a free-text Other issuer, each
  * with three trust tiers (see trustTier below) that must never be confused
- * for a Myambii-verified skill badge — the same "verified" green Badge
+ * for a MyAmbii-verified skill badge — the same "verified" green Badge
  * variant stays reserved for that, exactly as it did before this change.
  */
 import { useEffect, useState } from 'react';
@@ -287,9 +287,9 @@ export default function CertificationsPanel() {
 
   /**
    * The three trust tiers, deliberately never using Badge variant="verified"
-   * (the reserved Myambii-assessed green) — same reasoning as the old
+   * (the reserved MyAmbii-assessed green) — same reasoning as the old
    * external-credentials section: proof from another platform, however
-   * strongly verified, stays visually distinct from a Myambii-assessed
+   * strongly verified, stays visually distinct from a MyAmbii-assessed
    * skill. VERIFIED still gets the indigo "default" pill (unchanged from
    * before); LINK_PROVIDED steps down to a plain gray pill; SELF_REPORTED
    * steps down again to a borderless, unfilled outline — a self-uploaded

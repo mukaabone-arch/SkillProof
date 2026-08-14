@@ -1,7 +1,7 @@
 /*
  * Design system foundation — originally extracted from a light theme
  * (public/landing.html, the OTP/auth pages, the dashboard hub); re-themed
- * dark ("Nocturne") to match the Myambii Dashboard design import
+ * dark ("Nocturne") to match the MyAmbii Dashboard design import
  * (claude.ai/design project 8cae981e, nocturne-1d7b12b4 design system).
  * Every token below keeps its ORIGINAL NAME and semantic role (page bg,
  * card surface, primary text, THE primary accent, etc.) — only the hex
@@ -106,7 +106,7 @@
   --brand-purple: var(--brand-600);
   --brand-green: var(--success);
 
-  /* ---- Brand lockup size (logo mark + "Myambii..." wordmark together) ----
+  /* ---- Brand lockup size (logo mark + "MyAmbii..." wordmark together) ----
      One size, everywhere — .brand-logo and .brand-logo-hero both read these
      same tokens now (see the shared rule below); there is no more nav-only
      variant to drift out of sync with it. feat/nav-restructure-logo-size
@@ -117,9 +117,9 @@
      rows, the wordmark hidden below a width where it and the logo can't
      both fit — see .appnav-inner and .appnav-logo .brand-product-name
      below for the specifics and the measured reasoning). */
-  --logo-size-hero: 44px;
-  --logo-size-hero-mobile: 36px;
-  --logo-text-size-hero: 1.3rem;
+  --logo-size-hero: 64px;
+  --logo-size-hero-mobile: 48px;
+  --logo-text-size-hero: 2rem;
 
   --card: #232532; /* cards/surfaces: Nocturne --color-surface — dark-theme fix, was white */
 
@@ -483,7 +483,7 @@ code { font-family: var(--font-body); }
      - Nav/topbar rows are taller (76px, up from 64px — see .appnav-inner /
        .employer-topbar / .admin-topbar) so the 44px mark fits with real
        margin instead of nearly filling the row.
-     - The "Myambii…" wordmark hides below 640px in nav/topbar contexts
+     - The "MyAmbii…" wordmark hides below 640px in nav/topbar contexts
        specifically (.appnav-logo .brand-product-name below) — measured via
        Playwright against the actual rendered logo (255px wide at 44px
        tall, 209px at the 36px mobile-hero size — this mark is a wide
@@ -499,48 +499,38 @@ code { font-family: var(--font-body); }
        see those two components' own comments. */
 .brand-logo, .brand-logo-hero { height: var(--logo-size-hero); width: auto; display: block; }
 .brand-product-name { font-family: var(--font-display); font-weight: 700; font-size: var(--logo-text-size-hero); letter-spacing: -0.01em; color: var(--ink); }
-.brand-lockup-hero { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 20px; }
-/* Without flex-wrap, the logo and wordmark are forced onto one line
-   sharing .brand-lockup-hero's fixed width (the card's inner content
-   box). Under ordinary single-line flexbox rules, both children default
-   to flex-shrink:1, so whenever their combined natural width exceeds the
-   row's available width, the browser shrinks BOTH — including the logo,
-   an SVG with only a viewBox (no width/height attributes), whose
-   intrinsic aspect ratio (380:60) means a narrower assigned box doesn't
-   just crop it, it re-triggers preserveAspectRatio's default "meet"
-   scaling and shrinks the *visible artwork* below the nominal 44px
-   height, even though the CSS height itself stays 44px.
-   Measured before this fix, at 1280px (natural width at 44px height =
-   44 * 380/60 = 278.67px):
-     OtpLogin (single-word "Myambii")            255.08px (~8% short)
-     EmployerOtpLogin ("Myambii for Employers",
-       wraps to two lines within its box)            189.48px (~32% short)
-   Both were already short of natural size — just far more on the employer
-   card, since its longer wordmark demands more of the row's fixed width,
-   leaving less for the logo once flex-shrink distributes the deficit.
-
-   flex-shrink: 0 (below) pins the logo to its full natural size
-   unconditionally. That alone isn't sufficient, though: "Myambii" is
-   one unbreakable word (~97px min-content at this font), and forcing the
-   wordmark to stay on the logo's line would mean the *word itself* has to
-   either overflow past its box (invisible at 1280px, where enough card
-   padding absorbed the ~24px spillover before hitting a hard edge — but
-   clipped hard at 375px, where the same math left no room and the text
-   ran off the viewport) or break mid-word (technically no overflow, but
-   "SkillPr" / "oof" split across two lines is not an acceptable look).
-   flex-wrap: wrap on the row sidesteps both: when the wordmark doesn't
-   fit beside the already-full-size logo, it drops to its own new line
-   below the logo — at full width there, comfortably fitting even
-   "Myambii for Employers" on one or two whole-word lines — rather
-   than either child being squeezed. Row gap is `8px 14px` (row-gap
-   column-gap) so the two wrapped lines get sensible vertical spacing too,
-   not just the horizontal gap that only mattered for the single-line
-   case. Scoped to .brand-lockup-hero specifically (the four hero-card
-   consumers: OtpLogin/EmployerOtpLogin/OAuthCallback/
-   EmployerInviteAccept) — nav/topbar lockups already solve their own
-   width pressure by hiding the wordmark outright below 640px (see this
-   rule's own comment above) and never faced this failure mode. */
+.brand-lockup-hero { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px 14px; margin-bottom: 20px; }
+/* flex-wrap was needed while the mark was an inline SVG with only a
+   viewBox (no width/height attributes): under ordinary single-line
+   flexbox rules both children default to flex-shrink:1, and a box with
+   no intrinsic size shrinks its *visible artwork* — via
+   preserveAspectRatio's default "meet" — below its nominal height
+   whenever the row's available width falls short. flex-wrap: wrap
+   sidestepped that by dropping the wordmark to its own line instead of
+   letting it squeeze the logo.
+   BrandLockup.tsx now renders the mark as a next/image with explicit
+   width={64} height={64}, so the browser has a definite intrinsic size
+   up front — flex-shrink no longer has an undersized-viewBox box to
+   collapse, and the old two-child shrink failure mode doesn't apply.
+   flex-wrap: nowrap (above) is correct as the current state: the row
+   keeps mark + wordmark on one line, relying on
+   .brand-lockup-hero .brand-logo-hero's flex-shrink: 0 (below) to hold
+   the mark at full size the same way it always did. */
 .brand-lockup-hero .brand-logo-hero { flex-shrink: 0; }
+/* Text column beside the mark in hero contexts. With the suffix
+   (Employers) stacked on its own line under the wordmark instead of
+   inline after it ("MyAmbii for Employers" as one run of text), the row
+   no longer needs extra width for the longest wordmark — which is also
+   why the auth-card/auth-split-card size override that used to shrink the
+   mark+wordmark tokens down to compensate (40px/1.15rem, vs. the 64px/2rem
+   default) has been removed: auth cards now render the same full size as
+   every other .brand-lockup-hero consumer (footer, LegalStub,
+   LandingHeader's own .lp-brand). */
+.brand-lockup-hero-text { display: flex; flex-direction: column; justify-content: center; }
+.brand-lockup-hero-suffix {
+  font-family: var(--font-body); font-weight: 600; font-size: 0.9rem;
+  letter-spacing: 0.02em; color: var(--ink-60); margin-top: 2px;
+}
 /* Three hero-card entry surfaces (OtpLogin, EmployerOtpLogin,
    EmployerInviteAccept) render the lockup as a link home to "/" (the
    landing). Rest state is the plain lockup untouched — same ~278x44 hero
@@ -550,7 +540,6 @@ code { font-family: var(--font-body); }
    mid-auth state with its own contextual "Back to login".) */
 .brand-lockup-link { text-decoration: none; color: inherit; border-radius: 10px; transition: opacity 0.15s ease; }
 .brand-lockup-link:hover { opacity: 0.85; }
-.brand-lockup-link:hover .brand-product-name { text-decoration: underline; text-underline-offset: 3px; }
 .brand-lockup-link:focus-visible { outline: 2px solid var(--brand-400); outline-offset: 4px; }
 .app-footer-credit { text-align: center; font-size: 0.78rem; color: var(--ink-30); margin-top: 40px; }
 @media (max-width: 480px) {
@@ -743,7 +732,12 @@ main.auth.auth-gradient {
      same way for the same reason; without this, the grid below gets
      squeezed into a 640px centered box instead of spanning the viewport. */
   max-width: none; margin: 0; padding: 0;
-  min-height: 100vh;
+  /* height, not min-height: pins the grid (and so both columns, via the
+     default stretch alignment) to exactly the viewport instead of letting
+     it grow past it when the card's content is tall. That in turn gives
+     .auth-split-panel a definite, bounded height to scroll within — see
+     its own overflow-y:auto below for why that matters. */
+  height: 100vh;
   display: grid;
   /* Visual side flexes and gets *more* room on a wide monitor (a bigger
      canvas for the treatment); panel side is clamped so the card and
@@ -815,8 +809,30 @@ main.auth.auth-gradient {
   inset: 0;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  padding: 0 64px 76px;
+  /* Was flex-end (deliberate lower-third placement, see this rule's own
+     doc comment above) — at short viewport heights that pinned the message
+     stack low enough to clip against the panel's bottom edge. Centered
+     instead; the horizontal 64px inset is unchanged, only the vertical
+     placement moved. The scrim gradient below this rule was originally
+     measured and tuned for bottom-third placement (see its own "Measured,
+     not eyeballed" comment) — re-verified at centered placement too:
+     rendered OtpLogin/EmployerOtpLogin at 1150/1280/1440/1920px (the widths
+     ≥1100px where AuthMessageRotator actually renders — see the
+     max-width:1100px display:none below), screenshotted .auth-split-visual
+     with the message text made transparent (so sampled pixels are
+     background only, not glyph anti-aliasing), and computed WCAG contrast
+     for the real headline/support boxes against the brightest background
+     pixel each covers. Worst case across every width/page combination:
+       headline #FFFFFF   vs brightest bg   9.74:1  (1920px, employer)
+       support  #E4E4EE   vs brightest bg   9.44:1  (1920px, employer)
+     Both clear the 4.5:1 AA floor with wide margin and clear the stricter
+     7:1 AAA floor too — the reduced scrim coverage at center (vertically
+     midway up a "to top" gradient that's fully transparent by 72%, so
+     roughly a third the alpha it has near the bottom) is still covering a
+     background that's dark enough on its own at this position, no retune
+     needed. */
+  justify-content: center;
+  padding: 0 64px;
 }
 .auth-split-message-scrim {
   position: absolute;
@@ -881,9 +897,18 @@ main.auth.auth-gradient {
   .auth-split-message-dots span { transition: none; }
 }
 .auth-split-panel {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: safe center;
   padding: 56px 40px;
   background: var(--gray-50);
+  /* .auth-split now pins the grid to exactly 100vh (height, not min-height)
+     rather than letting it grow past the viewport — that gives this grid
+     item a definite, bounded height via the default stretch alignment, so
+     when the headline+card content is taller than the viewport, it
+     scrolls within this column instead of pushing the whole document
+     (silently, with no visible scrollbar or cue) past the fold. When
+     content fits, this has no visible effect — justify-content still
+     centers it, same as before. */
+  overflow-y: auto;
 }
 .auth-split-headline {
   font-family: var(--font-body); font-weight: 700;
@@ -1157,7 +1182,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 /* `gap` is a floor, independent of justify-content: space-between's
    distributed space — without it, the brand group and the links group
-   touch directly (e.g. "MyambiiDashboard") in the ~721–880px band,
+   touch directly (e.g. "MyAmbiiDashboard") in the ~721–880px band,
    where content is wide enough that space-between has no slack left to
    distribute (below 720px the links are hidden entirely; above ~880px
    there's enough room regardless). */
@@ -1541,7 +1566,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
    speaking directly to what it can already see. Indigo-tinted, not a new
    hue: same accent family as the rest of the hub, just given more room to
    breathe than a standard .ui-card.
-   Restyled to match the "CLOSE THE GAP" panel in the Myambii Dashboard
+   Restyled to match the "CLOSE THE GAP" panel in the MyAmbii Dashboard
    Nocturne import: a dark accent-to-accent-900 gradient card (not a subtle
    wash on --card) with a lit border, near-white message text, and a pop
    button that inverts (light fill, dark text) against the dark gradient. */
@@ -1604,7 +1629,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 }
 
 /* ---- signal chips ----
-   .chip (unchanged, green) is the reserved "Myambii verified this"
+   .chip (unchanged, green) is the reserved "MyAmbii verified this"
    signal — badges only. .chip-external is the same shape recolored indigo
    for external credentials (Credly etc.), so the two proof tiers stay
    visually distinct at a glance, matching the rule already enforced on the

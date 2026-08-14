@@ -182,7 +182,7 @@ export default function ApplicantCard({ applicant: a, headerActions, resumeActio
       {a.verifiedSkills.length > 0 && (
         <div style={{ marginTop: 4 }}>
           <div className="meta" style={{ margin: 0, marginBottom: 4 }}>
-            Myambii-Verified Skills
+            MyAmbii-Verified Skills
           </div>
           <div className="row" style={{ flexWrap: 'wrap', margin: 0 }}>
             {a.verifiedSkills.map((s) => (

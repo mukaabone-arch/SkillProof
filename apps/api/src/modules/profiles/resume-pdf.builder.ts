@@ -126,7 +126,7 @@ function renderVerifiedSkills(doc: PDFKit.PDFDocument, verifiedSkills: VerifiedS
 
   sectionHeading(doc, 'Verified Skills', VERIFIED_GREEN);
   doc.fillColor(INK_MUTED).font('Helvetica').fontSize(8.5).text(
-    'Each skill below was independently verified via a proctored Myambii assessment. Click through to confirm.',
+    'Each skill below was independently verified via a proctored MyAmbii assessment. Click through to confirm.',
   );
   doc.moveDown(0.3);
 
@@ -158,7 +158,7 @@ function renderFooterMark(doc: PDFKit.PDFDocument) {
     .fillColor(VERIFIED_GREEN)
     .font('Helvetica-Bold')
     .fontSize(9)
-    .text('Verified by Myambii', { align: 'center' });
+    .text('Verified by MyAmbii', { align: 'center' });
   doc
     .fillColor(INK_MUTED)
     .font('Helvetica')

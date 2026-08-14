@@ -12,7 +12,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { getToken, employerApi } from '@/lib/api';
-import Logo from './Logo';
+import BrandLockup from './BrandLockup';
 
 export default function PublicNav() {
   const [dashboardHref, setDashboardHref] = useState<string | null>(null);
@@ -37,10 +37,7 @@ export default function PublicNav() {
   return (
     <div className="appnav">
       <div className="appnav-inner">
-        <Link href="/" className="appnav-logo">
-          <Logo className="brand-logo" />
-          <span className="brand-product-name">Myambii</span>
-        </Link>
+        <BrandLockup variant="nav" href="/" />
         {dashboardHref && (
           <div className="appnav-links">
             <Link href={dashboardHref}>← Back to dashboard</Link>

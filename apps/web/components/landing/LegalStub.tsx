@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import Logo from '../Logo';
+import BrandLockup from '../BrandLockup';
 
 /**
  * Coming-soon stub for a legal document that doesn't exist yet (Privacy
@@ -11,15 +11,12 @@ import Logo from '../Logo';
 export default function LegalStub({ title }: { title: string }) {
   return (
     <main className="legal-stub">
-      <Link href="/" className="legal-stub-brand" aria-label="Myambii home">
-        <Logo className="brand-logo-hero" />
-        <span className="brand-product-name">Myambii</span>
-      </Link>
+      <BrandLockup variant="hero" href="/" ariaLabel="MyAmbii home" />
       <h1 className="legal-stub-title">{title}</h1>
       <p className="legal-stub-badge">Coming soon</p>
       <p className="legal-stub-body">
         This document is being finalised and will be published here. In the meantime, questions can go to{' '}
-        <Link href="/contact">Myambii</Link>.
+        <Link href="/contact">MyAmbii</Link>.
       </p>
       <p className="legal-stub-company">Mukaab Technologies Private Limited</p>
     </main>

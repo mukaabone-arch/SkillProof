@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Resend } from 'resend';
 import { EmailProvider, SendEmailParams } from './email-provider.interface';
 
-const DEFAULT_FROM = 'Myambii <notifications@skillproof.app>';
+const DEFAULT_FROM = 'MyAmbii <notifications@skillproof.app>';
 
 @Injectable()
 export class ResendEmailProvider implements EmailProvider {

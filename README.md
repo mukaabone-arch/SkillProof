@@ -1,4 +1,4 @@
-# Myambii — AI-Skills Recruitment Platform
+# MyAmbii — AI-Skills Recruitment Platform
 
 Monorepo: NestJS API + Next.js web + Flutter mobile.
 

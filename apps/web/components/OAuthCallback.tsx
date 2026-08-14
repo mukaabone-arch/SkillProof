@@ -15,7 +15,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api, employerApi, setTokens } from '@/lib/api';
 import { consumeStoredPortal, consumeStoredState, redirectUriFor, PROVIDER_LABEL, type OAuthProviderId } from '@/lib/oauth';
-import Logo from './Logo';
+import BrandLockup from './BrandLockup';
 
 interface Props {
   provider: OAuthProviderId;
@@ -101,10 +101,7 @@ export default function OAuthCallback({ provider }: Props) {
   return (
     <main className="auth auth-gradient">
       <div className="auth-card">
-        <div className="brand-lockup-hero">
-          <Logo className="brand-logo-hero" />
-          <span className="brand-product-name">Myambii</span>
-        </div>
+        <BrandLockup variant="hero" />
         {error ? (
           <>
             <p className="error">{error}</p>
