@@ -476,11 +476,15 @@ export default function Dashboard({ onLoggedOut }: Props) {
   // Never show the raw phone/email as a "name" — greet by fullName once it
   // exists, otherwise a neutral greeting that still distinguishes a brand
   // new visitor from someone returning who just hasn't named themselves yet.
+  // Both nameless branches are time-of-day based, same as the named branch —
+  // mirrors skillproof-mobile's identical change to greeting.dart +
+  // hero_section.dart, kept in step deliberately so the two platforms never
+  // show different copy for the same state.
   const greeting = profile.fullName
     ? `${timeOfDayGreeting()}, ${profile.fullName}`
     : isFirstSession
-      ? 'Welcome to MyAmbii'
-      : 'Welcome back';
+      ? `${timeOfDayGreeting()} — welcome to MyAmbii`
+      : `${timeOfDayGreeting()} — welcome back`;
 
   const sortedMatches = [...matched.jobs].sort((a, b) => b.score - a.score);
   const bestUnapplied = sortedMatches.find((j) => !j.alreadyApplied);

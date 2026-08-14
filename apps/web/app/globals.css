@@ -499,7 +499,7 @@ code { font-family: var(--font-body); }
        see those two components' own comments. */
 .brand-logo, .brand-logo-hero { height: var(--logo-size-hero); width: auto; display: block; }
 .brand-product-name { font-family: var(--font-display); font-weight: 700; font-size: var(--logo-text-size-hero); letter-spacing: -0.01em; color: var(--ink); }
-.brand-lockup-hero { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px 14px; margin-bottom: 20px; }
+.brand-lockup-hero { display: flex; flex-wrap: nowrap; align-items: flex-start; gap: 8px 14px; margin-bottom: 20px; }
 /* flex-wrap was needed while the mark was an inline SVG with only a
    viewBox (no width/height attributes): under ordinary single-line
    flexbox rules both children default to flex-shrink:1, and a box with
@@ -526,7 +526,7 @@ code { font-family: var(--font-body); }
    default) has been removed: auth cards now render the same full size as
    every other .brand-lockup-hero consumer (footer, LegalStub,
    LandingHeader's own .lp-brand). */
-.brand-lockup-hero-text { display: flex; flex-direction: column; justify-content: center; }
+.brand-lockup-hero-text { display: flex; flex-direction: column; justify-content: flex-start; }
 .brand-lockup-hero-suffix {
   font-family: var(--font-body); font-weight: 600; font-size: 0.9rem;
   letter-spacing: 0.02em; color: var(--ink-60); margin-top: 2px;
