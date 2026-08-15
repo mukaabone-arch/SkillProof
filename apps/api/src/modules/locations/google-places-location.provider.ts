@@ -48,11 +48,14 @@ function componentByType(components: AddressComponent[] | undefined, type: strin
  * REST API, which Google now refuses to enable on new Cloud projects
  * (every legacy call came back REQUEST_DENIED). Restricted to city-type
  * results via includedPrimaryTypes: ['locality'] (the New API's equivalent
- * of the legacy `types=(cities)` parameter). Auth moves from a `key` query
- * parameter to an `X-Goog-Api-Key` header, and every call now requires an
- * X-Goog-FieldMask header naming exactly the fields wanted — the New API
- * bills by which fields a Details call's mask includes, so both masks below
- * request only what's actually used downstream (never `*`).
+ * of the legacy `types=(cities)` parameter), and optionally to one region
+ * via includedRegionCodes when LOCATION_COUNTRY_RESTRICTION is set (see
+ * search()'s own comment) — the New API's equivalent of the legacy
+ * `components=country:in`. Auth moves from a `key` query parameter to an
+ * `X-Goog-Api-Key` header, and every call now requires an X-Goog-FieldMask
+ * header naming exactly the fields wanted — the New API bills by which
+ * fields a Details call's mask includes, so both masks below request only
+ * what's actually used downstream (never `*`).
  *
  * Eager enrichment (still here, not moved to a per-selection call): every
  * returned suggestion gets its own parallel Place Details lookup, same as
@@ -83,6 +86,16 @@ export class GooglePlacesLocationProvider implements LocationSearchProvider {
     if (!apiKey) {
       throw new ServiceUnavailableException('Location search is not configured.');
     }
+    // Hard-restricts Autocomplete to this region via the New API's
+    // includedRegionCodes (the legacy API's equivalent was
+    // components=country:in) — read fresh per call, same as apiKey above,
+    // rather than hoisted to a module-level constant. Unset/blank omits the
+    // field entirely, so this stays inert (today's unrestricted behavior)
+    // until the var is set. One provider serves both the candidate profile
+    // location field and employer job-posting location field (both go
+    // through GET /locations/search), so setting this restricts suggestions
+    // for both — intentional, not a side effect.
+    const countryRestriction = process.env.LOCATION_COUNTRY_RESTRICTION?.trim().toLowerCase();
 
     let res: Response;
     try {
@@ -98,6 +111,7 @@ export class GooglePlacesLocationProvider implements LocationSearchProvider {
         body: JSON.stringify({
           input: query,
           includedPrimaryTypes: ['locality'],
+          ...(countryRestriction ? { includedRegionCodes: [countryRestriction] } : {}),
         }),
       });
     } catch (e) {

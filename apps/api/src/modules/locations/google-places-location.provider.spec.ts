@@ -30,10 +30,13 @@ function detailsFor(placeId: string) {
 
 describe('GooglePlacesLocationProvider', () => {
   const originalKey = process.env.GOOGLE_PLACES_API_KEY;
+  const originalCountryRestriction = process.env.LOCATION_COUNTRY_RESTRICTION;
   const originalFetch = global.fetch;
 
   afterEach(() => {
     process.env.GOOGLE_PLACES_API_KEY = originalKey;
+    if (originalCountryRestriction === undefined) delete process.env.LOCATION_COUNTRY_RESTRICTION;
+    else process.env.LOCATION_COUNTRY_RESTRICTION = originalCountryRestriction;
     global.fetch = originalFetch;
     jest.restoreAllMocks();
   });
@@ -44,8 +47,9 @@ describe('GooglePlacesLocationProvider', () => {
     await expect(provider.search('bang')).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
-  it('POSTs to the New Autocomplete endpoint with the API key in a header, not a query param', async () => {
+  it('POSTs to the New Autocomplete endpoint with the API key in a header, not a query param, and no region restriction when LOCATION_COUNTRY_RESTRICTION is unset', async () => {
     process.env.GOOGLE_PLACES_API_KEY = 'test-key';
+    delete process.env.LOCATION_COUNTRY_RESTRICTION;
     const fetchMock = jest.fn((url: string | URL, init?: RequestInit) => {
       const href = url.toString();
       if (href === 'https://places.googleapis.com/v1/places:autocomplete') {
@@ -55,6 +59,30 @@ describe('GooglePlacesLocationProvider', () => {
         expect(href).not.toContain('key=test-key');
         const parsedBody = JSON.parse(init!.body as string);
         expect(parsedBody).toEqual({ input: 'bang', includedPrimaryTypes: ['locality'] });
+        return Promise.resolve(jsonResponse({ suggestions: [] }));
+      }
+      throw new Error(`unexpected fetch to ${href}`);
+    }) as unknown as typeof fetch;
+    global.fetch = fetchMock;
+
+    const provider = new GooglePlacesLocationProvider();
+    await provider.search('bang');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('restricts Autocomplete to the configured region via includedRegionCodes when LOCATION_COUNTRY_RESTRICTION is set', async () => {
+    process.env.GOOGLE_PLACES_API_KEY = 'test-key';
+    process.env.LOCATION_COUNTRY_RESTRICTION = 'IN';
+    const fetchMock = jest.fn((url: string | URL, init?: RequestInit) => {
+      const href = url.toString();
+      if (href === 'https://places.googleapis.com/v1/places:autocomplete') {
+        const parsedBody = JSON.parse(init!.body as string);
+        expect(parsedBody).toEqual({
+          input: 'bang',
+          includedPrimaryTypes: ['locality'],
+          includedRegionCodes: ['in'],
+        });
         return Promise.resolve(jsonResponse({ suggestions: [] }));
       }
       throw new Error(`unexpected fetch to ${href}`);
