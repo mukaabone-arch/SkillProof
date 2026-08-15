@@ -104,7 +104,7 @@ export default function UpgradePage() {
 
   function priceFor(tier: SubscriptionTier): string {
     if (tier === 'FREE') return '₹0';
-    return currency === 'INR' ? '₹999' : '$15';
+    return currency === 'INR' ? '₹299' : '$15';
   }
 
   return (
