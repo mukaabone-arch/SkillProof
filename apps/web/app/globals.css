@@ -97,15 +97,6 @@
   --auth-text-secondary: rgba(233, 233, 237, 0.82);
   --auth-text-tertiary:  rgba(233, 233, 237, 0.7);
 
-  /* ---- Brand primitives (the flAIr future Intelligence logo's own colors) ----
-     Reserved for the logo asset itself (Logo.tsx, which reads these via
-     var(--brand-purple, #8b5cf6)-style fallbacks) and brand-decoration
-     contexts (the hero/auth-page photo scrim). Purple is the system's
-     primary brand hue; green takes the one surviving green-family token
-     (--success) — both re-theme automatically with the tokens above. */
-  --brand-purple: var(--brand-600);
-  --brand-green: var(--success);
-
   /* ---- Brand lockup size (logo mark + "MyAmbii..." wordmark together) ----
      One size, everywhere — .brand-logo and .brand-logo-hero both read these
      same tokens now (see the shared rule below); there is no more nav-only
@@ -466,9 +457,13 @@ code { font-family: var(--font-body); }
 @keyframes ui-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
 
-/* ---- flair future Intelligence branding ----
-   logo.svg already bakes in its own dark rounded panel — never re-wrap it in
-   another background, just size it.
+/* ---- MyAmbii brand lockup ----
+   Mark + wordmark, rendered via BrandLockup.tsx (components/BrandLockup.tsx)
+   as a next/image PNG (public/Myambii-Logo-64px.png) — transparent
+   background, designed for dark surfaces, sized purely via CSS below.
+   Replaces the earlier inline flAIr future Intelligence SVG (Logo.tsx,
+   public/logo.svg), which baked its own dark rounded panel into the artwork
+   itself; both were deleted once every consumer migrated to BrandLockup.
 
    One size, everywhere (feat/nav-restructure-logo-size) — .brand-logo and
    .brand-logo-hero are now the same rule reading the same tokens; there is
@@ -539,7 +534,7 @@ code { font-family: var(--font-body); }
    (OAuthCallback keeps a plain, non-linked lockup — it's a transient
    mid-auth state with its own contextual "Back to login".) */
 .brand-lockup-link { text-decoration: none; color: inherit; border-radius: 10px; transition: opacity 0.15s ease; }
-.brand-lockup-link:hover { opacity: 0.85; }
+.brand-lockup-link:hover { text-decoration: none; }
 .brand-lockup-link:focus-visible { outline: 2px solid var(--brand-400); outline-offset: 4px; }
 .app-footer-credit { text-align: center; font-size: 0.78rem; color: var(--ink-30); margin-top: 40px; }
 @media (max-width: 480px) {
@@ -2124,6 +2119,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
 }
 .lp-brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; }
+.lp-brand:hover { text-decoration: none; }
 .lp-brand .brand-product-name { color: var(--ink); }
 .lp-nav { display: flex; align-items: center; gap: 28px; }
 .lp-nav-link {
@@ -2394,6 +2390,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
 }
 .legal-stub-brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; margin-bottom: 20px; }
+.legal-stub-brand:hover { text-decoration: none; }
 .legal-stub-brand .brand-product-name { color: var(--ink); }
 .legal-stub-title { font-family: var(--font-display); font-weight: 700; font-size: 1.8rem; color: var(--ink); margin-bottom: 6px; }
 .legal-stub-badge {

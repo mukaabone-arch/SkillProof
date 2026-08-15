@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
-import Logo from '@/components/Logo';
+import BrandLockup from '@/components/BrandLockup';
 
 /**
  * FAQ — its own route (/faq), moved off the landing page so the marketing
@@ -31,10 +30,7 @@ export default function FaqPage() {
   return (
     <main className="lp-page lp-faq-page" id="top">
       <div className="lp-container lp-faq-wrap">
-        <Link href="/" className="lp-brand lp-faq-brand" aria-label="MyAmbii home">
-          <Logo className="brand-logo-hero" />
-          <span className="brand-product-name">MyAmbii</span>
-        </Link>
+        <BrandLockup variant="hero" href="/" ariaLabel="MyAmbii home" />
 
         <div className="lp-faq-panel">
           <p className="lp-section-eyebrow">FAQ</p>

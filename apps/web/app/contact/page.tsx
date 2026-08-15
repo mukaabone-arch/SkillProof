@@ -18,7 +18,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import Logo from '@/components/Logo';
+import BrandLockup from '@/components/BrandLockup';
 
 const DESCRIPTION_MAX = 2000;
 
@@ -87,10 +87,7 @@ export default function ContactPage() {
   return (
     <main className="lp-page lp-contact-page" id="top">
       <div className="lp-container lp-contact-wrap">
-        <Link href="/" className="lp-brand lp-contact-brand" aria-label="MyAmbii home">
-          <Logo className="brand-logo-hero" />
-          <span className="brand-product-name">MyAmbii</span>
-        </Link>
+        <BrandLockup variant="hero" href="/" ariaLabel="MyAmbii home" />
 
         <div className="lp-contact-card">
           {sent ? (

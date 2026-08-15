@@ -7,8 +7,8 @@ import Link from 'next/link';
  * AdminNav, AdminSidebarShell), hero/auth-card (OtpLogin, EmployerOtpLogin,
  * EmployerInviteAccept, OAuthCallback), and a plain link (LegalStub).
  *
- * variant picks the wrapper + mark CSS classes (see globals.css's "flair
- * future Intelligence branding" block): 'nav' renders `.appnav-logo` +
+ * variant picks the wrapper + mark CSS classes (see globals.css's "MyAmbii
+ * brand lockup" block): 'nav' renders `.appnav-logo` +
  * `.brand-logo` (wordmark hides below 640px, no wrap/shrink protection
  * needed — the nav row solves width pressure by hiding the wordmark
  * outright); suffix (Admin) renders inline after the wordmark, same as
