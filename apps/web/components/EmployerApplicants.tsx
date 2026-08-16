@@ -18,7 +18,7 @@ import ApplicantCard, { type ApplicantCardData } from './ApplicantCard';
 
 const { api, apiBlob } = employerApi;
 
-type Applicant = ApplicantCardData & { jobId: string; jobTitle: string };
+type Applicant = ApplicantCardData & { jobId: string; jobTitle: string; jobCode: string };
 
 interface ShortlistEntrySummary {
   id: string;
@@ -144,7 +144,7 @@ export default function EmployerApplicants() {
                 }
                 footer={
                   <>
-                    <p className="meta" style={{ margin: 0 }}>Applied for {a.jobTitle}</p>
+                    <p className="meta" style={{ margin: 0 }}>Applied for {a.jobTitle} ({a.jobCode})</p>
                     <div className="row" style={{ alignItems: 'center', margin: 0 }}>
                       <span className="meta" style={{ margin: 0 }}>Status: {a.status}</span>
                       {STATUS_ACTIONS.map((s) => (

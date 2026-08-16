@@ -40,6 +40,8 @@ type JobStatus = 'DRAFT' | 'LIVE' | 'CLOSED';
 interface Job {
   id: string;
   title: string;
+  /** Employer-assigned requisition reference, unique per org — see Job.code's doc comment on the API side. Internal only, never shown to candidates. */
+  code: string;
   description: string;
   employmentType: string;
   /**
@@ -96,6 +98,7 @@ interface SuggestedSkill {
 
 interface JobForm {
   title: string;
+  code: string;
   description: string;
   employmentType: string;
   /** What's shown/typed in the location field — a formatted selection, the
@@ -168,6 +171,7 @@ const LEVELS = ['L1', 'L2', 'L3', 'L4'];
 
 const emptyForm: JobForm = {
   title: '',
+  code: '',
   description: '',
   employmentType: 'FULL_TIME',
   locationText: '',
@@ -272,6 +276,7 @@ export default function EmployerJobs() {
     setEditingJobId(job.id);
     setForm({
       title: job.title,
+      code: job.code,
       description: job.description,
       employmentType: job.employmentType,
       locationText: jobLocationDisplay(job),
@@ -460,8 +465,8 @@ export default function EmployerJobs() {
   }
 
   async function saveJob() {
-    if (!form.title.trim() || !form.description.trim()) {
-      setError('Title and description are required.');
+    if (!form.title.trim() || !form.code.trim() || !form.description.trim()) {
+      setError('Title, job code, and description are required.');
       return;
     }
     setCreating(true);
@@ -469,6 +474,7 @@ export default function EmployerJobs() {
     try {
       const body: Record<string, unknown> = {
         title: form.title,
+        code: form.code.trim(),
         description: form.description,
         employmentType: form.employmentType,
         remote: form.remote,
@@ -556,6 +562,17 @@ export default function EmployerJobs() {
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               maxLength={160}
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="jobCode">Job code</label>
+            <input
+              id="jobCode"
+              value={form.code}
+              onChange={(e) => setForm({ ...form, code: e.target.value })}
+              maxLength={40}
+              placeholder="e.g. SWE-01"
             />
           </div>
 
@@ -712,7 +729,7 @@ export default function EmployerJobs() {
             <Badge variant={JOB_STATUS_BADGE[j.status].variant}>{JOB_STATUS_BADGE[j.status].label}</Badge>
           </div>
           <div className="meta">
-            {j.employmentType.replace('_', ' ')} · {j.remote ? 'Remote' : jobLocationDisplay(j) || 'Location not set'}
+            {j.code} · {j.employmentType.replace('_', ' ')} · {j.remote ? 'Remote' : jobLocationDisplay(j) || 'Location not set'}
             {(j.experienceMin !== null || j.experienceMax !== null) &&
               ` · ${j.experienceMin ?? 0}–${j.experienceMax ?? '∞'} yrs`}
           </div>

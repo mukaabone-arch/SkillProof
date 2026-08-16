@@ -1014,6 +1014,15 @@ model Job {
   orgId           String
   organization    Organization   @relation(fields: [orgId], references: [id])
   title           String
+  /**
+   * Employer-assigned requisition reference (e.g. "JOB-0001"), unique per
+   * org — never globally, since two different employers each using
+   * "SWE-01" is an expected collision, not a conflict. Normalized to
+   * trimmed/uppercase at the service layer before every write (JobsService
+   * create/update), so the constraint behaves case-insensitively. Internal
+   * to the employer portal — never surfaced to candidates.
+   */
+  code            String
   description     String
   employmentType  EmploymentType
   /**
@@ -1054,6 +1063,7 @@ model Job {
   shortlistEntries ShortlistEntry[]
 
   @@index([orgId])
+  @@unique([orgId, code])
 }
 
 model JobSkill {

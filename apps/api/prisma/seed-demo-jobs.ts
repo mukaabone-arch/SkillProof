@@ -87,6 +87,7 @@ async function main() {
       data: {
         orgId: org.id,
         title: record.title,
+        code: `JOB-${String(i + 1).padStart(4, '0')}`,
         description,
         employmentType: toEmploymentType(record.employmentType),
         locationLegacy: record.location,

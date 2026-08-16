@@ -1,5 +1,5 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { CertVerificationStatus, ClaimStatus, CredentialVerificationState, JobStatus } from '@prisma/client';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { CertVerificationStatus, ClaimStatus, CredentialVerificationState, JobStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../llm/llm.service';
 import { ProfilesService } from '../profiles/profiles.service';
@@ -18,8 +18,12 @@ export class JobsService {
     private readonly employerAccess: EmployerCandidateAccessService,
   ) {}
 
-  create(orgId: string, dto: CreateJobDto) {
-    return this.prisma.job.create({ data: { orgId, ...dto } });
+  async create(orgId: string, dto: CreateJobDto) {
+    try {
+      return await this.prisma.job.create({ data: { orgId, ...dto, code: normalizeCode(dto.code) } });
+    } catch (err) {
+      throw translateCodeConflict(err);
+    }
   }
 
   listForOrg(orgId: string) {
@@ -32,7 +36,12 @@ export class JobsService {
 
   async update(orgId: string, jobId: string, dto: UpdateJobDto) {
     await this.getOwnedJob(orgId, jobId);
-    return this.prisma.job.update({ where: { id: jobId }, data: dto });
+    const data = dto.code !== undefined ? { ...dto, code: normalizeCode(dto.code) } : dto;
+    try {
+      return await this.prisma.job.update({ where: { id: jobId }, data });
+    } catch (err) {
+      throw translateCodeConflict(err);
+    }
   }
 
   /**
@@ -167,7 +176,7 @@ export class JobsService {
       orderBy: { createdAt: 'desc' },
       ...(opts.take ? { take: opts.take } : {}),
       include: {
-        job: { select: { id: true, title: true } },
+        job: { select: { id: true, title: true, code: true } },
         candidateProfile: {
           include: {
             skillClaims: { include: { skill: true, badge: true } },
@@ -212,6 +221,7 @@ export class JobsService {
         appliedAt: app.createdAt,
         jobId: app.job.id,
         jobTitle: app.job.title,
+        jobCode: app.job.code,
         profileId: profile.id,
         fullName: profile.fullName,
         headline: profile.headline,
@@ -291,4 +301,17 @@ export class JobsService {
     if (job.orgId !== orgId) throw new ForbiddenException();
     return job;
   }
+}
+
+/** Trimmed/uppercased so the per-org unique constraint behaves case-insensitively — see Job.code's doc comment. */
+function normalizeCode(code: string): string {
+  return code.trim().toUpperCase();
+}
+
+/** Same P2002-to-409 translation used elsewhere for other unique constraints (e.g. CandidateJobsService.apply). */
+function translateCodeConflict(err: unknown): unknown {
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+    return new ConflictException('A job with this code already exists for your organization.');
+  }
+  return err;
 }

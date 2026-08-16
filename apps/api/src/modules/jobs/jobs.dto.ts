@@ -11,6 +11,7 @@ import {
   IsString,
   IsUUID,
   Length,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -22,6 +23,12 @@ export class CreateJobDto {
   @IsString()
   @MaxLength(160)
   title: string;
+
+  /** Employer-assigned requisition reference — see Job.code's doc comment for the uniqueness/normalization rules. */
+  @IsString()
+  @MaxLength(40)
+  @Matches(/^[A-Za-z0-9-]+$/, { message: 'code may only contain letters, numbers, and hyphens' })
+  code: string;
 
   @IsString()
   @MinLength(20)
@@ -118,6 +125,12 @@ export class UpdateJobDto {
   @IsString()
   @MaxLength(160)
   title?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  @Matches(/^[A-Za-z0-9-]+$/, { message: 'code may only contain letters, numbers, and hyphens' })
+  code?: string;
 
   @IsOptional()
   @IsString()
