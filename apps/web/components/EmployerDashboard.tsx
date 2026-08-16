@@ -137,7 +137,7 @@ export default function EmployerDashboard() {
           </div>
 
           <div className="dashboard-recent-grid">
-            <section>
+            <section className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 0 }}>
               <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
                 <h2 style={{ margin: 0 }}>Recent job postings</h2>
                 <Link href="/employer/jobs">View all</Link>
@@ -166,7 +166,7 @@ export default function EmployerDashboard() {
               )}
             </section>
 
-            <section>
+            <section className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 0 }}>
               <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
                 <h2 style={{ margin: 0 }}>Recent applicants</h2>
                 <Link href="/employer/applicants">View all</Link>

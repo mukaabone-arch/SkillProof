@@ -419,7 +419,7 @@ code { font-family: var(--font-body); }
 .ui-badge-warning { color: var(--warning); background: color-mix(in srgb, var(--warning) 18%, var(--card)); }
 .ui-badge-neutral { color: var(--ink-60); background: var(--paper-2); }
 
-.empty-state { text-align: center; padding: var(--space-7) var(--space-4); color: var(--ink-60); }
+.card.empty-state { text-align: left; color: var(--ink-60); flex-direction: column; align-items: flex-start; }
 .empty-state-action { margin-top: var(--space-3); }
 .loading-state { display: flex; align-items: center; gap: var(--space-3); color: var(--ink-60); font-size: var(--text-sm); padding: var(--space-5) 0; }
 /* Full-page role-resolution loading state (app/page.tsx, app/employer/page.tsx)
@@ -1618,7 +1618,11 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
    5-in-a-funnel-row) and each card in a details line instead of a progress
    bar, since these are stock-level counts, not values with a natural max. */
 .dashboard-overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: var(--space-5) 0 var(--space-7); }
-.dashboard-recent-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-7); align-items: start; margin-bottom: var(--space-7); }
+.dashboard-recent-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-7); align-items: stretch; margin-bottom: var(--space-7); }
+/* .empty-state is centred with generous padding — right for a full-width
+   "nothing here yet" message, wrong inside these two columns, where it
+   floats away from its own left-aligned h2. Left-align and tighten the
+   vertical padding so an empty column reads as part of its section. */
 @media (max-width: 900px) {
   .dashboard-recent-grid { grid-template-columns: 1fr; gap: var(--space-6); }
 }

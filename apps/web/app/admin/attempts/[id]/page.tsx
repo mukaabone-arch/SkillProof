@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api, getToken } from '@/lib/api';
-import { Badge, LoadingState } from '@/components/ui';
+import { Badge, EmptyState, LoadingState } from '@/components/ui';
 
 interface IntegrityEvent {
   type: string;
@@ -135,7 +135,7 @@ export default function AdminAttemptCasePage() {
       </h2>
 
       {Object.keys(data.integrity.eventCountsByType).length === 0 ? (
-        <p className="meta">No integrity events recorded for this attempt.</p>
+        <EmptyState message="No integrity events recorded for this attempt." />
       ) : (
         <div className="row" style={{ flexWrap: 'wrap', marginBottom: 16 }}>
           {Object.entries(data.integrity.eventCountsByType).map(([type, count]) => (

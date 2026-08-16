@@ -15,7 +15,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, getToken } from '@/lib/api';
-import { LoadingState } from '@/components/ui';
+import { EmptyState, LoadingState } from '@/components/ui';
 
 interface AdminAssessment {
   isLive: boolean;
@@ -146,7 +146,7 @@ export default function AdminDashboardPage() {
             <Link href="/admin/compliance">View all →</Link>
           </div>
           {recentActions.length === 0 ? (
-            <p className="meta">No account actions recorded yet.</p>
+            <EmptyState message="No account actions recorded yet." />
           ) : (
             recentActions.map((a) => (
               <div key={a.id} className="card" style={{ justifyContent: 'space-between' }}>

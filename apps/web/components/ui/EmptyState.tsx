@@ -15,7 +15,7 @@ export interface EmptyStateProps {
  */
 export function EmptyState({ message, actionLabel, actionHref, children }: EmptyStateProps) {
   return (
-    <div className="empty-state">
+    <div className="card empty-state">
       <p style={{ margin: 0 }}>{message}</p>
       {actionLabel && actionHref && (
         <div className="empty-state-action">

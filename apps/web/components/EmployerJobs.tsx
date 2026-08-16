@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { employerApi, downloadBlob } from '@/lib/api';
-import { Badge } from '@/components/ui';
+import { Badge, EmptyState } from '@/components/ui';
 import ShortlistButton from './ShortlistButton';
 import ApplicantCard, { type ApplicantCardData } from './ApplicantCard';
 import { LocationAutocomplete, LocationSuggestion } from './LocationAutocomplete';
@@ -524,7 +524,7 @@ export default function EmployerJobs() {
   return (
     <>
       <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
-        <h2 style={{ margin: 0 }}>{showForm && editingJobId ? 'Edit draft' : 'Post a job'}</h2>
+        {showForm && <h2 style={{ margin: 0 }}>{editingJobId ? 'Edit draft' : 'Post a job'}</h2>}
         {!showForm && <button onClick={openForm}>+ New job</button>}
       </div>
 
@@ -704,7 +704,7 @@ export default function EmployerJobs() {
       )}
 
       <h2 style={{ marginTop: 32, marginBottom: 16 }}>Your jobs</h2>
-      {jobs.length === 0 && <p>No jobs posted yet.</p>}
+      {jobs.length === 0 && <EmptyState message="No jobs posted yet." />}
       {jobs.map((j) => (
         <div key={j.id} id={`job-${j.id}`} className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
           <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>

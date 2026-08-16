@@ -15,7 +15,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { employerApi, downloadBlob } from '@/lib/api';
-import { Badge } from '@/components/ui';
+import { Badge, EmptyState } from '@/components/ui';
 import CandidateAvatar from './CandidateAvatar';
 import AssessCandidateAction from './AssessCandidateAction';
 
@@ -391,10 +391,12 @@ export default function EmployerShortlist() {
       {loading && <p className="meta">Loading…</p>}
 
       {!loading && entries.length === 0 && (
-        <p className="meta">
-          Nothing here yet. Add candidates from a job&apos;s applicants or matches, or from{' '}
-          <Link href="/employer">Find candidates</Link>.
-        </p>
+        <EmptyState message="Nothing here yet.">
+          <p className="meta" style={{ margin: 0 }}>
+            Add candidates from a job&apos;s applicants or matches, or from{' '}
+            <Link href="/employer">Find candidates</Link>.
+          </p>
+        </EmptyState>
       )}
 
       {entries.map((e) => (
