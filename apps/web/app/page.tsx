@@ -82,8 +82,8 @@ export default function LandingPage() {
             <span className="lp-hero-title-sm">Proven AI skill, meet the companies hiring</span>
           </h1>
           <p className="lp-hero-sub">
-            MyAmbii turns real ability into verified proof — assessments reviewed by a person, not
-            keyword-matched. Candidates get matched on evidence; employers hire on it.
+            MyAmbii turns real ability into verified proof — assessments, not keyword
+            matching. Candidates get matched on evidence; employers hire on it.
           </p>
 
           <div className="lp-hero-ctas">
