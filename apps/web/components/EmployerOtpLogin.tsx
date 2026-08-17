@@ -44,7 +44,7 @@ const RESEND_COOLDOWN_SECONDS = 60;
 const EMPLOYER_MESSAGES: AuthMessage[] = [
   {
     headline: 'Hire on evidence, not claims',
-    support: "Every badge is earned through a real assessment and reviewed by a person before it's issued.",
+    support: "Every badge is earned through a real assessment. Conversation-based assessments are reviewed by a person before the badge is issued.",
   },
   {
     headline: 'Screen your shortlist in days, not weeks',

@@ -9,9 +9,19 @@ import BrandLockup from '@/components/BrandLockup';
  * contact, this is a plain server component — the accordion is native
  * <details>/<summary>, so it needs no client JS or state.
  *
- * Questions and answers are carried over verbatim from the old landing section.
- * The answers are deliberate placeholders — real copy (how assessments work,
- * pricing, review turnaround) will be supplied and must not be invented here.
+ * Answers are grounded in what the product actually does (assessor.service.ts,
+ * assessments.service.ts, plans.config.ts, ReviewService, CandidatesService,
+ * seed-mcq-import.ts) rather than marketing claims — see the audit that
+ * produced this copy for the source of each fact. Two things worth knowing
+ * before editing further: (1) MCQ assessments issue their badge
+ * automatically the moment grading passes (AssessmentsService.gradeAttempt
+ * -> issueBadge, same request, no human step) — the discussion format is the
+ * only path where a badge waits on a person (ReviewService.decide); an
+ * already-issued MCQ badge can still be retroactively revoked if the attempt
+ * gets integrity-flagged, but that's a fraud check, not a precondition for
+ * issuance. (2) Premium has no live payment integration (see
+ * app/upgrade/page.tsx's own comment), so its answer deliberately doesn't
+ * commit to a price.
  */
 export const metadata: Metadata = {
   title: 'FAQ — MyAmbii',
@@ -19,11 +29,26 @@ export const metadata: Metadata = {
 };
 
 const FAQS = [
-  'How do the skill assessments work?',
-  'Is MyAmbii free for candidates?',
-  'How long does verification take?',
-  'How do employers use verified profiles?',
-  'Which AI skills and levels can I get verified?',
+  {
+    q: 'How do the skill assessments work?',
+    a: "MyAmbii verifies AI/ML skills two ways. Most assessments are multiple-choice tests: submit your answers and, if you pass, your score and badge are ready immediately — no person reviews it. For select skills, verification instead happens through a live, text-based conversation with an AI interviewer — no multiple choice, no visible score — and a person on our team reviews the conversation before that badge is issued. Either way, a badge always reflects a real assessment result: nothing is issued on a self-reported claim alone.",
+  },
+  {
+    q: 'Is MyAmbii free for candidates?',
+    a: 'Yes. Creating a profile, browsing and applying to jobs, and taking assessments to earn verified badges are all free during beta, within limits. A Premium tier with unlimited assessments and applications is in development — we'll give beta users notice before anything changes.',
+  },
+  {
+    q: 'How long does verification take?',
+    a: "MCQ assessments return a score and, if you pass, a badge immediately. For assessments verified through a recorded conversation, there's no result until a person on our team has reviewed it — typically about a day.",
+  },
+  {
+    q: 'How do employers use verified profiles?',
+    a: "Employers can only search and view candidates who have at least one verified skill badge — unverified, self-reported claims are never shown or searchable. From there, employers move candidates through a hiring pipeline: shortlist, invite, interview rounds, offer, and outcome. Employers see your public profile and verified skills only — never your phone number, email, or unverified claim details — and photos/resumes are only shared once there's an active relationship (e.g. you've applied to their job).",
+  },
+  {
+    q: 'Which AI skills and levels can I get verified?',
+    a: 'MyAmbii covers AI/ML skills across areas like RAG systems, prompt engineering, LLM evaluation, fine-tuning, agentic systems, model deployment, and AI governance/security, at four levels: Foundational, Practitioner, Advanced, and Expert.',
+  },
 ];
 
 export default function FaqPage() {
@@ -38,13 +63,10 @@ export default function FaqPage() {
             Frequently asked questions
           </h1>
           <div className="lp-faq">
-            {FAQS.map((q) => (
+            {FAQS.map(({ q, a }) => (
               <details className="lp-faq-item" key={q}>
                 <summary className="lp-faq-q">{q}</summary>
-                <p className="lp-faq-a">
-                  <span className="lp-placeholder-tag">Placeholder</span> Answer to be supplied — not drafted here to
-                  avoid inventing specifics about assessments, pricing, or review turnaround.
-                </p>
+                <p className="lp-faq-a">{a}</p>
               </details>
             ))}
           </div>

@@ -24,7 +24,7 @@ const EMPLOYER_HREF = `${APP_ORIGIN}/employer`;
 export const metadata: Metadata = {
   title: 'MyAmbii — Hire on proven AI skills, not keywords',
   description:
-    'MyAmbii verifies real AI ability through assessments reviewed by a person. Candidates get matched to roles that want their proven skills; employers hire on evidence, not keywords.',
+    'MyAmbii verifies real AI ability through assessments, not keyword matching. Candidates get matched to roles that want their proven skills; employers hire on evidence.',
 };
 
 /**
