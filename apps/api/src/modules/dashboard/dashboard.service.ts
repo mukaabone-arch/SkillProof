@@ -62,8 +62,39 @@ export class DashboardService {
     // standing, not one role's funnel, so the existing Role dropdown filter
     // on this page never touches them.
     const overview = await this.orgOverview(orgId);
+    const setup = await this.setupChecklist(orgId);
 
-    return { jobId: jobId ?? null, jobTitle, kpis, other, total, ...overview };
+    return { orgId, jobId: jobId ?? null, jobTitle, kpis, other, total, ...overview, setup };
+  }
+
+  /**
+   * The dashboard's "Set up your organisation" card. Derived on read, not a
+   * stored flag — un-ticking an item when its underlying data is later
+   * removed (e.g. the logo is deleted) is the correct behavior, not drift
+   * to guard against. "Organisation created"/"Admin account" aren't items
+   * here at all: AuthService.signup creates User + Organization + OrgMember
+   * in one transaction, so both are true for every org that can reach this
+   * endpoint — showing them would be permanently-ticked padding, not signal.
+   */
+  private async setupChecklist(orgId: string) {
+    const [org, memberCount, invitationCount] = await Promise.all([
+      this.prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { industry: true, website: true, logoKey: true } }),
+      this.prisma.orgMember.count({ where: { organizationId: orgId } }),
+      // Any invitation ever sent counts, regardless of status — a revoked
+      // or expired one still proves the admin took the action once, which
+      // is all this item is checking for.
+      this.prisma.orgInvitation.count({ where: { organizationId: orgId } }),
+    ]);
+
+    const items = {
+      invitedTeam: memberCount > 1 || invitationCount > 0,
+      logo: org.logoKey != null,
+      companyInfo: !!org.industry && !!org.website,
+    };
+    const doneCount = Object.values(items).filter(Boolean).length;
+    const total = Object.keys(items).length;
+
+    return { items, doneCount, total, allDone: doneCount === total };
   }
 
   /**

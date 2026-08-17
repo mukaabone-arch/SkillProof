@@ -369,6 +369,14 @@ model TermsAcceptance {
 model Organization {
   id        String   @id @default(uuid())
   name      String
+  /** Setup-checklist fields (EmployerDashboard's "Set up your organisation"
+   * card) — all optional, populated from Settings, never required to post a
+   * job or hire. logoKey is a bare storage key, same convention as
+   * CandidateProfile.photoKey; never returned to a client directly (see
+   * OrgsService's withHasLogo — `hasLogo` goes out instead). */
+  industry  String?
+  website   String?
+  logoKey   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -31,7 +31,33 @@ interface RecentJob {
 
 type RecentApplicant = ApplicantCardData & { jobId: string; jobTitle: string };
 
+/**
+ * "Set up your organisation" checklist — derived on read server-side
+ * (DashboardService.setupChecklist), not a stored flag, so un-ticking an
+ * item when its underlying data is removed (e.g. the logo is deleted) is
+ * automatic. Deliberately not gating anything: an org can post a job and
+ * hire with every item incomplete, same as today.
+ */
+interface SetupChecklist {
+  items: { invitedTeam: boolean; logo: boolean; companyInfo: boolean };
+  doneCount: number;
+  total: number;
+  allDone: boolean;
+}
+
+const SETUP_ITEMS: { key: keyof SetupChecklist['items']; label: string; href: string }[] = [
+  { key: 'invitedTeam', label: 'Invite your team', href: '/employer/settings#team' },
+  { key: 'logo', label: 'Add your company logo', href: '/employer/settings#organisation' },
+  { key: 'companyInfo', label: 'Add your industry and website', href: '/employer/settings#organisation' },
+];
+
+/** Per-org, not global — a person on more than one org's dashboard (rare, but the data model allows it) shouldn't have dismissing one org's checklist hide another's. */
+function setupDismissKey(orgId: string): string {
+  return `setup-dismissed:${orgId}`;
+}
+
 interface DashboardSummary {
+  orgId: string;
   jobId: string | null;
   jobTitle: string | null;
   kpis: {
@@ -53,6 +79,7 @@ interface DashboardSummary {
   avgTimeToHireDays: number | null;
   recentJobs: RecentJob[];
   recentApplicants: RecentApplicant[];
+  setup: SetupChecklist;
 }
 
 const KPI_CARDS: { key: keyof DashboardSummary['kpis']; label: string; stage: string }[] = [
@@ -71,10 +98,25 @@ export default function EmployerDashboard() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [setupDismissed, setSetupDismissed] = useState(false);
 
   useEffect(() => {
     api<Job[]>('/jobs').then(setJobs).catch(() => undefined);
   }, []);
+
+  // Read once summary.orgId is known — localStorage isn't available during
+  // server rendering, so this can only run post-mount (same reasoning as
+  // JobDetailPage's getToken() read).
+  useEffect(() => {
+    if (!summary) return;
+    setSetupDismissed(localStorage.getItem(setupDismissKey(summary.orgId)) === '1');
+  }, [summary?.orgId]);
+
+  function dismissSetup() {
+    if (!summary) return;
+    localStorage.setItem(setupDismissKey(summary.orgId), '1');
+    setSetupDismissed(true);
+  }
 
   useEffect(() => {
     load();
@@ -107,6 +149,42 @@ export default function EmployerDashboard() {
 
       {!loading && summary && (
         <>
+          {!summary.setup.allDone && !setupDismissed && (
+            <div className="card status-card-flag" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12, marginBottom: 24 }}>
+              <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
+                <h2 style={{ margin: 0 }}>Set up your organisation</h2>
+                <div className="row" style={{ margin: 0, alignItems: 'center', gap: 12 }}>
+                  <span className="meta" style={{ margin: 0 }}>
+                    {summary.setup.doneCount} of {summary.setup.total} done
+                  </span>
+                  <button className="btn-secondary" onClick={dismissSetup}>Dismiss</button>
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {SETUP_ITEMS.map((item) => {
+                  const done = summary.setup.items[item.key];
+                  return done ? (
+                    <div key={item.key} className="row" style={{ margin: 0, gap: 8, alignItems: 'center' }}>
+                      <span aria-hidden="true" className="ok">✓</span>
+                      <span>{item.label}</span>
+                    </div>
+                  ) : (
+                    <Link
+                      key={item.key}
+                      href={item.href}
+                      className="row"
+                      style={{ margin: 0, gap: 8, alignItems: 'center' }}
+                    >
+                      <span aria-hidden="true" style={{ color: 'var(--ink-60)' }}>○</span>
+                      <span style={{ flex: 1 }}>{item.label}</span>
+                      <span aria-hidden="true">→</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="dashboard-overview-grid">
             <Link href="/employer/jobs" className="status-card">
               <div className="status-card-label">Active Jobs</div>

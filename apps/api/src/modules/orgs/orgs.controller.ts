@@ -1,10 +1,49 @@
-import { Controller, Get, NotFoundException, Req, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Inject,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  Req,
+  StreamableFile,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { randomUUID } from 'crypto';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard, AuthenticatedRequest } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+import { OrgMemberGuard, OrgScopedRequest } from '../auth/org-member.guard';
+import { STORAGE_SERVICE, StorageService } from '../../storage/storage.interface';
+import { OrgsService } from './orgs.service';
+import { UpdateOrgDto } from './orgs.dto';
+
+const MAX_LOGO_BYTES = 5 * 1024 * 1024;
+
+/** Same convention as ProfilesController's PHOTO_EXTENSION_BY_MIME — fileFilter below rejects anything else before this callback ever runs. */
+const LOGO_EXTENSION_BY_MIME: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+};
 
 @Controller('orgs')
 export class OrgsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly svc: OrgsService,
+    @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
+  ) {}
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
@@ -15,9 +54,69 @@ export class OrgsController {
     });
     if (!membership) throw new NotFoundException('No organization found for this account.');
 
+    const { logoKey, ...organization } = membership.organization;
     return {
-      organization: membership.organization,
+      organization: { ...organization, hasLogo: logoKey != null },
       role: req.user.role,
     };
+  }
+
+  /**
+   * Editing org info spends nothing and changes nothing another member
+   * relies on the same way seats/roles do, but it's still org-identity
+   * data — admin-only, same dividing line OrgMembersController draws for
+   * every mutation on that controller.
+   */
+  @Patch('me')
+  @UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard)
+  @Roles(Role.EMPLOYER_ADMIN)
+  updateMe(@Req() req: OrgScopedRequest, @Body() dto: UpdateOrgDto) {
+    return this.svc.update(req.orgId, dto);
+  }
+
+  @Post('me/logo')
+  @UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard)
+  @Roles(Role.EMPLOYER_ADMIN)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_LOGO_BYTES },
+      fileFilter: (_req, file, cb) => {
+        if (!(file.mimetype in LOGO_EXTENSION_BY_MIME)) {
+          return cb(new BadRequestException('Only JPEG, PNG, or WebP images are accepted'), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadLogo(@Req() req: OrgScopedRequest, @UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    // Bare storage key, same convention as ProfilesController.uploadPhoto —
+    // resolved against the configured backend wherever it's read back.
+    const key = `${randomUUID()}${LOGO_EXTENSION_BY_MIME[file.mimetype]}`;
+    await this.storage.write(key, file.buffer, file.mimetype);
+    return this.svc.saveLogo(req.orgId, key);
+  }
+
+  @Delete('me/logo')
+  @UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard)
+  @Roles(Role.EMPLOYER_ADMIN)
+  deleteLogo(@Req() req: OrgScopedRequest) {
+    return this.svc.deleteLogo(req.orgId);
+  }
+
+  /**
+   * Proxy-serve only — the stored key is never handed to a client (see
+   * OrgsService's withHasLogo). Any member of the caller's own org may
+   * view it — see OrgsService.getLogoForViewing's doc comment for why this
+   * is same-org-only rather than mirroring the candidate-photo
+   * relationship check.
+   */
+  @Get(':id/logo')
+  @UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard)
+  @Roles(Role.EMPLOYER_ADMIN, Role.EMPLOYER_MEMBER)
+  async getLogo(@Req() req: OrgScopedRequest, @Param('id') id: string) {
+    const { buffer, contentType } = await this.svc.getLogoForViewing(req.orgId, id);
+    return new StreamableFile(buffer, { type: contentType, disposition: 'inline' });
   }
 }

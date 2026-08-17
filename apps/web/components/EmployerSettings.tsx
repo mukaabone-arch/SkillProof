@@ -1,20 +1,22 @@
 'use client';
 
 /**
- * Settings: organization info (read-only) + team management. Team actions
+ * Settings: organization info (editable — industry/website/logo) + team
+ * management. Both organization edits and every team action
  * (invite/remove/promote/demote) are admin-only — hidden here for a member
  * as a UX courtesy, but the real enforcement is server-side (@Roles on
- * OrgMembersController; see apps/api's own comment on that distinction).
- * A member still sees the member list itself (GET /orgs/members is shared),
- * just without the action buttons.
+ * OrgsController.updateMe/uploadLogo/deleteLogo and OrgMembersController;
+ * see apps/api's own comment on that distinction). A member still sees the
+ * organization info and member list read-only (GET /orgs/me and
+ * /orgs/members are shared), just without the edit/action controls.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { employerApi } from '@/lib/api';
 
-const { api } = employerApi;
+const { api, apiBlob } = employerApi;
 
 interface OrgMe {
-  organization: { id: string; name: string };
+  organization: { id: string; name: string; industry: string | null; website: string | null; hasLogo: boolean };
   role: string;
 }
 
@@ -54,9 +56,60 @@ export default function EmployerSettings() {
   const [inviting, setInviting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  // Org-info form — seeded from `org` once it loads (below), edited locally
+  // until Save. industry/website are independent of the logo section (own
+  // save button, own error), matching CandidateAvatar's own upload/preview
+  // split from the surrounding profile form on the candidate side.
+  const [industry, setIndustry] = useState('');
+  const [website, setWebsite] = useState('');
+  const [savingOrgInfo, setSavingOrgInfo] = useState(false);
+  const [orgInfoError, setOrgInfoError] = useState('');
+
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [removingLogo, setRemovingLogo] = useState(false);
+  const [logoError, setLogoError] = useState('');
+  // Tracks the currently-displayed blob: URL so it can be revoked before
+  // creating the next one — same pattern as CandidateAvatar's urlRef.
+  const logoUrlRef = useRef<string | null>(null);
+
   useEffect(() => {
-    api<OrgMe>('/orgs/me').then(setOrg).catch((e) => setError(e.message));
+    api<OrgMe>('/orgs/me')
+      .then((data) => {
+        setOrg(data);
+        setIndustry(data.organization.industry ?? '');
+        setWebsite(data.organization.website ?? '');
+      })
+      .catch((e) => setError(e.message));
     loadTeam();
+  }, []);
+
+  useEffect(() => {
+    if (logoUrlRef.current) {
+      URL.revokeObjectURL(logoUrlRef.current);
+      logoUrlRef.current = null;
+    }
+    setLogoUrl(null);
+    if (!org?.organization.hasLogo) return;
+
+    let cancelled = false;
+    apiBlob(`/orgs/${org.organization.id}/logo`)
+      .then((blob) => {
+        if (cancelled) return;
+        const objectUrl = URL.createObjectURL(blob);
+        logoUrlRef.current = objectUrl;
+        setLogoUrl(objectUrl);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [org?.organization.id, org?.organization.hasLogo]);
+
+  useEffect(() => () => {
+    if (logoUrlRef.current) URL.revokeObjectURL(logoUrlRef.current);
   }, []);
 
   function loadTeam() {
@@ -65,6 +118,52 @@ export default function EmployerSettings() {
 
   const isAdmin = org?.role === 'EMPLOYER_ADMIN';
   const adminCount = team?.members.filter((m) => m.role === 'EMPLOYER_ADMIN').length ?? 0;
+
+  async function saveOrgInfo() {
+    setSavingOrgInfo(true);
+    setOrgInfoError('');
+    try {
+      const updated = await api<OrgMe['organization']>('/orgs/me', {
+        method: 'PATCH',
+        body: JSON.stringify({ industry: industry.trim() || undefined, website: website.trim() || undefined }),
+      });
+      setOrg((prev) => (prev ? { ...prev, organization: updated } : prev));
+    } catch (e) {
+      setOrgInfoError((e as Error).message);
+    } finally {
+      setSavingOrgInfo(false);
+    }
+  }
+
+  async function uploadLogo() {
+    if (!logoFile) return;
+    setUploadingLogo(true);
+    setLogoError('');
+    try {
+      const body = new FormData();
+      body.append('file', logoFile);
+      const updated = await api<OrgMe['organization']>('/orgs/me/logo', { method: 'POST', body });
+      setOrg((prev) => (prev ? { ...prev, organization: updated } : prev));
+      setLogoFile(null);
+    } catch (e) {
+      setLogoError((e as Error).message);
+    } finally {
+      setUploadingLogo(false);
+    }
+  }
+
+  async function removeLogo() {
+    setRemovingLogo(true);
+    setLogoError('');
+    try {
+      const updated = await api<OrgMe['organization']>('/orgs/me/logo', { method: 'DELETE' });
+      setOrg((prev) => (prev ? { ...prev, organization: updated } : prev));
+    } catch (e) {
+      setLogoError((e as Error).message);
+    } finally {
+      setRemovingLogo(false);
+    }
+  }
 
   async function sendInvite() {
     setTeamError('');
@@ -108,7 +207,7 @@ export default function EmployerSettings() {
       {!error && !org && <p className="meta">Loading…</p>}
 
       {org && (
-        <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, marginBottom: 24 }}>
+        <div id="organisation" className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 16, marginBottom: 24 }}>
           <div>
             <div className="meta" style={{ margin: 0 }}>Organization</div>
             <strong>{org.organization.name}</strong>
@@ -117,13 +216,83 @@ export default function EmployerSettings() {
             <div className="meta" style={{ margin: 0 }}>Your role</div>
             <strong>{org.role === 'EMPLOYER_ADMIN' ? 'Admin' : 'Member'}</strong>
           </div>
-          <p className="meta" style={{ marginTop: 12 }}>
-            Organization details and billing aren&apos;t configurable yet.
-          </p>
+
+          <div className="row" style={{ margin: 0, alignItems: 'center', gap: 16 }}>
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt=""
+                style={{ width: 64, height: 64, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }}
+              />
+            ) : (
+              <div
+                aria-hidden="true"
+                style={{ width: 64, height: 64, borderRadius: 8, background: 'var(--brand-100)', flexShrink: 0 }}
+              />
+            )}
+            {isAdmin && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div className="row" style={{ margin: 0, gap: 8, flexWrap: 'wrap' }}>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+                  />
+                  <button onClick={uploadLogo} disabled={!logoFile || uploadingLogo}>
+                    {uploadingLogo ? 'Uploading…' : 'Upload logo'}
+                  </button>
+                  {org.organization.hasLogo && (
+                    <button className="btn-secondary" onClick={removeLogo} disabled={removingLogo}>
+                      {removingLogo ? 'Removing…' : 'Remove'}
+                    </button>
+                  )}
+                </div>
+                {logoError && <p className="error" style={{ margin: 0 }}>{logoError}</p>}
+              </div>
+            )}
+          </div>
+
+          {isAdmin ? (
+            <>
+              {orgInfoError && <p className="error" style={{ margin: 0 }}>{orgInfoError}</p>}
+              <div className="field">
+                <label htmlFor="orgIndustry">Industry</label>
+                <input
+                  id="orgIndustry"
+                  value={industry}
+                  onChange={(e) => setIndustry(e.target.value)}
+                  maxLength={120}
+                  placeholder="e.g. Healthcare technology"
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="orgWebsite">Website</label>
+                <input
+                  id="orgWebsite"
+                  type="url"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                  maxLength={255}
+                  placeholder="https://example.com"
+                />
+              </div>
+              <div className="row" style={{ margin: 0 }}>
+                <button onClick={saveOrgInfo} disabled={savingOrgInfo}>
+                  {savingOrgInfo ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="meta" style={{ margin: 0 }}>
+              {org.organization.industry || 'Industry not set'} · {org.organization.website || 'Website not set'}
+            </p>
+          )}
+
+          <p className="meta" style={{ marginTop: 4 }}>Billing isn&apos;t configurable yet.</p>
         </div>
       )}
 
-      <h2>Team</h2>
+      <h2 id="team">Team</h2>
       {teamError && <p className="error">{teamError}</p>}
       {!teamError && !team && <p className="meta">Loading…</p>}
 
