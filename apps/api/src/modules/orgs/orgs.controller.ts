@@ -107,16 +107,14 @@ export class OrgsController {
 
   /**
    * Proxy-serve only — the stored key is never handed to a client (see
-   * OrgsService's withHasLogo). Any member of the caller's own org may
-   * view it — see OrgsService.getLogoForViewing's doc comment for why this
-   * is same-org-only rather than mirroring the candidate-photo
-   * relationship check.
+   * * OrgsService's withHasLogo). Scoped to the caller's own org via the JWT —
+   * there's no org ID in the path, so there's no cross-org surface to guard.
    */
-  @Get(':id/logo')
+  @Get('me/logo')
   @UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard)
   @Roles(Role.EMPLOYER_ADMIN, Role.EMPLOYER_MEMBER)
-  async getLogo(@Req() req: OrgScopedRequest, @Param('id') id: string) {
-    const { buffer, contentType } = await this.svc.getLogoForViewing(req.orgId, id);
+  async getLogo(@Req() req: OrgScopedRequest) {
+    const { buffer, contentType } = await this.svc.getLogoForViewing(req.orgId);
     return new StreamableFile(buffer, { type: contentType, disposition: 'inline' });
   }
 }

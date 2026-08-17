@@ -94,7 +94,7 @@ export default function EmployerSettings() {
     if (!org?.organization.hasLogo) return;
 
     let cancelled = false;
-    apiBlob(`/orgs/${org.organization.id}/logo`)
+    apiBlob('/orgs/me/logo')
       .then((blob) => {
         if (cancelled) return;
         const objectUrl = URL.createObjectURL(blob);
@@ -106,7 +106,7 @@ export default function EmployerSettings() {
     return () => {
       cancelled = true;
     };
-  }, [org?.organization.id, org?.organization.hasLogo]);
+  }, [org?.organization.hasLogo]);
 
   useEffect(() => () => {
     if (logoUrlRef.current) URL.revokeObjectURL(logoUrlRef.current);

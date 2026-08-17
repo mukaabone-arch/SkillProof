@@ -54,8 +54,7 @@ export class OrgsService {
    * logo has no equivalent relationship to check, so same-org is the whole
    * rule).
    */
-  async getLogoForViewing(callerOrgId: string, orgId: string): Promise<{ buffer: Buffer; contentType: string }> {
-    if (orgId !== callerOrgId) throw new ForbiddenException();
+  async getLogoForViewing(orgId: string): Promise<{ buffer: Buffer; contentType: string }> {
 
     const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
     if (!org) throw new NotFoundException();
