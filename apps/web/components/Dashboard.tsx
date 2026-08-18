@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * Candidate dashboard hub — the home page after login. An AI co-pilot panel
- * leads (one contextual "next move" message computed from the candidate's
- * own verified skills, match scores, skill gaps, and — once they exist —
- * live interview pipelines and pending assessment reviews), then journey
- * progress and status cards. Design: docs/candidate-journey-design-spec.md.
+ * Candidate dashboard hub — the home page after login. A feature strip leads
+ * (see FeatureStrip), then an AI co-pilot panel (one contextual "next move"
+ * message computed from the candidate's own verified skills, match scores,
+ * skill gaps, and — once they exist — live interview pipelines and pending
+ * assessment reviews), then status cards. Design: docs/candidate-journey-design-spec.md.
  * Matched jobs are still fetched — the co-pilot's best-match/recurring-gap
  * logic reads them — but the list itself lives only on the Jobs tab's
  * Matched view now, not here.
@@ -25,7 +25,6 @@ import CandidateNav from './CandidateNav';
 import AdminNav from './AdminNav';
 import FeatureStrip from './FeatureStrip';
 import { EmptyState, ErrorState, LoadingState } from './ui';
-import { SegmentedProgress, SegmentedProgressState } from './ui/SegmentedProgress';
 
 interface SkillClaim {
   id: string;
@@ -173,12 +172,6 @@ function mostUrgentPipelineAlert(interviews: Interview[]): PipelineAlert | undef
   }
 
   return undefined;
-}
-
-function journeySubLabel(state: SegmentedProgressState): string {
-  if (state === 'done') return 'Complete';
-  if (state === 'active') return 'In progress';
-  return 'Not started';
 }
 
 interface CopilotMessage {
@@ -442,36 +435,9 @@ export default function Dashboard({ onLoggedOut }: Props) {
   const hasProfile = profile.completeness > 0;
   const hasBadge = badges.length > 0;
   const hasApplied = applications.length > 0;
-  // A pipeline entry only ever reaches INVITED (or further) once an
-  // employer has acted on it — SHORTLISTED alone (the employer merely
-  // saved the candidate) isn't "reached interviewing" yet. REJECTED is
-  // excluded too: the entry's current stage is all this endpoint carries,
-  // not its history, so a REJECTED row can't be told apart from one that
-  // was rejected straight out of SHORTLISTED without ever being invited —
-  // treating REJECTED as "reached" would overclaim a milestone we can't
-  // actually confirm.
-  const hasInterviewStage = interviews.some((i) => i.stage !== 'SHORTLISTED' && i.stage !== 'REJECTED');
-  const hasHired = interviews.some((i) => i.stage === 'HIRED');
   // No new field: "first session" is derived entirely from existing signals —
   // nothing built a profile, earned a badge, or applied to anything yet.
   const isFirstSession = !hasProfile && !hasBadge && !hasApplied;
-
-  // Each stage's state falls out of the one before it — the same booleans
-  // drive both the stepper and the co-pilot panel below, so they can never
-  // disagree about what the candidate should do next.
-  const stage1: SegmentedProgressState = hasProfile ? 'done' : 'active';
-  const stage2: SegmentedProgressState = hasBadge ? 'done' : hasProfile ? 'active' : 'upcoming';
-  const stage3: SegmentedProgressState = hasApplied ? 'done' : hasBadge ? 'active' : 'upcoming';
-  const stage4: SegmentedProgressState = hasInterviewStage ? 'done' : hasApplied ? 'active' : 'upcoming';
-  const stage5: SegmentedProgressState = hasHired ? 'done' : hasInterviewStage ? 'active' : 'upcoming';
-
-  const journeySteps = [
-    { label: 'Profile built', subLabel: journeySubLabel(stage1), state: stage1 },
-    { label: 'First badge', subLabel: journeySubLabel(stage2), state: stage2 },
-    { label: 'Jobs explored', subLabel: journeySubLabel(stage3), state: stage3 },
-    { label: 'Interviewing', subLabel: journeySubLabel(stage4), state: stage4 },
-    { label: 'Hired', subLabel: journeySubLabel(stage5), state: stage5 },
-  ];
 
   // Never show the raw phone/email as a "name" — greet by fullName once it
   // exists, otherwise a neutral greeting that still distinguishes a brand
@@ -544,7 +510,7 @@ export default function Dashboard({ onLoggedOut }: Props) {
           </div>
         </div>
 
-        <SegmentedProgress steps={journeySteps} />
+        <FeatureStrip />
 
         <section className="copilot-panel">
           <span className="copilot-eyebrow">
@@ -602,8 +568,6 @@ export default function Dashboard({ onLoggedOut }: Props) {
         <p className="hub-resume-link">
           <Link href="/resume">Build a resume PDF from your profile & badges →</Link>
         </p>
-
-        <FeatureStrip />
 
         <p className="app-footer-credit">by flair future Intelligence</p>
       </main>
