@@ -116,6 +116,12 @@ export class UpdateProfileDto {
   yearsOfExp?: number;
 
   @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(80)
+  aiYearsOfExp?: number;
+
+  @IsOptional()
   @IsUrl()
   @MaxLength(255)
   githubUrl?: string;

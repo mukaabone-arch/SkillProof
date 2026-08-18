@@ -499,6 +499,7 @@ model CandidateProfile {
    */
   openToRemote       Boolean   @default(false)
   yearsOfExp         Float?
+  aiYearsOfExp       Float?
   githubUrl          String?
   linkedinUrl        String?
   resumeS3Key        String?

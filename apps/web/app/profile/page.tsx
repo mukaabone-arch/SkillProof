@@ -73,6 +73,8 @@ interface Profile {
    * be excluded by any future location-based filter/matching. */
   openToRemote: boolean;
   yearsOfExp: number | null;
+  /** Years working specifically with AI/ML — a subset of yearsOfExp. */
+  aiYearsOfExp: number | null;
   githubUrl: string | null;
   linkedinUrl: string | null;
   completeness: number;
@@ -140,6 +142,7 @@ interface FormState {
   hasStructuredLocationOnServer: boolean;
   openToRemote: boolean;
   yearsOfExp: string;
+  aiYearsOfExp: string;
   githubUrl: string;
   linkedinUrl: string;
 }
@@ -156,6 +159,7 @@ function toForm(p: Profile): FormState {
     hasStructuredLocationOnServer: p.locationCity !== null,
     openToRemote: p.openToRemote,
     yearsOfExp: p.yearsOfExp !== null && p.yearsOfExp !== undefined ? String(p.yearsOfExp) : '',
+    aiYearsOfExp: p.aiYearsOfExp !== null && p.aiYearsOfExp !== undefined ? String(p.aiYearsOfExp) : '',
     githubUrl: p.githubUrl ?? '',
     linkedinUrl: p.linkedinUrl ?? '',
   };
@@ -299,6 +303,7 @@ function ProfilePageInner() {
         openToRemote: form.openToRemote,
       };
       if (form.yearsOfExp !== '') body.yearsOfExp = Number(form.yearsOfExp);
+      if (form.aiYearsOfExp !== '') body.aiYearsOfExp = Number(form.aiYearsOfExp);
       if (form.locationStructured) {
         // A real dropdown pick this session — write the structured fields,
         // never locationLegacy.
@@ -622,6 +627,21 @@ function ProfilePageInner() {
               value={form.yearsOfExp}
               onChange={(e) => update('yearsOfExp', e.target.value)}
             />
+          </div>
+
+          <div className="field">
+            <label htmlFor="aiYearsOfExp">AI experience</label>
+            <input
+              id="aiYearsOfExp"
+              type="number"
+              min={0}
+              max={80}
+              value={form.aiYearsOfExp}
+              onChange={(e) => update('aiYearsOfExp', e.target.value)}
+            />
+            <p className="meta" style={{ margin: 0 }}>
+              Years working specifically with AI/ML systems — part of your total experience above.
+            </p>
           </div>
 
           <div className="field">

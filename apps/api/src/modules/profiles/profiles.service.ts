@@ -17,7 +17,7 @@ interface Requester {
 
 type CompletenessFields = Pick<
   CandidateProfile,
-  'fullName' | 'headline' | 'locationCity' | 'locationLegacy' | 'yearsOfExp' | 'githubUrl' | 'linkedinUrl'
+'fullName' | 'headline' | 'locationCity' | 'locationLegacy' | 'yearsOfExp' | 'aiYearsOfExp' | 'githubUrl' | 'linkedinUrl'
 > & { email: string | null };
 
 /** Extension -> Content-Type for reading a stored photo back. Keyed off
@@ -131,6 +131,7 @@ export class ProfilesService {
       headline: profile.headline,
       location: formatLocation(profile),
       yearsOfExp: profile.yearsOfExp,
+      aiYearsOfExp: profile.aiYearsOfExp,
       githubUrl: profile.githubUrl,
       linkedinUrl: profile.linkedinUrl,
       summary: dto.summary,
