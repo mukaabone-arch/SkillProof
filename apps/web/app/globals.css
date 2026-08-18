@@ -1689,7 +1689,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
    1.5s-per-stage animation-delay; the rail fill hits each node's position
    (0/25/50/75/100% of the line span) at the same instant that node's
    window opens, so the fill always trails the active node exactly. */
-.fstrip { border-top: 1px solid var(--ink-12); margin-top: var(--space-7); padding: var(--space-5) 0 var(--space-2); }
+.fstrip { margin-top: var(--space-7); padding: var(--space-5) 0 var(--space-6); }
 .fstrip-rail { position: relative; display: flex; }
 .fstrip-stage {
   flex: 1; min-width: 0; position: relative; z-index: 1;

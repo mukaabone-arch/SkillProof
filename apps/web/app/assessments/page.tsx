@@ -670,7 +670,7 @@ function AssessmentsPageInner() {
           you&apos;ve earned — and it&apos;s verified badges, not self-reported skills, that drive your job matches.
         </p>
         <p>
-          Each skill has up to four levels — Foundational, Practitioner, Advanced, and Expert — each one more
+          Each skill has three levels — Foundational, Practitioner, and Advanced — each one more
           rigorous than the last. Employers see exactly which level you&apos;ve reached for every skill.
         </p>
         {usage && (

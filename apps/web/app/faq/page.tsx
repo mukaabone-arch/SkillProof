@@ -47,7 +47,7 @@ const FAQS = [
   },
   {
     q: 'Which AI skills and levels can I get verified?',
-    a: 'MyAmbii covers AI/ML skills across areas like RAG systems, prompt engineering, LLM evaluation, fine-tuning, agentic systems, model deployment, and AI governance/security, at four levels: Foundational, Practitioner, Advanced, and Expert.',
+    a: 'MyAmbii covers AI/ML skills across areas like RAG systems, prompt engineering, LLM evaluation, fine-tuning, agentic systems, model deployment, and AI governance/security, at three levels: Foundational, Practitioner, and Advanced.',
   },
 ];
 
