@@ -78,10 +78,6 @@ export default function UpgradePage() {
   const [plans, setPlans] = useState<PlansResponse | null>(null);
   const [error, setError] = useState('');
   const [interested, setInterested] = useState(false);
-  // Placeholder pricing only — no geo/billing service exists. A soft locale
-  // guess, computed post-mount to avoid an SSR/client hydration mismatch
-  // (navigator isn't available during server rendering).
-  const [currency, setCurrency] = useState<'INR' | 'USD'>('USD');
   // Read post-mount, not during render — getStoredToken() touches
   // localStorage, which doesn't exist during server rendering, so calling
   // it directly in JSX would make the server and client's first render
@@ -92,7 +88,6 @@ export default function UpgradePage() {
     api<PlansResponse>('/plans')
       .then(setPlans)
       .catch((e) => setError((e as Error).message));
-    if (typeof navigator !== 'undefined' && /-IN$/i.test(navigator.language)) setCurrency('INR');
     setInterested(localStorage.getItem('sp_premium_interest') === 'true');
     setLoggedIn(!!getStoredToken());
   }, []);
@@ -104,7 +99,7 @@ export default function UpgradePage() {
 
   function priceFor(tier: SubscriptionTier): string {
     if (tier === 'FREE') return '₹0';
-    return currency === 'INR' ? '₹299' : '$15';
+    return '₹299';
   }
 
   return (
@@ -129,7 +124,7 @@ export default function UpgradePage() {
                   </div>
                   <div className="plan-column-price-sub">
                     {tier === 'PREMIUM'
-                      ? `Placeholder pricing (${currency === 'INR' ? 'India' : 'international'}) — no billing is wired up yet.`
+                      ? 'Placeholder pricing — no billing is wired up yet.'
                       : 'No card required.'}
                   </div>
                   <ul className="plan-feature-list">
