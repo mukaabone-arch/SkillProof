@@ -46,7 +46,7 @@ const CAPABILITIES = [
  */
 const STEPS = [
   { num: '01', title: 'Take a rigorous assessment' },
-  { num: '02', title: 'Reviewed by a person' },
+  { num: '02', title: 'Verified, not self-claimed' },
   { num: '03', title: 'Get matched, verifiably' },
 ];
 
@@ -126,7 +126,7 @@ export default function LandingPage() {
         <div className="lp-container">
           <p className="lp-section-eyebrow">How verification works</p>
           <h2 id="lp-how-heading" className="lp-section-title">
-            From claim to proof, with a person in the loop
+            From claim to proof
           </h2>
           <div className="lp-steps">
             {STEPS.map((s) => (
@@ -172,8 +172,8 @@ export default function LandingPage() {
           <p className="lp-prose-body">
             MyAmbii is a product built on the <strong>flAIr future Intelligence</strong> platform by <strong>Mukaab Technologies Private Limited</strong>. We believe hiring for
             AI should rest on demonstrated ability rather than keywords on a résumé — so we verify skills through
-            real assessments, put a person in the loop before any badge is issued, and give employers evidence they
-            can check.
+            real assessments, with select skills confirmed through a recorded conversation reviewed by a person, and
+            give employers evidence they can check.
           </p>
         </div>
       </section>
