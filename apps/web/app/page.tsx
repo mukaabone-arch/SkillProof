@@ -194,8 +194,8 @@ export default function LandingPage() {
           <nav className="lp-footer-links" aria-label="Footer">
             <a href="#about">About Us</a>
             <a href="/contact">Contact</a>
-            <a href="/privacy">Privacy Policy</a>
-            <a href="/terms">Terms of Service</a>
+            <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+            <a href="/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>
             <a href="/faq">FAQs</a>
           </nav>
         </div>
