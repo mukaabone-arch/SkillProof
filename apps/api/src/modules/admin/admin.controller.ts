@@ -7,6 +7,16 @@ import { AdminService } from './admin.service';
 import { AccountService } from '../account/account.service';
 import { DataExportService } from '../data-export/data-export.service';
 import { ListExportRequestsQueryDto } from '../data-export/data-export.dto';
+import { BillingProfilesService } from '../billing/billing-profiles.service';
+import { TransactionsService } from '../billing/transactions.service';
+import {
+  AmendTransactionDto,
+  AttachProviderReferenceDto,
+  CreateBillingProfileDto,
+  CreateTransactionDto,
+  UpdateBillingProfileDto,
+  UpdateTransactionStatusDto,
+} from '../billing/billing.dto';
 import {
   CreateAssessmentDto,
   CreateQuestionDto,
@@ -25,6 +35,8 @@ export class AdminController {
     private readonly svc: AdminService,
     private readonly account: AccountService,
     private readonly dataExport: DataExportService,
+    private readonly billingProfiles: BillingProfilesService,
+    private readonly transactions: TransactionsService,
   ) {}
 
   /** Compliance Center / Privacy Requests — see AccountService.listActionsForAdmin's own doc comment for exactly what each derived field does and doesn't claim. */
@@ -102,5 +114,75 @@ export class AdminController {
   @Post('export-requests/:id/retry')
   retryExportRequest(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.dataExport.retry(req.user.sub, id);
+  }
+
+  // ---------- Billing profiles ----------
+
+  @Post('candidates/:candidateProfileId/billing-profile')
+  createCandidateBillingProfile(
+    @Req() req: AuthenticatedRequest,
+    @Param('candidateProfileId') candidateProfileId: string,
+    @Body() dto: CreateBillingProfileDto,
+  ) {
+    return this.billingProfiles.createForCandidate(req.user.sub, candidateProfileId, dto);
+  }
+
+  @Post('orgs/:organizationId/billing-profile')
+  createOrgBillingProfile(
+    @Req() req: AuthenticatedRequest,
+    @Param('organizationId') organizationId: string,
+    @Body() dto: CreateBillingProfileDto,
+  ) {
+    return this.billingProfiles.createForOrganization(req.user.sub, organizationId, dto);
+  }
+
+  @Get('billing-profiles/:id')
+  getBillingProfile(@Param('id') id: string) {
+    return this.billingProfiles.get(id);
+  }
+
+  @Patch('billing-profiles/:id')
+  updateBillingProfile(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateBillingProfileDto) {
+    return this.billingProfiles.update(req.user.sub, id, dto);
+  }
+
+  @Delete('billing-profiles/:id')
+  deleteBillingProfile(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.billingProfiles.softDelete(req.user.sub, id);
+  }
+
+  // ---------- Transactions ----------
+
+  @Get('billing-profiles/:id/transactions')
+  listTransactions(@Param('id') id: string) {
+    return this.transactions.listForProfile(id);
+  }
+
+  /** Sets the financial core (amountPaise/currency/type/status) once — never editable in place after this. See Transaction's own schema doc comment. */
+  @Post('billing-profiles/:id/transactions')
+  createTransaction(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: CreateTransactionDto) {
+    return this.transactions.create(req.user.sub, id, dto);
+  }
+
+  /** Corrects amountPaise/currency/type by posting a new row referencing :id — the original is never touched. */
+  @Post('transactions/:id/amend')
+  amendTransaction(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: AmendTransactionDto) {
+    return this.transactions.amend(req.user.sub, id, dto);
+  }
+
+  /** The only way status may change post-creation — enforced against a fixed forward-only state machine, not a general update. */
+  @Patch('transactions/:id/status')
+  transitionTransactionStatus(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateTransactionStatusDto) {
+    return this.transactions.transitionStatus(req.user.sub, id, dto.status);
+  }
+
+  /** Fills provider/providerOrderId/providerPaymentId once, null -> value only — reconciliation metadata, not a correction to the financial facts. */
+  @Patch('transactions/:id/provider-reference')
+  attachTransactionProviderReference(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: AttachProviderReferenceDto,
+  ) {
+    return this.transactions.attachProviderReference(req.user.sub, id, dto);
   }
 }

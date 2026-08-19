@@ -319,6 +319,7 @@ model User {
   invitationsSent        OrgInvitation[]     @relation("OrgInvitationInvitedBy")
   adminAccessLogEntries  AdminAccessLog[]
   termsAcceptances       TermsAcceptance[]
+  transactionsCreated    Transaction[]
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
@@ -378,11 +379,13 @@ model TermsAcceptance {
 model Organization {
   id        String   @id @default(uuid())
   name      String
-  /** Setup-checklist fields (EmployerDashboard's "Set up your organisation"
+  /**
+   * Setup-checklist fields (EmployerDashboard's "Set up your organisation"
    * card) — all optional, populated from Settings, never required to post a
    * job or hire. logoKey is a bare storage key, same convention as
    * CandidateProfile.photoKey; never returned to a client directly (see
-   * OrgsService's withHasLogo — `hasLogo` goes out instead). */
+   * OrgsService's withHasLogo — `hasLogo` goes out instead).
+   */
   industry  String?
   website   String?
   logoKey   String?
@@ -394,6 +397,8 @@ model Organization {
   shortlistEntries   ShortlistEntry[]
   assessmentRequests AssessmentRequest[]
   invitations        OrgInvitation[]
+  adminAccessLogs    AdminAccessLog[]
+  billingProfile     BillingProfile?
 }
 
 model OrgMember {
@@ -577,6 +582,7 @@ model CandidateProfile {
   assessmentRequests    AssessmentRequest[]
   exportRequests        ExportRequest[]
   adminAccessLogEntries AdminAccessLog[]
+  billingProfile        BillingProfile?
 }
 
 // ---------- Account lifecycle (deactivation, reactivation, deletion) ----------
@@ -707,10 +713,148 @@ model AdminAccessLog {
   targetId           String?
   candidateProfileId String?
   candidateProfile   CandidateProfile? @relation(fields: [candidateProfileId], references: [id])
+  /**
+   * Org-scoped counterpart to candidateProfileId above — added for
+   * BillingService so an org-owned BillingProfile/Transaction action gets
+   * the same first-class, queryable logging a candidate-owned one already
+   * gets, rather than being findable only via the generic targetType/
+   * targetId string pair. Nullable/additive — every pre-existing row (all
+   * candidate-scoped) is unaffected.
+   */
+  organizationId     String?
+  organization       Organization?     @relation(fields: [organizationId], references: [id])
   createdAt          DateTime          @default(now())
 
   @@index([adminUserId, createdAt])
   @@index([candidateProfileId, createdAt])
+  @@index([organizationId, createdAt])
+}
+
+// ---------- Billing (admin data capture — no payment provider integration yet) ----------
+
+/**
+ * Legal/tax billing details for either a candidate or an organization —
+ * exactly one of candidateId/organizationId is ever set (enforced by a raw
+ * CHECK constraint added in this model's migration, since Prisma's schema
+ * DSL can't express "exactly one of these two FKs"; BillingService also
+ * validates this at the service layer as defense in depth). Admin-viewable
+ * and admin-editable only today — no candidate/employer self-service UI.
+ * Every admin write here goes through BillingService's own logAdminAccess
+ * call, never a bare Prisma update.
+ */
+model BillingProfile {
+  id               String            @id @default(uuid())
+  candidateId      String?           @unique
+  candidateProfile CandidateProfile? @relation(fields: [candidateId], references: [id])
+  organizationId   String?           @unique
+  organization     Organization?     @relation(fields: [organizationId], references: [id])
+
+  legalEntityName String
+  billingEmail    String
+  billingPhone    String?
+  /**
+   * India GST identification number — shape-validated at the DTO layer, no checksum verification.
+   */
+  gstin           String?
+
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  state        String
+  /**
+   * 2-digit GST "place of supply" state code — distinct from `state` above
+   * (a display name): this is the specific code GST invoicing needs and is
+   * usually, but not always, derivable from the billing address alone.
+   */
+  gstStateCode String?
+  postalCode   String
+  country      String  @default("IN")
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  /**
+   * Soft delete only — same nullable-timestamp convention as CandidateProfile.deletedAt. Transactions referencing this profile are never affected by it being soft-deleted.
+   */
+  deletedAt DateTime?
+
+  transactions Transaction[]
+
+  @@index([candidateId])
+  @@index([organizationId])
+}
+
+enum TransactionType {
+  ASSESSMENT_REQUEST_PAYMENT
+  SUBSCRIPTION_CHARGE
+  REFUND
+  ADJUSTMENT
+  OTHER
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+/**
+ * Append-only financial ledger entry. amountPaise/currency/type are frozen
+ * at creation forever — no service method ever updates them; a correction
+ * to any of the three is posted as a new row via amendsTransactionId,
+ * never an edit to this one. `status` is the one field allowed to change
+ * after creation, and only through TransactionsService's own state-machine
+ * transition (PENDING->SUCCEEDED, PENDING->FAILED, SUCCEEDED->REFUNDED) —
+ * never a bare field overwrite, never backwards, never arbitrary.
+ * Deliberately no `updatedAt`. Every other model in this schema pairs
+ * createdAt with updatedAt; this one doesn't, on purpose — an updatedAt
+ * column would sit here always unequal to createdAt only on a status
+ * transition, quietly implying the amount/currency/type could also change
+ * in place when they never do. Leaving it off is the honest signal that
+ * this row's financial facts are permanent; only `status`'s own transition
+ * (audit-logged like everything else here) ever touches it again.
+ */
+model Transaction {
+  id               String         @id @default(uuid())
+  billingProfileId String
+  billingProfile   BillingProfile @relation(fields: [billingProfileId], references: [id])
+
+  amountPaise Int
+  currency    String            @default("INR")
+  type        TransactionType
+  status      TransactionStatus
+  description String?
+
+  /**
+   * Reserved for the not-yet-integrated payment provider — nullable until
+   * then, same convention as Subscription.provider/providerSubId. Opaque
+   * reference strings only (Razorpay's own order/payment ids), same shape
+   * as AssessmentRequest.razorpayOrderId/razorpayPaymentId — never payment
+   * instrument data. Settable exactly once, null -> value, via a narrow
+   * dedicated endpoint; never overwritten value -> different value.
+   */
+  provider          String?
+  providerOrderId   String?
+  providerPaymentId String?
+
+  /**
+   * Set only when this row is a correction to an earlier one — the earlier
+   * row's amountPaise/currency/type/status are never touched directly; this
+   * new row is the correction, referencing what it corrects. Not @unique:
+   * one original transaction can accumulate more than one amendment over
+   * time (e.g. a partial refund, then a later adjustment).
+   */
+  amendsTransactionId String?
+  amendsTransaction   Transaction?  @relation("TransactionAmendments", fields: [amendsTransactionId], references: [id])
+  amendments          Transaction[] @relation("TransactionAmendments")
+
+  createdByAdminId String
+  createdByAdmin   User   @relation(fields: [createdByAdminId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([billingProfileId])
+  @@index([amendsTransactionId])
 }
 
 // ---------- Taxonomy (spec section 4.3) ----------
@@ -1080,8 +1224,8 @@ model Job {
   applications     Application[]
   shortlistEntries ShortlistEntry[]
 
-  @@index([orgId])
   @@unique([orgId, code])
+  @@index([orgId])
 }
 
 model JobSkill {
