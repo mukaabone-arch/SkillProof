@@ -913,7 +913,7 @@ export default function EmployerJobs() {
                     ) : undefined
                   }
                   footer={
-                    <div className="row" style={{ alignItems: 'center', margin: 0 }}>
+                    <div className="row" style={{ alignItems: 'center', margin: 0, flexWrap: 'wrap' }}>
                       <span className="meta" style={{ margin: 0 }}>Status: {a.status}</span>
                       {STATUS_ACTIONS.map((s) => (
                         <button

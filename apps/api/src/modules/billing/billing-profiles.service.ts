@@ -20,6 +20,26 @@ export class BillingProfilesService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * GET /admin/billing-profiles — added so an admin can actually find a
+   * profile after creating it: there's no candidate/org directory admin
+   * view to enter from yet (still "Soon" on the console roadmap), and a
+   * billing profile's own id is a UUID nobody would ever have memorized.
+   * Includes just enough of the owning CandidateProfile/Organization to
+   * render a human-readable row (fullName/name) — never the full owner
+   * record — so the list is scannable without a second round-trip per row.
+   */
+  async list() {
+    return this.prisma.billingProfile.findMany({
+      where: { deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        candidateProfile: { select: { fullName: true } },
+        organization: { select: { name: true } },
+      },
+    });
+  }
+
   async createForCandidate(adminUserId: string, candidateProfileId: string, dto: CreateBillingProfileDto) {
     const candidate = await this.prisma.candidateProfile.findUnique({ where: { id: candidateProfileId } });
     if (!candidate) throw new NotFoundException('Candidate profile not found');

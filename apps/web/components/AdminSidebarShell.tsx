@@ -50,6 +50,10 @@ const GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: 'Billing',
+    items: [{ kind: 'link', href: '/admin/billing', label: 'Billing Profiles' }],
+  },
+  {
     label: 'Roadmap',
     items: [
       { kind: 'disabled', label: 'User Management' },
@@ -61,7 +65,6 @@ const GROUPS: NavGroup[] = [
       { kind: 'disabled', label: 'Monitoring & Operations' },
       { kind: 'disabled', label: 'Data Management' },
       { kind: 'disabled', label: 'Notifications' },
-      { kind: 'disabled', label: 'Billing' },
       { kind: 'disabled', label: 'Integrations' },
       { kind: 'disabled', label: 'Analytics' },
       { kind: 'disabled', label: 'System Configuration' },

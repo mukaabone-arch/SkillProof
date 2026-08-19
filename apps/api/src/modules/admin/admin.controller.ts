@@ -118,6 +118,12 @@ export class AdminController {
 
   // ---------- Billing profiles ----------
 
+  /** Registered before 'billing-profiles/:id' in this file only for readability — Nest matches by segment count, so there's no routing ambiguity between the two either way. */
+  @Get('billing-profiles')
+  listBillingProfiles() {
+    return this.billingProfiles.list();
+  }
+
   @Post('candidates/:candidateProfileId/billing-profile')
   createCandidateBillingProfile(
     @Req() req: AuthenticatedRequest,
