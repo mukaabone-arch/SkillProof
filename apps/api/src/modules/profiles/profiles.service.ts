@@ -131,7 +131,6 @@ export class ProfilesService {
       headline: profile.headline,
       location: formatLocation(profile),
       yearsOfExp: profile.yearsOfExp,
-      aiYearsOfExp: profile.aiYearsOfExp,
       githubUrl: profile.githubUrl,
       linkedinUrl: profile.linkedinUrl,
       summary: dto.summary,

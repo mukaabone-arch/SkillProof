@@ -1,9 +1,21 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { CertVerificationStatus, ClaimStatus, CredentialVerificationState, JobStatus, Prisma } from '@prisma/client';
+import {
+  CandidateOfferResponse,
+  CertVerificationStatus,
+  ClaimStatus,
+  CredentialVerificationState,
+  JobStatus,
+  NotificationType,
+  Prisma,
+  ShortlistStage,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../llm/llm.service';
 import { ProfilesService } from '../profiles/profiles.service';
 import { EmployerCandidateAccessService } from '../access/employer-candidate-access.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { renderNotificationEmail } from '../notifications/notification-email.template';
+import { WEB_BASE_URL } from '../../config/web-base-url';
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
 import { CreateJobDto, JobSkillItemDto, UpdateJobDto } from './jobs.dto';
 import { isProfileReadyToApply } from '../profiles/profile-readiness';
@@ -16,6 +28,7 @@ export class JobsService {
     private readonly llm: LlmService,
     private readonly profiles: ProfilesService,
     private readonly employerAccess: EmployerCandidateAccessService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async create(orgId: string, dto: CreateJobDto) {
@@ -35,12 +48,95 @@ export class JobsService {
   }
 
   async update(orgId: string, jobId: string, dto: UpdateJobDto) {
-    await this.getOwnedJob(orgId, jobId);
+    const job = await this.getOwnedJob(orgId, jobId);
     const data = dto.code !== undefined ? { ...dto, code: normalizeCode(dto.code) } : dto;
+    let updated;
     try {
-      return await this.prisma.job.update({ where: { id: jobId }, data });
+      updated = await this.prisma.job.update({ where: { id: jobId }, data });
     } catch (err) {
       throw translateCodeConflict(err);
+    }
+
+    // Unpublish, specifically — not "status was included in this PATCH":
+    // Post job (DRAFT→LIVE) and Reopen (CLOSED→LIVE) go through this exact
+    // same generic update() with no dedicated endpoint of their own (see
+    // this method's callers), so only a genuine LIVE→CLOSED edge should
+    // notify. Awaited inline rather than fire-and-forget, matching every
+    // other pipeline-notification call site in this codebase (e.g.
+    // ShortlistPipelineService) — notifyJobUnpublished never throws (same
+    // best-effort contract as NotificationsService.sendEmail itself), so
+    // this never turns a successful unpublish into a failed request.
+    if (job.status === JobStatus.LIVE && updated.status === JobStatus.CLOSED) {
+      await this.notifyJobUnpublished(jobId, updated.title);
+    }
+
+    return updated;
+  }
+
+  /**
+   * Tells every candidate who applied or holds a still-active shortlist
+   * entry for this job that it's no longer accepting applications — never
+   * why (JobStatus.CLOSED carries no reason of its own, and a job can be
+   * unpublished for reasons other than being filled). "Still-active"
+   * excludes HIRED and OFFER-with-an-accepted-response: someone who has
+   * accepted an offer for this job has no reason to be told it closed.
+   * Application carries no hired/offer concept at all (see
+   * ApplicationStatus), so applicants are never excluded on that basis —
+   * only the ShortlistEntry side of the union can exclude anyone.
+   *
+   * Idempotent per (candidate, job), not just "guard the transition": an
+   * unpublish → republish → unpublish cycle would otherwise re-fire this
+   * whole method on the second unpublish and re-notify everyone. Instead,
+   * this checks each recipient's prior JOB_UNPUBLISHED notifications for
+   * this same jobId (stored in Notification.jobIds — same mechanism
+   * MatchDigestService already uses to avoid re-notifying about a match)
+   * and skips anyone already told, while still notifying a candidate who
+   * only applied/was shortlisted *after* an earlier unpublish (e.g. during
+   * a republished window) and so was never told before.
+   */
+  private async notifyJobUnpublished(jobId: string, jobTitle: string): Promise<void> {
+    const [applicants, shortlisted] = await Promise.all([
+      this.prisma.application.findMany({
+        where: { jobId },
+        select: { candidateProfile: { select: { userId: true } } },
+      }),
+      this.prisma.shortlistEntry.findMany({
+        where: {
+          jobId,
+          NOT: {
+            OR: [
+              { stage: ShortlistStage.HIRED },
+              { stage: ShortlistStage.OFFER, candidateResponse: CandidateOfferResponse.ACCEPTED },
+            ],
+          },
+        },
+        select: { candidateProfile: { select: { userId: true } } },
+      }),
+    ]);
+
+    const recipientUserIds = new Set([
+      ...applicants.map((a) => a.candidateProfile.userId),
+      ...shortlisted.map((s) => s.candidateProfile.userId),
+    ]);
+    if (recipientUserIds.size === 0) return;
+
+    const priorNotifications = await this.prisma.notification.findMany({
+      where: { type: NotificationType.JOB_UNPUBLISHED, userId: { in: [...recipientUserIds] } },
+      select: { userId: true, jobIds: true },
+    });
+    const alreadyNotified = new Set(
+      priorNotifications.filter((n) => n.jobIds.includes(jobId)).map((n) => n.userId),
+    );
+
+    const subject = `${jobTitle} is no longer accepting applications`;
+    const html = renderNotificationEmail(
+      `<p>The <strong>${escapeHtml(jobTitle)}</strong> position is no longer accepting applications.</p>`,
+      { label: 'Browse other jobs', url: `${WEB_BASE_URL}/jobs?tab=browse` },
+    );
+
+    for (const userId of recipientUserIds) {
+      if (alreadyNotified.has(userId)) continue;
+      await this.notifications.sendEmail(userId, NotificationType.JOB_UNPUBLISHED, subject, html, [jobId]);
     }
   }
 
@@ -314,4 +410,9 @@ function translateCodeConflict(err: unknown): unknown {
     return new ConflictException('A job with this code already exists for your organization.');
   }
   return err;
+}
+
+/** Employer-authored free text (job title) landing in an HTML email body — same local escape as ShortlistPipelineService's own, not shared, since neither module exports one today. */
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

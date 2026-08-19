@@ -240,6 +240,15 @@ enum NotificationType {
    * to the candidate by its status on GET /account/exports, not by email.
    */
   DATA_EXPORT_READY
+  /**
+   * Candidate: an employer moved a job from LIVE to CLOSED (unpublished it)
+   * while this candidate had applied or was still an active (non-hired,
+   * non-offer-accepted) shortlist entry for it — see
+   * JobsService.notifyJobUnpublished. Wording is always neutral ("no longer
+   * accepting applications") and never states or implies a reason (filled,
+   * cancelled, etc.), since JobStatus.CLOSED carries no reason field itself.
+   */
+  JOB_UNPUBLISHED
 }
 
 enum NotificationChannel {
@@ -1551,9 +1560,13 @@ model Notification {
   subject   String
   body      String
   status    NotificationStatus  @default(QUEUED)
-  // Job ids this notification already covered — only populated for
-  // MATCH_DIGEST, so the daily digest job can exclude jobs a candidate has
-  // already been told about instead of re-sending the same match forever.
+  // Job ids this notification already covered — populated for MATCH_DIGEST
+  // (so the daily digest job can exclude jobs a candidate has already been
+  // told about instead of re-sending the same match forever) and for
+  // JOB_UNPUBLISHED (so a candidate is never told about the same job's
+  // closure twice, even across an unpublish -> republish -> unpublish
+  // cycle — see JobsService.notifyJobUnpublished). Empty/unused for every
+  // other notification type.
   jobIds    String[]            @default([])
   sentAt    DateTime?
   createdAt DateTime            @default(now())
