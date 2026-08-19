@@ -4,11 +4,12 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { OrgMemberGuard, OrgScopedRequest } from '../auth/org-member.guard';
+import { OrgSetupCompleteGuard } from '../auth/org-setup-complete.guard';
 import { DashboardService } from './dashboard.service';
 import { DashboardQueryDto } from './dashboard.dto';
 
 @Controller('employer/dashboard')
-@UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard, OrgSetupCompleteGuard)
 @Roles(Role.EMPLOYER_ADMIN, Role.EMPLOYER_MEMBER)
 export class DashboardController {
   constructor(private readonly svc: DashboardService) {}

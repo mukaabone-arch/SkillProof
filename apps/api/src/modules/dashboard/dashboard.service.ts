@@ -62,39 +62,34 @@ export class DashboardService {
     // standing, not one role's funnel, so the existing Role dropdown filter
     // on this page never touches them.
     const overview = await this.orgOverview(orgId);
-    const setup = await this.setupChecklist(orgId);
+    const invitedTeam = await this.hasInvitedTeam(orgId);
 
-    return { orgId, jobId: jobId ?? null, jobTitle, kpis, other, total, ...overview, setup };
+    return { orgId, jobId: jobId ?? null, jobTitle, kpis, other, total, ...overview, invitedTeam };
   }
 
   /**
-   * The dashboard's "Set up your organisation" card. Derived on read, not a
-   * stored flag — un-ticking an item when its underlying data is later
-   * removed (e.g. the logo is deleted) is the correct behavior, not drift
-   * to guard against. "Organisation created"/"Admin account" aren't items
-   * here at all: AuthService.signup creates User + Organization + OrgMember
-   * in one transaction, so both are true for every org that can reach this
-   * endpoint — showing them would be permanently-ticked padding, not signal.
+   * Backs the dashboard's "Invite your team" nudge — the one item from the
+   * old three-item "Set up your organisation" checklist that's still
+   * optional. The other two (logo, industry+website) dropped out of this
+   * response entirely once they became mandatory: OrgSetupCompleteGuard
+   * (see org-readiness.ts) already blocks every route on this controller
+   * until they're set, so by the time any org reaches this method they're
+   * unconditionally true — showing them here again would be the same
+   * always-ticked padding this method's old doc comment already argued
+   * against for "Organisation created"/"Admin account". Derived on read,
+   * not a stored flag, same reasoning as before: un-inviting nobody isn't a
+   * real state, but re-deriving from OrgMember/OrgInvitation on every read
+   * means this can never drift from what's actually true.
    */
-  private async setupChecklist(orgId: string) {
-    const [org, memberCount, invitationCount] = await Promise.all([
-      this.prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { industry: true, website: true, logoKey: true } }),
+  private async hasInvitedTeam(orgId: string): Promise<boolean> {
+    const [memberCount, invitationCount] = await Promise.all([
       this.prisma.orgMember.count({ where: { organizationId: orgId } }),
       // Any invitation ever sent counts, regardless of status — a revoked
       // or expired one still proves the admin took the action once, which
       // is all this item is checking for.
       this.prisma.orgInvitation.count({ where: { organizationId: orgId } }),
     ]);
-
-    const items = {
-      invitedTeam: memberCount > 1 || invitationCount > 0,
-      logo: org.logoKey != null,
-      companyInfo: !!org.industry && !!org.website,
-    };
-    const doneCount = Object.values(items).filter(Boolean).length;
-    const total = Object.keys(items).length;
-
-    return { items, doneCount, total, allDone: doneCount === total };
+    return memberCount > 1 || invitationCount > 0;
   }
 
   /**

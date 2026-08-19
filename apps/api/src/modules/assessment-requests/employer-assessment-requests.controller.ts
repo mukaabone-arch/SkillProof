@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { OrgMemberGuard, OrgScopedRequest } from '../auth/org-member.guard';
+import { OrgSetupCompleteGuard } from '../auth/org-setup-complete.guard';
 import { AssessmentRequestsService } from './assessment-requests.service';
 import { InitiateAssessmentRequestDto, VerifyAssessmentRequestPaymentDto } from './assessment-requests.dto';
 
@@ -13,7 +14,7 @@ import { InitiateAssessmentRequestDto, VerifyAssessmentRequestPaymentDto } from 
  * controller is a thin pass-through, same convention as ShortlistController.
  */
 @Controller('assessment-requests')
-@UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard, OrgSetupCompleteGuard)
 @Roles(Role.EMPLOYER_ADMIN, Role.EMPLOYER_MEMBER)
 export class EmployerAssessmentRequestsController {
   constructor(private readonly svc: AssessmentRequestsService) {}

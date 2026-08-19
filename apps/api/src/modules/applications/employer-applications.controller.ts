@@ -4,12 +4,13 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { OrgMemberGuard, OrgScopedRequest } from '../auth/org-member.guard';
+import { OrgSetupCompleteGuard } from '../auth/org-setup-complete.guard';
 import { ApplicationsService } from './applications.service';
 import { UpdateApplicationStatusDto } from './applications.dto';
 
 /** Employer-facing application management — separate from the candidate ApplicationsController above. */
 @Controller('applications')
-@UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard, OrgSetupCompleteGuard)
 @Roles(Role.EMPLOYER_ADMIN, Role.EMPLOYER_MEMBER)
 export class EmployerApplicationsController {
   constructor(private readonly svc: ApplicationsService) {}

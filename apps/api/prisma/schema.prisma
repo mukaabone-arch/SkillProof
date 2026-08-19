@@ -380,9 +380,16 @@ model Organization {
   id        String   @id @default(uuid())
   name      String
   /**
-   * Setup-checklist fields (EmployerDashboard's "Set up your organisation"
-   * card) — all optional, populated from Settings, never required to post a
-   * job or hire. logoKey is a bare storage key, same convention as
+   * Organisation-profile fields, populated from Settings. Nullable at the
+   * DB level (existing orgs pre-date this rule, and the row itself must
+   * exist before any of these can be filled in) — but all three are
+   * mandatory before an org can use the employer portal beyond fixing this
+   * exact gap: see OrgSetupCompleteGuard / org-readiness.ts for the
+   * server-side enforcement, and app/employer/setup/page.tsx for where an
+   * incomplete org is sent to comply. Team invitations are deliberately
+   * NOT part of this gate — see DashboardService.setupChecklist's own
+   * doc comment for that separate, optional nudge.
+   * logoKey is a bare storage key, same convention as
    * CandidateProfile.photoKey; never returned to a client directly (see
    * OrgsService's withHasLogo — `hasLogo` goes out instead).
    */

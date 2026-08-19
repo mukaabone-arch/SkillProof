@@ -4,13 +4,14 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { OrgMemberGuard, OrgScopedRequest } from '../auth/org-member.guard';
+import { OrgSetupCompleteGuard } from '../auth/org-setup-complete.guard';
 import { ShortlistService } from './shortlist.service';
 import { ShortlistPipelineService } from './shortlist-pipeline.service';
 import { AddShortlistEntryDto, ListShortlistDto, UpdateShortlistEntryDto } from './shortlist.dto';
 import { AddRoundDto, InviteDto, OutcomeDto, RejectDto, UpdateRoundDto } from './shortlist-pipeline.dto';
 
 @Controller('shortlist')
-@UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard, OrgSetupCompleteGuard)
 @Roles(Role.EMPLOYER_ADMIN, Role.EMPLOYER_MEMBER)
 export class ShortlistController {
   constructor(

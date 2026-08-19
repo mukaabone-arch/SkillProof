@@ -32,28 +32,20 @@ interface RecentJob {
 type RecentApplicant = ApplicantCardData & { jobId: string; jobTitle: string };
 
 /**
- * "Set up your organisation" checklist — derived on read server-side
- * (DashboardService.setupChecklist), not a stored flag, so un-ticking an
- * item when its underlying data is removed (e.g. the logo is deleted) is
- * automatic. Deliberately not gating anything: an org can post a job and
- * hire with every item incomplete, same as today.
+ * "Invite your team" nudge — the one item left from the old three-item
+ * "Set up your organisation" checklist that's still optional. Logo and
+ * industry/website dropped off this card entirely once they became
+ * mandatory (see app/employer/setup/page.tsx and OrgSetupCompleteGuard on
+ * the API side): an org can't reach this dashboard at all until both are
+ * set, so showing them here again would always read done — dead weight,
+ * not signal. Derived on read server-side (DashboardService.hasInvitedTeam),
+ * not a stored flag. Deliberately not gating anything: an org can post a
+ * job and hire with no teammates invited, same as today — this is a nudge,
+ * not a requirement.
  */
-interface SetupChecklist {
-  items: { invitedTeam: boolean; logo: boolean; companyInfo: boolean };
-  doneCount: number;
-  total: number;
-  allDone: boolean;
-}
-
-const SETUP_ITEMS: { key: keyof SetupChecklist['items']; label: string; href: string }[] = [
-  { key: 'invitedTeam', label: 'Invite your team', href: '/employer/settings#team' },
-  { key: 'logo', label: 'Add your company logo', href: '/employer/settings#organisation' },
-  { key: 'companyInfo', label: 'Add your industry and website', href: '/employer/settings#organisation' },
-];
-
-/** Per-org, not global — a person on more than one org's dashboard (rare, but the data model allows it) shouldn't have dismissing one org's checklist hide another's. */
-function setupDismissKey(orgId: string): string {
-  return `setup-dismissed:${orgId}`;
+/** Per-org, not global — a person on more than one org's dashboard (rare, but the data model allows it) shouldn't have dismissing one org's nudge hide another's. */
+function teamNudgeDismissKey(orgId: string): string {
+  return `team-nudge-dismissed:${orgId}`;
 }
 
 interface DashboardSummary {
@@ -79,7 +71,7 @@ interface DashboardSummary {
   avgTimeToHireDays: number | null;
   recentJobs: RecentJob[];
   recentApplicants: RecentApplicant[];
-  setup: SetupChecklist;
+  invitedTeam: boolean;
 }
 
 const KPI_CARDS: { key: keyof DashboardSummary['kpis']; label: string; stage: string }[] = [
@@ -98,7 +90,7 @@ export default function EmployerDashboard() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [setupDismissed, setSetupDismissed] = useState(false);
+  const [teamNudgeDismissed, setTeamNudgeDismissed] = useState(false);
 
   useEffect(() => {
     api<Job[]>('/jobs').then(setJobs).catch(() => undefined);
@@ -109,13 +101,13 @@ export default function EmployerDashboard() {
   // JobDetailPage's getToken() read).
   useEffect(() => {
     if (!summary) return;
-    setSetupDismissed(localStorage.getItem(setupDismissKey(summary.orgId)) === '1');
+    setTeamNudgeDismissed(localStorage.getItem(teamNudgeDismissKey(summary.orgId)) === '1');
   }, [summary?.orgId]);
 
-  function dismissSetup() {
+  function dismissTeamNudge() {
     if (!summary) return;
-    localStorage.setItem(setupDismissKey(summary.orgId), '1');
-    setSetupDismissed(true);
+    localStorage.setItem(teamNudgeDismissKey(summary.orgId), '1');
+    setTeamNudgeDismissed(true);
   }
 
   useEffect(() => {
@@ -149,38 +141,17 @@ export default function EmployerDashboard() {
 
       {!loading && summary && (
         <>
-          {!summary.setup.allDone && !setupDismissed && (
-            <div className="card status-card-flag" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12, marginBottom: 24 }}>
-              <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
-                <h2 style={{ margin: 0 }}>Set up your organisation</h2>
-                <div className="row" style={{ margin: 0, alignItems: 'center', gap: 12 }}>
-                  <span className="meta" style={{ margin: 0 }}>
-                    {summary.setup.doneCount} of {summary.setup.total} done
-                  </span>
-                  <button className="btn-secondary" onClick={dismissSetup}>Dismiss</button>
-                </div>
+          {!summary.invitedTeam && !teamNudgeDismissed && (
+            <div className="card status-card-flag" style={{ justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <strong>Invite your team</strong>
+                <p className="meta" style={{ margin: 0 }}>Bring colleagues in to help manage hiring — entirely optional.</p>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {SETUP_ITEMS.map((item) => {
-                  const done = summary.setup.items[item.key];
-                  return done ? (
-                    <div key={item.key} className="row" style={{ margin: 0, gap: 8, alignItems: 'center' }}>
-                      <span aria-hidden="true" className="ok">✓</span>
-                      <span>{item.label}</span>
-                    </div>
-                  ) : (
-                    <Link
-                      key={item.key}
-                      href={item.href}
-                      className="row"
-                      style={{ margin: 0, gap: 8, alignItems: 'center' }}
-                    >
-                      <span aria-hidden="true" style={{ color: 'var(--ink-60)' }}>○</span>
-                      <span style={{ flex: 1 }}>{item.label}</span>
-                      <span aria-hidden="true">→</span>
-                    </Link>
-                  );
-                })}
+              <div className="row" style={{ margin: 0, alignItems: 'center', gap: 8 }}>
+                <Link href="/employer/settings#team">
+                  <button className="btn-secondary">Invite team →</button>
+                </Link>
+                <button className="btn-secondary" onClick={dismissTeamNudge}>Dismiss</button>
               </div>
             </div>
           )}
