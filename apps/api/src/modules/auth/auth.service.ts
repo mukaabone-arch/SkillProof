@@ -353,19 +353,22 @@ export class AuthService {
 
   /**
    * Email counterpart to verifyOtp, for employer signup/login only — there's
-   * no plain-candidate email flow, so (unlike verifyOtp) orgName is always
-   * required and the cross-flow guard collapses to one direction: a
-   * candidate account can't log in here, but there's no "not an employer
-   * flow" branch to guard the other way. Single-use verification itself
-   * (consumeOtp) is identical to the phone path, just keyed by email.
+   * no plain-candidate email flow, so (unlike verifyOtp) the cross-flow
+   * guard collapses to one direction: a candidate account can't log in
+   * here, but there's no "not an employer flow" branch to guard the other
+   * way. Single-use verification itself (consumeOtp) is identical to the
+   * phone path, just keyed by email.
    *
-   * assertCompanyEmail runs only in the brand-new-account branch below —
-   * the authoritative signup-time gate (requestEmailOtp's own call is just
-   * an early rejection; this one is what actually stops createEmployer).
-   * The `existing` branch above it is deliberately never gated: an
-   * already-registered employer — including a free-provider address
-   * grandfathered in from before this check existed — must keep logging in
-   * regardless of domain. Only account *creation* is restricted.
+   * orgName is required only for the brand-new-account branch below, NOT
+   * always — EmployerOtpLogin.tsx serves both login and signup from one
+   * screen that can't know which until this method's own `existing` lookup
+   * resolves it, so the DTO (EmployerEmailRegisterDto) already lets a blank
+   * orgName through for exactly that reason. The `existing` branch is
+   * itself deliberately never gated on either orgName or company-domain
+   * (assertCompanyEmail) — an already-registered employer, including a
+   * free-provider address grandfathered in from before that check existed,
+   * must keep logging in regardless of what's in either field. Only
+   * account *creation* is restricted, on both counts.
    */
   async verifyEmailOtp(rawEmail: string, otp: string, orgName: string) {
     const email = normalizeEmail(rawEmail);
@@ -383,6 +386,19 @@ export class AuthService {
     }
 
     assertCompanyEmail(email);
+    // Unlike the domain check, this can't be a DTO-level `@MinLength` —
+    // the DTO has no way to know yet whether this is a signup (name
+    // required) or a login (name irrelevant); only this branch, after the
+    // `existing` lookup above, knows a new Organization is actually about
+    // to be created. Without this, an empty orgName would silently create
+    // one named "" (Organization.name has no DB-level length/uniqueness
+    // constraint) — confirmed directly against the dev DB before adding
+    // this guard, not assumed.
+    if (orgName.trim().length < 2) {
+      throw new BadRequestException(
+        'Organization name is required to create a new employer account.',
+      );
+    }
     const user = await this.createEmployer(orgName, { email });
     return this.issueTokens(user.id, user.role, this.publicUser(user));
   }

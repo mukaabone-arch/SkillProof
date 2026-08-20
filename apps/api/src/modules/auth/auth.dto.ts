@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsPhoneNumber, IsString, Length, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsPhoneNumber, IsString, Length, MaxLength, MinLength, ValidateIf } from 'class-validator';
 
 export class RequestOtpDto {
   // 'IN' default region; accepts +91XXXXXXXXXX or local formats
@@ -51,10 +51,20 @@ export class EmployerEmailRegisterDto {
   @Length(6, 6)
   otp: string;
 
-  // Required even for returning users — verifyEmailOtp ignores it once the
-  // account already exists, same contract as EmployerRegisterDto.orgName
-  // above (phone path) — keeps the client simple, no separate signup-vs-login
-  // mode to track.
+  // Genuinely optional here, unlike EmployerRegisterDto.orgName (phone path)
+  // above: EmployerOtpLogin.tsx serves both login and signup from one
+  // screen that can't know which until the OTP verifies, so a returning
+  // employer must be able to submit a blank value. `@IsOptional()` alone
+  // isn't enough — it only skips validation for null/undefined, and the
+  // client sends '' (a trimmed empty string), not an omitted field — so
+  // this uses `@ValidateIf` to skip the string/length checks specifically
+  // for that empty-string case, matching the frontend's own validation
+  // exactly (orgName.trim().length === 0 is allowed, a 1-character value
+  // is not). Enforcing "a value is actually required to create a NEW
+  // organization" is deliberately NOT done here — that depends on whether
+  // this email already has an account, which only verifyEmailOtp's own DB
+  // lookup knows; see the guard there, right before createEmployer.
+  @ValidateIf((dto: EmployerEmailRegisterDto) => typeof dto.orgName === 'string' && dto.orgName.trim().length > 0)
   @IsString()
   @MinLength(2)
   @MaxLength(160)
