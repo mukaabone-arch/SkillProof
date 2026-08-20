@@ -1,7 +1,11 @@
 'use client';
 
 /**
- * Employer signup: Organization name + work email → email OTP → JWT.
+ * Employer sign-in AND signup, both through the same work email → email OTP
+ * → JWT flow — this screen doesn't ask which one you're doing, because it
+ * can't know until the OTP is verified. Organization name is collected
+ * up front but is genuinely optional: it's only used the first time a given
+ * email verifies (see below), so a returning employer can leave it blank.
  * Employer accounts have no viable phone path today — apps/api's
  * AuthService.requestOtp (SMS) just logs a "production send not
  * implemented yet" warning and delivers nothing, so phone-OTP signup is
@@ -11,7 +15,8 @@
  * AuthService.requestEmailOtp/sendOtpEmail) and, on a brand-new email,
  * provisions an EMPLOYER_ADMIN user + Organization exactly like the phone
  * path used to. A returning email just logs in; the org name is ignored
- * once the account already exists (see AuthService.verifyEmailOtp).
+ * once the account already exists (see AuthService.verifyEmailOtp) — so
+ * this screen's own validation only requires an email, never the org name.
  *
  * Email OTP is the *only* employer login path, deliberately — no OAuth
  * option is offered here at all (contrast the candidate login, OtpLogin.tsx,
@@ -111,7 +116,13 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
     setResendIn(0);
   }
 
-  const canSend = orgName.trim().length >= 2 && email.trim().length > 0 && !busy;
+  // orgName is only used the first time a new email verifies (see this
+  // file's own doc comment) — a returning employer must be able to leave it
+  // blank, so it's excluded here entirely. A *supplied* name still has to
+  // clear the same minimum length the backend expects, so a stray
+  // single-character value can't slip through as a real org name.
+  const orgNameValid = orgName.trim().length === 0 || orgName.trim().length >= 2;
+  const canSend = orgNameValid && email.trim().length > 0 && !busy;
   const canVerify = otp.length === 6 && !busy;
 
   return (
@@ -127,13 +138,13 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
             Hire on proven skills, not keywords.
           </p>
           <p className="meta" style={{ marginBottom: 20 }}>
-            Sign up with your work email to get started.
+            Sign in or sign up with your work email to get started.
           </p>
 
           {stage === 'details' && (
             <>
               <div className="field">
-                <label htmlFor="orgName">Organization name</label>
+                <label htmlFor="orgName">Organization name (optional)</label>
                 <input
                   id="orgName"
                   value={orgName}
@@ -141,6 +152,9 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
                   placeholder="Acme Inc."
                   maxLength={160}
                 />
+                <p className="meta" style={{ margin: 0 }}>
+                  Only needed when creating a new organisation — returning employers can leave this blank.
+                </p>
               </div>
               <div className="field">
                 <label htmlFor="email">Work email</label>
