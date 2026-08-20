@@ -13,25 +13,19 @@
  * path used to. A returning email just logs in; the org name is ignored
  * once the account already exists (see AuthService.verifyEmailOtp).
  *
- * The Google button below is NOT a signup path: /auth/employer/:provider
- * only resolves an *existing* employer account (see
- * AuthService.loginEmployerWithIdentity) and never provisions a new org —
- * anyone without one already gets bounced back here with an error. So
- * it's framed under "Already have an account?", separated from the primary
- * signup form above, rather than presented as an equal alternative a
- * first-time employer might reasonably pick and get rejected by.
- *
- * GitHub sign-in is deliberately not offered here — a developer identity
- * doesn't fit this portal's audience (recruiters, HR, hiring managers).
- * Google stays as the one corporate-appropriate OAuth option. The backend
- * route (/auth/employer/github) is untouched by this — this is a UI-only
- * decision, not a signal that the route itself is going away.
+ * Email OTP is the *only* employer login path, deliberately — no OAuth
+ * option is offered here at all (contrast the candidate login, OtpLogin.tsx,
+ * which does offer Google). Employer signup requires a company email domain
+ * (COMPANY_EMAIL_REQUIRED — see employer-email-domain.ts), and an OAuth
+ * button would let someone sign in with whatever personal address their
+ * Google/GitHub account happens to use, bypassing that check entirely.
+ * /auth/employer/google was removed outright (not just hidden) for the
+ * same reason; /auth/employer/github still exists (GitHub already never
+ * had a button here) but is likewise not linked to from this screen.
  */
 import { useEffect, useState } from 'react';
 import { employerApi } from '@/lib/api';
-import { startOAuthLogin } from '@/lib/oauth';
 import BrandLockup from './BrandLockup';
-import { GoogleIcon } from './OAuthIcons';
 import AuthMessageRotator, { type AuthMessage } from './AuthMessageRotator';
 import LegalAcceptanceNote from './LegalAcceptanceNote';
 
@@ -71,7 +65,6 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
   const [stage, setStage] = useState<'details' | 'otp'>('details');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [oauthError, setOauthError] = useState('');
   const [resendIn, setResendIn] = useState(0);
 
   useEffect(() => {
@@ -79,15 +72,6 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
     const id = setInterval(() => setResendIn((s) => Math.max(0, s - 1)), 1000);
     return () => clearInterval(id);
   }, [resendIn]);
-
-  function signInWithGoogle() {
-    setOauthError('');
-    try {
-      startOAuthLogin('google', 'employer');
-    } catch (e) {
-      setOauthError((e as Error).message);
-    }
-  }
 
   async function sendCode() {
     setError('');
@@ -213,40 +197,6 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
           )}
 
           {error && <p className="error">{error}</p>}
-
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 4,
-              margin: '20px 0 12px',
-            }}
-          >
-            <div
-              className="auth-divider-label"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                width: '100%',
-                fontSize: '0.8rem',
-              }}
-            >
-              <span style={{ flex: 1, height: 1, background: 'var(--ink-12)' }} />
-              Already have an account?
-              <span style={{ flex: 1, height: 1, background: 'var(--ink-12)' }} />
-            </div>
-            <p className="meta" style={{ margin: 0, textAlign: 'center' }}>
-              Sign in with Google if your organization is already set up on MyAmbii.
-            </p>
-          </div>
-
-          <button type="button" className="btn btn-secondary" style={{ width: '100%' }} onClick={signInWithGoogle}>
-            <GoogleIcon /> Sign in with Google
-          </button>
-
-          {oauthError && <p className="error">{oauthError}</p>}
         </div>
         <LegalAcceptanceNote />
       </div>

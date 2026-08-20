@@ -585,11 +585,6 @@ export class AuthService {
     return this.issueTokens(created.id, created.role, this.publicUser(created));
   }
 
-  async loginEmployerWithGoogle(exchange: OAuthCodeExchange) {
-    const profile = await this.google.exchange(exchange);
-    return this.loginEmployerWithIdentity(IdentityProvider.GOOGLE, profile);
-  }
-
   async loginEmployerWithGithub(exchange: OAuthCodeExchange) {
     const profile = await this.github.exchange(exchange);
     return this.loginEmployerWithIdentity(IdentityProvider.GITHUB, profile);

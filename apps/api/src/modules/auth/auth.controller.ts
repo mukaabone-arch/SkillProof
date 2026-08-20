@@ -114,16 +114,14 @@ export class AuthController {
   }
 
   /**
-   * Employer-portal counterpart of /auth/google and /auth/github — same
-   * code exchange, but only issues a token if the resolved account already
-   * has an employer role and an OrgMember; see AuthService.loginEmployerWithIdentity.
+   * Employer-portal counterpart of /auth/github — same code exchange, but
+   * only issues a token if the resolved account already has an employer
+   * role and an OrgMember; see AuthService.loginEmployerWithIdentity.
+   * Google has no employer-portal counterpart: employer login is email-OTP
+   * only (see EmployerOtpLogin.tsx), since employer signup enforces a
+   * company email domain (COMPANY_EMAIL_REQUIRED) and a Google account
+   * would let someone bypass that check.
    */
-  @Post('employer/google')
-  @HttpCode(200)
-  loginEmployerWithGoogle(@Body() dto: OAuthCodeDto) {
-    return this.auth.loginEmployerWithGoogle(dto);
-  }
-
   @Post('employer/github')
   @HttpCode(200)
   loginEmployerWithGithub(@Body() dto: OAuthCodeDto) {
