@@ -4,6 +4,7 @@
     "target": "ES2022",
     "moduleResolution": "node",
     "declaration": false,
+    "resolveJsonModule": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,

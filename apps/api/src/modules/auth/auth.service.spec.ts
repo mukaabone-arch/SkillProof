@@ -383,6 +383,95 @@ describe('AuthService — employer email OTP', () => {
     });
   });
 
+  describe('company-email domain gate (signup only — see employer-email-domain.spec.ts for the matching rules themselves)', () => {
+    it('requestEmailOtp rejects a brand-new signup on a free-provider domain, and never issues a code', async () => {
+      process.env.NODE_ENV = 'test';
+      const { service, emailProvider } = makeService();
+
+      await expect(service.requestEmailOtp('new@gmail.com')).rejects.toMatchObject({
+        response: { code: 'COMPANY_EMAIL_REQUIRED' },
+      });
+      expect(emailProvider.send).not.toHaveBeenCalled();
+
+      // No OTP was ever issued for this email — proven by verify failing on
+      // "not requested" rather than "incorrect", even with the correct
+      // dev-mode code.
+      await expect(service.verifyEmailOtp('new@gmail.com', DEV_OTP, 'Acme Inc.')).rejects.toThrow(
+        'OTP expired or not requested. Request a new one.',
+      );
+    });
+
+    it('requestEmailOtp rejects a brand-new signup on a disposable domain', async () => {
+      process.env.NODE_ENV = 'test';
+      const { service } = makeService();
+
+      await expect(service.requestEmailOtp('new@mailinator.com')).rejects.toMatchObject({
+        response: { code: 'COMPANY_EMAIL_REQUIRED' },
+      });
+    });
+
+    it('requestEmailOtp allows a brand-new signup on an ordinary company domain (regression guard)', async () => {
+      process.env.NODE_ENV = 'test';
+      const { service } = makeService();
+
+      await expect(service.requestEmailOtp('new@acme.com')).resolves.toEqual({ message: 'OTP sent' });
+    });
+
+    it('verifyEmailOtp independently rejects account creation on a free-provider domain, even if an OTP was somehow issued (defense in depth, not just the request-time gate)', async () => {
+      process.env.NODE_ENV = 'test';
+      // Seed as if this address had an account at request-time (so
+      // requestEmailOtp's own `!existing` check doesn't fire) — then remove
+      // it before verify, simulating the account being gone by commit time.
+      // This isolates verifyEmailOtp's own gate from requestEmailOtp's.
+      const placeholder: UserRow = { id: 'temp-1', phone: null, email: 'racy@gmail.com', role: Role.EMPLOYER_ADMIN };
+      const { service, users, prisma } = makeService([placeholder]);
+
+      await service.requestEmailOtp('racy@gmail.com');
+      users.length = 0; // the account is gone by the time verify runs
+
+      await expect(service.verifyEmailOtp('racy@gmail.com', DEV_OTP, 'Acme Inc.')).rejects.toMatchObject({
+        response: { code: 'COMPANY_EMAIL_REQUIRED' },
+      });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    describe('grandfathering — an existing free-provider employer account keeps working', () => {
+      it('can still request an OTP (login), matching the real mukaabone@gmail.com account this was checked against', async () => {
+        process.env.NODE_ENV = 'test';
+        const existing: UserRow = { id: 'user-1', phone: null, email: 'mukaabone@gmail.com', role: Role.EMPLOYER_ADMIN };
+        const { service } = makeService([existing]);
+
+        await expect(service.requestEmailOtp('mukaabone@gmail.com')).resolves.toEqual({ message: 'OTP sent' });
+      });
+
+      it('can still verify and log in — no COMPANY_EMAIL_REQUIRED, no new account, orgName ignored', async () => {
+        process.env.NODE_ENV = 'test';
+        const existing: UserRow = { id: 'user-1', phone: null, email: 'mukaabone@gmail.com', role: Role.EMPLOYER_ADMIN };
+        const { service, prisma, users } = makeService([existing]);
+
+        await service.requestEmailOtp('mukaabone@gmail.com');
+        const result = await service.verifyEmailOtp('mukaabone@gmail.com', DEV_OTP, 'Some Other Org');
+
+        expect(result).toMatchObject({ accessToken: 'signed.jwt.token', refreshToken: expect.any(String) });
+        expect(users).toHaveLength(1); // no duplicate/new account
+        expect(prisma.$transaction).not.toHaveBeenCalled(); // never re-entered createEmployer
+      });
+    });
+
+    it("acceptInvite is NOT gated — an admin's invite to a personal address (e.g. a contractor) overrides the restriction", async () => {
+      process.env.NODE_ENV = 'test';
+      const invitation = pendingInvitation({ email: 'contractor@gmail.com', organizationId: 'org-1' });
+      const { service, users, orgMembers } = makeService([], [], [invitation]);
+
+      await service.requestInviteOtp('contractor@gmail.com');
+      const result = await service.acceptInvite('contractor@gmail.com', DEV_OTP);
+
+      expect(result).toMatchObject({ accessToken: 'signed.jwt.token' });
+      expect(users[0]).toMatchObject({ email: 'contractor@gmail.com', role: Role.EMPLOYER_MEMBER });
+      expect(orgMembers[0]).toMatchObject({ userId: users[0].id, organizationId: 'org-1' });
+    });
+  });
+
   describe('phone paths are unaffected', () => {
     it('phone signup still works exactly as before (regression guard on the issueOtp/consumeOtp extraction)', async () => {
       process.env.NODE_ENV = 'test';
@@ -1020,5 +1109,82 @@ describe('AuthService — add-identifier linking (phone/email onto one account)'
     // Would throw (cooldown) if link and login shared the same otpStore key.
     await service.requestOtp('+919999900016');
     await expect(service.requestLinkPhoneOtp('user-1', '+919999900016')).resolves.toEqual({ message: 'OTP sent' });
+  });
+
+  describe('company-email domain gate on link-email (employer-only, closes the phone-first bypass)', () => {
+    it('an employer cannot link a free-provider email onto their account', async () => {
+      process.env.NODE_ENV = 'test';
+      const me: UserRow = { id: 'user-1', phone: '+919999900030', email: null, role: Role.EMPLOYER_ADMIN };
+      const { service, users } = makeService([me]);
+
+      await expect(service.requestLinkEmailOtp('user-1', 'personal@gmail.com')).rejects.toMatchObject({
+        response: { code: 'COMPANY_EMAIL_REQUIRED' },
+      });
+      expect(users[0].email).toBeNull(); // unchanged
+    });
+
+    it('an employer cannot link a disposable email either', async () => {
+      process.env.NODE_ENV = 'test';
+      const me: UserRow = { id: 'user-1', phone: '+919999900031', email: null, role: Role.EMPLOYER_ADMIN };
+      const { service } = makeService([me]);
+
+      await expect(service.requestLinkEmailOtp('user-1', 'temp@mailinator.com')).rejects.toMatchObject({
+        response: { code: 'COMPANY_EMAIL_REQUIRED' },
+      });
+    });
+
+    it('an employer CAN link a company-domain email', async () => {
+      process.env.NODE_ENV = 'test';
+      const me: UserRow = { id: 'user-1', phone: '+919999900032', email: null, role: Role.EMPLOYER_ADMIN };
+      const { service, users } = makeService([me]);
+
+      await service.requestLinkEmailOtp('user-1', 'me@acme.com');
+      const result = await service.verifyLinkEmailOtp('user-1', 'me@acme.com', DEV_OTP);
+
+      expect(result).toMatchObject({ ok: true, email: 'me@acme.com' });
+      expect(users[0].email).toBe('me@acme.com');
+    });
+
+    it('an EMPLOYER_MEMBER (not just EMPLOYER_ADMIN) is gated the same way', async () => {
+      process.env.NODE_ENV = 'test';
+      const me: UserRow = { id: 'user-1', phone: '+919999900033', email: null, role: Role.EMPLOYER_MEMBER };
+      const { service } = makeService([me]);
+
+      await expect(service.requestLinkEmailOtp('user-1', 'personal@yahoo.com')).rejects.toMatchObject({
+        response: { code: 'COMPANY_EMAIL_REQUIRED' },
+      });
+    });
+
+    it('a candidate is completely unaffected — can freely link a free-provider email', async () => {
+      process.env.NODE_ENV = 'test';
+      const me: UserRow = { id: 'user-1', phone: '+919999900034', email: null, role: Role.CANDIDATE };
+      const { service, users } = makeService([me]);
+
+      await service.requestLinkEmailOtp('user-1', 'me@gmail.com');
+      const result = await service.verifyLinkEmailOtp('user-1', 'me@gmail.com', DEV_OTP);
+
+      expect(result).toMatchObject({ ok: true, email: 'me@gmail.com' });
+      expect(users[0].email).toBe('me@gmail.com');
+    });
+
+    it('verifyLinkEmailOtp re-checks at commit too, not just requestLinkEmailOtp — a role change between the two catches it', async () => {
+      process.env.NODE_ENV = 'test';
+      // A CANDIDATE at request time: the gate is skipped, so requesting an
+      // OTP for a free-provider email succeeds normally.
+      const me: UserRow = { id: 'user-1', phone: '+919999900035', email: null, role: Role.CANDIDATE };
+      const { service, users } = makeService([me]);
+
+      await expect(service.requestLinkEmailOtp('user-1', 'me@gmail.com')).resolves.toEqual({ message: 'OTP sent' });
+
+      // Promoted to an employer role before verify runs (e.g. via
+      // OrgMembersService, concurrently) — verify must catch this itself
+      // rather than trusting that request-time already cleared it.
+      me.role = Role.EMPLOYER_ADMIN;
+
+      await expect(service.verifyLinkEmailOtp('user-1', 'me@gmail.com', DEV_OTP)).rejects.toMatchObject({
+        response: { code: 'COMPANY_EMAIL_REQUIRED' },
+      });
+      expect(users[0].email).toBeNull(); // never attached
+    });
   });
 });

@@ -19,6 +19,7 @@ import { GithubOAuthProvider } from './oauth/github-oauth.provider';
 import { GoogleOAuthProvider } from './oauth/google-oauth.provider';
 import { ExternalProfile, OAuthCodeExchange } from './oauth/oauth.types';
 import { normalizeEmail } from './normalize-email';
+import { assertCompanyEmail } from './employer-email-domain';
 import { PRIVACY_VERSION, TERMS_VERSION } from './legal-terms';
 
 const EMPLOYER_ROLES: Role[] = [Role.EMPLOYER_ADMIN, Role.EMPLOYER_MEMBER];
@@ -145,9 +146,20 @@ export class AuthService {
    * convenience requestOtp gives the phone path, so local/dev testing never
    * depends on a configured Resend API key — and the code is never echoed
    * back in the API response either way, so the client can't prefill it.
+   *
+   * assertCompanyEmail only runs when no account exists yet for this email
+   * — a signup-time gate, not a login gate (existing employer accounts,
+   * including free-provider ones grandfathered from before this check
+   * shipped, must keep logging in regardless of domain; see
+   * verifyEmailOtp's identical `existing`-gated call for the authoritative
+   * check — this one is just an early, pre-send rejection so a blocked
+   * signup doesn't burn an OTP email and a round trip for nothing).
    */
   async requestEmailOtp(rawEmail: string): Promise<{ message: string }> {
     const email = normalizeEmail(rawEmail);
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (!existing) assertCompanyEmail(email);
+
     const otp = this.issueOtp(email);
     const isDev = process.env.NODE_ENV !== 'production';
 
@@ -346,6 +358,14 @@ export class AuthService {
    * candidate account can't log in here, but there's no "not an employer
    * flow" branch to guard the other way. Single-use verification itself
    * (consumeOtp) is identical to the phone path, just keyed by email.
+   *
+   * assertCompanyEmail runs only in the brand-new-account branch below —
+   * the authoritative signup-time gate (requestEmailOtp's own call is just
+   * an early rejection; this one is what actually stops createEmployer).
+   * The `existing` branch above it is deliberately never gated: an
+   * already-registered employer — including a free-provider address
+   * grandfathered in from before this check existed — must keep logging in
+   * regardless of domain. Only account *creation* is restricted.
    */
   async verifyEmailOtp(rawEmail: string, otp: string, orgName: string) {
     const email = normalizeEmail(rawEmail);
@@ -362,6 +382,7 @@ export class AuthService {
       return this.issueTokens(existing.id, existing.role, this.publicUser(existing));
     }
 
+    assertCompanyEmail(email);
     const user = await this.createEmployer(orgName, { email });
     return this.issueTokens(user.id, user.role, this.publicUser(user));
   }
@@ -818,11 +839,24 @@ export class AuthService {
     }
   }
 
-  /** Email counterpart to assertPhoneLinkable — case-insensitive match, same as findVerifiedEmailMatch. */
+  /**
+   * Email counterpart to assertPhoneLinkable — case-insensitive match, same
+   * as findVerifiedEmailMatch. Employer-only domain gate bolted on here too
+   * (checked only when `me` already holds an employer role — candidates are
+   * unaffected): without it, a phone-first employer could attach a personal
+   * Gmail address via this generic link flow and then use it to log in
+   * through verifyEmailOtp's `existing` branch, which never re-checks the
+   * domain — sidestepping the signup-time gate entirely. Called from both
+   * requestLinkEmailOtp and verifyLinkEmailOtp (same "recheck at commit"
+   * pattern as the rest of this method), so gating it once here covers both.
+   */
   private async assertEmailLinkable(userId: string, email: string): Promise<void> {
     const me = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     if (me.email) {
       throw new BadRequestException('Your account already has an email address.');
+    }
+    if (EMPLOYER_ROLES.includes(me.role)) {
+      assertCompanyEmail(email);
     }
     const taken = await this.prisma.user.findFirst({
       where: { email: { equals: email, mode: 'insensitive' } },
