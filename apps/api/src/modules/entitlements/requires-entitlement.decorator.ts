@@ -1,7 +1,7 @@
 import { SetMetadata } from '@nestjs/common';
 
 /** The countable, monthly-reset metrics EntitlementGuard knows how to enforce — see plans.config.ts's *PerMonth keys. */
-export type CountableMetric = 'assessments' | 'applications';
+export type CountableMetric = 'assessments' | 'applications' | 'discussionSessions';
 
 /**
  * A plain boolean feature flag from PlanLimits (not countable, no

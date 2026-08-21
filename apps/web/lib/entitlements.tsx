@@ -22,6 +22,8 @@ export type SubscriptionTier = 'FREE' | 'PREMIUM';
 /** Mirrors apps/api/src/config/plans.config.ts's PlanLimits shape exactly — field names/types only, never a value. */
 export interface PlanLimits {
   assessmentsPerMonth: number | null;
+  /** AI discussion-session (conversational assessor) starts allowed per month — separate metric/quota from assessmentsPerMonth (MCQ). See plans.config.ts. */
+  discussionSessionsPerMonth: number | null;
   retakeCooldownDays: number;
   retakesPerSkillLifetime: number;
   applicationsPerMonth: number | null;
@@ -47,6 +49,7 @@ export interface EntitlementsResponse {
   usage: {
     assessments: UsageEntry;
     applications: UsageEntry;
+    discussionSessions: UsageEntry;
   };
 }
 

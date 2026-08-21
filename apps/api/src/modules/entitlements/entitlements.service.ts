@@ -8,9 +8,10 @@ import { EntitlementLimitException } from './entitlements.errors';
 /** PAST_DUE keeps PREMIUM entitlements for this many days after currentPeriodEnd — see resolveEffectiveTier. */
 const PAST_DUE_GRACE_DAYS = 7;
 
-const METRIC_LIMIT_KEY: Record<CountableMetric, 'assessmentsPerMonth' | 'applicationsPerMonth'> = {
+const METRIC_LIMIT_KEY: Record<CountableMetric, 'assessmentsPerMonth' | 'applicationsPerMonth' | 'discussionSessionsPerMonth'> = {
   assessments: 'assessmentsPerMonth',
   applications: 'applicationsPerMonth',
+  discussionSessions: 'discussionSessionsPerMonth',
 };
 
 export interface UsageEntry {
@@ -25,6 +26,7 @@ export interface EntitlementsResponse {
   usage: {
     assessments: UsageEntry;
     applications: UsageEntry;
+    discussionSessions: UsageEntry;
   };
 }
 
@@ -83,12 +85,13 @@ export class EntitlementsService {
     const tier = await this.resolveEffectiveTierForProfile(candidateId);
     const limits = PLANS[tier];
 
-    const [assessments, applications] = await Promise.all([
+    const [assessments, applications, discussionSessions] = await Promise.all([
       this.readUsage(candidateId, 'assessments', limits.assessmentsPerMonth),
       this.readUsage(candidateId, 'applications', limits.applicationsPerMonth),
+      this.readUsage(candidateId, 'discussionSessions', limits.discussionSessionsPerMonth),
     ]);
 
-    return { tier, limits, usage: { assessments, applications } };
+    return { tier, limits, usage: { assessments, applications, discussionSessions } };
   }
 
   /**
@@ -120,6 +123,23 @@ export class EntitlementsService {
     const now = new Date();
     const periodStart = periodStartOf(now);
     const resetsAt = nextPeriodStartOf(now);
+
+    // incrementBounded's WHERE clause only gates the DO UPDATE branch of
+    // its ON CONFLICT — the *first* insert for a fresh (candidateId,
+    // metric, periodStart) row always succeeds unconditionally, regardless
+    // of `limit`, because there's nothing to conflict with yet on that
+    // first call. Every limit this codebase has ever had before
+    // discussionSessionsPerMonth's post-promo value was either null or a
+    // positive integer, so this never mattered — confirmed directly
+    // against Postgres (not assumed) that a limit of exactly 0 would
+    // otherwise let precisely one use through per period before blocking
+    // the second. Short-circuit before ever touching UsageCounter for that
+    // case, rather than trying to make the atomic upsert itself express
+    // "reject even the first row" — simpler, and leaves the proven-correct
+    // SQL below untouched for every other limit shape.
+    if (limit !== null && limit <= 0) {
+      throw new EntitlementLimitException(metric, limit, resetsAt);
+    }
 
     const used = await this.incrementBounded(candidateId, metric, periodStart, limit);
 

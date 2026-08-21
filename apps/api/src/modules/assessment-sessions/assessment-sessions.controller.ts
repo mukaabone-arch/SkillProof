@@ -3,6 +3,8 @@ import { AssessmentSession, Role } from '@prisma/client';
 import { AuthenticatedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { EntitlementGuard } from '../entitlements/entitlement.guard';
+import { RequiresEntitlement } from '../entitlements/requires-entitlement.decorator';
 import { AssessmentSessionsService, computeProgress, IDLE_TIMEOUT_MINUTES } from './assessment-sessions.service';
 import { LadderState } from './assessor.service';
 import { ScoringService } from './scoring.service';
@@ -49,7 +51,17 @@ export class AssessmentSessionsController {
     private readonly review: ReviewService,
   ) {}
 
+  /**
+   * Gated on the 'discussionSessions' metric (see plans.config.ts /
+   * entitlements README) — distinct from MCQ's 'assessments' metric, since
+   * these are two independently-quota'd assessment formats. Method-level
+   * only, not class-level: every other route on this controller (turns,
+   * resume, result, disputes, admin review/decision) must stay ungated —
+   * only starting a brand-new session consumes a unit.
+   */
   @Post()
+  @UseGuards(EntitlementGuard)
+  @RequiresEntitlement('discussionSessions')
   async create(@Req() req: AuthenticatedRequest) {
     const { session, turns, claimFeedback } = await this.svc.createSession(req.user.sub);
     const elapsedSeconds = await this.svc.computeElapsedSeconds(session.id, session.startedAt);

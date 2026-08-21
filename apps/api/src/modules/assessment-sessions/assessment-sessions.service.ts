@@ -16,6 +16,7 @@ import { AssessorService, LadderState } from './assessor.service';
 import { ScoringService } from './scoring.service';
 import { LiveFeedbackService, VerdictTone } from './live-feedback.service';
 import { BadgeResolverService } from '../badges/badge-resolver.service';
+import { EntitlementsService } from '../entitlements/entitlements.service';
 import { assertProfileReadyForAssessment } from '../profiles/profile-readiness';
 import { CLAIM_ORDER, RUBRIC_VERSION, SCENARIO_BRIEF, SKILL_LEVEL, SKILL_NAME } from './rag-systems-l2.rubric';
 import { TurnSignalsDto } from './assessment-sessions.dto';
@@ -205,6 +206,7 @@ export class AssessmentSessionsService {
     private readonly scoring: ScoringService,
     private readonly liveFeedback: LiveFeedbackService,
     private readonly badgeResolver: BadgeResolverService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   /**
@@ -227,6 +229,13 @@ export class AssessmentSessionsService {
       orderBy: { createdAt: 'desc' },
     });
     if (existing) {
+      // Not a genuinely new use — EntitlementGuard already charged one unit
+      // of the 'discussionSessions' metric before this method ever ran (see
+      // AssessmentSessionsController.create); undo that charge since we're
+      // handing back the same existing session, not starting another one.
+      // Same pattern as AssessmentsService.startAttempt's identical
+      // idempotent-return refund — see that call's own doc comment.
+      await this.entitlements.refund(userId, 'discussionSessions');
       const enforced = await this.enforceExpiry(existing);
       return { session: enforced, turns: await this.publicTurns(enforced.id), claimFeedback: await this.publicLiveFeedback(enforced.id) };
     }

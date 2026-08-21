@@ -26,34 +26,60 @@ field is safe.
     // unlimited.
   },
   "usage": {
-    "assessments": { "used": 1, "limit": 2, "resetsAt": "2026-08-01T00:00:00.000Z" },
-    "applications": { "used": 4, "limit": 10, "resetsAt": "2026-08-01T00:00:00.000Z" }
+    "assessments": { "used": 1, "limit": null, "resetsAt": "2026-08-01T00:00:00.000Z" },
+    "applications": { "used": 4, "limit": 10, "resetsAt": "2026-08-01T00:00:00.000Z" },
+    "discussionSessions": { "used": 0, "limit": 1, "resetsAt": "2026-08-01T00:00:00.000Z" }
   }
 }
 ```
 
 - `limit: null` on a usage entry means unlimited (mirrors the `limits` entry
   it's derived from) — clients must check for `null` before rendering a
-  progress bar or "X of Y" string.
+  progress bar or "X of Y" string. `assessmentsPerMonth` (MCQ) is `null` on
+  both tiers as of the discussion-sessions split below — the metric is
+  still charged/tracked (see `EntitlementGuard`) so this field stays
+  present and shaped the same either way, it just never blocks.
 - `resetsAt` is always the start of the next UTC calendar month, regardless
   of tier — usage counters reset on calendar-month boundaries, not a
   rolling window.
-- `usage` only ever reports the two countable, monthly-reset metrics
-  (`assessments`, `applications`) — the ones `EntitlementGuard` actually
-  enforces via `@RequiresEntitlement`. Retake limits
+- `usage` reports the three countable, monthly-reset metrics
+  (`assessments`, `applications`, `discussionSessions`) — the ones
+  `EntitlementGuard` actually enforces via `@RequiresEntitlement`. MCQ
+  assessments (`assessmentsPerMonth`) and AI discussion sessions
+  (`discussionSessionsPerMonth`) are deliberately separate metrics with
+  independent quotas, not one shared "assessments" pool, even though both
+  are ways of earning a badge — see `src/modules/assessment-sessions` for
+  the discussion format. Retake limits
   (`retakeCooldownDays`/`retakesPerSkillLifetime`) are per-skill, not
   monthly, and aren't part of this response's `usage` block; they surface
   per-skill instead, alongside the assessment catalog.
+- FREE's `discussionSessionsPerMonth` is time-limited, not a plain static
+  number — 1/month during a promotional window ending three months after
+  launch (`AI_DISCUSSION_PROMO_LAUNCH_DATE` in `plans.config.ts`), 0/month
+  after. Implemented as a getter on `PLANS.FREE` (plain object literals
+  support accessor properties; a getter re-runs on every read, including
+  through `JSON.stringify`, which is how this reaches both `GET /plans` and
+  this endpoint) rather than a plain value, since `PLANS` is built once at
+  process start and this value depends on wall-clock time, not anything
+  fixed at boot.
 
 ## Enforcement
 
-- `EntitlementGuard` + `@RequiresEntitlement('assessments' | 'applications')`
-  gate `POST /assessments/:id/attempts` and `POST /jobs/:id/apply`. On a
-  breach they throw **HTTP 402** with:
+- `EntitlementGuard` +
+  `@RequiresEntitlement('assessments' | 'applications' | 'discussionSessions')`
+  gate `POST /assessments/:id/attempts` (MCQ), `POST /jobs/:id/apply`, and
+  `POST /assessment-sessions` (AI discussion) respectively. On a breach they
+  throw **HTTP 402** with:
 
   ```json
-  { "code": "LIMIT_REACHED", "metric": "assessments", "limit": 2, "resetsAt": "2026-08-01T00:00:00.000Z" }
+  { "code": "LIMIT_REACHED", "metric": "discussionSessions", "limit": 1, "resetsAt": "2026-09-01T00:00:00.000Z" }
   ```
+
+  MCQ assessment starts are unlimited on both tiers, so this 402 shape is
+  never actually reachable for `metric: "assessments"` today — the gate is
+  left in place anyway (see plans.config.ts's own comment) since `limit:
+  null` already means "count it, never block," which is simpler and safer
+  than removing entitlement tracking from that route.
 
 - `EntitlementsService.checkRetakeEligibility` (called directly from
   `AssessmentsService.startAttempt`, not through the guard, since it needs

@@ -11,8 +11,17 @@
  * inline message right on the assessment screen where the attempt was
  * blocked (cooldown-until-date vs. lifetime-cap read very differently and
  * only one is solvable by upgrading), so a second, generic modal on top of
- * that would be redundant. This only ever fires for the two countable
- * monthly metrics (assessments, applications).
+ * that would be redundant. This only ever fires for the three countable
+ * monthly metrics (assessments, applications, discussionSessions) —
+ * without an entry here, a 402 for a metric this modal doesn't recognize
+ * is silently swallowed (the subscriber below just returns without ever
+ * calling setPayload), leaving whatever raw error the calling page's own
+ * catch block produces as the only feedback — confirmed directly against
+ * the discussion-session start page before discussionSessions was added
+ * here: EntitlementLimitException's body carries no `message` field, so
+ * that page's generic `setError(e.message)` rendered the unhelpful
+ * fallback "Request failed: 402" with no mention of the limit, reset
+ * date, or an upgrade path.
  *
  * Mounted once at the app root (Providers.tsx) and never unmounted across
  * client-side navigation, so its state doesn't naturally reset on a route
@@ -31,6 +40,7 @@ import { onLimitReached, LimitReachedPayload } from '@/lib/limitReachedBus';
 const METRIC_LABEL: Record<string, string> = {
   assessments: 'assessment starts',
   applications: 'job applications',
+  discussionSessions: 'AI discussion sessions',
 };
 
 function formatResetDate(resetsAt: string | null): string {
@@ -45,7 +55,7 @@ export default function LimitReachedModal() {
 
   useEffect(() => {
     return onLimitReached((p) => {
-      if (p.metric !== 'assessments' && p.metric !== 'applications') return;
+      if (p.metric !== 'assessments' && p.metric !== 'applications' && p.metric !== 'discussionSessions') return;
       setPayload(p);
     });
   }, []);

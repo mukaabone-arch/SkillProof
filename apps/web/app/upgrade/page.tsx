@@ -32,6 +32,15 @@ const FEATURE_ROWS: { label: string; format: (l: PlanLimits) => string }[] = [
     format: (l) => (l.assessmentsPerMonth === null ? 'Unlimited' : `${l.assessmentsPerMonth} per month`),
   },
   {
+    label: 'AI discussion sessions',
+    format: (l) =>
+      l.discussionSessionsPerMonth === null
+        ? 'Unlimited'
+        : l.discussionSessionsPerMonth === 0
+          ? 'Not included'
+          : `${l.discussionSessionsPerMonth} per month`,
+  },
+  {
     label: 'Retake cooldown',
     format: (l) => (l.retakeCooldownDays === 0 ? 'None — retake right away' : `${l.retakeCooldownDays}-day wait between retakes`),
   },

@@ -1,6 +1,7 @@
 import { AttemptStatus, Subscription, SubscriptionStatus, SubscriptionTier } from '@prisma/client';
 import { EntitlementsService, periodStartOf, nextPeriodStartOf, resolveEffectiveTier } from './entitlements.service';
 import { EntitlementLimitException } from './entitlements.errors';
+import { AI_DISCUSSION_PROMO_LAUNCH_DATE, isAiDiscussionPromoActive } from '../../config/plans.config';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -109,6 +110,44 @@ describe('periodStartOf / nextPeriodStartOf', () => {
   });
 });
 
+describe('isAiDiscussionPromoActive', () => {
+  it('is true right at the launch instant', () => {
+    expect(isAiDiscussionPromoActive(AI_DISCUSSION_PROMO_LAUNCH_DATE)).toBe(true);
+  });
+
+  it('is false one second before launch — the window has a lower bound, not just an upper one', () => {
+    // Regression test for the original end-only implementation: without
+    // checking `now >= launchDate`, deploying this code ahead of the
+    // actual launch date would have let FREE candidates start getting
+    // promotional discussion sessions early.
+    const oneSecondBeforeLaunch = new Date(AI_DISCUSSION_PROMO_LAUNCH_DATE.getTime() - 1000);
+    expect(isAiDiscussionPromoActive(oneSecondBeforeLaunch)).toBe(false);
+  });
+
+  it('is false well before launch', () => {
+    expect(isAiDiscussionPromoActive(new Date('2026-01-01T00:00:00.000Z'))).toBe(false);
+  });
+
+  it('is true one day before the 3-month cutoff', () => {
+    const oneDayBeforeEnd = new Date('2026-11-23T00:00:00.000Z');
+    expect(isAiDiscussionPromoActive(oneDayBeforeEnd)).toBe(true);
+  });
+
+  it('is false exactly at the 3-month cutoff — the window is a half-open [launch, launch+3mo) interval', () => {
+    const exactCutoff = new Date('2026-11-24T00:00:00.000Z');
+    expect(isAiDiscussionPromoActive(exactCutoff)).toBe(false);
+  });
+
+  it('is false one second after the cutoff', () => {
+    const justAfter = new Date('2026-11-24T00:00:01.000Z');
+    expect(isAiDiscussionPromoActive(justAfter)).toBe(false);
+  });
+
+  it('is false well after the cutoff', () => {
+    expect(isAiDiscussionPromoActive(new Date('2027-06-01T00:00:00.000Z'))).toBe(false);
+  });
+});
+
 /** Minimal PrismaService double — only the methods EntitlementsService actually calls. */
 function fakePrisma() {
   const usageCounterRows = new Map<string, { candidateId: string; metric: string; periodStart: Date; count: number }>();
@@ -203,6 +242,13 @@ function fakePrisma() {
 }
 
 describe('EntitlementsService.checkAndIncrement', () => {
+  // Exercised against 'applications' (FREE limit: 10, untouched by the
+  // discussion-sessions change) rather than 'assessments' — assessmentsPerMonth
+  // is now null (unlimited) on both tiers, so it can no longer stand in for
+  // "a metric with a real, blockable limit" the way it used to. See the
+  // dedicated 'never blocks assessments (unlimited on both tiers)' test
+  // below for assessments' own new behavior, and the discussionSessions
+  // block further down for the metric that actually has FREE-tier limits now.
   it('increments under the limit and returns the running count', async () => {
     const { prisma } = fakePrisma();
     prisma.subscription.findUnique.mockResolvedValue(
@@ -210,11 +256,11 @@ describe('EntitlementsService.checkAndIncrement', () => {
     );
     const svc = new EntitlementsService(prisma as any);
 
-    const first = await svc.checkAndIncrement('user-1', 'assessments');
+    const first = await svc.checkAndIncrement('user-1', 'applications');
     expect(first.used).toBe(1);
-    expect(first.limit).toBe(2); // FREE.assessmentsPerMonth
+    expect(first.limit).toBe(10); // FREE.applicationsPerMonth
 
-    const second = await svc.checkAndIncrement('user-1', 'assessments');
+    const second = await svc.checkAndIncrement('user-1', 'applications');
     expect(second.used).toBe(2);
   });
 
@@ -225,19 +271,18 @@ describe('EntitlementsService.checkAndIncrement', () => {
     );
     const svc = new EntitlementsService(prisma as any);
 
-    await svc.checkAndIncrement('user-1', 'assessments');
-    await svc.checkAndIncrement('user-1', 'assessments'); // now at limit=2
+    for (let i = 0; i < 10; i++) await svc.checkAndIncrement('user-1', 'applications'); // now at limit=10
 
-    await expect(svc.checkAndIncrement('user-1', 'assessments')).rejects.toThrow(EntitlementLimitException);
+    await expect(svc.checkAndIncrement('user-1', 'applications')).rejects.toThrow(EntitlementLimitException);
     try {
-      await svc.checkAndIncrement('user-1', 'assessments');
+      await svc.checkAndIncrement('user-1', 'applications');
       fail('expected EntitlementLimitException');
     } catch (err) {
       expect(err).toBeInstanceOf(EntitlementLimitException);
       const response = (err as EntitlementLimitException).getResponse() as Record<string, unknown>;
       expect(response.code).toBe('LIMIT_REACHED');
-      expect(response.metric).toBe('assessments');
-      expect(response.limit).toBe(2);
+      expect(response.metric).toBe('applications');
+      expect(response.limit).toBe(10);
       expect(response.resetsAt).toBeInstanceOf(Date);
     }
   });
@@ -256,6 +301,20 @@ describe('EntitlementsService.checkAndIncrement', () => {
     }
   });
 
+  it('never blocks assessments (MCQ) on FREE either — unlimited on both tiers as of the discussion-sessions split', async () => {
+    const { prisma } = fakePrisma();
+    prisma.subscription.findUnique.mockResolvedValue(
+      fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+    );
+    const svc = new EntitlementsService(prisma as any);
+
+    for (let i = 1; i <= 5; i++) {
+      const result = await svc.checkAndIncrement('user-1', 'assessments');
+      expect(result.used).toBe(i);
+      expect(result.limit).toBeNull();
+    }
+  });
+
   it('resolves the tier server-side from the Subscription row, never from a client-supplied value', async () => {
     // There is no parameter anywhere on checkAndIncrement for a caller to pass
     // a tier — this test documents that guarantee at the type level: the only
@@ -264,8 +323,112 @@ describe('EntitlementsService.checkAndIncrement', () => {
     prisma.subscription.findUnique.mockResolvedValue(null); // no row → FREE
     const svc = new EntitlementsService(prisma as any);
 
-    const result = await svc.checkAndIncrement('user-1', 'assessments');
-    expect(result.limit).toBe(2); // FREE's limit, even though nothing told it to be FREE explicitly
+    const result = await svc.checkAndIncrement('user-1', 'applications');
+    expect(result.limit).toBe(10); // FREE's limit, even though nothing told it to be FREE explicitly
+  });
+
+  describe('discussionSessions (new metric — AI discussion sessions, distinct from MCQ assessments)', () => {
+    afterEach(() => jest.useRealTimers());
+
+    it('PREMIUM: 2/month, static — blocks on the 3rd', async () => {
+      const { prisma } = fakePrisma();
+      prisma.subscription.findUnique.mockResolvedValue(
+        fakeSubscription({ tier: SubscriptionTier.PREMIUM, status: SubscriptionStatus.ACTIVE }),
+      );
+      const svc = new EntitlementsService(prisma as any);
+
+      const first = await svc.checkAndIncrement('user-1', 'discussionSessions');
+      expect(first).toMatchObject({ used: 1, limit: 2 });
+      const second = await svc.checkAndIncrement('user-1', 'discussionSessions');
+      expect(second).toMatchObject({ used: 2, limit: 2 });
+
+      await expect(svc.checkAndIncrement('user-1', 'discussionSessions')).rejects.toMatchObject({
+        response: { code: 'LIMIT_REACHED', metric: 'discussionSessions', limit: 2 },
+      });
+    });
+
+    it('FREE, during the promo window: 1/month — blocks on the 2nd', async () => {
+      jest.useFakeTimers({ now: new Date('2026-09-15T00:00:00.000Z') }); // between launch and the 3-month cutoff
+      const { prisma } = fakePrisma();
+      prisma.subscription.findUnique.mockResolvedValue(
+        fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+      );
+      const svc = new EntitlementsService(prisma as any);
+
+      const first = await svc.checkAndIncrement('user-1', 'discussionSessions');
+      expect(first).toMatchObject({ used: 1, limit: 1 });
+
+      await expect(svc.checkAndIncrement('user-1', 'discussionSessions')).rejects.toMatchObject({
+        response: { code: 'LIMIT_REACHED', metric: 'discussionSessions', limit: 1 },
+      });
+    });
+
+    it('FREE, after the promo window: 0/month — blocks the very first attempt of the month, not just the second', async () => {
+      // Regression test for a real bug found while implementing this: the
+      // atomic INSERT ... ON CONFLICT DO UPDATE ... WHERE count < limit in
+      // incrementBounded only gates the UPDATE branch — a brand-new row's
+      // first INSERT always succeeds regardless of `limit`, because there's
+      // nothing to conflict with yet. Confirmed directly against Postgres
+      // (not assumed) before adding checkAndIncrement's upfront
+      // `limit <= 0` short-circuit. Without that guard, this exact test
+      // would incorrectly pass on attempt #1.
+      jest.useFakeTimers({ now: new Date('2026-12-01T00:00:00.000Z') }); // after the 3-month cutoff
+      const { prisma } = fakePrisma();
+      prisma.subscription.findUnique.mockResolvedValue(
+        fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+      );
+      const svc = new EntitlementsService(prisma as any);
+
+      await expect(svc.checkAndIncrement('user-1', 'discussionSessions')).rejects.toMatchObject({
+        response: { code: 'LIMIT_REACHED', metric: 'discussionSessions', limit: 0 },
+      });
+    });
+
+    it('a limit: 0 breach never touches UsageCounter at all — no row is created', async () => {
+      jest.useFakeTimers({ now: new Date('2026-12-01T00:00:00.000Z') });
+      const { prisma, usageCounterRows } = fakePrisma();
+      prisma.subscription.findUnique.mockResolvedValue(
+        fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+      );
+      const svc = new EntitlementsService(prisma as any);
+
+      await expect(svc.checkAndIncrement('user-1', 'discussionSessions')).rejects.toThrow(EntitlementLimitException);
+      expect(usageCounterRows.size).toBe(0);
+      expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe('EntitlementsService.getEntitlements', () => {
+  afterEach(() => jest.useRealTimers());
+
+  it('reports all three countable metrics, including the new discussionSessions block', async () => {
+    jest.useFakeTimers({ now: new Date('2026-09-15T00:00:00.000Z') }); // during the promo window
+    const { prisma } = fakePrisma();
+    prisma.subscription.findUnique.mockResolvedValue(
+      fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+    );
+    const svc = new EntitlementsService(prisma as any);
+
+    const result = await svc.getEntitlements('user-1');
+    expect(result.limits.assessmentsPerMonth).toBeNull(); // unlimited on both tiers now
+    expect(result.limits.discussionSessionsPerMonth).toBe(1); // FREE, during the promo
+    expect(result.usage.discussionSessions).toMatchObject({ used: 0, limit: 1 });
+    expect(result.usage.assessments).toMatchObject({ used: 0, limit: null });
+    expect(result.usage.applications).toMatchObject({ used: 0, limit: 10 });
+  });
+
+  it("reflects a FREE candidate's discussionSessionsPerMonth dropping to 0 once the promo ends, with no code change needed beyond the clock", async () => {
+    jest.useFakeTimers({ now: new Date('2027-01-01T00:00:00.000Z') }); // well after the cutoff
+    const { prisma } = fakePrisma();
+    prisma.subscription.findUnique.mockResolvedValue(
+      fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+    );
+    const svc = new EntitlementsService(prisma as any);
+
+    const result = await svc.getEntitlements('user-1');
+    expect(result.limits.discussionSessionsPerMonth).toBe(0);
+    expect(result.usage.discussionSessions.limit).toBe(0);
   });
 });
 

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { BadgesModule } from '../badges/badges.module';
+import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { AssessmentSessionsController } from './assessment-sessions.controller';
 import { AssessmentSessionsService } from './assessment-sessions.service';
 import { AssessorService } from './assessor.service';
@@ -9,7 +10,7 @@ import { ReviewService } from './review.service';
 import { LiveFeedbackService } from './live-feedback.service';
 
 @Module({
-  imports: [AuthModule, BadgesModule],
+  imports: [AuthModule, BadgesModule, EntitlementsModule],
   controllers: [AssessmentSessionsController],
   providers: [AssessmentSessionsService, AssessorService, ScoringService, ReviewService, LiveFeedbackService],
   // AssessmentSessionsService is consumed by AssessmentsModule to compose
