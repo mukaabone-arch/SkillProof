@@ -29,6 +29,7 @@ import { InterviewSessionsModule } from './modules/interview-sessions/interview-
 import { AccountModule } from './modules/account/account.module';
 import { AssessmentRequestsModule } from './modules/assessment-requests/assessment-requests.module';
 import { ContactModule } from './modules/contact/contact.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { StorageModule } from './storage/storage.module';
 
 @Module({
@@ -64,6 +65,7 @@ import { StorageModule } from './storage/storage.module';
     AccountModule,
     AssessmentRequestsModule,
     ContactModule,
+    SubscriptionsModule,
   ],
 })
 export class AppModule {}

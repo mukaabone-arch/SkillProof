@@ -8,17 +8,28 @@
  * their own slightly-different local RazorpayCheckoutOptions (e.g. one
  * missing `modal`) would fail to compile together.
  */
+/**
+ * order_id/razorpay_order_id are set for the one-time-order flow
+ * (AssessCandidateAction); subscription_id/razorpay_subscription_id are set
+ * for the subscription checkout flow (subscriptions module) instead —
+ * Razorpay Checkout only ever uses one pairing per session, never both, but
+ * TypeScript's global declaration merging (see this file's own doc comment
+ * above) needs one shape both callers agree on, hence both being optional
+ * here rather than two separate incompatible option types.
+ */
 export interface RazorpayCheckoutResponse {
-  razorpay_order_id: string;
+  razorpay_order_id?: string;
+  razorpay_subscription_id?: string;
   razorpay_payment_id: string;
   razorpay_signature: string;
 }
 
 export interface RazorpayCheckoutOptions {
   key: string;
-  amount: number;
-  currency: string;
-  order_id: string;
+  amount?: number;
+  currency?: string;
+  order_id?: string;
+  subscription_id?: string;
   name: string;
   description?: string;
   handler: (response: RazorpayCheckoutResponse) => void;

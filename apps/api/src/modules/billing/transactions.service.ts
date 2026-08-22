@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Transaction, TransactionStatus } from '@prisma/client';
+import { Transaction, TransactionStatus, TransactionType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AmendTransactionDto, AttachProviderReferenceDto, CreateTransactionDto } from './billing.dto';
 
@@ -150,6 +150,51 @@ export class TransactionsService {
       transaction.billingProfile.organizationId,
     );
     return updated;
+  }
+
+  /**
+   * The one path allowed to write createdByAdminId: null — a Transaction
+   * whose actor is the Razorpay webhook handler, not a human admin. Used
+   * exclusively by RazorpayWebhookService to record a subscription charge
+   * (see Transaction.createdByAdminId's own schema doc comment for why
+   * this is a dedicated method rather than widening create()/
+   * attachProviderReference() to accept a nullable admin id: every
+   * admin-facing method on this service keeps requiring a real
+   * adminUserId, unchanged). No AdminAccessLog write here — there is no
+   * admin action to log; RazorpayWebhookEvent is this write's own audit
+   * trail instead. Callers are responsible for their own idempotency check
+   * (e.g. "does a Transaction with this providerPaymentId already exist")
+   * before calling this — same division of responsibility as
+   * AssessmentRequestsService.verifyAndCreate's own idempotency check
+   * ahead of its create() call.
+   */
+  async recordSystemTransaction(
+    billingProfileId: string,
+    data: {
+      amountPaise: number;
+      currency?: string;
+      type: TransactionType;
+      status: TransactionStatus;
+      description?: string;
+      provider: string;
+      providerOrderId?: string | null;
+      providerPaymentId?: string | null;
+    },
+  ): Promise<Transaction> {
+    return this.prisma.transaction.create({
+      data: {
+        billingProfileId,
+        amountPaise: data.amountPaise,
+        currency: data.currency ?? 'INR',
+        type: data.type,
+        status: data.status,
+        description: data.description,
+        createdByAdminId: null,
+        provider: data.provider,
+        providerOrderId: data.providerOrderId ?? null,
+        providerPaymentId: data.providerPaymentId ?? null,
+      },
+    });
   }
 
   private async getOwned(id: string): Promise<Transaction & { billingProfile: { candidateId: string | null; organizationId: string | null } }> {

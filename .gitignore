@@ -2,8 +2,8 @@ node_modules/
 .next/
 dist/
 .env
-.env.local
-.env.prod
+.env.*
+!.env.example
 *.log
 *.tsbuildinfo
 .DS_Store
@@ -14,3 +14,5 @@ apps/api/uploads/
 # Flutter
 apps/mobile/build/
 apps/mobile/.dart_tool/
+td.json
+td-clean.json

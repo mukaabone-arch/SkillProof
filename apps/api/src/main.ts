@@ -4,7 +4,13 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
+  // rawBody: true — needed so RazorpayWebhookController can verify the
+  // webhook HMAC signature over the exact bytes Razorpay sent. Nest's
+  // default JSON body-parser re-serializes the body, which would silently
+  // break that check; this option makes Nest additionally stash the
+  // untouched buffer on req.rawBody for every route, without changing how
+  // any other route reads its already-parsed req.body.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   // Validate every incoming request body against its DTO (spec §7.2)
   app.useGlobalPipes(

@@ -756,25 +756,39 @@ model BillingProfile {
   organizationId   String?           @unique
   organization     Organization?     @relation(fields: [organizationId], references: [id])
 
-  legalEntityName String
-  billingEmail    String
+  /**
+   * legalEntityName/billingEmail/addressLine1/city/state/postalCode are
+   * nullable purely to allow SubscriptionsService to auto-create a minimal
+   * profile the moment a candidate's first Razorpay subscription charge
+   * succeeds (see that service's ensureBillingProfile) — a candidate
+   * self-checking-out for Premium has never gone through any admin-entered
+   * legal/tax intake, and blocking checkout on collecting a full GST-grade
+   * address was rejected as unnecessary friction for a ₹299/₹2,999 consumer
+   * subscription. Every row created by BillingProfilesService (the admin
+   * path, org and candidate alike — see that service's own DTO,
+   * CreateBillingProfileDto, which still requires all of these) continues
+   * to have all six populated; nullability here only ever describes an
+   * auto-created candidate row until an admin fills the rest in by hand.
+   */
+  legalEntityName String?
+  billingEmail    String?
   billingPhone    String?
   /**
    * India GST identification number — shape-validated at the DTO layer, no checksum verification.
    */
   gstin           String?
 
-  addressLine1 String
+  addressLine1 String?
   addressLine2 String?
-  city         String
-  state        String
+  city         String?
+  state        String?
   /**
    * 2-digit GST "place of supply" state code — distinct from `state` above
    * (a display name): this is the specific code GST invoicing needs and is
    * usually, but not always, derivable from the billing address alone.
    */
   gstStateCode String?
-  postalCode   String
+  postalCode   String?
   country      String  @default("IN")
 
   createdAt DateTime  @default(now())
@@ -855,8 +869,24 @@ model Transaction {
   amendsTransaction   Transaction?  @relation("TransactionAmendments", fields: [amendsTransactionId], references: [id])
   amendments          Transaction[] @relation("TransactionAmendments")
 
-  createdByAdminId String
-  createdByAdmin   User   @relation(fields: [createdByAdminId], references: [id])
+  /**
+   * Null means provider-originated — written by the Razorpay webhook
+   * handler (RazorpayWebhookService.recordCharge, via
+   * TransactionsService.recordSystemTransaction), with no human admin
+   * behind the write. Every admin-facing method on TransactionsService
+   * (create/amend/transitionStatus/attachProviderReference) still requires
+   * a real adminUserId and is unaffected — this column only went nullable
+   * so that one dedicated system path could exist; it is not a general
+   * relaxation of the admin-actor requirement. A seeded "system" User row
+   * was considered and rejected: a privileged PLATFORM_ADMIN existing
+   * solely to satisfy this FK would misrepresent every audit/admin listing
+   * that ever joins through it. Null is the honest representation of "no
+   * human actor" — any admin-facing transaction list must render this case
+   * explicitly (e.g. "System — Razorpay") rather than crashing or leaving
+   * it blank.
+   */
+  createdByAdminId String?
+  createdByAdmin   User?  @relation(fields: [createdByAdminId], references: [id])
 
   createdAt DateTime @default(now())
 
@@ -1096,16 +1126,88 @@ model Subscription {
   currentPeriodStart DateTime           @default(now())
   currentPeriodEnd   DateTime?
   /**
-   * Reserved for the future payment provider integration — e.g. "razorpay". Unused (always null) until then.
+   * "razorpay" once a candidate has ever completed checkout through
+   * RazorpaySubscriptionGateway; null for a row that only ever came from
+   * setTierManually (an admin grant). RazorpayWebhookService keys off
+   * providerSubId, never candidateId alone, specifically so a webhook can
+   * never touch a row this field marks as admin-owned.
    */
   provider           String?
   /**
-   * Reserved for the future payment provider's own subscription id. Unused (always null) until then.
+   * Razorpay's own subscription id (`sub_...`) once checkout completes —
+   * unique per row (Postgres allows multiple NULLs under a unique
+   * constraint, so every admin-granted FREE/PREMIUM row with no provider
+   * subscription is unaffected). RazorpayWebhookService looks up a row by
+   * this field first for every subscription.* event; only the very first
+   * event for a given subscription (whichever of activated/charged the
+   * out-of-order-tolerant webhook delivery happens to land first) falls
+   * back to creating the row from the event payload's own
+   * notes.candidateId, exactly the same "pin context into notes, read it
+   * back rather than trusting anything else" pattern
+   * AssessmentRequestsService.verifyAndCreate already established.
    */
-  providerSubId      String?
+  providerSubId      String?            @unique
+  /**
+   * Razorpay's own plan id (`plan_...`) for whichever of
+   * RAZORPAY_PLAN_ID_MONTHLY/RAZORPAY_PLAN_ID_ANNUAL is currently active —
+   * display-only (which cadence a candidate is on), never read by
+   * resolveEffectiveTier or PLANS: both plans grant the same PREMIUM tier,
+   * only the billing interval differs. Null until a provider-driven write
+   * sets it; never set by setTierManually.
+   */
+  providerPlanId     String?
+  /**
+   * The `created_at` (converted from Razorpay's Unix-seconds payload) of
+   * the most recent RazorpayWebhookEvent actually applied to this row's
+   * status/tier/currentPeriodStart/currentPeriodEnd/providerPlanId fields —
+   * the out-of-order guard: Razorpay's own docs say webhooks "may not
+   * always" arrive in event order, and every subscription.* payload is a
+   * full snapshot rather than a diff, so a late-arriving stale event must
+   * never overwrite a row a newer event already updated. An incoming
+   * event whose own created_at is older than this value is still recorded
+   * in RazorpayWebhookEvent (idempotency ledger/audit trail) but its
+   * snapshot fields are discarded rather than applied. Null on any row
+   * that has never received a provider webhook yet (every admin-granted
+   * row, forever).
+   */
+  lastWebhookEventAt DateTime?
   cancelAtPeriodEnd  Boolean            @default(false)
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
+}
+
+/**
+ * Append-only ledger of every Razorpay webhook delivery this API has ever
+ * accepted (signature-verified) — the idempotency + audit mechanism for
+ * RazorpayWebhookService. `id` is Razorpay's own `x-razorpay-event-id`
+ * header value, not a generated uuid: that's what makes the very first
+ * write of a redelivered event collide on the primary key rather than
+ * needing a separate lookup, and it's also the same value Razorpay's own
+ * docs point to for de-duplication. `processedAt` is the idempotency gate
+ * a retry actually checks: set only once this event's effect on
+ * Subscription/Transaction has been fully applied (or correctly determined
+ * to be a no-op — a stale out-of-order event, or a pre-activation event
+ * with no row to touch yet). A row that exists with processedAt still null
+ * means an earlier delivery's processing crashed after this row was
+ * inserted but before it finished — the next redelivery (Razorpay retries
+ * on any non-2xx for up to 24h) is expected to find exactly this state and
+ * safely retry the same apply logic, which is itself idempotent
+ * (Subscription writes are a full-snapshot upsert-by-providerSubId;
+ * Transaction writes are deduped by providerPaymentId) — never guarded by
+ * this table alone. `applied` distinguishes "changed something" from "a
+ * legitimate no-op" for anyone reading this table later; both leave
+ * processedAt set.
+ */
+model RazorpayWebhookEvent {
+  id            String    @id
+  eventType     String
+  providerSubId String?
+  payload       Json
+  receivedAt    DateTime  @default(now())
+  processedAt   DateTime?
+  applied       Boolean   @default(false)
+
+  @@index([providerSubId])
 }
 
 /**

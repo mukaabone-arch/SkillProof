@@ -14,6 +14,7 @@ import { WEB_BASE_URL } from '../../config/web-base-url';
 import { STORAGE_SERVICE, StorageService } from '../../storage/storage.interface';
 import { DeactivateAccountDto, DeleteAccountDto } from './account.dto';
 import { AssessmentRequestsRefundJob } from '../assessment-requests/assessment-requests-refund.job';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 /** A live pipeline is one an employer is actively waiting on the candidate for — SHORTLISTED alone isn't (the employer hasn't reached out), and the terminal stages need no transition at all. */
 const LIVE_PIPELINE_STAGES: ShortlistStage[] = [ShortlistStage.INVITED, ShortlistStage.INTERVIEWING, ShortlistStage.OFFER];
@@ -26,6 +27,7 @@ export class AccountService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly refundJob: AssessmentRequestsRefundJob,
+    private readonly subscriptions: SubscriptionsService,
     @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
   ) {}
 
@@ -41,6 +43,25 @@ export class AccountService {
    * one field that filter reads, plus everything that isn't a passive
    * read-time filter: live pipelines, pending applications, and the
    * confirmation email).
+   *
+   * Deliberately does NOT touch Subscription or call Razorpay — a
+   * deactivated candidate's paid subscription (if any) keeps billing and
+   * renewing on its normal schedule, exactly as if nothing happened.
+   * deactivatedAt is an employer-visibility flag everywhere else in this
+   * codebase (see candidateVisibilityFilter), not an account lockout: a
+   * deactivated candidate can still sign in and use every candidate-facing
+   * feature, including whatever their tier already entitles them to, so
+   * Premium's benefits stay genuinely usable throughout. Accepted risk,
+   * not an oversight: a candidate who deactivates and forgets they're
+   * subscribed keeps being billed indefinitely. Pausing or
+   * cancelling-at-period-end on deactivate were both considered and
+   * rejected (pausing needs Razorpay pause/resume semantics that weren't
+   * verified and would need a new status our resolveEffectiveTier grace
+   * logic doesn't model; cancel-at-period-end contradicts reactivate()'s
+   * own "restores exactly what deactivate() touched" contract below,
+   * since un-cancel is out of scope for now). The fix for the forgotten-
+   * subscription case is product messaging (e.g. a reminder email), not
+   * billing mechanics — nothing here yet.
    */
   async deactivate(userId: string, dto: DeactivateAccountDto) {
     const profile = await this.getOwnedProfile(userId);
@@ -159,6 +180,12 @@ export class AccountService {
     );
 
     await this.makeCandidateUnavailableToEmployers(profile.id);
+    // Cancelled immediately, not at period end, unlike deactivate() above
+    // — this identity is about to be permanently anonymised with no way
+    // back, so continuing to bill it has no defence the way deactivate's
+    // "still fully usable" accepted risk does. Best-effort: a Razorpay
+    // outage must never block a candidate's right to erasure.
+    await this.subscriptions.cancelImmediatelyForDeletion(profile.id);
     await this.deleteStoredFiles(profile.id, profile.photoKey, profile.resumeS3Key);
 
     const now = new Date();

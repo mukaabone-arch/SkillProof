@@ -15,6 +15,8 @@ function fakeSubscription(overrides: Partial<Subscription>): Subscription {
     currentPeriodEnd: null,
     provider: null,
     providerSubId: null,
+    providerPlanId: null,
+    lastWebhookEventAt: null,
     cancelAtPeriodEnd: false,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),

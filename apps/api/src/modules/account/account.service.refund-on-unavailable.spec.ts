@@ -118,7 +118,8 @@ function setup(profile: FakeProfile, requests: Row[]) {
   const notifications = { sendEmail: jest.fn(async () => undefined) };
   const gateway = fakeGateway();
   const refundJob = new AssessmentRequestsRefundJob(prisma as never, notifications as never, gateway);
-  const account = new AccountService(prisma as never, notifications as never, refundJob, {} as never);
+  const subscriptions = { cancelImmediatelyForDeletion: jest.fn(async () => undefined) };
+  const account = new AccountService(prisma as never, notifications as never, refundJob, subscriptions as never, {} as never);
 
   return { account, refundJob, prisma, notifications, gateway, requests, accountActions };
 }
