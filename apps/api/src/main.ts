@@ -30,6 +30,7 @@ async function bootstrap() {
     );
   }
   app.enableCors({ origin: process.env.CORS_ORIGIN?.split(',') ?? true, credentials: true });
+  logger.log(`CORS: raw=${JSON.stringify(process.env.CORS_ORIGIN)} parsed=${JSON.stringify(process.env.CORS_ORIGIN?.split(','))}`);
 
   logger.log(`Storage driver: ${process.env.STORAGE_DRIVER === 's3' ? 's3' : 'local'}`);
 

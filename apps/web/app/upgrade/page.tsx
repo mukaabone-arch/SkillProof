@@ -245,7 +245,7 @@ export default function UpgradePage() {
                   </div>
                   <div className="plan-column-price-sub">
                     {tier === 'PREMIUM'
-                      ? 'Placeholder pricing — no billing is wired up yet.'
+                      ? 'Billed monthly. Cancel anytime.'
                       : 'No card required.'}
                   </div>
                   <ul className="plan-feature-list">
