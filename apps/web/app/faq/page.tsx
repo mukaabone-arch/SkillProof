@@ -35,7 +35,7 @@ const FAQS = [
   },
   {
     q: 'Is MyAmbii free for candidates?',
-    a: 'Yes. Creating a profile, browsing and applying to jobs, and taking assessments to earn verified badges are all free during beta, within limits. A Premium tier with unlimited assessments and applications is available at ₹299/month or ₹2,999/year.',
+    a: 'Yes. Creating a profile, browsing and applying to jobs, and taking assessments to earn verified badges are all free, within monthly limits. Premium removes those limits at ₹299/month or ₹2,999/year.',
   },
   {
     q: 'How long does verification take?',
