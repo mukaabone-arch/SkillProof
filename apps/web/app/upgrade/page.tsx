@@ -94,7 +94,7 @@ const FEATURE_ROWS: { label: string; format: (l: PlanLimits) => string }[] = [
 ];
 
 export default function UpgradePage() {
-  const { tier: currentTier } = useEntitlements();
+  const { tier: currentTier, refetch } = useEntitlements();
   const [plans, setPlans] = useState<PlansResponse | null>(null);
   const [error, setError] = useState('');
   const [interested, setInterested] = useState(false);
@@ -187,6 +187,11 @@ export default function UpgradePage() {
       const sub = await api<MySubscription>('/subscriptions/me').catch(() => null);
       if (sub?.tier === 'PREMIUM') {
         setMySubscription(sub);
+        // The nav (and every other gated surface) reads tier from the
+        // entitlements context, which is fetched once per session — without
+        // this it keeps showing "Upgrade" until something remounts the
+        // provider.
+        await refetch();
         setActionMessage('You’re on Premium — thanks for subscribing!');
         setConfirming(false);
         return;
