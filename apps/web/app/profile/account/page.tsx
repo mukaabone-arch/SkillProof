@@ -272,7 +272,10 @@ function LoginMethodsCard() {
   }
 
   return (
-    <Card elevated style={{ marginBottom: 32 }}>
+    // scrollMarginTop: CandidateNav's .appnav is sticky at 76px tall — without
+    // this, jumping here from the dashboard nudge (#login-methods) lands the
+    // card right under it, clipped.
+    <Card id="login-methods" elevated style={{ marginBottom: 32, scrollMarginTop: 100 }}>
       <h2 style={{ marginTop: 0 }}>Login methods</h2>
       <p>
         Sign in with either your email or your phone. Adding the one you&apos;re missing keeps everything on this one

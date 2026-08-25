@@ -34,10 +34,75 @@ interface SkillClaim {
 }
 
 interface Me {
+  id: string;
   role: string;
   phone: string | null;
   email: string | null;
   profile: { skillClaims: SkillClaim[] } | null;
+}
+
+/**
+ * Per-person, not global — same reasoning as EmployerDashboard's
+ * teamNudgeDismissKey(orgId): a shared browser, or someone with more than
+ * one MyAmbii account, shouldn't have dismissing one account's nudge hide
+ * it for another.
+ */
+function linkPromptDismissKey(userId: string): string {
+  return `link-identifier-dismissed:${userId}`;
+}
+
+interface LinkIdentifierPrompt {
+  title: string;
+  body: string;
+}
+
+/**
+ * Three variants, not two — see the account-linking audit this was built
+ * from. `/auth/link/{phone,email}/*` (surfaced today only on
+ * Profile → Account → "Login methods") already lets a candidate attach
+ * whichever identifier they're missing onto their CURRENT account; the gap
+ * this card closes is purely discoverability — nobody who signs up one way
+ * and later tries a second knows that flow exists, so they end up with a
+ * second, empty account instead (verifyOtp only checks phone,
+ * verifyCandidateEmailOtp only checks email, OAuth signup only bridges via
+ * a provider-verified email match).
+ *
+ * The third variant (neither phone nor email set) is real, not
+ * theoretical: createUserWithIdentity only copies a provider's email onto
+ * User.email when that provider itself reports it verified — an OAuth
+ * signup where it doesn't (e.g. a GitHub account with no verified email)
+ * leaves both columns null, with the Identity row as the only way in. That
+ * account is the most fragile of the three (lose access to that one
+ * provider and there is no other way in at all), so it gets its own
+ * message rather than silently falling into the phone-prompt copy, which
+ * would be misleading about what's actually missing — and it deliberately
+ * doesn't name a specific provider (Google/GitHub), since /users/me has no
+ * way to tell which one it was.
+ */
+function linkIdentifierPromptFor(me: Me): LinkIdentifierPrompt | null {
+  const keepsEverythingTail =
+    "keep everything on this account — badges, history and all — instead of creating a second one.";
+
+  if (me.phone && me.email) return null;
+
+  if (me.phone && !me.email) {
+    return {
+      title: 'Add your email',
+      body: `Add your email so you can sign in either way — and ${keepsEverythingTail}`,
+    };
+  }
+
+  if (me.email && !me.phone) {
+    return {
+      title: 'Add your phone number',
+      body: `Add your phone number so you can sign in either way — and ${keepsEverythingTail}`,
+    };
+  }
+
+  return {
+    title: 'Add a way to sign in',
+    body: 'Add an email or phone number so you can still sign in even if you lose access to your current sign-in method.',
+  };
 }
 
 interface Profile {
@@ -352,6 +417,21 @@ export default function Dashboard({ onLoggedOut }: Props) {
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [assessmentSession, setAssessmentSession] = useState<MineAssessmentSession | null>(null);
   const [error, setError] = useState('');
+  const [linkPromptDismissed, setLinkPromptDismissed] = useState(false);
+
+  // Read once `me.id` is known — localStorage isn't available during server
+  // rendering, same reasoning as EmployerDashboard's identical read for its
+  // team-invite nudge.
+  useEffect(() => {
+    if (!me) return;
+    setLinkPromptDismissed(localStorage.getItem(linkPromptDismissKey(me.id)) === '1');
+  }, [me?.id]);
+
+  function dismissLinkPrompt() {
+    if (!me) return;
+    localStorage.setItem(linkPromptDismissKey(me.id), '1');
+    setLinkPromptDismissed(true);
+  }
 
   useEffect(() => {
     // /users/me first, standalone — the candidate-only endpoints below 403
@@ -498,6 +578,8 @@ export default function Dashboard({ onLoggedOut }: Props) {
   const shownBadges = badges.slice(0, 4);
   const shownCredentials = verifiedCredentials.slice(0, Math.max(0, 4 - shownBadges.length));
 
+  const linkPrompt = linkIdentifierPromptFor(me);
+
   return (
     <>
       <CandidateNav onLoggedOut={onLoggedOut} />
@@ -511,6 +593,24 @@ export default function Dashboard({ onLoggedOut }: Props) {
         </div>
 
         <FeatureStrip />
+
+        {linkPrompt && !linkPromptDismissed && (
+          <div
+            className="card status-card-flag"
+            style={{ justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}
+          >
+            <div>
+              <strong>{linkPrompt.title}</strong>
+              <p className="meta" style={{ margin: 0 }}>{linkPrompt.body}</p>
+            </div>
+            <div className="row" style={{ margin: 0, alignItems: 'center', gap: 8 }}>
+              <Link href="/profile/account#login-methods">
+                <button className="btn-secondary">Add now →</button>
+              </Link>
+              <button className="btn-secondary" onClick={dismissLinkPrompt}>Dismiss</button>
+            </div>
+          </div>
+        )}
 
         <section className="copilot-panel">
           <span className="copilot-eyebrow">
