@@ -12,13 +12,35 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { employerApi } from '@/lib/api';
+import { Badge } from '@/components/ui';
+import { SearchableSelect } from '@/components/SearchableSelect';
+import { formatOrgIndustry, OrgIndustry, ORG_INDUSTRY_OPTIONS } from '@/lib/orgIndustry';
 
 const { api, apiBlob } = employerApi;
 
+type VerificationStatus = 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+
 interface OrgMe {
-  organization: { id: string; name: string; industry: string | null; website: string | null; hasLogo: boolean };
+  organization: {
+    id: string;
+    name: string;
+    code: string;
+    industry: OrgIndustry | null;
+    industryOther: string | null;
+    website: string | null;
+    hasLogo: boolean;
+    verificationStatus: VerificationStatus;
+    rejectionReason: string | null;
+  };
   role: string;
 }
+
+const VERIFICATION_BADGE: Record<VerificationStatus, { variant: 'neutral' | 'warning' | 'verified' | 'danger'; label: string }> = {
+  UNVERIFIED: { variant: 'neutral', label: 'Not verified' },
+  PENDING: { variant: 'warning', label: 'Pending review' },
+  VERIFIED: { variant: 'verified', label: 'Verified' },
+  REJECTED: { variant: 'danger', label: 'Verification rejected' },
+};
 
 interface Member {
   id: string;
@@ -60,10 +82,14 @@ export default function EmployerSettings() {
   // until Save. industry/website are independent of the logo section (own
   // save button, own error), matching CandidateAvatar's own upload/preview
   // split from the surrounding profile form on the candidate side.
-  const [industry, setIndustry] = useState('');
+  const [industry, setIndustry] = useState<OrgIndustry | ''>('');
+  const [industryOther, setIndustryOther] = useState('');
   const [website, setWebsite] = useState('');
   const [savingOrgInfo, setSavingOrgInfo] = useState(false);
   const [orgInfoError, setOrgInfoError] = useState('');
+
+  const [submittingVerification, setSubmittingVerification] = useState(false);
+  const [verificationError, setVerificationError] = useState('');
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -79,6 +105,7 @@ export default function EmployerSettings() {
       .then((data) => {
         setOrg(data);
         setIndustry(data.organization.industry ?? '');
+        setIndustryOther(data.organization.industryOther ?? '');
         setWebsite(data.organization.website ?? '');
       })
       .catch((e) => setError(e.message));
@@ -125,13 +152,34 @@ export default function EmployerSettings() {
     try {
       const updated = await api<OrgMe['organization']>('/orgs/me', {
         method: 'PATCH',
-        body: JSON.stringify({ industry: industry.trim() || undefined, website: website.trim() || undefined }),
+        body: JSON.stringify({
+          industry: industry || undefined,
+          // Only meaningful (and only sent) when industry is OTHER — same
+          // omit-rather-than-clear convention as the candidate role-title
+          // form; a stale value left in the DB from a prior OTHER
+          // selection is harmless once industry itself has moved on.
+          industryOther: industry === 'OTHER' ? industryOther.trim() || undefined : undefined,
+          website: website.trim() || undefined,
+        }),
       });
       setOrg((prev) => (prev ? { ...prev, organization: updated } : prev));
     } catch (e) {
       setOrgInfoError((e as Error).message);
     } finally {
       setSavingOrgInfo(false);
+    }
+  }
+
+  async function submitVerification() {
+    setSubmittingVerification(true);
+    setVerificationError('');
+    try {
+      const updated = await api<OrgMe['organization']>('/orgs/me/verification/submit', { method: 'POST' });
+      setOrg((prev) => (prev ? { ...prev, organization: updated } : prev));
+    } catch (e) {
+      setVerificationError((e as Error).message);
+    } finally {
+      setSubmittingVerification(false);
     }
   }
 
@@ -211,10 +259,33 @@ export default function EmployerSettings() {
           <div>
             <div className="meta" style={{ margin: 0 }}>Organization</div>
             <strong>{org.organization.name}</strong>
+            <span className="meta" style={{ marginLeft: 8 }}>{org.organization.code}</span>
           </div>
           <div>
             <div className="meta" style={{ margin: 0 }}>Your role</div>
             <strong>{org.role === 'EMPLOYER_ADMIN' ? 'Admin' : 'Member'}</strong>
+          </div>
+
+          <div>
+            <div className="meta" style={{ margin: 0 }}>Verification</div>
+            <div className="row" style={{ margin: '4px 0 0', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <Badge variant={VERIFICATION_BADGE[org.organization.verificationStatus].variant}>
+                {VERIFICATION_BADGE[org.organization.verificationStatus].label}
+              </Badge>
+              {isAdmin && (org.organization.verificationStatus === 'UNVERIFIED' || org.organization.verificationStatus === 'REJECTED') && (
+                <button onClick={submitVerification} disabled={submittingVerification}>
+                  {submittingVerification
+                    ? 'Submitting…'
+                    : org.organization.verificationStatus === 'REJECTED'
+                      ? 'Resubmit for verification'
+                      : 'Submit for verification'}
+                </button>
+              )}
+            </div>
+            {org.organization.verificationStatus === 'REJECTED' && org.organization.rejectionReason && (
+              <p className="error" style={{ margin: '6px 0 0' }}>Reason: {org.organization.rejectionReason}</p>
+            )}
+            {verificationError && <p className="error" style={{ margin: '6px 0 0' }}>{verificationError}</p>}
           </div>
 
           <div className="row" style={{ margin: 0, alignItems: 'center', gap: 16 }}>
@@ -257,14 +328,25 @@ export default function EmployerSettings() {
               {orgInfoError && <p className="error" style={{ margin: 0 }}>{orgInfoError}</p>}
               <div className="field">
                 <label htmlFor="orgIndustry">Industry</label>
-                <input
+                <SearchableSelect
                   id="orgIndustry"
+                  options={ORG_INDUSTRY_OPTIONS}
                   value={industry}
-                  onChange={(e) => setIndustry(e.target.value)}
-                  maxLength={120}
-                  placeholder="e.g. Healthcare technology"
+                  onSelect={setIndustry}
+                  placeholder="Search industries…"
                 />
               </div>
+              {industry === 'OTHER' && (
+                <div className="field">
+                  <label htmlFor="orgIndustryOther">Describe your industry</label>
+                  <input
+                    id="orgIndustryOther"
+                    value={industryOther}
+                    onChange={(e) => setIndustryOther(e.target.value)}
+                    maxLength={160}
+                  />
+                </div>
+              )}
               <div className="field">
                 <label htmlFor="orgWebsite">Website</label>
                 <input
@@ -277,14 +359,18 @@ export default function EmployerSettings() {
                 />
               </div>
               <div className="row" style={{ margin: 0 }}>
-                <button onClick={saveOrgInfo} disabled={savingOrgInfo}>
+                <button
+                  onClick={saveOrgInfo}
+                  disabled={savingOrgInfo || (industry === 'OTHER' && !industryOther.trim())}
+                >
                   {savingOrgInfo ? 'Saving…' : 'Save'}
                 </button>
               </div>
             </>
           ) : (
             <p className="meta" style={{ margin: 0 }}>
-              {org.organization.industry || 'Industry not set'} · {org.organization.website || 'Website not set'}
+              {formatOrgIndustry(org.organization.industry, org.organization.industryOther) ?? 'Industry not set'} ·{' '}
+              {org.organization.website || 'Website not set'}
             </p>
           )}
 

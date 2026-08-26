@@ -3,6 +3,7 @@
 // so turning an existing user into an employer is a manual DB operation.
 // Run from apps/api:  npx ts-node prisma/provision-employer.ts <email> <orgName>
 import { PrismaClient, Role } from '@prisma/client';
+import { generateOrgCode } from '../src/modules/orgs/org-code.util';
 
 const prisma = new PrismaClient();
 
@@ -45,7 +46,7 @@ async function main() {
     // orgName won't spawn a duplicate Organization row.
     let organization = await tx.organization.findFirst({ where: { name: orgName } });
     if (!organization) {
-      organization = await tx.organization.create({ data: { name: orgName } });
+      organization = await tx.organization.create({ data: { name: orgName, code: await generateOrgCode(tx) } });
     }
 
     // OrgMember.userId is @unique — a plain create() would throw on re-run

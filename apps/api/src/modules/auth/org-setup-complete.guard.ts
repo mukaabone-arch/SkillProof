@@ -24,7 +24,7 @@ export class OrgSetupCompleteGuard implements CanActivate {
     const req = context.switchToHttp().getRequest<OrgScopedRequest>();
     const org = await this.prisma.organization.findUniqueOrThrow({
       where: { id: req.orgId },
-      select: { logoKey: true, industry: true, website: true },
+      select: { logoKey: true, industry: true, industryOther: true, website: true },
     });
     assertOrgSetupComplete(org);
     return true;

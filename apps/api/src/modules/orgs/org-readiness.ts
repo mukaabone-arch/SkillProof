@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { OrgIndustry } from '@prisma/client';
 
 /**
  * Single source of truth for "has this organisation completed its required
@@ -13,16 +14,25 @@ import { BadRequestException } from '@nestjs/common';
  */
 export interface OrgReadinessFields {
   logoKey: string | null;
-  industry: string | null;
+  industry: OrgIndustry | null;
+  /** Only meaningful when industry is OTHER — see Organization.industryOther's own doc comment. */
+  industryOther: string | null;
   website: string | null;
 }
 
 export type MissingOrgSetupField = 'logo' | 'industry' | 'website';
 
+/** OTHER with no (or blank) industryOther doesn't count as set — same reasoning as UpdateOrgDto's @ValidateIf on industryOther. */
+function isIndustryComplete(org: OrgReadinessFields): boolean {
+  if (org.industry == null) return false;
+  if (org.industry === OrgIndustry.OTHER) return !!org.industryOther?.trim();
+  return true;
+}
+
 export function missingOrgSetupFields(org: OrgReadinessFields): MissingOrgSetupField[] {
   const missing: MissingOrgSetupField[] = [];
   if (org.logoKey == null) missing.push('logo');
-  if (!org.industry?.trim()) missing.push('industry');
+  if (!isIndustryComplete(org)) missing.push('industry');
   if (!org.website?.trim()) missing.push('website');
   return missing;
 }

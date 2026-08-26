@@ -50,6 +50,10 @@ const GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: 'Organizations',
+    items: [{ kind: 'link', href: '/admin/orgs', label: 'Verification Requests' }],
+  },
+  {
     label: 'Billing',
     items: [{ kind: 'link', href: '/admin/billing', label: 'Billing Profiles' }],
   },

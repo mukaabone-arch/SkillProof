@@ -1,4 +1,12 @@
-import { AccountActionType, IntegrityStatus, ReviewOutcome, SkillLevel, SubscriptionStatus, SubscriptionTier } from '@prisma/client';
+import {
+  AccountActionType,
+  IntegrityStatus,
+  OrgVerificationStatus,
+  ReviewOutcome,
+  SkillLevel,
+  SubscriptionStatus,
+  SubscriptionTier,
+} from '@prisma/client';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -210,4 +218,28 @@ export class SetSubscriptionDto {
   @IsOptional()
   @IsBoolean()
   cancelAtPeriodEnd?: boolean;
+}
+
+/** GET /admin/orgs — defaults to no filter (every org) when omitted; the review-queue UI passes `status=PENDING`. */
+export class ListOrgsQueryDto {
+  @IsOptional()
+  @IsEnum(OrgVerificationStatus)
+  verificationStatus?: OrgVerificationStatus;
+}
+
+/**
+ * Admin decision on a PENDING org verification request — see
+ * AdminService.decideOrgVerification. Only VERIFIED/REJECTED are valid
+ * decisions here; UNVERIFIED/PENDING are never something an admin "sets",
+ * they're the pre- and awaiting-decision states.
+ */
+export class DecideOrgVerificationDto {
+  @IsEnum([OrgVerificationStatus.VERIFIED, OrgVerificationStatus.REJECTED])
+  status: OrgVerificationStatus;
+
+  /** Required when rejecting — see decideOrgVerification's own validation; ignored when approving. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  rejectionReason?: string;
 }

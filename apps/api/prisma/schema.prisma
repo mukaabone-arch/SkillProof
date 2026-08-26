@@ -249,6 +249,18 @@ enum NotificationType {
    * cancelled, etc.), since JobStatus.CLOSED carries no reason field itself.
    */
   JOB_UNPUBLISHED
+  /**
+   * Employer: sent to Organization.verificationSubmittedByUser when the
+   * admin approves a PENDING verification request.
+   */
+  ORG_VERIFICATION_APPROVED
+  /**
+   * Employer: sent to Organization.verificationSubmittedByUser when the
+   * admin rejects a PENDING verification request. Body includes
+   * Organization.rejectionReason — the employer needs it to know what to
+   * fix before resubmitting.
+   */
+  ORG_VERIFICATION_REJECTED
 }
 
 enum NotificationChannel {
@@ -301,25 +313,27 @@ model User {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
-  profile                CandidateProfile?
-  attempts               Attempt[]
-  badges                 Badge[]
-  refreshTokens          RefreshToken[]
-  orgMembership          OrgMember?
-  notifications          Notification[]
-  reviewedAttempts       Attempt[]           @relation("AttemptReviewedBy")
-  identities             Identity[]
-  assessmentSessions     AssessmentSession[]
-  reviewedClaimVerdicts  ClaimVerdict[]      @relation("ClaimVerdictReviewedBy")
-  decidedSessions        AssessmentSession[] @relation("SessionDecidedBy")
-  shortlistEntriesAdded  ShortlistEntry[]
-  profileViewsMade       ProfileView[]
-  interviewSessions      InterviewSession[]
-  assessmentRequestsMade AssessmentRequest[] @relation("AssessmentRequestRequestedBy")
-  invitationsSent        OrgInvitation[]     @relation("OrgInvitationInvitedBy")
-  adminAccessLogEntries  AdminAccessLog[]
-  termsAcceptances       TermsAcceptance[]
-  transactionsCreated    Transaction[]
+  profile                   CandidateProfile?
+  attempts                  Attempt[]
+  badges                    Badge[]
+  refreshTokens             RefreshToken[]
+  orgMembership             OrgMember?
+  notifications             Notification[]
+  reviewedAttempts          Attempt[]           @relation("AttemptReviewedBy")
+  identities                Identity[]
+  assessmentSessions        AssessmentSession[]
+  reviewedClaimVerdicts     ClaimVerdict[]      @relation("ClaimVerdictReviewedBy")
+  decidedSessions           AssessmentSession[] @relation("SessionDecidedBy")
+  shortlistEntriesAdded     ShortlistEntry[]
+  profileViewsMade          ProfileView[]
+  interviewSessions         InterviewSession[]
+  assessmentRequestsMade    AssessmentRequest[] @relation("AssessmentRequestRequestedBy")
+  invitationsSent           OrgInvitation[]     @relation("OrgInvitationInvitedBy")
+  adminAccessLogEntries     AdminAccessLog[]
+  termsAcceptances          TermsAcceptance[]
+  transactionsCreated       Transaction[]
+  orgVerificationsSubmitted Organization[]      @relation("OrgVerificationSubmittedBy")
+  orgVerificationsDecided   Organization[]      @relation("OrgVerificationDecidedBy")
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
@@ -376,9 +390,68 @@ model TermsAcceptance {
 
 // ---------- Employer accounts (spec section: employer side, step 3a) ----------
 
+/**
+ * Admin-reviewed signal, never a gate — see Organization.verificationStatus.
+ * There is exactly one platform admin, so nothing in the employer flow
+ * (posting, applying, hiring, billing) may depend on this reaching VERIFIED.
+ */
+enum OrgVerificationStatus {
+  /**
+   * Default. Never submitted, or submission fields were never populated (pre-existing orgs backfilled straight to VERIFIED instead — see the add_org_verification migration).
+   */
+  UNVERIFIED
+  /**
+   * Submitted and awaiting an admin decision. verificationSubmittedAt/-ByUserId are set; verifiedAt/verifiedByUserId/rejectionReason are null — a PENDING row never carries a stale decision from a prior round.
+   */
+  PENDING
+  /**
+   * verifiedAt/verifiedByUserId set to the deciding admin/time; rejectionReason stays null.
+   */
+  VERIFIED
+  /**
+   * verifiedAt/verifiedByUserId set to the deciding admin/time; rejectionReason holds their reason.
+   */
+  REJECTED
+}
+
+/**
+ * Structured industry dropdown for Organization.industry, same convention
+ * as CandidateRoleTitle/CertIssuer — OTHER pairs with
+ * Organization.industryOther for the free-text fallback. Declaration order
+ * is the UI's display order (see the shared ORG_INDUSTRY_LABELS map on the
+ * web side) — not alphabetical, so reordering members reorders the
+ * dropdown.
+ */
+enum OrgIndustry {
+  TECHNOLOGY_SOFTWARE
+  AI_ML_PRODUCTS_SERVICES
+  FINANCIAL_SERVICES_FINTECH
+  HEALTHCARE_LIFE_SCIENCES
+  ECOMMERCE_RETAIL
+  CONSULTING_PROFESSIONAL_SERVICES
+  EDUCATION_EDTECH
+  MEDIA_ENTERTAINMENT
+  TELECOMMUNICATIONS
+  MANUFACTURING_INDUSTRIAL
+  ENERGY_UTILITIES
+  TRANSPORTATION_LOGISTICS
+  REAL_ESTATE_PROPTECH
+  GOVERNMENT_PUBLIC_SECTOR
+  NON_PROFIT
+  STAFFING_RECRUITMENT
+  /**
+   * Free-text fallback — see Organization.industryOther. Required together
+   * with it at the DTO level (UpdateOrgDto's @ValidateIf), unlike
+   * CandidateRoleTitle/roleTitleOther which leaves that pairing
+   * UI-enforced only — industry feeds the mandatory org-setup gate (see
+   * org-readiness.ts), so an OTHER with no text must never validate.
+   */
+  OTHER
+}
+
 model Organization {
-  id        String   @id @default(uuid())
-  name      String
+  id            String       @id @default(uuid())
+  name          String
   /**
    * Organisation-profile fields, populated from Settings. Nullable at the
    * DB level (existing orgs pre-date this rule, and the row itself must
@@ -389,15 +462,59 @@ model Organization {
    * incomplete org is sent to comply. Team invitations are deliberately
    * NOT part of this gate — see DashboardService.setupChecklist's own
    * doc comment for that separate, optional nudge.
+   * industryOther is meaningful only when industry is OTHER — same
+   * convention as CandidateProfile.roleTitle/roleTitleOther, but validated
+   * strictly (see OrgIndustry's own doc comment) since this one is
+   * mandatory. No legacy free-text column here: unlike
+   * CandidateProfile.locationLegacy, this replaced a String? column with
+   * exactly one production row on it, and that row's value was already
+   * empty — nothing to preserve (see the add_org_industry_enum migration).
    * logoKey is a bare storage key, same convention as
    * CandidateProfile.photoKey; never returned to a client directly (see
    * OrgsService's withHasLogo — `hasLogo` goes out instead).
    */
-  industry  String?
-  website   String?
-  logoKey   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  industry      OrgIndustry?
+  industryOther String?
+  website       String?
+  logoKey       String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  /**
+   * Human-readable display alias (MYA-EMP-0001-style), assigned once at
+   * creation time — not at verification approval, since an unverified org
+   * still needs identifying in admin views and support conversations.
+   * Global sequence, not per-org, via nextval('organization_code_seq') (see
+   * the add_organization_code migration and org-code.util.ts's
+   * generateOrgCode) — atomic under concurrent creates with no explicit
+   * locking; small gaps from rolled-back creates are expected and harmless
+   * for a display code. Alias only: `id` remains the
+   * primary key and the only thing application code ever joins or looks up
+   * on — this is never a foreign key.
+   */
+  code String @unique
+
+  /**
+   * See OrgVerificationStatus for what each value means and which of the
+   * fields below are populated at each one. Submission fields
+   * (verificationSubmittedAt/-ByUserId) and decision fields
+   * (verifiedAt/verifiedByUserId/rejectionReason) are reset to null
+   * whenever a REJECTED org resubmits and moves back to PENDING — a stale
+   * rejection reason sitting alongside a new pending review would be
+   * confusing, and the prior decision is superseded, not still true. The
+   * submitter and the eventual reviewer are deliberately separate User
+   * relations (an org can have more than one EMPLOYER_ADMIN, and the admin
+   * who submits need not be the same one shown in a later approval, though
+   * today there's only one platform admin to do the deciding).
+   */
+  verificationStatus            OrgVerificationStatus @default(UNVERIFIED)
+  verificationSubmittedAt       DateTime?
+  verificationSubmittedByUserId String?
+  verificationSubmittedByUser   User?                 @relation("OrgVerificationSubmittedBy", fields: [verificationSubmittedByUserId], references: [id])
+  verifiedAt                    DateTime?
+  verifiedByUserId              String?
+  verifiedByUser                User?                 @relation("OrgVerificationDecidedBy", fields: [verifiedByUserId], references: [id])
+  rejectionReason               String?
 
   members            OrgMember[]
   jobs               Job[]
@@ -886,7 +1003,7 @@ model Transaction {
    * it blank.
    */
   createdByAdminId String?
-  createdByAdmin   User?  @relation(fields: [createdByAdminId], references: [id])
+  createdByAdmin   User?   @relation(fields: [createdByAdminId], references: [id])
 
   createdAt DateTime @default(now())
 

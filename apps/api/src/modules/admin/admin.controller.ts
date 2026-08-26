@@ -20,8 +20,10 @@ import {
 import {
   CreateAssessmentDto,
   CreateQuestionDto,
+  DecideOrgVerificationDto,
   ListAccountActionsQueryDto,
   ListAttemptsQueryDto,
+  ListOrgsQueryDto,
   ReviewAttemptDto,
   SetSubscriptionDto,
   UpdateAssessmentDto,
@@ -114,6 +116,20 @@ export class AdminController {
   @Post('export-requests/:id/retry')
   retryExportRequest(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.dataExport.retry(req.user.sub, id);
+  }
+
+  // ---------- Org verification ----------
+
+  /** Review queue — GET /admin/orgs?verificationStatus=PENDING lists orgs awaiting a decision. */
+  @Get('orgs')
+  listOrgs(@Query() query: ListOrgsQueryDto) {
+    return this.svc.listOrgs(query);
+  }
+
+  /** The only path that can move a PENDING verification request to VERIFIED/REJECTED. */
+  @Patch('orgs/:id/verification')
+  decideOrgVerification(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: DecideOrgVerificationDto) {
+    return this.svc.decideOrgVerification(id, req.user.sub, dto);
   }
 
   // ---------- Billing profiles ----------

@@ -27,6 +27,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { EmploymentType, PrismaClient } from '@prisma/client';
 import { LlmService } from '../src/llm/llm.service';
+import { generateOrgCode } from '../src/modules/orgs/org-code.util';
 
 const DEMO_ORG_NAME = 'Demo Listings (Imported)';
 const INPUT_FILE = join(__dirname, 'demo_jobs_clean.json');
@@ -70,7 +71,7 @@ async function main() {
   // Organization.name has no unique constraint, so this is a plain find-then-create rather than an upsert.
   const org =
     (await prisma.organization.findFirst({ where: { name: DEMO_ORG_NAME } })) ??
-    (await prisma.organization.create({ data: { name: DEMO_ORG_NAME } }));
+    (await prisma.organization.create({ data: { name: DEMO_ORG_NAME, code: await generateOrgCode(prisma) } }));
   await clearExisting(org.id);
 
   const taxonomySkillNames = (await prisma.skill.findMany({ select: { name: true } })).map((s) => s.name);

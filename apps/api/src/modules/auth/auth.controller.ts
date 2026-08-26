@@ -14,8 +14,16 @@ import {
   VerifyOtpDto,
 } from './auth.dto';
 import { AuthenticatedRequest, JwtAuthGuard } from './jwt-auth.guard';
+import { SkipVerificationGate } from './skip-verification-gate.decorator';
 
+/**
+ * Exempt from CandidateVerificationGuard entirely — see that guard's own
+ * doc comment. This is exactly how a gated candidate complies (the link/*
+ * endpoints below), plus refresh/logout/terms-acceptance/connect, none of
+ * which is "app usage" the gate is meant to block.
+ */
 @Controller('auth')
+@SkipVerificationGate()
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
@@ -32,10 +40,9 @@ export class AuthController {
   }
 
   /**
-   * Email counterpart to /auth/otp/request for candidates — phone-OTP
-   * delivery is unimplemented in production (see AuthService's class doc),
-   * so this is the self-service candidate signup path that actually sends
-   * a code today. Mirrors /auth/employer/otp/request.
+   * Email counterpart to /auth/otp/request for candidates — both channels
+   * deliver for real in production (see AuthService's class doc). Mirrors
+   * /auth/employer/otp/request.
    */
   @Post('email/otp/request')
   @HttpCode(200)
@@ -58,10 +65,8 @@ export class AuthController {
   }
 
   /**
-   * Email counterpart to /auth/otp/request, employer-signup only — phone-OTP
-   * delivery is unimplemented in production (see AuthService's class doc),
-   * so this is the only self-service employer signup path that actually
-   * sends a code today.
+   * Email counterpart to /auth/otp/request, employer-signup only — see
+   * AuthService's class doc; both channels deliver for real in production.
    */
   @Post('employer/otp/request')
   @HttpCode(200)

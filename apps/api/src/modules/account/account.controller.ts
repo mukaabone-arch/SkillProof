@@ -3,13 +3,20 @@ import { Role } from '@prisma/client';
 import { AuthenticatedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { SkipVerificationGate } from '../auth/skip-verification-gate.decorator';
 import { AccountService } from './account.service';
 import { DataExportService } from '../data-export/data-export.service';
 import { DeactivateAccountDto, DeleteAccountDto } from './account.dto';
 
+/**
+ * Exempt from CandidateVerificationGuard entirely — deactivate/reactivate/
+ * delete/export are DPDP-mandated rights (see AccountService's own doc
+ * comments); an unrelated verification gate must never block them.
+ */
 @Controller('account')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.CANDIDATE)
+@SkipVerificationGate()
 export class AccountController {
   constructor(
     private readonly svc: AccountService,

@@ -24,20 +24,11 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { employerApi } from '@/lib/api';
 import EmployerSidebarShell from '@/components/EmployerSidebarShell';
+import { isOrgSetupComplete, OrgReadinessFields } from '@/lib/orgReadiness';
 
 const { getToken, api } = employerApi;
 
 const SETUP_EXEMPT_PATHS = ['/employer/setup', '/employer/settings'];
-
-interface OrgMeOrganization {
-  industry: string | null;
-  website: string | null;
-  hasLogo: boolean;
-}
-
-function isOrgSetupComplete(org: OrgMeOrganization): boolean {
-  return !!org.industry && !!org.website && org.hasLogo;
-}
 
 export default function EmployerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -61,7 +52,7 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
     }
 
     let cancelled = false;
-    api<{ organization: OrgMeOrganization }>('/orgs/me')
+    api<{ organization: OrgReadinessFields }>('/orgs/me')
       .then(({ organization }) => {
         if (cancelled) return;
         if (!isOrgSetupComplete(organization)) {

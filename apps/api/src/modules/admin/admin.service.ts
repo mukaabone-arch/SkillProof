@@ -1,14 +1,19 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { ClaimStatus, IntegrityStatus, Prisma, ReviewOutcome, SubscriptionStatus } from '@prisma/client';
+import { ClaimStatus, IntegrityStatus, NotificationType, OrgVerificationStatus, Prisma, ReviewOutcome, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { renderNotificationEmail } from '../notifications/notification-email.template';
+import { WEB_BASE_URL } from '../../config/web-base-url';
 import {
   BulkQuestionItemDto,
   CreateAssessmentDto,
   CreateQuestionDto,
+  DecideOrgVerificationDto,
   ListAttemptsQueryDto,
+  ListOrgsQueryDto,
   ReviewAttemptDto,
   SetSubscriptionDto,
   UpdateAssessmentDto,
@@ -24,6 +29,7 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly entitlements: EntitlementsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -283,4 +289,87 @@ export class AdminService {
     if (!assessment) throw new NotFoundException('Assessment not found');
     return assessment;
   }
+
+  // ---------- Org verification ----------
+
+  /** Review queue — GET /admin/orgs?verificationStatus=PENDING lists orgs awaiting a decision; omitted, every org. */
+  listOrgs(query: ListOrgsQueryDto) {
+    return this.prisma.organization.findMany({
+      where: query.verificationStatus ? { verificationStatus: query.verificationStatus } : undefined,
+      orderBy: { verificationSubmittedAt: 'asc' },
+      include: { verificationSubmittedByUser: { select: { id: true, email: true, phone: true } } },
+    });
+  }
+
+  /**
+   * The only way a PENDING verification request resolves — see
+   * OrgVerificationStatus for the state machine this enforces (only a
+   * PENDING row can be decided; VERIFIED/UNVERIFIED/another REJECTED
+   * aren't valid starting points). Notifies
+   * Organization.verificationSubmittedByUser only — never every org
+   * member, see that notification type's own doc comment in
+   * schema.prisma — and only if that user still exists on the row (it's a
+   * nullable FK, ON DELETE SET NULL).
+   */
+  async decideOrgVerification(orgId: string, adminUserId: string, dto: DecideOrgVerificationDto) {
+    const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
+    if (!org) throw new NotFoundException('Organization not found');
+    if (org.verificationStatus !== OrgVerificationStatus.PENDING) {
+      throw new BadRequestException('Only a pending verification request can be decided.');
+    }
+    if (dto.status === OrgVerificationStatus.REJECTED && !dto.rejectionReason?.trim()) {
+      throw new BadRequestException('rejectionReason is required when rejecting.');
+    }
+
+    const updated = await this.prisma.organization.update({
+      where: { id: orgId },
+      data: {
+        verificationStatus: dto.status,
+        verifiedAt: new Date(),
+        verifiedByUserId: adminUserId,
+        rejectionReason: dto.status === OrgVerificationStatus.REJECTED ? dto.rejectionReason!.trim() : null,
+      },
+    });
+
+    if (org.verificationSubmittedByUserId) {
+      await this.notifyOrgVerificationDecision(
+        org.verificationSubmittedByUserId,
+        org.name,
+        updated.verificationStatus,
+        updated.rejectionReason,
+      );
+    }
+
+    return updated;
+  }
+
+  private async notifyOrgVerificationDecision(
+    userId: string,
+    orgName: string,
+    status: OrgVerificationStatus,
+    rejectionReason: string | null,
+  ): Promise<void> {
+    const approved = status === OrgVerificationStatus.VERIFIED;
+    const subject = approved ? 'Your organization is now verified' : 'Your organization verification was not approved';
+    const bodyHtml = approved
+      ? `<p><strong>${escapeHtml(orgName)}</strong> has been verified. The verified badge is now visible to candidates.</p>`
+      : `<p><strong>${escapeHtml(orgName)}</strong>'s verification request was not approved.</p>` +
+        `<p>Reason: ${escapeHtml(rejectionReason ?? '')}</p>` +
+        `<p>You can update your organization details and resubmit at any time.</p>`;
+    const html = renderNotificationEmail(bodyHtml, {
+      label: 'View organization settings',
+      url: `${WEB_BASE_URL}/employer/settings`,
+    });
+    await this.notifications.sendEmail(
+      userId,
+      approved ? NotificationType.ORG_VERIFICATION_APPROVED : NotificationType.ORG_VERIFICATION_REJECTED,
+      subject,
+      html,
+    );
+  }
+}
+
+/** Employer-authored free text (org name, rejection reason) landing in an HTML email body — same local escape as JobsService's own, not shared, since neither module exports one today. */
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

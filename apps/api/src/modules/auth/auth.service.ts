@@ -20,6 +20,7 @@ import { GoogleOAuthProvider } from './oauth/google-oauth.provider';
 import { ExternalProfile, OAuthCodeExchange } from './oauth/oauth.types';
 import { normalizeEmail } from './normalize-email';
 import { assertCompanyEmail } from './employer-email-domain';
+import { generateOrgCode } from '../orgs/org-code.util';
 import { PRIVACY_VERSION, TERMS_VERSION } from './legal-terms';
 
 const EMPLOYER_ROLES: Role[] = [Role.EMPLOYER_ADMIN, Role.EMPLOYER_MEMBER];
@@ -79,12 +80,15 @@ interface OtpEntry {
  *
  * PRODUCTION TODO (spec §6.1-B):
  *  1. Move the OTP store from Map to Redis (survives restarts, scales out).
- *  2. Phone: send via MSG91 behind an SmsProvider interface (DLT-registered
- *     template) — still unimplemented, see requestOtp.
- *  3. Keep the rate limits below; add IP-based throttling at the gateway.
+ *  2. Keep the rate limits below; add IP-based throttling at the gateway.
  *
- * Email OTP (employer signup only, see requestEmailOtp/verifyEmailOtp) is
- * already live in production via EMAIL_PROVIDER/Resend — no TODO there.
+ * Both delivery channels are live in production: email via EMAIL_PROVIDER/
+ * Resend (requestEmailOtp/verifyEmailOtp), and phone via MSG91's Flow API
+ * behind SmsProvider/Msg91SmsProvider (DLT-registered template — see
+ * requestOtp and requestLinkPhoneOtp), confirmed end-to-end with a real SMS
+ * delivered to a real handset. Requires MSG91_AUTH_KEY/MSG91_TEMPLATE_ID
+ * configured in the environment (see Msg91SmsProvider) — without them this
+ * throws rather than silently no-op'ing.
  */
 @Injectable()
 export class AuthService {
@@ -139,13 +143,13 @@ export class AuthService {
    * Employer-signup counterpart to requestOtp, keyed by (normalized) email
    * instead of phone — issueOtp below is the exact same rate-limit/expiry/
    * generation machinery either path uses, just called with a different map
-   * key. Unlike phone (SMS delivery is still unimplemented, see requestOtp
-   * above), this actually delivers: Resend is already live in production for
-   * notification emails (see NotificationsService), so the code goes out for
-   * real via EMAIL_PROVIDER. In dev the code is logged instead of sent, same
-   * convenience requestOtp gives the phone path, so local/dev testing never
-   * depends on a configured Resend API key — and the code is never echoed
-   * back in the API response either way, so the client can't prefill it.
+   * key. Delivers for real via EMAIL_PROVIDER/Resend, same as requestOtp's
+   * phone path delivers for real via MSG91 (see this class's own doc
+   * comment) — both channels are live in production. In dev the code is
+   * logged instead of sent either way, so local/dev testing never depends
+   * on a configured Resend or MSG91 credential — and the code is never
+   * echoed back in the API response either way, so the client can't
+   * prefill it.
    *
    * assertCompanyEmail only runs when no account exists yet for this email
    * — a signup-time gate, not a login gate (existing employer accounts,
@@ -994,7 +998,7 @@ export class AuthService {
       const user = await tx.user.create({
         data: { ...identity, role: Role.EMPLOYER_ADMIN, termsAcceptances: this.termsAcceptanceWrite() },
       });
-      const organization = await tx.organization.create({ data: { name: orgName } });
+      const organization = await tx.organization.create({ data: { name: orgName, code: await generateOrgCode(tx) } });
       await tx.orgMember.create({ data: { userId: user.id, organizationId: organization.id } });
       return user;
     });

@@ -16,11 +16,12 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { employerApi } from '@/lib/api';
+import { isIndustryComplete, isOrgSetupComplete, OrgReadinessFields } from '@/lib/orgReadiness';
 
 const { api } = employerApi;
 
 interface OrgMe {
-  organization: { industry: string | null; website: string | null; hasLogo: boolean };
+  organization: OrgReadinessFields;
 }
 
 type SetupField = 'logo' | 'industry' | 'website';
@@ -47,7 +48,7 @@ export default function EmployerSetupPage() {
       setOrganization(data.organization);
       // Complete already (e.g. finished in another tab, or reached this
       // page directly out of habit) — no reason to sit here.
-      if (data.organization.hasLogo && data.organization.industry && data.organization.website) {
+      if (isOrgSetupComplete(data.organization)) {
         router.replace('/employer/dashboard');
       }
     } catch (e) {
@@ -56,7 +57,7 @@ export default function EmployerSetupPage() {
   }
 
   const done: Record<SetupField, boolean> = organization
-    ? { logo: organization.hasLogo, industry: !!organization.industry, website: !!organization.website }
+    ? { logo: organization.hasLogo, industry: isIndustryComplete(organization), website: !!organization.website }
     : { logo: false, industry: false, website: false };
   const doneCount = Object.values(done).filter(Boolean).length;
 

@@ -2049,7 +2049,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
   .plan-columns { grid-template-columns: 1fr; }
 }
 
-/* Candidate profile: location city autocomplete (LocationAutocomplete.tsx) */
+/* Typeahead dropdown, shared by LocationAutocomplete.tsx (network-backed city search) and SearchableSelect.tsx (local static option lists, e.g. employer industry) */
 .location-suggestions {
   background: var(--card); border: 1px solid var(--gray-100); border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);

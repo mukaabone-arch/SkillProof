@@ -74,6 +74,18 @@ export class OrgsController {
     return this.svc.update(req.orgId, dto);
   }
 
+  /**
+   * Submits (or resubmits, after a rejection) this org for admin review —
+   * see OrgsService.submitForVerification. Admin-only for the same reason
+   * as updateMe: org-identity data, not a per-seat action.
+   */
+  @Post('me/verification/submit')
+  @UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard)
+  @Roles(Role.EMPLOYER_ADMIN)
+  submitVerification(@Req() req: OrgScopedRequest) {
+    return this.svc.submitForVerification(req.orgId, req.user.sub);
+  }
+
   @Post('me/logo')
   @UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard)
   @Roles(Role.EMPLOYER_ADMIN)

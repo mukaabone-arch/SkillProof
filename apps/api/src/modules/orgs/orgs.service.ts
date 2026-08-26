@@ -1,5 +1,6 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { extname } from 'path';
+import { OrgVerificationStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { STORAGE_SERVICE, StorageService } from '../../storage/storage.interface';
 import { UpdateOrgDto } from './orgs.dto';
@@ -34,6 +35,37 @@ export class OrgsService {
     const org = await this.prisma.organization.findUniqueOrThrow({ where: { id: orgId } });
     if (org.logoKey) await this.deleteStoredFile(org.logoKey);
     const updated = await this.prisma.organization.update({ where: { id: orgId }, data: { logoKey: key } });
+    return withHasLogo(updated);
+  }
+
+  /**
+   * Employer-admin-initiated. Moves UNVERIFIED or REJECTED -> PENDING for
+   * an admin to decide (see OrgVerificationStatus). Also covers a
+   * REJECTED org's resubmission after fixing whatever the admin flagged —
+   * the prior decision fields are cleared here so a stale rejectionReason
+   * never sits alongside a fresh PENDING review (see Organization's own
+   * doc comment on those fields).
+   */
+  async submitForVerification(orgId: string, userId: string) {
+    const org = await this.prisma.organization.findUniqueOrThrow({ where: { id: orgId } });
+    if (org.verificationStatus === OrgVerificationStatus.PENDING) {
+      throw new ConflictException('Verification is already pending review.');
+    }
+    if (org.verificationStatus === OrgVerificationStatus.VERIFIED) {
+      throw new ConflictException('This organization is already verified.');
+    }
+
+    const updated = await this.prisma.organization.update({
+      where: { id: orgId },
+      data: {
+        verificationStatus: OrgVerificationStatus.PENDING,
+        verificationSubmittedAt: new Date(),
+        verificationSubmittedByUserId: userId,
+        verifiedAt: null,
+        verifiedByUserId: null,
+        rejectionReason: null,
+      },
+    });
     return withHasLogo(updated);
   }
 

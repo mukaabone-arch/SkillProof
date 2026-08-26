@@ -145,6 +145,10 @@ function fakePrisma(
     },
     $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
       const tx = {
+        // Backs generateOrgCode's `SELECT nextval('organization_code_seq')` —
+        // the exact sequence value doesn't matter to these tests, only that
+        // organization.create below receives a `code`.
+        $queryRaw: jest.fn(async () => [{ nextval: BigInt(nextId) }]),
         user: {
           create: jest.fn(async ({ data }: { data: Partial<UserRow> & { role?: Role; termsAcceptances?: { create?: Partial<TermsAcceptanceRow> } } }) => {
             const user: UserRow = {
@@ -159,7 +163,7 @@ function fakePrisma(
           }),
         },
         organization: {
-          create: jest.fn(async ({ data }: { data: { name: string } }) => ({ id: `org-${nextId++}`, ...data })),
+          create: jest.fn(async ({ data }: { data: { name: string; code: string } }) => ({ id: `org-${nextId++}`, ...data })),
         },
         orgMember: {
           create: jest.fn(async ({ data }: { data: { userId: string; organizationId: string } }) => {
