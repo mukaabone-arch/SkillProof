@@ -26,7 +26,7 @@ import { Roles } from '../auth/roles.decorator';
 import { OrgMemberGuard, OrgScopedRequest } from '../auth/org-member.guard';
 import { STORAGE_SERVICE, StorageService } from '../../storage/storage.interface';
 import { OrgsService } from './orgs.service';
-import { UpdateOrgDto } from './orgs.dto';
+import { DeactivateOrgDto, UpdateOrgDto } from './orgs.dto';
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024;
 
@@ -84,6 +84,25 @@ export class OrgsController {
   @Roles(Role.EMPLOYER_ADMIN)
   submitVerification(@Req() req: OrgScopedRequest) {
     return this.svc.submitForVerification(req.orgId, req.user.sub);
+  }
+
+  /** Concrete-consequence numbers for the deactivation confirmation UI — see OrgsService.previewDeactivationImpact. */
+  @Get('me/deactivation-preview')
+  @UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard)
+  @Roles(Role.EMPLOYER_ADMIN)
+  previewDeactivation(@Req() req: OrgScopedRequest) {
+    return this.svc.previewDeactivationImpact(req.orgId);
+  }
+
+  /**
+   * Immediate, no approval workflow — see OrgsService.deactivate. Admin-only:
+   * this blocks the whole org, not just the caller's own seat.
+   */
+  @Post('me/deactivate')
+  @UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard)
+  @Roles(Role.EMPLOYER_ADMIN)
+  deactivate(@Req() req: OrgScopedRequest, @Body() dto: DeactivateOrgDto) {
+    return this.svc.deactivate(req.orgId, req.user.sub, dto);
   }
 
   @Post('me/logo')

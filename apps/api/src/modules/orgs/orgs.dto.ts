@@ -23,3 +23,14 @@ export class UpdateOrgDto {
   @MaxLength(255)
   website?: string;
 }
+
+/**
+ * Server-side confirmation, not just a frontend UX nicety — same pattern
+ * as AccountService.delete's `dto.confirmation !== 'DELETE'` check.
+ * Validated against the organization's real name in OrgsService.deactivate.
+ */
+export class DeactivateOrgDto {
+  @IsString()
+  @IsNotEmpty()
+  confirmOrgName: string;
+}

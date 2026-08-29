@@ -261,6 +261,20 @@ enum NotificationType {
    * fix before resubmitting.
    */
   ORG_VERIFICATION_REJECTED
+  /**
+   * Employer: sent to every OrgMember when an EMPLOYER_ADMIN deactivates
+   * the organization (see OrgsService.deactivate) — every member loses
+   * access, not just whoever triggered it, so everyone gets told, not only
+   * the admin who already knows.
+   */
+  ORG_DEACTIVATED
+  /**
+   * Employer: sent to every OrgMember when a platform admin reactivates
+   * the organization (see AdminService.reactivateOrg). There is no
+   * self-service reactivation — see Organization.deactivatedAt's own doc
+   * comment.
+   */
+  ORG_REACTIVATED
 }
 
 enum NotificationChannel {
@@ -334,6 +348,7 @@ model User {
   transactionsCreated       Transaction[]
   orgVerificationsSubmitted Organization[]      @relation("OrgVerificationSubmittedBy")
   orgVerificationsDecided   Organization[]      @relation("OrgVerificationDecidedBy")
+  orgsDeactivated           Organization[]      @relation("OrgDeactivatedBy")
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
@@ -515,6 +530,30 @@ model Organization {
   verifiedByUserId              String?
   verifiedByUser                User?                 @relation("OrgVerificationDecidedBy", fields: [verifiedByUserId], references: [id])
   rejectionReason               String?
+
+  /**
+   * Reversible, but — unlike CandidateProfile.deactivatedAt — there is no
+   * self-service reactivation path, and unlike that field this one is a
+   * real access gate (see OrgActiveGuard, embedded in OrgMemberGuard),
+   * never a passive visibility filter: every OrgMember is blocked from the
+   * whole employer portal while this is set, not just hidden from someone
+   * else's query. Set by OrgsService.deactivate (EMPLOYER_ADMIN-triggered,
+   * immediate, no approval workflow) alongside deactivatedByUserId — an
+   * org can have more than one EMPLOYER_ADMIN, so worth recording which one
+   * acted. Cleared only by AdminService.reactivateOrg (platform-admin
+   * only); that decision is logged via AdminAccessLog(action:
+   * 'ORG_REACTIVATED', organizationId) rather than a second attribution
+   * column here — see that model's own doc comment, this is exactly the
+   * org-scoped-platform-admin-action case it was added for. Deactivating
+   * closes every live Job (see JobsService.update's LIVE->CLOSED path,
+   * reused as-is — not duplicated) and that does NOT get undone by
+   * reactivation: applicants have already been told those roles closed,
+   * and re-opening them is a deliberate, separate employer action, not an
+   * automatic side effect of being let back in.
+   */
+  deactivatedAt       DateTime?
+  deactivatedByUserId String?
+  deactivatedByUser   User?     @relation("OrgDeactivatedBy", fields: [deactivatedByUserId], references: [id])
 
   members            OrgMember[]
   jobs               Job[]

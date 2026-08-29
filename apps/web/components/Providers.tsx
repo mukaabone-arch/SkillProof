@@ -11,6 +11,14 @@
  * both providers' own effects no-op without a candidate token, and
  * CandidateVerificationProvider additionally excludes /employer and /admin
  * outright (see its own doc comment).
+ *
+ * CandidateVerificationProvider wraps only `children` here, deliberately
+ * INSIDE EntitlementsProvider and never wrapping LimitReachedModal — it
+ * withholds its own `children` (a full-page loading placeholder instead)
+ * while an unverified candidate's status is being resolved, and neither
+ * EntitlementsProvider (a true app-wide singleton — see its own doc
+ * comment) nor the always-mounted LimitReachedModal should ever be
+ * unmounted by that.
  */
 import { ReactNode } from 'react';
 import { EntitlementsProvider } from '@/lib/entitlements';
@@ -19,11 +27,9 @@ import LimitReachedModal from './LimitReachedModal';
 
 export default function Providers({ children }: { children: ReactNode }) {
   return (
-    <CandidateVerificationProvider>
-      <EntitlementsProvider>
-        {children}
-        <LimitReachedModal />
-      </EntitlementsProvider>
-    </CandidateVerificationProvider>
+    <EntitlementsProvider>
+      <CandidateVerificationProvider>{children}</CandidateVerificationProvider>
+      <LimitReachedModal />
+    </EntitlementsProvider>
   );
 }

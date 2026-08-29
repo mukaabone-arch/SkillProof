@@ -132,6 +132,12 @@ export class AdminController {
     return this.svc.decideOrgVerification(id, req.user.sub, dto);
   }
 
+  /** The only path that can lift OrgActiveGuard's block — no self-service reactivation exists. */
+  @Patch('orgs/:id/reactivate')
+  reactivateOrg(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.svc.reactivateOrg(id, req.user.sub);
+  }
+
   // ---------- Billing profiles ----------
 
   /** Registered before 'billing-profiles/:id' in this file only for readability — Nest matches by segment count, so there's no routing ambiguity between the two either way. */

@@ -16,6 +16,7 @@
  * route handler proxy, to remove them from JS-readable storage (XSS defense).
  */
 import { emitLimitReached, LimitReachedPayload } from './limitReachedBus';
+import { emitCandidateVerificationIncomplete } from './candidateVerificationBus';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -32,6 +33,14 @@ export interface ApiError extends Error {
  * { code: 'LIMIT_REACHED' } itself — it just publishes to limitReachedBus,
  * which the app-wide LimitReachedModal is the sole subscriber of. Never a
  * generic error toast for this case.
+ *
+ * Same treatment for 400 { code: 'CANDIDATE_VERIFICATION_INCOMPLETE' }
+ * (apps/api's CandidateVerificationGuard) — publishes to
+ * candidateVerificationBus, which CandidateVerificationProvider subscribes
+ * to as a defense-in-depth trigger alongside its own proactive check. This
+ * is what keeps this specific error from ever surfacing as a raw message
+ * in some page's generic error state: by the time any .catch() downstream
+ * of this function would render it, the provider has already reacted.
  */
 function buildApiError(status: number, body: any): ApiError {
   const err = new Error(body?.message ?? `Request failed: ${status}`) as ApiError;
@@ -44,6 +53,9 @@ function buildApiError(status: number, body: any): ApiError {
     };
     err.limitReached = payload;
     emitLimitReached(payload);
+  }
+  if (status === 400 && body?.code === 'CANDIDATE_VERIFICATION_INCOMPLETE') {
+    emitCandidateVerificationIncomplete();
   }
   return err;
 }

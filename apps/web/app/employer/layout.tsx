@@ -19,6 +19,19 @@
  * setup screen itself (nowhere else to send an incomplete org) and
  * settings (the org-info/logo edit form and team management both live
  * there — OrgsController and OrgMembersController are both ungated).
+ *
+ * Deactivation is checked in the same GET /orgs/me fetch, ahead of the
+ * setup check — an org can be both incomplete AND deactivated (unlikely
+ * in practice, but deactivation is the more urgent fact to show). Unlike
+ * setup, deactivation has NO exempt paths beyond the explanation screen
+ * itself: there's no self-service fix (see apps/api's OrgActiveGuard),
+ * so /employer/settings — where the setup gate's own exemption lives, for
+ * an org that still needs to fix itself — does not get the same
+ * exemption here. GET /orgs/me itself stays reachable for a deactivated
+ * org purely because it bypasses OrgMemberGuard entirely (its own manual
+ * membership lookup, not @UseGuards(OrgMemberGuard)) — see that
+ * controller method's own comment — which is what lets this check run at
+ * all instead of every request just 403ing.
  */
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
@@ -29,6 +42,11 @@ import { isOrgSetupComplete, OrgReadinessFields } from '@/lib/orgReadiness';
 const { getToken, api } = employerApi;
 
 const SETUP_EXEMPT_PATHS = ['/employer/setup', '/employer/settings'];
+const DEACTIVATED_EXEMPT_PATHS = ['/employer/deactivated'];
+
+interface OrgMeOrganization extends OrgReadinessFields {
+  deactivatedAt: string | null;
+}
 
 export default function EmployerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -46,15 +64,23 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
       router.replace('/employer');
       return;
     }
-    if (SETUP_EXEMPT_PATHS.includes(pathname)) {
+    if (DEACTIVATED_EXEMPT_PATHS.includes(pathname)) {
       setReady(true);
       return;
     }
 
     let cancelled = false;
-    api<{ organization: OrgReadinessFields }>('/orgs/me')
+    api<{ organization: OrgMeOrganization }>('/orgs/me')
       .then(({ organization }) => {
         if (cancelled) return;
+        if (organization.deactivatedAt) {
+          router.replace('/employer/deactivated');
+          return;
+        }
+        if (SETUP_EXEMPT_PATHS.includes(pathname)) {
+          setReady(true);
+          return;
+        }
         if (!isOrgSetupComplete(organization)) {
           router.replace('/employer/setup');
           return;

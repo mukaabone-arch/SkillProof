@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { ClaimStatus, IntegrityStatus, NotificationType, OrgVerificationStatus, Prisma, ReviewOutcome, SubscriptionStatus } from '@prisma/client';
@@ -7,6 +7,7 @@ import { EntitlementsService } from '../entitlements/entitlements.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { renderNotificationEmail } from '../notifications/notification-email.template';
 import { WEB_BASE_URL } from '../../config/web-base-url';
+import { notifyOrgMembers } from '../orgs/notify-org-members';
 import {
   BulkQuestionItemDto,
   CreateAssessmentDto,
@@ -26,6 +27,8 @@ interface BulkItemErrors {
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly entitlements: EntitlementsService,
@@ -297,7 +300,10 @@ export class AdminService {
     return this.prisma.organization.findMany({
       where: query.verificationStatus ? { verificationStatus: query.verificationStatus } : undefined,
       orderBy: { verificationSubmittedAt: 'asc' },
-      include: { verificationSubmittedByUser: { select: { id: true, email: true, phone: true } } },
+      include: {
+        verificationSubmittedByUser: { select: { id: true, email: true, phone: true } },
+        deactivatedByUser: { select: { id: true, email: true, phone: true } },
+      },
     });
   }
 
@@ -366,6 +372,58 @@ export class AdminService {
       subject,
       html,
     );
+  }
+
+  /**
+   * The only way an org's OrgActiveGuard block is lifted — no self-service
+   * path exists (see Organization.deactivatedAt's own doc comment).
+   * Logged via AdminAccessLog rather than a second attribution column on
+   * Organization, matching that model's own doc comment on why an
+   * org-scoped platform-admin action belongs there. Deliberately does NOT
+   * reopen any job OrgsService.deactivate closed — applicants were
+   * already told those roles are no longer accepting applications, and
+   * re-opening one is a separate, deliberate employer action once they're
+   * back in, not an automatic side effect of this.
+   */
+  async reactivateOrg(orgId: string, adminUserId: string) {
+    const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
+    if (!org) throw new NotFoundException('Organization not found');
+    if (!org.deactivatedAt) throw new BadRequestException('This organization is not deactivated.');
+
+    const updated = await this.prisma.organization.update({
+      where: { id: orgId },
+      data: { deactivatedAt: null, deactivatedByUserId: null },
+    });
+
+    await this.logAdminAccess(adminUserId, 'ORG_REACTIVATED', orgId);
+
+    await notifyOrgMembers(
+      this.prisma,
+      this.notifications,
+      orgId,
+      NotificationType.ORG_REACTIVATED,
+      'Your organization has been reactivated on MyAmbii',
+      renderNotificationEmail(
+        `<p><strong>${escapeHtml(org.name)}</strong> has been reactivated. Every team member can sign back in to ` +
+          `the employer portal.</p>` +
+          `<p>Any job that was unpublished when the organization was deactivated stays closed — re-post it ` +
+          `manually if you'd like applications to reopen for it.</p>`,
+        { label: 'Go to employer portal', url: `${WEB_BASE_URL}/employer/dashboard` },
+      ),
+    );
+
+    return updated;
+  }
+
+  /** Same best-effort, logged-not-thrown contract as BillingProfilesService's own logAdminAccess. */
+  private async logAdminAccess(adminUserId: string, action: string, organizationId: string): Promise<void> {
+    try {
+      await this.prisma.adminAccessLog.create({
+        data: { adminUserId, action, targetType: 'Organization', targetId: organizationId, organizationId },
+      });
+    } catch (err) {
+      this.logger.error(`Failed to write AdminAccessLog for ${action}: ${(err as Error).message}`);
+    }
   }
 }
 

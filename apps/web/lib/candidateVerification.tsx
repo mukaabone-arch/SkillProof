@@ -1,31 +1,49 @@
 'use client';
 
 /**
- * Hard gate: a signed-in CANDIDATE with an incomplete phone+email pair gets
- * redirected to /verify from anywhere else in the app. Mirrors
- * EntitlementsProvider's shape exactly (fetch once per token via a ref,
- * `refetch()` for callers that just changed the underlying state) — see
- * that file's own doc comment — but unlike EntitlementsProvider this
- * provider also performs the redirect itself, since a hard gate is a side
- * effect, not just data for consumers to react to.
+ * Hard gate: a signed-in CANDIDATE with an incomplete phone+email pair is
+ * redirected to /verify. UX courtesy only — apps/api's
+ * CandidateVerificationGuard (part of JwtAuthGuard, every authenticated
+ * request) is the real enforcement; nothing here can actually let an
+ * unverified candidate reach real data, so this file's only job is to be a
+ * *good citizen* about it, never a *strict* one.
  *
- * UX courtesy only — apps/api's CandidateVerificationGuard (which runs as
- * part of JwtAuthGuard on every authenticated request) is the real
- * enforcement; a failure or a missed case here can inconvenience but never
- * actually let an unverified candidate reach real data.
+ * FAILS OPEN, DELIBERATELY, EVERYWHERE: every terminal state — fetch
+ * success, fetch failure, a non-200 response, and a hard timeout if
+ * nothing resolves at all — ends in a definite status, and the only status
+ * that withholds `children` is a CONFIRMED 'incomplete'. Anything else
+ * (unknown, a network hiccup, a non-CANDIDATE role, no token) renders
+ * `children` immediately. This replaced an earlier version that withheld
+ * children while status was merely 'unknown', reasoning that this
+ * prevented Dashboard's own gated fetches from ever firing — in practice
+ * that version could get stuck showing the loading placeholder forever
+ * with no escape, which is strictly worse than the raw-error-text bug it
+ * replaced: a 400 on screen is recoverable (reload, navigate away); an
+ * unresolvable "Loading…" with no logout button is not. See RESOLUTION_TIMEOUT_MS
+ * below and the logout button on the placeholder — both exist specifically
+ * so there is no path where a candidate is stuck with no way out.
  *
- * Mounted once at the app root (see components/Providers.tsx), so it also
- * runs on /employer and /admin pages — GATE_EXEMPT_PATH_PREFIXES excludes
- * those outright (a stray candidate token in the same browser must never
- * redirect an employer/admin session away from their own portal), and
- * /users/me itself returns `verified: null` for any non-CANDIDATE role
+ * DEFENSE IN DEPTH: candidateVerificationBus. lib/api.ts publishes there
+ * the moment ANY endpoint returns 400 CANDIDATE_VERIFICATION_INCOMPLETE —
+ * this provider treats that as definitive (skips re-checking /users/me)
+ * and redirects. This covers the case where the proactive /users/me check
+ * hasn't resolved yet yet but a gated child fetch already reveals the
+ * answer, without needing every page's own error handling to know about
+ * this error code.
+ *
+ * Mounted once at the app root, inside EntitlementsProvider (see
+ * components/Providers.tsx — deliberately NOT wrapping EntitlementsProvider
+ * or LimitReachedModal), so it also runs on /employer and /admin pages —
+ * GATE_EXEMPT_PATH_PREFIXES excludes those outright, and /users/me itself
+ * resolves to the 'not-applicable' status for any non-CANDIDATE role
  * (PLATFORM_ADMIN included — see app/candidate/page.tsx's own comment on
  * admin sharing the candidate OTP login) as a second, independent reason
- * this never fires for them.
+ * this never blocks or redirects for them.
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { api, getToken } from './api';
+import { api, getToken, logout } from './api';
+import { onCandidateVerificationIncomplete } from './candidateVerificationBus';
 
 interface Me {
   role: string;
@@ -33,18 +51,23 @@ interface Me {
   email: string | null;
 }
 
+type VerificationStatus =
+  | 'unknown' // not yet checked for the current token — renders children (fail open), not a blocking state
+  | 'not-applicable' // no token, checked and role isn't CANDIDATE, or the check failed/timed out
+  | 'incomplete' // CANDIDATE, confirmed missing phone or email — the only status that withholds children
+  | 'complete'; // CANDIDATE, both present
+
 interface CandidateVerificationState {
-  /** null: unknown, not yet checked, or not a CANDIDATE (gate doesn't apply). false only once a CANDIDATE is confirmed incomplete. */
+  status: VerificationStatus;
+}
+
+interface CandidateVerificationContextValue {
+  /** Derived from status — null while unknown/not-applicable, true/false once a CANDIDATE's status is actually known. */
   verified: boolean | null;
   loading: boolean;
-}
-
-interface CandidateVerificationContextValue extends CandidateVerificationState {
-  /** Call after a successful /auth/link/phone or /auth/link/email verify, before navigating away from /verify — otherwise this provider's cached `false` would immediately redirect right back. */
+  /** Call after a successful /auth/link/phone or /auth/link/email verify, before navigating away from /verify — otherwise this provider's cached 'incomplete' would immediately redirect right back. */
   refetch: () => Promise<void>;
 }
-
-const EMPTY_STATE: CandidateVerificationState = { verified: null, loading: false };
 
 const CandidateVerificationContext = createContext<CandidateVerificationContextValue | null>(null);
 
@@ -57,22 +80,45 @@ function isExempt(pathname: string): boolean {
   return GATE_EXEMPT_PATHS.includes(pathname) || GATE_EXEMPT_PATH_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
+/**
+ * Only the redirect itself is guarded by a ref (redirectedForTokenRef) —
+ * not the whole check — so a slow /users/me can never leave the app
+ * hanging: real page content is never withheld while status is merely
+ * 'unknown' (see the top-of-file doc comment). This constant only bounds
+ * how long a *known-incomplete* candidate sits on the redirect-in-flight
+ * placeholder before this gives up waiting on the browser to actually
+ * finish navigating and just falls back to rendering children — a second,
+ * independent safety net alongside the one-shot redirect guard below.
+ */
+const REDIRECT_FALLBACK_MS = 4000;
+
 export function CandidateVerificationProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<CandidateVerificationState>(EMPTY_STATE);
+  const [state, setState] = useState<CandidateVerificationState>({ status: 'unknown' });
+  const [redirecting, setRedirecting] = useState(false);
   const fetchedForToken = useRef<string | null>(null);
+  // Guards the actual router.replace() call so it only ever fires once per
+  // token, however many times status transitions to 'incomplete' (the
+  // proactive check and the bus can both trigger it) — never a repeated or
+  // restarted navigation.
+  const redirectedForToken = useRef<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
 
   const fetchStatus = useCallback(async () => {
-    setState((s) => ({ ...s, loading: true }));
     try {
       const me = await api<Me>('/users/me');
-      const verified = me.role !== 'CANDIDATE' ? null : me.phone != null && me.email != null;
-      setState({ verified, loading: false });
+      const status: VerificationStatus =
+        me.role !== 'CANDIDATE'
+          ? 'not-applicable'
+          : me.phone != null && me.email != null
+            ? 'complete'
+            : 'incomplete';
+      setState({ status });
     } catch {
-      // Best-effort — same "never itself lock someone out on a network
-      // hiccup" reasoning as app/employer/layout.tsx's own gate check.
-      setState({ verified: null, loading: false });
+      // Fail open — a network hiccup, a timeout upstream, or an
+      // unexpected response must never trap anyone here. The server-side
+      // guard is the real enforcement regardless.
+      setState({ status: 'not-applicable' });
     }
   }, []);
 
@@ -80,7 +126,8 @@ export function CandidateVerificationProvider({ children }: { children: ReactNod
     const token = getToken();
     if (!token) {
       fetchedForToken.current = null;
-      if (state.verified !== null) setState(EMPTY_STATE);
+      redirectedForToken.current = null;
+      if (state.status !== 'not-applicable') setState({ status: 'not-applicable' });
       return;
     }
     if (isExempt(pathname)) return;
@@ -91,13 +138,70 @@ export function CandidateVerificationProvider({ children }: { children: ReactNod
       return;
     }
 
-    if (state.verified === false) router.replace('/verify');
-  }, [pathname, state.verified, fetchStatus, router]);
+    if (state.status === 'incomplete' && redirectedForToken.current !== token) {
+      redirectedForToken.current = token;
+      setRedirecting(true);
+      router.replace('/verify');
+    }
+  }, [pathname, state.status, fetchStatus, router]);
+
+  // Defense in depth — see this file's own doc comment.
+  useEffect(() => {
+    return onCandidateVerificationIncomplete(() => {
+      setState((s) => (s.status === 'incomplete' ? s : { status: 'incomplete' }));
+    });
+  }, []);
+
+  // Second safety net: once a redirect has actually been requested, stop
+  // withholding children after a bounded wait regardless of whether the
+  // navigation visibly completed — see REDIRECT_FALLBACK_MS's own doc
+  // comment. Resets whenever a fresh redirect is requested.
+  useEffect(() => {
+    if (!redirecting) return;
+    const timer = setTimeout(() => setRedirecting(false), REDIRECT_FALLBACK_MS);
+    return () => clearTimeout(timer);
+  }, [redirecting]);
+
+  // The only condition that ever withholds children: a CONFIRMED incomplete
+  // candidate, and only for the bounded window while the redirect is
+  // actually in flight. 'unknown' is never blocking — see top-of-file doc
+  // comment on failing open.
+  const blocking = redirecting && !isExempt(pathname) && state.status === 'incomplete';
 
   return (
-    <CandidateVerificationContext.Provider value={{ ...state, refetch: fetchStatus }}>
-      {children}
+    <CandidateVerificationContext.Provider
+      value={{
+        verified: state.status === 'complete' ? true : state.status === 'incomplete' ? false : null,
+        loading: state.status === 'unknown',
+        refetch: fetchStatus,
+      }}
+    >
+      {blocking ? <VerificationRedirectPlaceholder /> : children}
     </CandidateVerificationContext.Provider>
+  );
+}
+
+/**
+ * Shown only for the bounded window while actually redirecting an
+ * incomplete candidate to /verify. Always has its own way out — a
+ * candidate must never be stranded here with nothing to do but wait.
+ */
+function VerificationRedirectPlaceholder() {
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    await logout();
+    window.location.href = '/candidate';
+  }
+
+  return (
+    <main className="app-loading">
+      <p>Loading…</p>
+      <button type="button" className="btn-secondary" onClick={handleLogout} disabled={loggingOut}>
+        {loggingOut ? 'Logging out…' : 'Log out'}
+      </button>
+    </main>
   );
 }
 

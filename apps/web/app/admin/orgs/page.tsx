@@ -28,6 +28,9 @@ interface OrgRow {
   verificationSubmittedByUser: { id: string; email: string | null; phone: string | null } | null;
   verifiedAt: string | null;
   rejectionReason: string | null;
+  /** Set by an EMPLOYER_ADMIN's own self-service deactivation — a real access gate, unlike verificationStatus's "signal, never a gate." Reactivation (below) is the only way to clear it. */
+  deactivatedAt: string | null;
+  deactivatedByUser: { id: string; email: string | null; phone: string | null } | null;
 }
 
 const STATUS_BADGE: Record<VerificationStatus, { variant: 'neutral' | 'warning' | 'verified' | 'danger'; label: string }> = {
@@ -39,7 +42,7 @@ const STATUS_BADGE: Record<VerificationStatus, { variant: 'neutral' | 'warning' 
 
 type StatusFilter = 'PENDING' | 'ALL' | VerificationStatus;
 
-function submitterLabel(u: OrgRow['verificationSubmittedByUser']): string {
+function memberLabel(u: OrgRow['verificationSubmittedByUser']): string {
   if (!u) return '—';
   return u.email ?? u.phone ?? u.id.slice(0, 8);
 }
@@ -120,6 +123,20 @@ export default function AdminOrgVerificationPage() {
     }
   }
 
+  /** The only way to clear an org's self-service deactivation — see AdminService.reactivateOrg. Does not reopen any job the deactivation closed. */
+  async function reactivate(id: string) {
+    setError('');
+    setBusyId(id);
+    try {
+      await api(`/admin/orgs/${id}/reactivate`, { method: 'PATCH' });
+      load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   if (status === 'loading') {
     return (
       <main className="hub">
@@ -143,7 +160,10 @@ export default function AdminOrgVerificationPage() {
       <h1>Organization Verification</h1>
       <p className="hub-subhead">
         A verified badge is a signal, not a gate — an org can post jobs, apply, hire, and pay whether or not it&apos;s
-        verified. Approving or rejecting a request only changes what candidates and other employers see.
+        verified. Approving or rejecting a request only changes what candidates and other employers see. Deactivation
+        (below, when present) is unrelated and is a real gate — an EMPLOYER_ADMIN can deactivate their own org, but
+        only a platform admin can reactivate it, which is the one action on this page that isn&apos;t about
+        verification.
       </p>
       {error && <p className="error">{error}</p>}
 
@@ -173,25 +193,43 @@ export default function AdminOrgVerificationPage() {
                   <Badge variant={STATUS_BADGE[row.verificationStatus].variant}>
                     {STATUS_BADGE[row.verificationStatus].label}
                   </Badge>
+                  {row.deactivatedAt && <Badge variant="danger">Deactivated</Badge>}
                 </div>
-                {row.verificationStatus === 'PENDING' && (
-                  <div className="row" style={{ margin: 0 }}>
-                    <button onClick={() => approve(row.id)} disabled={busyId === row.id}>
-                      {busyId === row.id && rejectingId !== row.id ? 'Approving…' : 'Approve'}
+                <div className="row" style={{ margin: 0 }}>
+                  {row.deactivatedAt ? (
+                    <button onClick={() => reactivate(row.id)} disabled={busyId === row.id}>
+                      {busyId === row.id ? 'Reactivating…' : 'Reactivate'}
                     </button>
-                    <button className="btn-secondary" onClick={() => startReject(row.id)} disabled={busyId === row.id}>
-                      Reject
-                    </button>
-                  </div>
-                )}
+                  ) : (
+                    row.verificationStatus === 'PENDING' && (
+                      <>
+                        <button onClick={() => approve(row.id)} disabled={busyId === row.id}>
+                          {busyId === row.id && rejectingId !== row.id ? 'Approving…' : 'Approve'}
+                        </button>
+                        <button
+                          className="btn-secondary"
+                          onClick={() => startReject(row.id)}
+                          disabled={busyId === row.id}
+                        >
+                          Reject
+                        </button>
+                      </>
+                    )
+                  )}
+                </div>
               </div>
 
               <div className="meta">
                 {formatOrgIndustry(row.industry, row.industryOther) ?? 'Industry not set'} ·{' '}
                 {row.website || 'Website not set'}
               </div>
+              {row.deactivatedAt && (
+                <div className="meta">
+                  Deactivated {fmtDateTime(row.deactivatedAt)} by {memberLabel(row.deactivatedByUser)}
+                </div>
+              )}
               <div className="meta">
-                Submitted {fmtDateTime(row.verificationSubmittedAt)} by {submitterLabel(row.verificationSubmittedByUser)}
+                Submitted {fmtDateTime(row.verificationSubmittedAt)} by {memberLabel(row.verificationSubmittedByUser)}
               </div>
               {row.verificationStatus === 'REJECTED' && row.rejectionReason && (
                 <div className="meta">Rejection reason: {row.rejectionReason}</div>

@@ -11,6 +11,7 @@
  * /orgs/members are shared), just without the edit/action controls.
  */
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { employerApi } from '@/lib/api';
 import { Badge } from '@/components/ui';
 import { SearchableSelect } from '@/components/SearchableSelect';
@@ -69,7 +70,13 @@ interface TeamData {
 
 const ROLE_LABEL: Record<Member['role'], string> = { EMPLOYER_ADMIN: 'Admin', EMPLOYER_MEMBER: 'Member' };
 
+interface DeactivationPreview {
+  liveJobCount: number;
+  applicantCount: number;
+}
+
 export default function EmployerSettings() {
+  const router = useRouter();
   const [org, setOrg] = useState<OrgMe>();
   const [team, setTeam] = useState<TeamData>();
   const [error, setError] = useState('');
@@ -90,6 +97,18 @@ export default function EmployerSettings() {
 
   const [submittingVerification, setSubmittingVerification] = useState(false);
   const [verificationError, setVerificationError] = useState('');
+
+  // Deactivation — two-step, same "reveal a confirmation panel, don't just
+  // confirm() a raw dialog" shape as /profile/account's delete flow. The
+  // preview (concrete counts) is fetched only once the panel opens, not
+  // eagerly on page load, since it's meaningless until an admin is
+  // actually considering this.
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
+  const [deactivatePreview, setDeactivatePreview] = useState<DeactivationPreview | null>(null);
+  const [previewError, setPreviewError] = useState('');
+  const [deactivateConfirmName, setDeactivateConfirmName] = useState('');
+  const [deactivating, setDeactivating] = useState(false);
+  const [deactivateError, setDeactivateError] = useState('');
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -180,6 +199,39 @@ export default function EmployerSettings() {
       setVerificationError((e as Error).message);
     } finally {
       setSubmittingVerification(false);
+    }
+  }
+
+  async function openDeactivate() {
+    setDeactivateOpen(true);
+    setDeactivateConfirmName('');
+    setDeactivateError('');
+    setPreviewError('');
+    setDeactivatePreview(null);
+    try {
+      const preview = await api<DeactivationPreview>('/orgs/me/deactivation-preview');
+      setDeactivatePreview(preview);
+    } catch (e) {
+      setPreviewError((e as Error).message);
+    }
+  }
+
+  async function submitDeactivate() {
+    if (!org) return;
+    setDeactivating(true);
+    setDeactivateError('');
+    try {
+      await api('/orgs/me/deactivate', {
+        method: 'POST',
+        body: JSON.stringify({ confirmOrgName: deactivateConfirmName }),
+      });
+      // The whole org is blocked from here on — every other request this
+      // page could make would now 403. Land on the explanation screen
+      // rather than trying to keep rendering settings.
+      router.replace('/employer/deactivated');
+    } catch (e) {
+      setDeactivateError((e as Error).message);
+      setDeactivating(false);
     }
   }
 
@@ -483,6 +535,73 @@ export default function EmployerSettings() {
             </div>
           )}
         </>
+      )}
+
+      {org && isAdmin && (
+        <div
+          className="card"
+          style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12, borderColor: 'var(--error)', marginTop: 24 }}
+        >
+          <h2 style={{ marginTop: 0 }}>Deactivate organization</h2>
+          <p className="meta" style={{ margin: 0 }}>
+            This blocks every team member — not just you — from the employer portal, and unpublishes every live
+            job. There is no self-service way to undo this; only MyAmbii support can reactivate an organization.
+          </p>
+
+          {!deactivateOpen ? (
+            <div className="row" style={{ margin: 0 }}>
+              <button className="btn-danger" onClick={openDeactivate}>
+                Deactivate organization
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {previewError && <p className="error" style={{ margin: 0 }}>{previewError}</p>}
+              {!previewError && !deactivatePreview && <p className="meta" style={{ margin: 0 }}>Checking impact…</p>}
+              {deactivatePreview && (
+                <p style={{ margin: 0 }}>
+                  This will unpublish <strong>{deactivatePreview.liveJobCount}</strong> live job
+                  {deactivatePreview.liveJobCount === 1 ? '' : 's'} and notify{' '}
+                  <strong>{deactivatePreview.applicantCount}</strong> applicant
+                  {deactivatePreview.applicantCount === 1 ? '' : 's'} that their applications are no longer being
+                  accepted. Every team member loses portal access immediately.
+                  <br />
+                  <br />
+                  This can only be undone by a platform admin — and even then, the unpublished jobs are{' '}
+                  <strong>not</strong> reopened automatically. Applicants will already have been told those roles
+                  are closed; reactivating restores portal access only, not the job postings.
+                </p>
+              )}
+
+              <div className="field">
+                <label htmlFor="deactivateConfirmName">
+                  Type <strong>{org.organization.name}</strong> to confirm.
+                </label>
+                <input
+                  id="deactivateConfirmName"
+                  value={deactivateConfirmName}
+                  onChange={(e) => setDeactivateConfirmName(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+
+              {deactivateError && <p className="error" style={{ margin: 0 }}>{deactivateError}</p>}
+
+              <div className="row" style={{ margin: 0 }}>
+                <button
+                  className="btn-danger"
+                  onClick={submitDeactivate}
+                  disabled={deactivating || !deactivatePreview || deactivateConfirmName !== org.organization.name}
+                >
+                  {deactivating ? 'Deactivating…' : 'Permanently deactivate'}
+                </button>
+                <button className="btn-secondary" onClick={() => setDeactivateOpen(false)} disabled={deactivating}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </main>
   );
