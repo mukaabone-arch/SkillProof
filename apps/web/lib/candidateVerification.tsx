@@ -44,6 +44,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, Re
 import { usePathname, useRouter } from 'next/navigation';
 import { api, getToken, logout } from './api';
 import { onCandidateVerificationIncomplete } from './candidateVerificationBus';
+import { onCandidateTokenChange } from './tokenChangeBus';
 
 interface Me {
   role: string;
@@ -71,8 +72,23 @@ interface CandidateVerificationContextValue {
 
 const CandidateVerificationContext = createContext<CandidateVerificationContextValue | null>(null);
 
-/** Path prefixes the gate never touches at all — no fetch, no redirect. */
-const GATE_EXEMPT_PATH_PREFIXES = ['/employer', '/admin', '/verify'];
+/**
+ * Path prefixes the gate never touches at all — no fetch, no redirect.
+ * /candidate is exempt too, deliberately: app/candidate/page.tsx's own
+ * resolveRole() already resolves /users/me and redirects to /verify (with
+ * its own bounded-fallback placeholder + logout button, mirroring this
+ * file's own) before Dashboard ever mounts, called directly from
+ * OtpLogin's onLoggedIn rather than from an effect — which is what makes it
+ * immune to the "state change, not a mount" gap this provider's own
+ * pathname-effect has for every other route. Letting this provider ALSO
+ * fetch/block/redirect on /candidate was actively harmful, not just
+ * redundant: with the router mocked in tests (and, in principle, if a real
+ * navigation is ever slow), this provider could block and unmount
+ * app/candidate/page.tsx behind its own generic placeholder mid-flight,
+ * then unblock and let it remount and retry — churn with no benefit, since
+ * /candidate already has its own complete, independently-verified handling.
+ */
+const GATE_EXEMPT_PATH_PREFIXES = ['/employer', '/admin', '/verify', '/candidate'];
 /** Single exact-match exemption: the account-settings escape hatch (deactivate/delete/export). */
 const GATE_EXEMPT_PATHS = ['/profile/account'];
 
@@ -114,10 +130,14 @@ export function CandidateVerificationProvider({ children }: { children: ReactNod
             ? 'complete'
             : 'incomplete';
       setState({ status });
-    } catch {
+    } catch (e) {
       // Fail open — a network hiccup, a timeout upstream, or an
       // unexpected response must never trap anyone here. The server-side
-      // guard is the real enforcement regardless.
+      // guard is the real enforcement regardless. /users/me is exempt from
+      // the verification gate and always 200s for a real candidate, so
+      // anything landing here is a genuine, worth-logging failure — never
+      // CANDIDATE_VERIFICATION_INCOMPLETE itself, which isn't an error path.
+      console.error('CandidateVerificationProvider: unexpected failure resolving /users/me', e);
       setState({ status: 'not-applicable' });
     }
   }, []);
@@ -144,6 +164,31 @@ export function CandidateVerificationProvider({ children }: { children: ReactNod
       router.replace('/verify');
     }
   }, [pathname, state.status, fetchStatus, router]);
+
+  // Closes the gap the effect above can't: a login (or logout) that happens
+  // client-side with no navigation and no other prop/state change this
+  // component observes. lib/api.ts's candidate client publishes here the
+  // instant setTokens()/clearTokens() runs, so this fires immediately on
+  // the actual state change rather than waiting on some other dependency
+  // (pathname, an unrelated re-render) to coincidentally trigger the effect
+  // above. app/candidate/page.tsx's own resolveRole() closes this same gap
+  // for its own page more directly (called straight from OtpLogin's
+  // onLoggedIn, not via an effect at all); this is the equivalent fix for
+  // every other candidate-app route a login could theoretically happen on.
+  useEffect(() => {
+    return onCandidateTokenChange(() => {
+      const token = getToken();
+      if (!token) {
+        fetchedForToken.current = null;
+        redirectedForToken.current = null;
+        setState({ status: 'not-applicable' });
+        return;
+      }
+      if (isExempt(pathname)) return;
+      fetchedForToken.current = token;
+      void fetchStatus();
+    });
+  }, [pathname, fetchStatus]);
 
   // Defense in depth — see this file's own doc comment.
   useEffect(() => {

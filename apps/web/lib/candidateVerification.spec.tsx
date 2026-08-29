@@ -22,11 +22,26 @@ import Providers from '../components/Providers';
 import CandidatePage from '../app/candidate/page';
 
 const replace = jest.fn();
-let pathname = '/candidate';
+// Any non-exempt route works for exercising the provider's own generic
+// mechanism directly — '/candidate' itself is now exempt (see
+// GATE_EXEMPT_PATH_PREFIXES's own doc comment: app/candidate/page.tsx
+// handles its own gating and would otherwise fight with this provider for
+// control of the same route). The second describe block below overrides
+// this to '/candidate' specifically, since it renders the real page.
+let pathname = '/profile';
+
+// A single stable object, not a fresh `{ replace }` literal per call — real
+// Next.js's useRouter() returns a stable reference across renders. Getting
+// this wrong here previously meant any useCallback depending on `router`
+// (e.g. app/candidate/page.tsx's resolveRole) had an unstable identity on
+// every render, which re-fired a `[resolveRole]`-keyed mount effect in a
+// tight loop and could reset in-flight state — a test-mock artifact, not a
+// real bug, but one worth fixing at the source rather than working around.
+const routerMock = { replace };
 
 jest.mock('next/navigation', () => ({
   usePathname: () => pathname,
-  useRouter: () => ({ replace }),
+  useRouter: () => routerMock,
 }));
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -41,7 +56,7 @@ const INCOMPLETE_BODY = {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  pathname = '/candidate';
+  pathname = '/profile';
   // localStorage.clear() alone isn't enough — the candidate api client
   // also caches the access/refresh token in a module-level closure
   // variable (see lib/api.ts's createApiClient), which a leftover
@@ -167,6 +182,10 @@ describe('CandidateVerificationProvider — unit', () => {
 describe('CandidateVerificationProvider — real /candidate page tree, phone-only login', () => {
   const PHONE = '+911234567890';
 
+  beforeEach(() => {
+    pathname = '/candidate';
+  });
+
   it('never gets stuck on Loading… indefinitely after a real client-side login', async () => {
     const fetchMock = jest.fn(async (url: string) => {
       if (url.endsWith('/auth/otp/request')) return jsonResponse(200, { message: 'OTP sent' });
@@ -199,13 +218,82 @@ describe('CandidateVerificationProvider — real /candidate page tree, phone-onl
     fireEvent.change(await screen.findByLabelText(/verification code/i), { target: { value: '123456' } });
     fireEvent.click(screen.getByRole('button', { name: /verify and continue/i }));
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/verify'), { timeout: 5000 });
-    expect(replace).toHaveBeenCalledTimes(1);
+    // app/candidate/page.tsx's own resolveRole() redirects immediately
+    // (with a `?missing=` query string) the moment /users/me reveals an
+    // incomplete candidate — before Dashboard ever mounts. /candidate is
+    // exempt from the global CandidateVerificationProvider (see
+    // GATE_EXEMPT_PATH_PREFIXES's own doc comment), so this is the only
+    // redirect source on this route — no second, competing one to race
+    // against.
+    await waitFor(
+      () => expect(replace.mock.calls.some((call) => String(call[0]).startsWith('/verify'))).toBe(true),
+      { timeout: 5000 },
+    );
 
-    // The real proof this doesn't get stuck: real page content (or, worst
-    // case, Dashboard's own recoverable error state — either way, never a
-    // dead "Loading…") is visible after the fallback window, and there's
-    // always been a logout button reachable throughout.
-    await waitFor(() => expect(screen.queryByText('Loading…')).not.toBeInTheDocument(), { timeout: 6000 });
+    // While the redirect placeholder is up, there's always a logout button
+    // — never a dead end.
+    expect(screen.getByRole('button', { name: /log out/i })).toBeInTheDocument();
+
+    // The real proof this doesn't get stuck: since this mock's `usePathname`
+    // never actually changes (it's static, not real navigation), the page's
+    // own REDIRECT_FALLBACK_MS is what eventually falls open onto Dashboard
+    // — real page content (or Dashboard's own recoverable error state,
+    // either way never a permanently-dead "Loading…").
+    await waitFor(() => expect(screen.queryByText('Loading…')).not.toBeInTheDocument(), { timeout: 8000 });
   }, 15000);
+
+  it('never fires any of Dashboard\'s protected candidate-data endpoints for an incomplete candidate on a real client-side login', async () => {
+    // Every one of these returning 400 (instead of the fixture data
+    // Dashboard expects) is exactly what a pre-fix run of this test would
+    // have exercised — the whole point is that they must never be called
+    // at all, not that they'd fail gracefully if they were.
+    const fetchMock = jest.fn(async (url: string) => {
+      if (url.endsWith('/auth/otp/request')) return jsonResponse(200, { message: 'OTP sent' });
+      if (url.endsWith('/auth/otp/verify')) {
+        return jsonResponse(200, {
+          accessToken: 'tok-2',
+          refreshToken: 'refresh-2',
+          user: { id: 'user-2', phone: PHONE, role: 'CANDIDATE' },
+        });
+      }
+      if (url.endsWith('/users/me')) return jsonResponse(200, { role: 'CANDIDATE', phone: PHONE, email: null });
+      if (url.endsWith('/account/status')) return jsonResponse(200, { deactivated: false });
+      return jsonResponse(400, INCOMPLETE_BODY);
+    });
+    (global as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
+
+    render(
+      <Providers>
+        <CandidatePage />
+      </Providers>,
+    );
+
+    await waitFor(() => screen.getByRole('tab', { name: /phone/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /phone/i }));
+    fireEvent.change(screen.getByLabelText(/phone number/i), { target: { value: PHONE } });
+    fireEvent.click(screen.getByRole('button', { name: /send code/i }));
+    fireEvent.change(await screen.findByLabelText(/verification code/i), { target: { value: '123456' } });
+    fireEvent.click(screen.getByRole('button', { name: /verify and continue/i }));
+
+    // The direct-call fix: resolveRole() itself redirects (with `?missing=`)
+    // the moment /users/me resolves — well before either bounded fallback
+    // would ever need to fire.
+    await waitFor(() =>
+      expect(replace.mock.calls.some((c) => String(c[0]).startsWith('/verify?missing='))).toBe(true),
+    );
+
+    const calledUrls = fetchMock.mock.calls.map((c) => String(c[0]));
+    const gatedEndpoints = [
+      '/profiles/me',
+      '/assessments',
+      '/jobs/matched',
+      '/applications/me',
+      '/profiles/me/external-credentials',
+      '/interviews/mine',
+      '/assessment-sessions/mine',
+    ];
+    for (const endpoint of gatedEndpoints) {
+      expect(calledUrls.some((u) => u.endsWith(endpoint))).toBe(false);
+    }
+  });
 });

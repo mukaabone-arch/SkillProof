@@ -17,6 +17,7 @@
  */
 import { emitLimitReached, LimitReachedPayload } from './limitReachedBus';
 import { emitCandidateVerificationIncomplete } from './candidateVerificationBus';
+import { emitCandidateTokenChange } from './tokenChangeBus';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -65,7 +66,7 @@ interface ScopeKeys {
   refresh: string;
 }
 
-function createApiClient({ access: ACCESS_KEY, refresh: REFRESH_KEY }: ScopeKeys) {
+function createApiClient({ access: ACCESS_KEY, refresh: REFRESH_KEY }: ScopeKeys, onTokenChange?: () => void) {
   let accessToken: string | null = null;
   let refreshToken: string | null = null;
 
@@ -80,6 +81,7 @@ function createApiClient({ access: ACCESS_KEY, refresh: REFRESH_KEY }: ScopeKeys
         else localStorage.removeItem(REFRESH_KEY);
       }
     }
+    onTokenChange?.();
   }
 
   // Back-compat: existing callers use setToken(access)
@@ -200,7 +202,7 @@ export function downloadBlob(blob: Blob, filename: string): void {
 }
 
 /** Candidate app (and any other main-site page) — unchanged storage keys. */
-const candidateClient = createApiClient({ access: 'sp_token', refresh: 'sp_refresh' });
+const candidateClient = createApiClient({ access: 'sp_token', refresh: 'sp_refresh' }, emitCandidateTokenChange);
 export const { api, apiBlob, setTokens, setToken, getToken, clearTokens, logout } = candidateClient;
 
 /** Employer portal (/employer) — separate keys so it never clobbers a candidate session. */

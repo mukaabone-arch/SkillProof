@@ -27,6 +27,7 @@ import { useRouter } from 'next/navigation';
 import { api, logout, type ApiError } from '@/lib/api';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import { useCandidateVerification } from '@/lib/candidateVerification';
+import { useEntitlements } from '@/lib/entitlements';
 
 interface Me {
   role: string;
@@ -43,6 +44,7 @@ export default function VerifyPage() {
   const ready = useRequireAuth();
   const router = useRouter();
   const { refetch } = useCandidateVerification();
+  const { refetch: refetchEntitlements } = useEntitlements();
 
   const [me, setMe] = useState<Me | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -123,10 +125,12 @@ export default function VerifyPage() {
     try {
       const ep = endpoints(activeChannel);
       await api(ep.verify, { method: 'POST', body: JSON.stringify(ep.payload({ otp })) });
-      // Update the gate's cached status BEFORE navigating away — otherwise
-      // CandidateVerificationProvider still thinks this token is
-      // incomplete and immediately bounces back here.
-      await refetch();
+      // Refresh both the gate's cached status and entitlements BEFORE
+      // navigating away — otherwise CandidateVerificationProvider still
+      // thinks this token is incomplete and immediately bounces back here,
+      // and the dashboard's first render would briefly show a stale
+      // (pre-verification) entitlements snapshot.
+      await Promise.all([refetch(), refetchEntitlements()]);
       router.replace('/candidate');
     } catch (e) {
       setError((e as ApiError).message);

@@ -15,7 +15,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { api, getToken } from './api';
+import { api, getToken, type ApiError } from './api';
 
 export type SubscriptionTier = 'FREE' | 'PREMIUM';
 
@@ -84,6 +84,19 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
       const res = await api<EntitlementsResponse>('/me/entitlements');
       setState({ tier: res.tier, limits: res.limits, usage: res.usage, loading: false, error: null });
     } catch (e) {
+      // An unverified candidate 400s here (apps/api's CandidateVerificationGuard)
+      // until they finish /verify — expected app state, not an entitlements
+      // failure. Never surfaced as `error` (nothing should render it) and
+      // never logged as a failure; CandidateVerificationProvider is what
+      // actually reacts to this (see candidateVerificationBus).
+      const code = (e as ApiError).body && typeof (e as ApiError).body === 'object'
+        ? ((e as ApiError).body as { code?: string }).code
+        : undefined;
+      if (code === 'CANDIDATE_VERIFICATION_INCOMPLETE') {
+        setState({ ...EMPTY_STATE, loading: false });
+        return;
+      }
+      console.error('EntitlementsProvider: unexpected failure fetching /me/entitlements', e);
       setState((s) => ({ ...s, loading: false, error: (e as Error).message }));
     }
   }, []);

@@ -464,7 +464,15 @@ export default function Dashboard({ onLoggedOut }: Props) {
           setAssessmentSession(session);
         });
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => {
+        // app/candidate/page.tsx's resolveRole() only ever renders this
+        // component for a confirmed-complete candidate (or a non-candidate
+        // role), so a rejection here is a genuine, worth-logging failure —
+        // never CANDIDATE_VERIFICATION_INCOMPLETE, which resolveRole
+        // already screened out before Dashboard could mount.
+        console.error('Dashboard: unexpected failure loading candidate data', e);
+        setError(e.message);
+      });
   }, []);
 
   if (me?.role === 'PLATFORM_ADMIN') {
