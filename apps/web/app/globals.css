@@ -523,8 +523,16 @@ code { font-family: var(--font-body); }
    LandingHeader's own .lp-brand). */
 .brand-lockup-hero-text { display: flex; flex-direction: column; justify-content: flex-start; }
 .brand-lockup-hero-suffix {
-  font-family: var(--font-body); font-weight: 600; font-size: 0.9rem;
-  letter-spacing: 0.02em; color: var(--ink-60); margin-top: 2px;
+  /* var(--text-lg), not the old bare 0.9rem literal — reads as a proper
+     subtitle under the 2rem wordmark rather than a caption, matching the
+     token scale every other sized-text rule in this file already reads
+     from. margin-top bumped from 2px (barely a gap) to --space-2 for real
+     separation from "MyAmbii" above it — see EmployerOtpLogin.tsx/
+     EmployerInviteAccept.tsx, the only two consumers (candidate's OtpLogin
+     never passes a `suffix`, so this class never renders there — no
+     candidate-side scoping needed). */
+  font-family: var(--font-body); font-weight: 600; font-size: var(--text-lg);
+  letter-spacing: 0.02em; color: var(--ink-60); margin-top: var(--space-2);
 }
 /* Three hero-card entry surfaces (OtpLogin, EmployerOtpLogin,
    EmployerInviteAccept) render the lockup as a link home to "/" (the
@@ -727,12 +735,29 @@ main.auth.auth-gradient {
      same way for the same reason; without this, the grid below gets
      squeezed into a 640px centered box instead of spanning the viewport. */
   max-width: none; margin: 0; padding: 0;
-  /* height, not min-height: pins the grid (and so both columns, via the
-     default stretch alignment) to exactly the viewport instead of letting
-     it grow past it when the card's content is tall. That in turn gives
-     .auth-split-panel a definite, bounded height to scroll within — see
-     its own overflow-y:auto below for why that matters. */
-  height: 100vh;
+  /* min-height, not height: a floor, not a ceiling. This used to be a flat
+     `height: 100vh` pairing with .auth-split-panel's own `overflow-y: auto`
+     below, on the reasoning that pinning the grid to exactly the viewport
+     let tall card content scroll *within* the panel column while the
+     visual column stayed fixed beside it. In practice that clipped the
+     panel's own content with no visible affordance it was even scrollable
+     — measured candidate content at 873px tall, employer at 764px; on any
+     viewport shorter than that (a very ordinary ~768px laptop, not an edge
+     case), the panel silently split into two incomplete views, neither of
+     which showed the legal/consent line together with the rest of the
+     form. min-height keeps the exact same pinned, two-column look on every
+     viewport that already comfortably clears those numbers (900px+ is the
+     common case, and nothing about this changes there) — it only concedes
+     ground exactly where the fixed-height version was already silently
+     broken: past that point, the grid's row grows to fit the taller
+     column's real content instead of clipping it, and the *page* scrolls
+     as one normal flow (band included, moving with everything else) rather
+     than hiding content behind an internal, undiscoverable scroll region.
+     This used to also need a mobile-breakpoint override further down to
+     undo the fixed-height pairing for a single-column stack — that override
+     is gone now too, since the same min-height floor already applies at
+     every width, not just above ≤860px. */
+  min-height: 100vh;
   display: grid;
   /* Visual side flexes and gets *more* room on a wide monitor (a bigger
      canvas for the treatment); panel side is clamped so the card and
@@ -895,15 +920,13 @@ main.auth.auth-gradient {
   display: flex; flex-direction: column; align-items: center; justify-content: safe center;
   padding: 56px 40px;
   background: var(--gray-50);
-  /* .auth-split now pins the grid to exactly 100vh (height, not min-height)
-     rather than letting it grow past the viewport — that gives this grid
-     item a definite, bounded height via the default stretch alignment, so
-     when the headline+card content is taller than the viewport, it
-     scrolls within this column instead of pushing the whole document
-     (silently, with no visible scrollbar or cue) past the fold. When
-     content fits, this has no visible effect — justify-content still
-     centers it, same as before. */
-  overflow-y: auto;
+  /* No overflow-y here on purpose — see .auth-split's own `min-height`
+     comment above for why a scrollable-panel-within-a-fixed-viewport was
+     the wrong model in the first place. This panel's height now simply
+     follows its grid row: exactly the viewport when content fits (the
+     common case, no visible change), taller than the viewport when it
+     doesn't, in which case the page scrolls and justify-content's
+     centering just applies to whatever room the row actually has. */
 }
 .auth-split-headline {
   font-family: var(--font-body); font-weight: 700;
@@ -959,35 +982,18 @@ main.auth.auth-gradient {
   .auth-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
   .auth-split-visual { min-height: 140px; }
   .auth-split-panel { padding: 40px 24px; }
-  /* Deliberately undoing two desktop rules here, not just leaving them in
-     place — .auth-split's own `height: 100vh` (base rule, above) and
-     .auth-split-panel's `overflow-y: auto` (also above) exist specifically
-     to let tall card content scroll *within* the panel column while the
-     visual column stays fixed beside it — a two-column effect that only
-     makes sense once the columns are side by side. Once the grid collapses
-     to a single stacked column (this breakpoint), that same pairing turns
-     into a bug: the panel becomes its own clipped scroll region starting
-     exactly at the band's bottom edge, so on any phone where the card
-     (headline + logo + form + OAuth buttons + legal text) is taller than
-     one viewport minus the band, the logo and headline — the first things
-     in that scrollable region — scroll up and get clipped away, invisible
-     behind the band, before the user ever reaches the bottom of the form.
-     Confirmed at 360x740: band 110px + panel's own overflow of ~150px is
-     enough to fully hide the logo. Real phones have less usable height
-     again (browser toolbar chrome isn't simulated here), so it's worse in
-     practice, not better. The fix is to stop pretending there are two
-     independently-scrolling regions at all below this breakpoint: let the
-     whole page scroll as one normal flow instead, so the band scrolls away
-     with everything else like any other block on the page, same as a user
-     would expect on mobile. `height: auto` uncaps the grid (no more
-     100vh ceiling forcing an internal scroll region to exist in the first
-     place) and `overflow-y: visible` stops the panel from clipping its own
-     content independently of the page. DO NOT reintroduce height:100vh /
-     overflow-y:auto here to "match" the desktop rule above — that's the
-     exact regression this comment exists to prevent; the two breakpoints
-     need different scroll models, not the same one. */
-  .auth-split { height: auto; }
-  .auth-split-panel { overflow-y: visible; }
+  /* No height/overflow override needed here anymore — .auth-split's base
+     rule is `min-height: 100vh` (a floor, never a ceiling) and
+     .auth-split-panel carries no overflow-y at all, so the whole page
+     already scrolls as one normal flow at every width, this breakpoint
+     included, with no separate fix required. This block used to
+     specifically UNDO a `height: 100vh` + `overflow-y: auto` pairing that
+     only made sense for the desktop two-column layout and actively broke
+     mobile's single-column stack (see git history if you need the exact
+     reasoning that led here); once the base rule itself stopped being a
+     ceiling, there was nothing left to undo. Verified by comparing computed
+     styles and full-page screenshots at 360x740 before and after removing
+     these two lines — pixel-identical. */
 }
 @media (max-width: 480px) {
   .auth-split-visual { min-height: 110px; }
