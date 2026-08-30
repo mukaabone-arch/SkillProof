@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { api, getToken, type ApiError } from '@/lib/api';
 import { useEntitlements } from '@/lib/entitlements';
 import { UsageMeter } from '@/components/UsageMeter';
+import { Badge } from '@/components/ui';
 
 type IntegrityEventType =
   | 'TAB_BLUR'
@@ -61,6 +62,17 @@ interface LimitIssueBody {
   limit?: number | null;
   resetsAt?: string | null;
 }
+/** One topic's aggregate performance — never per-question detail; see AssessmentsService.getResult's own doc comment on the leak boundary this is built against. */
+interface TopicStat {
+  topic: string;
+  correct: number;
+  asked: number;
+}
+interface TopicBreakdown {
+  topics: TopicStat[];
+  /** Questions with no topic tag (excluded, not bucketed as "Other") — non-zero means the breakdown below isn't the full question count. */
+  excludedCount: number;
+}
 interface Result {
   status: string;
   scorePercent: number | null;
@@ -69,6 +81,11 @@ interface Result {
   assessmentTitle: string;
   skillName: string;
   badge: { verifyHash: string; level: string; expiresAt: string; attemptNumber: number | null } | null;
+  topicBreakdown: TopicBreakdown;
+}
+
+function topicPercent(t: TopicStat): number {
+  return t.asked === 0 ? 0 : Math.round((t.correct / t.asked) * 100);
 }
 
 export default function TakeAssessmentPage() {
@@ -312,10 +329,11 @@ export default function TakeAssessmentPage() {
         <h1>{result.passed ? '🎉 Passed!' : 'Not this time'}</h1>
         {/*
           Performance summary only — score, pass/fail against the threshold,
-          and (once questions carry a topic tag — they don't yet, see
-          AssessmentsService.getResult) a strong/weak breakdown by area.
-          Never the questions themselves or which answers were right/wrong —
-          that would leak the question bank to every candidate who takes it.
+          and a per-topic breakdown (topicBreakdown below — aggregate counts
+          only, see AssessmentsService.getResult's own doc comment on the
+          leak boundary). Never the questions themselves or which specific
+          answers were right/wrong — that would leak the question bank to
+          every candidate who takes it.
         */}
         <p>
           {result.assessmentTitle} — score: <strong>{result.scorePercent}%</strong>{' '}
@@ -383,6 +401,54 @@ export default function TakeAssessmentPage() {
             </div>
           </>
         )}
+
+        {result.topicBreakdown.topics.length > 0 && (
+          <div className="hub-section">
+            <h2>Performance by topic</h2>
+            {/*
+              "by topic", not "every question" — excludedCount (25 of 1,125
+              questions today have no topic tag) means this deliberately
+              doesn't sum to the attempt's full question count. Bucketing
+              those under an "Other" topic was considered and rejected —
+              it's not actionable study guidance, just noise.
+            */}
+            {result.topicBreakdown.excludedCount > 0 && (
+              <p className="meta" style={{ marginTop: -8 }}>
+                {result.topicBreakdown.excludedCount} question{result.topicBreakdown.excludedCount === 1 ? '' : 's'}{' '}
+                weren&apos;t part of a tracked topic and aren&apos;t included below.
+              </p>
+            )}
+            {/*
+              On a pass this is just informational, so it stays in whatever
+              order the server returned. On a fail, sorted weakest-first —
+              that's the whole point of showing it here, so "what should I
+              study" is the first thing the candidate sees, not something
+              they have to hunt for in a flat list. "Weak" reuses
+              passThreshold (the bar this assessment already needed to
+              clear) rather than a made-up cutoff — a topic below it is
+              exactly as under-the-bar as the attempt as a whole was.
+            */}
+            {(result.passed
+              ? result.topicBreakdown.topics
+              : [...result.topicBreakdown.topics].sort((a, b) => topicPercent(a) - topicPercent(b))
+            ).map((t) => {
+              const pct = topicPercent(t);
+              const weak = !result.passed && pct < result.passThreshold;
+              return (
+                <div key={t.topic} className="card" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                  <div className="assessment-row">
+                    <strong>{t.topic}</strong>
+                    {weak && <Badge variant="warning">Study this</Badge>}
+                  </div>
+                  <p className="meta">
+                    {t.correct}/{t.asked} correct ({pct}%)
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         <Link href="/assessments">← Back to assessments</Link>
       </main>
     );

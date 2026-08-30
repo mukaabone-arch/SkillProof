@@ -467,13 +467,21 @@ export class AssessmentsService {
 
   async getResult(userId: string, attemptId: string) {
     const attempt = await this.getOwnedAttempt(userId, attemptId);
-    const full = await this.prisma.attempt.findUnique({
-      where: { id: attempt.id },
-      include: {
-        badge: true,
-        assessment: { include: { skill: true } },
-      },
-    });
+    const [full, answers] = await Promise.all([
+      this.prisma.attempt.findUnique({
+        where: { id: attempt.id },
+        include: {
+          badge: true,
+          assessment: { include: { skill: true } },
+        },
+      }),
+      // Source for topicBreakdown below — see buildTopicBreakdown's own doc
+      // comment for exactly what this is (and isn't) allowed to leak.
+      this.prisma.attemptAnswer.findMany({
+        where: { attemptId: attempt.id },
+        select: { isCorrect: true, question: { select: { correct: true } } },
+      }),
+    ]);
     return {
       id: full!.id,
       status: full!.status,
@@ -493,13 +501,56 @@ export class AssessmentsService {
       // Deliberately no integrity fields here — this is the candidate's own
       // result view. See AdminService.getAttemptForReview for the admin one.
       //
-      // Deliberately no per-question or per-topic breakdown either: Question
-      // has no topic/subskill tag today (schema.prisma), so a real
-      // strong/weak-by-area summary isn't possible without first adding that
-      // tagging — this stays an overall score until that lands. And even once
-      // it does, this must only ever aggregate isCorrect by topic, never
-      // return question text or `correct` — see gradeAttempt's own comment
-      // on why `correct` never leaves the server.
+      // Aggregate-only per-topic breakdown — see buildTopicBreakdown's own
+      // doc comment for the shape and the leak boundary it enforces. (An
+      // earlier version of this comment claimed Question had no topic tag
+      // and a breakdown wasn't possible without adding one — that was
+      // wrong: prisma/seed-mcq-import.ts has always written `topic` onto
+      // every question's `correct` JSON at import time; it just had no
+      // reader until now.)
+      topicBreakdown: this.buildTopicBreakdown(answers),
+    };
+  }
+
+  /**
+   * Reduces this attempt's answers into { topic, correct, asked } counts —
+   * the only thing this is ever allowed to return. `question.correct` (see
+   * the query in getResult above) carries the whole grading payload —
+   * `answer`, `sourceId`, `explanation`, `topic` — because Postgres/Prisma
+   * can't project a single key out of a JSON column; the server necessarily
+   * reads the whole blob into memory. The leak boundary is what leaves this
+   * function, not what it reads: only `topic` is ever touched, and the
+   * return value is a plain aggregate with no questionId, no `answer`, no
+   * `explanation`, nothing a candidate could use to reconstruct which
+   * question was asked or what the right answer was. If this ever needs
+   * more per-topic detail, add it as another *count*, not as anything that
+   * echoes a single question back.
+   *
+   * Null-topic questions (25 of 1,125 today) are excluded rather than
+   * bucketed under an "Other" topic — that bucket wouldn't be actionable
+   * study guidance, just noise. excludedCount lets the caller say so
+   * honestly ("performance by topic", not "every question") instead of
+   * silently under-counting.
+   */
+  private buildTopicBreakdown(
+    answers: { isCorrect: boolean | null; question: { correct: unknown } }[],
+  ): { topics: { topic: string; correct: number; asked: number }[]; excludedCount: number } {
+    const byTopic = new Map<string, { correct: number; asked: number }>();
+    let excludedCount = 0;
+    for (const a of answers) {
+      const topic = (a.question.correct as { topic?: string | null } | null)?.topic;
+      if (!topic) {
+        excludedCount += 1;
+        continue;
+      }
+      const bucket = byTopic.get(topic) ?? { correct: 0, asked: 0 };
+      bucket.asked += 1;
+      if (a.isCorrect) bucket.correct += 1;
+      byTopic.set(topic, bucket);
+    }
+    return {
+      topics: Array.from(byTopic.entries()).map(([topic, counts]) => ({ topic, ...counts })),
+      excludedCount,
     };
   }
 
