@@ -959,6 +959,35 @@ main.auth.auth-gradient {
   .auth-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
   .auth-split-visual { min-height: 140px; }
   .auth-split-panel { padding: 40px 24px; }
+  /* Deliberately undoing two desktop rules here, not just leaving them in
+     place — .auth-split's own `height: 100vh` (base rule, above) and
+     .auth-split-panel's `overflow-y: auto` (also above) exist specifically
+     to let tall card content scroll *within* the panel column while the
+     visual column stays fixed beside it — a two-column effect that only
+     makes sense once the columns are side by side. Once the grid collapses
+     to a single stacked column (this breakpoint), that same pairing turns
+     into a bug: the panel becomes its own clipped scroll region starting
+     exactly at the band's bottom edge, so on any phone where the card
+     (headline + logo + form + OAuth buttons + legal text) is taller than
+     one viewport minus the band, the logo and headline — the first things
+     in that scrollable region — scroll up and get clipped away, invisible
+     behind the band, before the user ever reaches the bottom of the form.
+     Confirmed at 360x740: band 110px + panel's own overflow of ~150px is
+     enough to fully hide the logo. Real phones have less usable height
+     again (browser toolbar chrome isn't simulated here), so it's worse in
+     practice, not better. The fix is to stop pretending there are two
+     independently-scrolling regions at all below this breakpoint: let the
+     whole page scroll as one normal flow instead, so the band scrolls away
+     with everything else like any other block on the page, same as a user
+     would expect on mobile. `height: auto` uncaps the grid (no more
+     100vh ceiling forcing an internal scroll region to exist in the first
+     place) and `overflow-y: visible` stops the panel from clipping its own
+     content independently of the page. DO NOT reintroduce height:100vh /
+     overflow-y:auto here to "match" the desktop rule above — that's the
+     exact regression this comment exists to prevent; the two breakpoints
+     need different scroll models, not the same one. */
+  .auth-split { height: auto; }
+  .auth-split-panel { overflow-y: visible; }
 }
 @media (max-width: 480px) {
   .auth-split-visual { min-height: 110px; }
