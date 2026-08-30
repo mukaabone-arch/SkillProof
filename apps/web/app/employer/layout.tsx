@@ -100,6 +100,16 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
 
   if (pathname === '/employer') return <>{children}</>;
   if (!ready) return null;
+  // /employer/deactivated is a standalone locked-state screen (its own
+  // logout button, no self-service action beyond that) — same reasoning as
+  // the bare /employer render above, just reached after the auth/ready gate
+  // instead of before it, since (unlike the login route) this one still
+  // requires a token: the card shows the org's name, which must stay behind
+  // auth. DEACTIVATED_EXEMPT_PATHS is the same constant the effect above
+  // already uses to skip the redirect-loop check for this path; reusing it
+  // here too keeps "which paths are exempt from deactivation handling" in
+  // one place instead of two lists that could drift apart.
+  if (DEACTIVATED_EXEMPT_PATHS.includes(pathname)) return <>{children}</>;
 
   return (
     <EmployerSidebarShell onLoggedOut={() => router.replace('/employer')}>
