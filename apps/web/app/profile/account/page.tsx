@@ -38,6 +38,18 @@ interface AccountStatus {
   deactivatedAt: string | null;
 }
 
+/**
+ * TEMPORARY: hides the "Download my data" card from this page only — the
+ * backend (export endpoints, ExportRequest model, the background
+ * generation job) and the admin compliance view at
+ * /admin/compliance/exports are untouched and keep working; a platform
+ * admin can still fulfil a request manually if a candidate asks some other
+ * way. This is a DPDP data-portability right and must return before public
+ * launch — flip this back to `true` to restore it, do not delete
+ * ExportsCard or its JSX. Not a sign the feature was cut deliberately.
+ */
+const SHOW_DATA_EXPORT_UI = false;
+
 type ExportStatus = 'REQUESTED' | 'PROCESSING' | 'READY' | 'FAILED' | 'EXPIRED';
 
 interface ExportRequestRow {
@@ -481,7 +493,7 @@ export default function AccountSettingsPage() {
 
         <LoginMethodsCard />
 
-        {status && <ExportsCard />}
+        {status && SHOW_DATA_EXPORT_UI && <ExportsCard />}
 
         {status?.deactivated && (
           <Card style={{ marginBottom: 24 }}>
