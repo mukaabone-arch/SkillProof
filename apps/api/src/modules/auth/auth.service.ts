@@ -19,7 +19,7 @@ import { GithubOAuthProvider } from './oauth/github-oauth.provider';
 import { GoogleOAuthProvider } from './oauth/google-oauth.provider';
 import { ExternalProfile, OAuthCodeExchange } from './oauth/oauth.types';
 import { normalizeEmail } from './normalize-email';
-import { assertCompanyEmail } from './employer-email-domain';
+import { assertCompanyEmail, assertCompanyEmailForInvite } from './employer-email-domain';
 import { generateOrgCode } from '../orgs/org-code.util';
 import { PRIVACY_VERSION, TERMS_VERSION } from './legal-terms';
 import { renderNotificationEmail } from '../notifications/notification-email.template';
@@ -456,9 +456,16 @@ export class AuthService {
    * "provisioned manually" and never auto-created on login — this is that
    * manual provisioning step: an admin's own invite action, not a bare
    * OAuth/OTP login inventing an org membership out of nothing.
+   *
+   * assertCompanyEmailForInvite runs here too, not just at invite creation
+   * (OrgMembersService.invite) — see that function's own doc comment for
+   * why this is the real boundary rather than a redundant belt-and-braces
+   * check. Checked before consumeOtp so a blocked domain never burns the
+   * invitee's one-time OTP attempt for nothing.
    */
   async acceptInvite(rawEmail: string, otp: string) {
     const email = normalizeEmail(rawEmail);
+    assertCompanyEmailForInvite(email);
     this.consumeOtp(this.inviteOtpKey(email), otp);
 
     const invitation = await this.findAcceptableInvitation(email);

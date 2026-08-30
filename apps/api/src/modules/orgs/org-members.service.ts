@@ -13,6 +13,7 @@ import { WEB_BASE_URL } from '../../config/web-base-url';
 import { PLANS } from '../../config/plans.config';
 import { EMAIL_PROVIDER, EmailProvider } from '../notifications/email-provider.interface';
 import { normalizeEmail } from '../auth/normalize-email';
+import { assertCompanyEmailForInvite } from '../auth/employer-email-domain';
 
 /** How long an invite stays acceptable before it lapses and stops counting against the seat cap. */
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -93,6 +94,13 @@ export class OrgMembersService {
   async invite(orgId: string, invitedByUserId: string, rawEmail: string) {
     await this.expirePastDue(orgId);
     const email = normalizeEmail(rawEmail);
+    // Checked first, before any DB query below — a blocked domain can
+    // never be inviteable regardless of membership/seat state, so there's
+    // no reason to spend those queries on an email that's rejected either
+    // way. UX-only here (immediate feedback to the admin); the real
+    // boundary is AuthService.acceptInvite — see assertCompanyEmailForInvite's
+    // own doc comment for why that side isn't wired up yet.
+    assertCompanyEmailForInvite(email);
 
     const existingMember = await this.prisma.orgMember.findFirst({
       where: { organizationId: orgId, user: { email } },

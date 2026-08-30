@@ -154,3 +154,32 @@ export function assertCompanyEmail(email: string): void {
       "Please use your company email address. Free email providers (Gmail, Yahoo, Outlook, etc.) and disposable/temporary addresses aren't accepted for employer accounts.",
   });
 }
+
+/**
+ * Team-invite counterpart to assertCompanyEmail above — same underlying
+ * check (isFreeOrDisposableEmailDomain), same COMPANY_EMAIL_REQUIRED code,
+ * different message. Two call sites, both deliberate:
+ *
+ *  - OrgMembersService.invite — UX-only, catches the mistake immediately
+ *    for the inviting admin rather than making the invitee discover it
+ *    later.
+ *  - AuthService.acceptInvite — the real boundary. A PENDING row somehow
+ *    carrying a blocked domain (e.g. a future bug in invite-time
+ *    validation, or a row from before this check existed) must not be
+ *    honoured on a technicality just because invite-time didn't catch it.
+ *
+ * No grandfathering needed for either: checked in production before this
+ * shipped — the only employer account on record is info@flairfuture.com
+ * (a company domain), and there were zero PENDING OrgInvitation rows to
+ * begin with, so nothing in flight is invalidated. (A separate account,
+ * mukaabone@gmail.com, is PLATFORM_ADMIN with no org membership and never
+ * goes through either invite call site — irrelevant here regardless.)
+ */
+export function assertCompanyEmailForInvite(email: string): void {
+  if (!isFreeOrDisposableEmailDomain(email)) return;
+
+  throw new BadRequestException({
+    code: 'COMPANY_EMAIL_REQUIRED',
+    message: 'Team members must be invited using a company email address.',
+  });
+}

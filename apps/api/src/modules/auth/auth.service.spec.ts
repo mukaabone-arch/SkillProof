@@ -387,7 +387,7 @@ describe('AuthService — employer email OTP', () => {
     });
   });
 
-  describe('company-email domain gate (signup only — see employer-email-domain.spec.ts for the matching rules themselves)', () => {
+  describe('company-email domain gate (signup and invite-accept — see employer-email-domain.spec.ts for the matching rules themselves)', () => {
     it('requestEmailOtp rejects a brand-new signup on a free-provider domain, and never issues a code', async () => {
       process.env.NODE_ENV = 'test';
       const { service, emailProvider } = makeService();
@@ -462,17 +462,23 @@ describe('AuthService — employer email OTP', () => {
       });
     });
 
-    it("acceptInvite is NOT gated — an admin's invite to a personal address (e.g. a contractor) overrides the restriction", async () => {
+    it("acceptInvite IS gated too, not just invite-time — a personal address is rejected even for an admin's own invite (contractor@gmail.com)", async () => {
+      // Was previously exempt on the reasoning that an invitation is an
+      // admin vouching for someone — that reasoning no longer holds once
+      // invite-time itself is gated (OrgMembersService.invite), and
+      // accept-time is the real boundary a PENDING row can't route around.
+      // See assertCompanyEmailForInvite's own doc comment; the equivalent
+      // invite-time coverage lives in org-members.service.spec.ts.
       process.env.NODE_ENV = 'test';
       const invitation = pendingInvitation({ email: 'contractor@gmail.com', organizationId: 'org-1' });
       const { service, users, orgMembers } = makeService([], [], [invitation]);
 
       await service.requestInviteOtp('contractor@gmail.com');
-      const result = await service.acceptInvite('contractor@gmail.com', DEV_OTP);
-
-      expect(result).toMatchObject({ accessToken: 'signed.jwt.token' });
-      expect(users[0]).toMatchObject({ email: 'contractor@gmail.com', role: Role.EMPLOYER_MEMBER });
-      expect(orgMembers[0]).toMatchObject({ userId: users[0].id, organizationId: 'org-1' });
+      await expect(service.acceptInvite('contractor@gmail.com', DEV_OTP)).rejects.toMatchObject({
+        response: { code: 'COMPANY_EMAIL_REQUIRED' },
+      });
+      expect(users).toHaveLength(0); // never provisioned
+      expect(orgMembers).toHaveLength(0);
     });
   });
 
@@ -842,6 +848,54 @@ describe('AuthService — team-invite acceptance', () => {
       await expect(service.acceptInvite('invitee@acme.com', DEV_OTP)).rejects.toThrow(
         'OTP expired or not requested. Request a new one.',
       );
+    });
+
+    it('rejects accepting a PENDING invitation whose email is on a blocked domain — the real boundary, not just invite-time UX', async () => {
+      process.env.NODE_ENV = 'test';
+      // Bypasses OrgMembersService.invite deliberately — this row exists as
+      // if it were created before the invite-time check shipped (or by a
+      // future bug in it), which is exactly the scenario this boundary
+      // exists for: a PENDING row somehow carrying a blocked domain must
+      // not be honoured on a technicality just because invite-time didn't
+      // catch it.
+      const invitation = pendingInvitation({ email: 'someone@gmail.com' });
+      const { service, users, invitations } = makeService([], [], [invitation]);
+
+      await expect(service.acceptInvite('someone@gmail.com', DEV_OTP)).rejects.toMatchObject({
+        response: { code: 'COMPANY_EMAIL_REQUIRED', message: 'Team members must be invited using a company email address.' },
+      });
+      expect(users).toHaveLength(0); // never provisioned
+      expect(invitations[0].status).toBe(OrgInvitationStatus.PENDING); // never touched
+    });
+
+    it('the blocked-domain check runs before consuming the OTP, so a rejected attempt does not burn it', async () => {
+      process.env.NODE_ENV = 'test';
+      const invitation = pendingInvitation({ email: 'someone@gmail.com' });
+      const { service } = makeService([], [], [invitation]);
+
+      await service.requestInviteOtp('someone@gmail.com');
+      await expect(service.acceptInvite('someone@gmail.com', DEV_OTP)).rejects.toMatchObject({
+        response: { code: 'COMPANY_EMAIL_REQUIRED' },
+      });
+      // The OTP is still valid — rejected before consumeOtp ever ran. This
+      // isn't "acceptable after all" (the domain is still blocked either
+      // way), just proof the OTP itself wasn't wastefully burned on a
+      // request that could never have succeeded.
+      await expect(service.acceptInvite('someone@gmail.com', '000000')).rejects.toMatchObject({
+        response: { code: 'COMPANY_EMAIL_REQUIRED' },
+      });
+    });
+
+    it('a company-domain invitation is completely unaffected', async () => {
+      process.env.NODE_ENV = 'test';
+      const invitation = pendingInvitation({ email: 'invitee@acme.com' });
+      const { service, users } = makeService([], [], [invitation]);
+
+      await service.requestInviteOtp('invitee@acme.com');
+      await expect(service.acceptInvite('invitee@acme.com', DEV_OTP)).resolves.toMatchObject({
+        accessToken: 'signed.jwt.token',
+      });
+      expect(users[0].email).toBe('invitee@acme.com');
     });
   });
 });

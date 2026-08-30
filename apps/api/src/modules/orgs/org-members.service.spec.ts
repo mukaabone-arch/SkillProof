@@ -269,6 +269,50 @@ describe('OrgMembersService', () => {
       expect(invitations).toHaveLength(0);
       expect(prisma.orgInvitation.create).toHaveBeenCalledTimes(1);
     });
+
+    it('rejects inviting a free-provider domain, with the invite-specific message and code', async () => {
+      const a = admin();
+      const { service, invitations } = makeService([a]);
+
+      await expect(service.invite(ORG, a.userId, 'someone@gmail.com')).rejects.toMatchObject({
+        response: { code: 'COMPANY_EMAIL_REQUIRED', message: 'Team members must be invited using a company email address.' },
+      });
+      expect(invitations).toHaveLength(0); // never created — rejected before the write
+    });
+
+    it('rejects inviting a disposable/temp-mail domain the same way', async () => {
+      const a = admin();
+      const { service } = makeService([a]);
+
+      // mailinator.com is in the vendored disposable-domain snapshot (see employer-email-domain.spec.ts).
+      await expect(service.invite(ORG, a.userId, 'someone@mailinator.com')).rejects.toMatchObject({
+        response: { code: 'COMPANY_EMAIL_REQUIRED' },
+      });
+    });
+
+    it('checked before any other validation — a blocked domain is rejected even when it would also collide on membership/seats', async () => {
+      const a = admin();
+      const existing = member({ user: { role: Role.EMPLOYER_MEMBER, email: 'taken@gmail.com' } as MemberRow['user'] });
+      const { service } = makeService([a, existing]);
+
+      // Same email as an existing member AND a blocked domain — the domain
+      // rejection must win, proving it runs first (a membership collision
+      // would give a different, more confusing message for what's
+      // fundamentally an ineligible-domain problem).
+      await expect(service.invite(ORG, a.userId, 'taken@gmail.com')).rejects.toMatchObject({
+        response: { code: 'COMPANY_EMAIL_REQUIRED' },
+      });
+    });
+
+    it('a company-domain invite is completely unaffected', async () => {
+      process.env.NODE_ENV = 'test';
+      const a = admin();
+      const { service } = makeService([a]);
+
+      await expect(service.invite(ORG, a.userId, 'new-hire@acme.com')).resolves.toMatchObject({
+        status: OrgInvitationStatus.PENDING,
+      });
+    });
   });
 
   describe('revokeInvitation', () => {
