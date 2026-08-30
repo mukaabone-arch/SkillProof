@@ -1192,3 +1192,287 @@ describe('AuthService — add-identifier linking (phone/email onto one account)'
     });
   });
 });
+
+describe('AuthService — change-identifier flow (replacing an existing phone/email)', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  it('changes a phone number — new value stored, and the notification goes by EMAIL to the account email, never SMS to anyone', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: '+919999911111', email: 'me@candidate.com', role: Role.CANDIDATE };
+    const { service, users, smsProvider, emailProvider } = makeService([me]);
+
+    await service.requestChangePhoneOtp('user-1', '+919999922222');
+    expect(smsProvider.sendOtp).not.toHaveBeenCalled(); // dev logs the OTP, never sends
+    const result = await service.verifyChangePhoneOtp('user-1', '+919999922222', DEV_OTP);
+
+    expect(result).toMatchObject({ ok: true, phone: '+919999922222' });
+    expect(users[0]).toMatchObject({ id: 'user-1', phone: '+919999922222', email: 'me@candidate.com' });
+
+    // The change-notification is an email, sent to the account's own
+    // (unchanged) email address — the old *phone* number was never
+    // SMS-able in the first place (MSG91's DLT template is OTP-only).
+    expect(smsProvider.sendOtp).not.toHaveBeenCalled();
+    expect(emailProvider.send).toHaveBeenCalledTimes(1);
+    const sent = emailProvider.send.mock.calls[0][0] as SentEmail;
+    expect(sent.to).toBe('me@candidate.com');
+    expect(sent.subject).toBe('Your MyAmbii phone number was changed');
+  });
+
+  it('masks the new phone number in the change notification — never shows it in full', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: '+919999911111', email: 'me@candidate.com', role: Role.CANDIDATE };
+    const { service, emailProvider } = makeService([me]);
+
+    await service.requestChangePhoneOtp('user-1', '+919876543210');
+    await service.verifyChangePhoneOtp('user-1', '+919876543210', DEV_OTP);
+
+    const sent = emailProvider.send.mock.calls[0][0] as SentEmail;
+    expect(sent.html).not.toContain('+919876543210'); // full new number never appears
+    expect(sent.html).toContain('3210'); // last 4 digits do, so the candidate can recognize it
+    expect(sent.html).toMatch(/•{4,}/); // masked with bullets, not just truncated
+  });
+
+  it('changes an email address — new value stored, and the notification goes to the OLD address, not the new one', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: '+919999933333', email: 'old@candidate.com', role: Role.CANDIDATE };
+    const { service, users, emailProvider } = makeService([me]);
+
+    await service.requestChangeEmailOtp('user-1', 'New@Candidate.com');
+    const result = await service.verifyChangeEmailOtp('user-1', 'new@candidate.com', DEV_OTP);
+
+    expect(result).toMatchObject({ ok: true, email: 'new@candidate.com' });
+    expect(users[0]).toMatchObject({ id: 'user-1', email: 'new@candidate.com', phone: '+919999933333' });
+
+    expect(emailProvider.send).toHaveBeenCalledTimes(1);
+    const sent = emailProvider.send.mock.calls[0][0] as SentEmail;
+    expect(sent.to).toBe('old@candidate.com'); // the value that's about to stop working — not new@candidate.com
+    expect(sent.subject).toBe('Your MyAmbii email address was changed');
+  });
+
+  it('a failed phone verification (wrong OTP) leaves the account exactly as it was — old number still active, no notification sent', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: '+919999944444', email: 'me@candidate.com', role: Role.CANDIDATE };
+    const { service, users, emailProvider } = makeService([me]);
+
+    await service.requestChangePhoneOtp('user-1', '+919999955555');
+    await expect(service.verifyChangePhoneOtp('user-1', '+919999955555', '000000')).rejects.toThrow('Incorrect OTP.');
+
+    expect(users[0].phone).toBe('+919999944444'); // untouched — never went null, never took the new value
+    expect(emailProvider.send).not.toHaveBeenCalled(); // no notification for a change that never happened
+  });
+
+  it('a failed email verification (wrong OTP) leaves the account exactly as it was', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: '+919999966666', email: 'old@candidate.com', role: Role.CANDIDATE };
+    const { service, users, emailProvider } = makeService([me]);
+
+    await service.requestChangeEmailOtp('user-1', 'attempted@candidate.com');
+    await expect(
+      service.verifyChangeEmailOtp('user-1', 'attempted@candidate.com', '000000'),
+    ).rejects.toThrow('Incorrect OTP.');
+
+    expect(users[0].email).toBe('old@candidate.com');
+    expect(emailProvider.send).not.toHaveBeenCalled();
+  });
+
+  it('an expired/never-requested change OTP also leaves the account untouched', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: '+919999977777', email: 'me@candidate.com', role: Role.CANDIDATE };
+    const { service, users } = makeService([me]);
+
+    // No requestChangePhoneOtp call at all — nothing was ever issued for this number.
+    await expect(service.verifyChangePhoneOtp('user-1', '+919999988888', DEV_OTP)).rejects.toThrow(
+      'OTP expired or not requested. Request a new one.',
+    );
+    expect(users[0].phone).toBe('+919999977777');
+  });
+
+  it('rejects changing to a phone number that already belongs to another account — non-leaky message, no OTP sent, and re-checked again at commit', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: '+919999911100', email: 'me@candidate.com', role: Role.CANDIDATE };
+    const other: UserRow = { id: 'user-2', phone: '+919999911200', email: null, role: Role.CANDIDATE };
+    const { service, smsProvider, users } = makeService([me, other]);
+
+    await expect(service.requestChangePhoneOtp('user-1', '+919999911200')).rejects.toThrow(
+      "This phone number can't be used. Double-check it and try again.",
+    );
+    await expect(service.requestChangePhoneOtp('user-1', '+919999911200')).rejects.not.toThrow(/another|in use|already/i);
+    expect(smsProvider.sendOtp).not.toHaveBeenCalled();
+    expect(users[0].phone).toBe('+919999911100'); // unchanged
+  });
+
+  it('rejects changing to an email that already belongs to another account — case-insensitive, non-leaky message', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: '+919999911300', email: 'me@candidate.com', role: Role.CANDIDATE };
+    const other: UserRow = { id: 'user-2', phone: null, email: 'taken@candidate.com', role: Role.CANDIDATE };
+    const { service } = makeService([me, other]);
+
+    await expect(service.requestChangeEmailOtp('user-1', 'Taken@Candidate.com')).rejects.toThrow(
+      "This email address can't be used. Double-check it and try again.",
+    );
+  });
+
+  it('rejects changing to the same phone number that is already current', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: '+919999911400', email: 'me@candidate.com', role: Role.CANDIDATE };
+    const { service } = makeService([me]);
+
+    await expect(service.requestChangePhoneOtp('user-1', '+919999911400')).rejects.toThrow(
+      'That is already your phone number.',
+    );
+  });
+
+  it('rejects a change-phone request when the account has no phone yet — points at add instead', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: null, email: 'me@candidate.com', role: Role.CANDIDATE };
+    const { service } = makeService([me]);
+
+    await expect(service.requestChangePhoneOtp('user-1', '+919999911500')).rejects.toThrow(
+      'Your account has no phone number to change — add one instead.',
+    );
+  });
+
+  it('is candidate-only — an EMPLOYER_ADMIN cannot change a phone/email through this flow, unlike the add flow which allows any role', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: '+919999911600', email: 'me@acme.com', role: Role.EMPLOYER_ADMIN };
+    const { service, users } = makeService([me]);
+
+    await expect(service.requestChangePhoneOtp('user-1', '+919999911700')).rejects.toThrow(
+      "This isn't a candidate account.",
+    );
+    expect(users[0].phone).toBe('+919999911600');
+  });
+
+  it('is candidate-only for email changes too, and PLATFORM_ADMIN is blocked the same way', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: null, email: 'admin@myambii.com', role: Role.PLATFORM_ADMIN };
+    const { service } = makeService([me]);
+
+    await expect(service.requestChangeEmailOtp('user-1', 'new-admin@myambii.com')).rejects.toThrow(
+      "This isn't a candidate account.",
+    );
+  });
+
+  it('verifyChangePhoneOtp re-checks at commit too, not just requestChangePhoneOtp — a competing change between the two catches it', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: '+919999911800', email: 'me@candidate.com', role: Role.CANDIDATE };
+    const other: UserRow = { id: 'user-2', phone: null, email: null, role: Role.CANDIDATE };
+    const { service, users } = makeService([me, other]);
+
+    await service.requestChangePhoneOtp('user-1', '+919999911900');
+
+    // Another account claims the target number after request-time but
+    // before this account's OTP is verified.
+    other.phone = '+919999911900';
+
+    await expect(service.verifyChangePhoneOtp('user-1', '+919999911900', DEV_OTP)).rejects.toThrow(
+      "This phone number can't be used. Double-check it and try again.",
+    );
+    expect(users[0].phone).toBe('+919999911800'); // never overwritten
+  });
+
+  it('a change-phone OTP is namespaced apart from both the login and link OTP stores for the same number', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: '+919999912000', email: 'me@candidate.com', role: Role.CANDIDATE };
+    const { service } = makeService([me]);
+
+    // Would throw (cooldown) if change/link/login shared the same otpStore key.
+    await service.requestOtp('+919999912100');
+    await expect(service.requestChangePhoneOtp('user-1', '+919999912100')).resolves.toEqual({ message: 'OTP sent' });
+  });
+
+  it('a failed notification send never undoes or fails an already-successful phone change', async () => {
+    process.env.NODE_ENV = 'test';
+    const me: UserRow = { id: 'user-1', phone: '+919999912200', email: 'me@candidate.com', role: Role.CANDIDATE };
+    const { service, users, emailProvider } = makeService([me]);
+    emailProvider.send.mockRejectedValueOnce(new Error('Resend is down'));
+
+    await service.requestChangePhoneOtp('user-1', '+919999912300');
+    // Must resolve, not reject, even though the notification email fails.
+    await expect(service.verifyChangePhoneOtp('user-1', '+919999912300', DEV_OTP)).resolves.toMatchObject({
+      ok: true,
+      phone: '+919999912300',
+    });
+    expect(users[0].phone).toBe('+919999912300'); // the actual change still happened
+  });
+});
+
+describe('AuthService — Google/GitHub sign-in survives an email change', () => {
+  // Self-contained stub (not the shared fakePrisma/makeService above): needs
+  // a pre-existing Identity row, which fakePrisma's identity.findUnique
+  // deliberately always returns null for (see its own comment — every OAuth
+  // test above provisions a brand-new account, never resolves an existing
+  // one). Scoped to exactly what loginWithGoogle -> resolveIdentityUser ->
+  // changeEmail needs, nothing shared with the rest of this file.
+  it('an existing Identity keeps resolving to the same user by (provider, providerId) after User.email changes — never by email', async () => {
+    process.env.NODE_ENV = 'test';
+    const user = { id: 'user-1', phone: '+919999913000', email: 'old@candidate.com', role: Role.CANDIDATE };
+    const identity = { userId: 'user-1', provider: 'GOOGLE', providerId: 'google-sub-999' };
+
+    const prisma = {
+      user: {
+        findUniqueOrThrow: jest.fn(async ({ where }: { where: { id: string } }) => {
+          if (where.id !== user.id) throw new Error('not found');
+          return user;
+        }),
+        findUnique: jest.fn(async ({ where }: { where: { email?: string } }) => {
+          if (where.email !== undefined) return where.email === user.email ? user : null;
+          return null;
+        }),
+        findFirst: jest.fn(async ({ where }: { where: { email?: { equals?: string } } }) => {
+          const target = where.email?.equals?.toLowerCase();
+          return target && user.email?.toLowerCase() === target ? user : null;
+        }),
+        update: jest.fn(async ({ data }: { data: Partial<typeof user> }) => {
+          Object.assign(user, data);
+          return user;
+        }),
+      },
+      identity: {
+        // The one lookup that actually matters here: keyed by
+        // (provider, providerId), completely independent of user.email.
+        findUnique: jest.fn(async ({ where }: { where: { provider_providerId: { provider: string; providerId: string } } }) => {
+          const { provider, providerId } = where.provider_providerId;
+          if (identity.provider !== provider || identity.providerId !== providerId) return null;
+          return { ...identity, user };
+        }),
+      },
+      refreshToken: {
+        create: jest.fn(async ({ data }: { data: unknown }) => data),
+      },
+    };
+
+    const jwt = { signAsync: jest.fn(async () => 'signed.jwt.token') };
+    const emailProvider = { send: jest.fn(async (_p: SentEmail): Promise<void> => undefined) };
+    const smsProvider = { sendOtp: jest.fn(async (): Promise<void> => undefined) };
+    const google = { exchange: jest.fn(async () => ({ providerId: 'google-sub-999', email: 'old@candidate.com', emailVerified: true })) };
+
+    const service = new AuthService(
+      prisma as never,
+      jwt as never,
+      google as never,
+      {} as never,
+      emailProvider as never,
+      smsProvider as never,
+    );
+
+    // Sanity: signs in as user-1 before any change, via the Identity, not the email.
+    const before = (await service.loginWithGoogle({ code: 'auth-code', redirectUri: 'https://app/cb' })) as unknown as { user: { id: string } };
+    expect(before.user.id).toBe('user-1');
+
+    // Change the account's email away from what Google reports for this identity.
+    await service.requestChangeEmailOtp('user-1', 'new@candidate.com');
+    await service.verifyChangeEmailOtp('user-1', 'new@candidate.com', DEV_OTP);
+    expect(user.email).toBe('new@candidate.com');
+
+    // Google still reports the OLD email (it has no idea MyAmbii's record
+    // changed) — resolveIdentityUser must not care, since it never looks at
+    // email once an Identity already exists.
+    const after = (await service.loginWithGoogle({ code: 'auth-code', redirectUri: 'https://app/cb' })) as unknown as { user: { id: string } };
+    expect(after.user.id).toBe('user-1'); // same account, still resolves correctly
+    expect(prisma.identity.findUnique).toHaveBeenCalled();
+  });
+});

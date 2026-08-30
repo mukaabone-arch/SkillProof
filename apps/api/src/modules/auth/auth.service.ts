@@ -22,10 +22,13 @@ import { normalizeEmail } from './normalize-email';
 import { assertCompanyEmail } from './employer-email-domain';
 import { generateOrgCode } from '../orgs/org-code.util';
 import { PRIVACY_VERSION, TERMS_VERSION } from './legal-terms';
+import { renderNotificationEmail } from '../notifications/notification-email.template';
+import { WEB_BASE_URL } from '../../config/web-base-url';
 
 const EMPLOYER_ROLES: Role[] = [Role.EMPLOYER_ADMIN, Role.EMPLOYER_MEMBER];
 
 const NOT_AN_EMPLOYER_MESSAGE = "This account isn't registered as an employer. Contact your administrator.";
+const NOT_A_CANDIDATE_MESSAGE = "This isn't a candidate account.";
 
 /**
  * Deliberately vague — the add-identifier flow must never confirm whether a
@@ -49,6 +52,12 @@ const PHONE_NOT_LINKABLE_MESSAGE =
   "This phone number can't be added to your account. Double-check it and try again.";
 const EMAIL_NOT_LINKABLE_MESSAGE =
   "This email address can't be added to your account. Double-check it and try again.";
+
+/** Change-flow counterparts — same anti-enumeration reasoning as the two above, just worded for "change" rather than "add". */
+const PHONE_NOT_CHANGEABLE_MESSAGE =
+  "This phone number can't be used. Double-check it and try again.";
+const EMAIL_NOT_CHANGEABLE_MESSAGE =
+  "This email address can't be used. Double-check it and try again.";
 
 /** NestJS has no built-in 429 exception, so we define one. */
 class TooManyRequestsException extends HttpException {
@@ -771,8 +780,11 @@ export class AuthService {
    * already has both a phone and an email column, so a candidate who signed
    * up one way can attach the other to the SAME row instead of creating a
    * second account with split badges. Only ever ADDS a missing identifier
-   * (assert*Linkable below); changing an existing one is deliberately out of
-   * scope. OTP keys are namespaced (linkPhoneOtpKey/linkEmailOtpKey) so a link
+   * (assert*Linkable below) — a *change* to an existing one is a distinct
+   * flow, requestChangePhoneOtp/verifyChangePhoneOtp (and the email pair)
+   * further down, with its own assert*Changeable preconditions (the exact
+   * opposite of these: must already have a value, rather than must not).
+   * OTP keys are namespaced (linkPhoneOtpKey/linkEmailOtpKey) so a link
    * code can never be satisfied by — or satisfy — a concurrent login OTP for
    * the same value, the same isolation the invite flow uses.
    */
@@ -896,6 +908,203 @@ export class AuthService {
     } catch (err) {
       this.logger.error(`Failed to send link-email OTP: ${(err as Error).message}`);
       throw new BadRequestException('Could not send the verification code. Please try again.');
+    }
+  }
+
+  /**
+   * OTP-verified REPLACEMENT of an existing login identifier — the
+   * candidate-only counterpart to the link flow above, for a candidate whose
+   * number or address changed rather than one adding a missing channel.
+   * Deliberately separate methods, not a mode flag bolted onto
+   * requestLinkPhoneOtp/assertPhoneLinkable: the precondition is the exact
+   * opposite (must already have a value, not must not), and the two flows'
+   * anti-enumeration postures need to stay independently reasoned about
+   * rather than tangled into one function with a branch.
+   *
+   * OTP keys are namespaced separately from both the link and login flows
+   * (changePhoneOtpKey/changeEmailOtpKey) for the same reason
+   * linkPhoneOtpKey/linkEmailOtpKey are: a change code must never be
+   * satisfiable by, or satisfy, a concurrent link/login OTP for the same
+   * value.
+   *
+   * The account is never left without a value mid-flow: verifyChange*Otp
+   * writes the new value in a single `user.update` straight from the old
+   * value to the new one, exactly like verifyLinkPhoneOtp/verifyLinkEmailOtp
+   * do — no intermediate null. That matters beyond just "don't corrupt the
+   * row": candidate-verification-readiness.ts's presence-implies-verified
+   * gate reads User.phone/email directly, so a two-step
+   * clear-then-set would briefly gate an otherwise-fully-verified candidate
+   * out of the app for no reason. A failed OTP throws in consumeOtp before
+   * this method ever touches the User row at all, so a failed verification
+   * leaves the account exactly as it was.
+   *
+   * Google/GitHub sign-in is unaffected by an email change: loginWithIdentity
+   * resolves via the Identity row's own (provider, providerId) — the OAuth
+   * provider's stable subject id, never User.email — so a candidate who has
+   * ever linked Google/GitHub keeps signing in with it through any number of
+   * email changes. Identity.email itself (provenance only, never a lookup
+   * key — see connectProvider's own comment) does go stale after a change;
+   * left alone deliberately, matching how it's already treated everywhere
+   * else in this file.
+   */
+  private changePhoneOtpKey(phone: string): string {
+    return `change-phone:${phone}`;
+  }
+  private changeEmailOtpKey(email: string): string {
+    return `change-email:${email}`;
+  }
+
+  async requestChangePhoneOtp(userId: string, phone: string): Promise<{ message: string }> {
+    await this.assertPhoneChangeable(userId, phone);
+    const otp = this.issueOtp(this.changePhoneOtpKey(phone));
+    const isDev = process.env.NODE_ENV !== 'production';
+    if (isDev) {
+      this.logger.log(`[DEV] Change-phone OTP for ${phone}: ${otp}`);
+    } else {
+      await this.sendOtpSms(phone, otp);
+    }
+    return { message: 'OTP sent' };
+  }
+
+  async verifyChangePhoneOtp(userId: string, phone: string, otp: string) {
+    this.consumeOtp(this.changePhoneOtpKey(phone), otp);
+    // Re-check at commit — same "request-time guard can go stale across the
+    // OTP window" reasoning as the link flow.
+    const me = await this.assertPhoneChangeable(userId, phone);
+    const oldPhone = me.phone as string; // assertPhoneChangeable already required this to be non-null
+    try {
+      await this.prisma.user.update({ where: { id: userId }, data: { phone } });
+    } catch (err) {
+      if (this.isUniqueConstraintError(err, 'phone')) {
+        throw new ConflictException(PHONE_NOT_CHANGEABLE_MESSAGE);
+      }
+      throw err;
+    }
+    // Best-effort, fire-and-forget from the caller's perspective — the phone
+    // change already succeeded; a failed notification must never undo it or
+    // fail this request. Sent by EMAIL, not SMS: MSG91's DLT-registered
+    // template only ever carries an OTP variable (see SmsProvider's own
+    // doc comment) — there is no template for arbitrary text today. Every
+    // candidate who can reach this endpoint already has a verified email
+    // (the verification gate guarantees both channels), so email reliably
+    // reaches them regardless.
+    void this.notifyPhoneChangedByEmail(me.email as string, phone);
+    return { ok: true, phone };
+  }
+
+  async requestChangeEmailOtp(userId: string, rawEmail: string): Promise<{ message: string }> {
+    const email = normalizeEmail(rawEmail);
+    await this.assertEmailChangeable(userId, email);
+    const otp = this.issueOtp(this.changeEmailOtpKey(email));
+    const isDev = process.env.NODE_ENV !== 'production';
+    if (isDev) {
+      this.logger.log(`[DEV] Change-email OTP for ${email}: ${otp}`);
+    } else {
+      await this.sendLinkOtpEmail(email, otp);
+    }
+    return { message: 'OTP sent' };
+  }
+
+  async verifyChangeEmailOtp(userId: string, rawEmail: string, otp: string) {
+    const email = normalizeEmail(rawEmail);
+    this.consumeOtp(this.changeEmailOtpKey(email), otp);
+    const me = await this.assertEmailChangeable(userId, email);
+    const oldEmail = me.email as string; // assertEmailChangeable already required this to be non-null
+    try {
+      await this.prisma.user.update({ where: { id: userId }, data: { email } });
+    } catch (err) {
+      if (this.isUniqueConstraintError(err, 'email')) {
+        throw new ConflictException(EMAIL_NOT_CHANGEABLE_MESSAGE);
+      }
+      throw err;
+    }
+    // Best-effort — see the phone path's identical reasoning above. Sent to
+    // the OLD address specifically (the one that's about to stop working
+    // for this account), not the new one.
+    void this.notifyOldEmailOfChange(oldEmail);
+    return { ok: true, email };
+  }
+
+  /**
+   * Candidate-only (unlike assertPhoneLinkable, which any role can reach —
+   * see that method's own doc comment): the link flow is safe for any role
+   * since it can only ever fill an empty column, but replacing an existing,
+   * already-verified value is the operation this feature is scoped to
+   * candidates for. Must already have a phone (the opposite of
+   * assertPhoneLinkable), the new value must differ from the current one,
+   * and must not belong to another account. Returns the loaded user so
+   * callers don't re-fetch it.
+   */
+  private async assertPhoneChangeable(userId: string, phone: string): Promise<User> {
+    const me = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (me.role !== Role.CANDIDATE) {
+      throw new ForbiddenException(NOT_A_CANDIDATE_MESSAGE);
+    }
+    if (!me.phone) {
+      throw new BadRequestException('Your account has no phone number to change — add one instead.');
+    }
+    if (me.phone === phone) {
+      throw new BadRequestException('That is already your phone number.');
+    }
+    const taken = await this.prisma.user.findUnique({ where: { phone } });
+    if (taken && taken.id !== userId) {
+      throw new BadRequestException(PHONE_NOT_CHANGEABLE_MESSAGE);
+    }
+    return me;
+  }
+
+  /** Email counterpart to assertPhoneChangeable — case-insensitive match, same as assertEmailLinkable. */
+  private async assertEmailChangeable(userId: string, email: string): Promise<User> {
+    const me = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (me.role !== Role.CANDIDATE) {
+      throw new ForbiddenException(NOT_A_CANDIDATE_MESSAGE);
+    }
+    if (!me.email) {
+      throw new BadRequestException('Your account has no email address to change — add one instead.');
+    }
+    if (me.email === email) {
+      throw new BadRequestException('That is already your email address.');
+    }
+    const taken = await this.prisma.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+    });
+    if (taken && taken.id !== userId) {
+      throw new BadRequestException(EMAIL_NOT_CHANGEABLE_MESSAGE);
+    }
+    return me;
+  }
+
+  /** Masks all but the last 4 characters — e.g. "+919876543210" -> "•••••••••3210". Never log or return the unmasked new number anywhere in this notification. */
+  private maskPhone(phone: string): string {
+    const last4 = phone.slice(-4);
+    return '•'.repeat(Math.max(phone.length - 4, 0)) + last4;
+  }
+
+  private async notifyPhoneChangedByEmail(accountEmail: string, newPhone: string): Promise<void> {
+    const subject = 'Your MyAmbii phone number was changed';
+    const html = renderNotificationEmail(
+      `<p>The phone number on your MyAmbii account was changed to ${this.maskPhone(newPhone)}. If this wasn't you, ` +
+        `contact support immediately.</p>`,
+      { label: 'Contact support', url: `${WEB_BASE_URL}/contact` },
+    );
+    try {
+      await this.emailProvider.send({ to: accountEmail, subject, html });
+    } catch (err) {
+      this.logger.error(`Failed to send phone-change notification: ${(err as Error).message}`);
+    }
+  }
+
+  private async notifyOldEmailOfChange(oldEmail: string): Promise<void> {
+    const subject = 'Your MyAmbii email address was changed';
+    const html = renderNotificationEmail(
+      `<p>Your MyAmbii account's email address was changed to a new address. If this wasn't you, contact support ` +
+        `immediately.</p>`,
+      { label: 'Contact support', url: `${WEB_BASE_URL}/contact` },
+    );
+    try {
+      await this.emailProvider.send({ to: oldEmail, subject, html });
+    } catch (err) {
+      this.logger.error(`Failed to send email-change notification: ${(err as Error).message}`);
     }
   }
 

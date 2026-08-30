@@ -205,17 +205,29 @@ interface MeIdentifiers {
   email: string | null;
 }
 
+type LoginMethodMode = 'add' | 'change';
+interface LoginMethodEdit {
+  method: 'phone' | 'email';
+  mode: LoginMethodMode;
+}
+
 /**
  * Login methods: shows the phone and email on this account and lets the
- * candidate ADD whichever is missing, OTP-verified, onto the SAME account
- * (POST /auth/link/{phone,email}/request|verify). This is what keeps phone
- * and email as one account instead of two with split badges — see
- * AuthService's linking methods.
+ * candidate either ADD whichever is missing (POST
+ * /auth/link/{phone,email}/request|verify) or CHANGE an existing one to a
+ * new value (POST /auth/change/{phone,email}/request|verify) — both
+ * OTP-verified against the new value, onto the SAME account. Add is what
+ * keeps phone and email as one account instead of two with split badges;
+ * change is for a candidate whose number or address changed, and is
+ * candidate-only server-side (see AuthService.assertPhoneChangeable/
+ * assertEmailChangeable) — this page only ever renders for a candidate, so
+ * that restriction is never visible here as an error, just as the two
+ * flows sharing the same two-stage input/OTP form with mode-aware copy.
  */
 function LoginMethodsCard() {
   const [me, setMe] = useState<MeIdentifiers | null>(null);
   const [loadError, setLoadError] = useState('');
-  const [adding, setAdding] = useState<'phone' | 'email' | null>(null);
+  const [editing, setEditing] = useState<LoginMethodEdit | null>(null);
   const [value, setValue] = useState('');
   const [otp, setOtp] = useState('');
   const [stage, setStage] = useState<'input' | 'otp'>('input');
@@ -232,8 +244,8 @@ function LoginMethodsCard() {
     load();
   }, []);
 
-  function startAdd(method: 'phone' | 'email') {
-    setAdding(method);
+  function startEdit(method: 'phone' | 'email', mode: LoginMethodMode) {
+    setEditing({ method, mode });
     setValue('');
     setOtp('');
     setStage('input');
@@ -241,7 +253,7 @@ function LoginMethodsCard() {
     setSuccess('');
   }
   function cancel() {
-    setAdding(null);
+    setEditing(null);
     setValue('');
     setOtp('');
     setStage('input');
@@ -249,11 +261,13 @@ function LoginMethodsCard() {
   }
 
   async function sendCode() {
-    if (!adding) return;
+    if (!editing) return;
+    const { method, mode } = editing;
+    const action = mode === 'add' ? 'link' : 'change';
     setError('');
     setBusy(true);
     try {
-      await api(`/auth/link/${adding}/request`, { method: 'POST', body: JSON.stringify({ [adding]: value.trim() }) });
+      await api(`/auth/${action}/${method}/request`, { method: 'POST', body: JSON.stringify({ [method]: value.trim() }) });
       setStage('otp');
     } catch (e) {
       setError((e as Error).message);
@@ -263,16 +277,19 @@ function LoginMethodsCard() {
   }
 
   async function verify() {
-    if (!adding) return;
+    if (!editing) return;
+    const { method, mode } = editing;
+    const action = mode === 'add' ? 'link' : 'change';
     setError('');
     setBusy(true);
     try {
-      await api(`/auth/link/${adding}/verify`, {
+      await api(`/auth/${action}/${method}/verify`, {
         method: 'POST',
-        body: JSON.stringify({ [adding]: value.trim(), otp }),
+        body: JSON.stringify({ [method]: value.trim(), otp }),
       });
-      setSuccess(adding === 'phone' ? 'Phone number added to your account.' : 'Email added to your account.');
-      setAdding(null);
+      const label = method === 'phone' ? 'Phone number' : 'Email';
+      setSuccess(mode === 'add' ? `${label} added to your account.` : `${label} changed.`);
+      setEditing(null);
       setOtp('');
       setStage('input');
       load();
@@ -302,34 +319,44 @@ function LoginMethodsCard() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {(['email', 'phone'] as const).map((m) => {
             const current = me[m];
+            const label = m === 'email' ? 'email' : 'phone';
             return (
-              <div key={m} className="row" style={{ justifyContent: 'space-between', margin: 0, alignItems: 'center' }}>
+              <div key={m} className="row" style={{ justifyContent: 'space-between', margin: 0, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div className="row" style={{ margin: 0, alignItems: 'center', gap: 8 }}>
                   <Badge variant={current ? 'verified' : 'neutral'}>{m === 'email' ? 'Email' : 'Phone'}</Badge>
                   <span className="meta" style={{ margin: 0 }}>{current ?? 'Not added'}</span>
                 </div>
-                {!current && adding !== m && (
-                  <button className="btn-secondary" onClick={() => startAdd(m)}>
-                    Add {m === 'email' ? 'email' : 'phone'}
+                {!current && editing?.method !== m && (
+                  <button className="btn-secondary" onClick={() => startEdit(m, 'add')}>
+                    Add {label}
+                  </button>
+                )}
+                {current && editing?.method !== m && (
+                  <button className="btn-secondary" onClick={() => startEdit(m, 'change')}>
+                    Change {label}
                   </button>
                 )}
               </div>
             );
           })}
 
-          {adding && (
+          {editing && (
             <div className="field" style={{ marginTop: 4 }}>
               {stage === 'input' ? (
                 <>
-                  <label htmlFor="link-value">{adding === 'email' ? 'Email' : 'Phone number'}</label>
+                  <label htmlFor="login-method-value">
+                    {editing.mode === 'add'
+                      ? editing.method === 'email' ? 'Email' : 'Phone number'
+                      : editing.method === 'email' ? 'New email' : 'New phone number'}
+                  </label>
                   <input
-                    id="link-value"
-                    type={adding === 'email' ? 'email' : 'tel'}
-                    inputMode={adding === 'email' ? 'email' : 'tel'}
-                    autoComplete={adding === 'email' ? 'email' : 'tel'}
+                    id="login-method-value"
+                    type={editing.method === 'email' ? 'email' : 'tel'}
+                    inputMode={editing.method === 'email' ? 'email' : 'tel'}
+                    autoComplete={editing.method === 'email' ? 'email' : 'tel'}
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
-                    placeholder={adding === 'email' ? 'you@example.com' : '+91 98765 43210'}
+                    placeholder={editing.method === 'email' ? 'you@example.com' : '+91 98765 43210'}
                   />
                   <div className="row" style={{ margin: '10px 0 0', gap: 8 }}>
                     <button onClick={sendCode} disabled={busy || value.trim().length === 0}>
@@ -342,9 +369,9 @@ function LoginMethodsCard() {
                 </>
               ) : (
                 <>
-                  <label htmlFor="link-otp">Enter the 6-digit code sent to {value.trim()}</label>
+                  <label htmlFor="login-method-otp">Enter the 6-digit code sent to {value.trim()}</label>
                   <input
-                    id="link-otp"
+                    id="login-method-otp"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                     placeholder="123456"
@@ -353,7 +380,11 @@ function LoginMethodsCard() {
                   />
                   <div className="row" style={{ margin: '10px 0 0', gap: 8 }}>
                     <button onClick={verify} disabled={busy || otp.length !== 6}>
-                      {busy ? 'Verifying…' : `Verify and add ${adding === 'email' ? 'email' : 'phone'}`}
+                      {busy
+                        ? 'Verifying…'
+                        : editing.mode === 'add'
+                          ? `Verify and add ${editing.method === 'email' ? 'email' : 'phone'}`
+                          : `Verify and change ${editing.method === 'email' ? 'email' : 'phone'}`}
                     </button>
                     <button type="button" className="btn-link" onClick={cancel} disabled={busy}>
                       Cancel

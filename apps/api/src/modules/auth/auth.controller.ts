@@ -184,6 +184,42 @@ export class AuthController {
   }
 
   /**
+   * Replace an EXISTING login identifier on the CURRENT account, OTP-verified
+   * against the new value — candidate-only (see AuthService's
+   * assertPhoneChangeable/assertEmailChangeable), for a candidate whose
+   * number or address changed rather than one adding a missing channel. See
+   * AuthService.requestChangePhoneOtp / verifyChangePhoneOtp (and the email
+   * pair) for the full contract, including the old-value notification.
+   */
+  @Post('change/phone/request')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  requestChangePhoneOtp(@Req() req: AuthenticatedRequest, @Body() dto: RequestOtpDto) {
+    return this.auth.requestChangePhoneOtp(req.user.sub, dto.phone);
+  }
+
+  @Post('change/phone/verify')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  verifyChangePhoneOtp(@Req() req: AuthenticatedRequest, @Body() dto: VerifyOtpDto) {
+    return this.auth.verifyChangePhoneOtp(req.user.sub, dto.phone, dto.otp);
+  }
+
+  @Post('change/email/request')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  requestChangeEmailOtp(@Req() req: AuthenticatedRequest, @Body() dto: CandidateEmailOtpRequestDto) {
+    return this.auth.requestChangeEmailOtp(req.user.sub, dto.email);
+  }
+
+  @Post('change/email/verify')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  verifyChangeEmailOtp(@Req() req: AuthenticatedRequest, @Body() dto: CandidateEmailOtpVerifyDto) {
+    return this.auth.verifyChangeEmailOtp(req.user.sub, dto.email, dto.otp);
+  }
+
+  /**
    * The current user's most recent Terms/Privacy acceptance record (or null
    * for accounts created before acceptance was recorded). Makes the record
    * retrievable per user — see AuthService.getTermsAcceptance.
