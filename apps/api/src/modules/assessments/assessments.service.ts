@@ -15,6 +15,7 @@ import { DISCUSSION_DURATION_MINS, DISCUSSION_SLUG, SKILL_LEVEL as DISCUSSION_LE
 import { CandidateJobsService } from '../jobs/candidate-jobs.service';
 import { assertProfileReadyForAssessment } from '../profiles/profile-readiness';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { buildTopicBreakdown, TopicBreakdown } from './topic-breakdown';
 
 /** How many of the candidate's highest-scoring matched jobs count toward a skill's relevanceCount. */
 const RELEVANCE_TOP_JOBS = 5;
@@ -502,56 +503,38 @@ export class AssessmentsService {
       // result view. See AdminService.getAttemptForReview for the admin one.
       //
       // Aggregate-only per-topic breakdown — see buildTopicBreakdown's own
-      // doc comment for the shape and the leak boundary it enforces. (An
-      // earlier version of this comment claimed Question had no topic tag
-      // and a breakdown wasn't possible without adding one — that was
-      // wrong: prisma/seed-mcq-import.ts has always written `topic` onto
-      // every question's `correct` JSON at import time; it just had no
-      // reader until now.)
-      topicBreakdown: this.buildTopicBreakdown(answers),
+      // doc comment (topic-breakdown.ts) for the shape and the leak boundary
+      // it enforces. (An earlier version of this comment claimed Question
+      // had no topic tag and a breakdown wasn't possible without adding one
+      // — that was wrong: prisma/seed-mcq-import.ts has always written
+      // `topic` onto every question's `correct` JSON at import time; it just
+      // had no reader until now.)
+      topicBreakdown: buildTopicBreakdown(answers),
     };
   }
 
   /**
-   * Reduces this attempt's answers into { topic, correct, asked } counts —
-   * the only thing this is ever allowed to return. `question.correct` (see
-   * the query in getResult above) carries the whole grading payload —
-   * `answer`, `sourceId`, `explanation`, `topic` — because Postgres/Prisma
-   * can't project a single key out of a JSON column; the server necessarily
-   * reads the whole blob into memory. The leak boundary is what leaves this
-   * function, not what it reads: only `topic` is ever touched, and the
-   * return value is a plain aggregate with no questionId, no `answer`, no
-   * `explanation`, nothing a candidate could use to reconstruct which
-   * question was asked or what the right answer was. If this ever needs
-   * more per-topic detail, add it as another *count*, not as anything that
-   * echoes a single question back.
-   *
-   * Null-topic questions (25 of 1,125 today) are excluded rather than
-   * bucketed under an "Other" topic — that bucket wouldn't be actionable
-   * study guidance, just noise. excludedCount lets the caller say so
-   * honestly ("performance by topic", not "every question") instead of
-   * silently under-counting.
+   * Score + topic breakdown for one attempt, independent of getResult above
+   * — used by AssessmentRequestsService to enrich the *requesting employer's*
+   * view of a completed, TEST-format assessment request. Shares
+   * buildTopicBreakdown with getResult rather than reimplementing the
+   * aggregation, specifically so the leak-boundary reasoning documented
+   * there (topic-breakdown.ts) lives in exactly one place regardless of
+   * which side is asking. No ownership check here — this trusts `attemptId`
+   * and returns whatever that attempt has; the caller is responsible for
+   * proving it's allowed to ask (AssessmentRequestsService only ever calls
+   * this for a request it has already confirmed belongs to the calling
+   * org — see that service's own getForEmployer/listForEmployer).
    */
-  private buildTopicBreakdown(
-    answers: { isCorrect: boolean | null; question: { correct: unknown } }[],
-  ): { topics: { topic: string; correct: number; asked: number }[]; excludedCount: number } {
-    const byTopic = new Map<string, { correct: number; asked: number }>();
-    let excludedCount = 0;
-    for (const a of answers) {
-      const topic = (a.question.correct as { topic?: string | null } | null)?.topic;
-      if (!topic) {
-        excludedCount += 1;
-        continue;
-      }
-      const bucket = byTopic.get(topic) ?? { correct: 0, asked: 0 };
-      bucket.asked += 1;
-      if (a.isCorrect) bucket.correct += 1;
-      byTopic.set(topic, bucket);
-    }
-    return {
-      topics: Array.from(byTopic.entries()).map(([topic, counts]) => ({ topic, ...counts })),
-      excludedCount,
-    };
+  async getScoreAndTopicBreakdown(attemptId: string): Promise<{ scorePercent: number | null; topicBreakdown: TopicBreakdown }> {
+    const [attempt, answers] = await Promise.all([
+      this.prisma.attempt.findUniqueOrThrow({ where: { id: attemptId } }),
+      this.prisma.attemptAnswer.findMany({
+        where: { attemptId },
+        select: { isCorrect: true, question: { select: { correct: true } } },
+      }),
+    ]);
+    return { scorePercent: attempt.scorePercent, topicBreakdown: buildTopicBreakdown(answers) };
   }
 
   /**

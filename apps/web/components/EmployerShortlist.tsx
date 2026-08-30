@@ -140,12 +140,18 @@ function toDatetimeLocal(iso: string | null): string {
 export default function EmployerShortlist() {
   // Dashboard cards link here as /employer/shortlist?stage=X[&jobId=Y] —
   // these seed the filters on first render so a card click lands already
-  // filtered, not just on the unfiltered list.
+  // filtered, not just on the unfiltered list. The assessment-request
+  // result email follows the same shape with ?candidateId=Z — there's no
+  // per-candidate filter to seed, so instead of a filter this scrolls to
+  // and briefly highlights that one card once the list has loaded (see the
+  // effect below and highlightedCandidateId).
   const searchParams = useSearchParams();
   const requestedStage = searchParams.get('stage');
   const requestedJobId = searchParams.get('jobId');
+  const requestedCandidateId = searchParams.get('candidateId');
 
   const [entries, setEntries] = useState<ShortlistEntry[]>([]);
+  const [highlightedCandidateId, setHighlightedCandidateId] = useState<string | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [stageFilter, setStageFilter] = useState(isValidStage(requestedStage) ? requestedStage : '');
   const [jobFilter, setJobFilter] = useState(requestedJobId ?? '');
@@ -185,6 +191,21 @@ export default function EmployerShortlist() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stageFilter, jobFilter]);
+
+  // Once entries actually load (not on every render — that would re-scroll
+  // on any unrelated state update), scroll the requested candidate's card
+  // into view and highlight it briefly. Silently does nothing if that
+  // candidate isn't on the shortlist (e.g. removed since the email was
+  // sent) rather than erroring — the list itself still renders fine.
+  useEffect(() => {
+    if (!requestedCandidateId || entries.length === 0) return;
+    if (!entries.some((e) => e.candidateId === requestedCandidateId)) return;
+    setHighlightedCandidateId(requestedCandidateId);
+    document.getElementById(`shortlist-candidate-${requestedCandidateId}`)?.scrollIntoView({ block: 'center' });
+    const timer = setTimeout(() => setHighlightedCandidateId(null), 4000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, requestedCandidateId]);
 
   async function load() {
     setLoading(true);
@@ -400,7 +421,19 @@ export default function EmployerShortlist() {
       )}
 
       {entries.map((e) => (
-        <div key={e.id} className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+        <div
+          key={e.id}
+          id={`shortlist-candidate-${e.candidateId}`}
+          className="card"
+          style={{
+            flexDirection: 'column',
+            alignItems: 'stretch',
+            gap: 6,
+            ...(highlightedCandidateId === e.candidateId
+              ? { boxShadow: '0 0 0 2px var(--indigo)', transition: 'box-shadow 0.2s ease' }
+              : undefined),
+          }}
+        >
           <div className="row" style={{ justifyContent: 'space-between', margin: 0, alignItems: 'flex-start' }}>
             <div className="row" style={{ margin: 0, alignItems: 'center' }}>
               <CandidateAvatar profileId={e.candidateId} fullName={e.fullName} hasPhoto={e.hasPhoto} size={44} />

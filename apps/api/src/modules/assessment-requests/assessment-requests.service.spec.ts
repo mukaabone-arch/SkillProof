@@ -99,7 +99,11 @@ function fakePrisma() {
     if (include.skill) resolved.skill = { id: 'skill-1', name: 'RAG Systems' };
     if (include.candidateProfile) resolved.candidateProfile = { id: 'candidate-1', userId: 'user-candidate-1', fullName: 'Jordan Lee' };
     if (include.requestedByUser) resolved.requestedByUser = { id: 'user-employer-1' };
-    if (include.badge) resolved.badge = row.badgeId ? { id: row.badgeId } : null;
+    if (include.badge) {
+      resolved.badge = row.badgeId
+        ? { id: row.badgeId, verifyHash: `hash-${row.badgeId}`, level: 'L2', expiresAt: new Date('2027-01-01') }
+        : null;
+    }
     return resolved;
   }
 }
@@ -117,7 +121,18 @@ function fakeGateway(): jest.Mocked<RazorpayGateway> {
 function makeService(overrides?: { badge?: any }) {
   const prisma = fakePrisma();
   const notifications = { sendEmail: jest.fn(async () => undefined) };
-  const assessments = { startAttempt: jest.fn(async () => prisma._attempts[0]) };
+  const assessments = {
+    startAttempt: jest.fn(async () => prisma._attempts[0]),
+    // Real shape from AssessmentsService.getScoreAndTopicBreakdown — a
+    // fixed fixture is fine here since these tests are exercising
+    // AssessmentRequestsService's own wiring (does it call this, with the
+    // right attemptId, only when it should), not the aggregation itself
+    // (that's topic-breakdown.spec.ts / assessments.service.spec.ts's job).
+    getScoreAndTopicBreakdown: jest.fn(async (attemptId: string) => ({
+      scorePercent: 80,
+      topicBreakdown: { topics: [{ topic: 'Chunking', correct: 4, asked: 5 }], excludedCount: 0 },
+    })),
+  };
   const assessmentSessions = { createSession: jest.fn(async () => ({ session: prisma._sessions[0], turns: [], claimFeedback: [] })) };
   const badgeResolver = { resolveLevelMap: jest.fn(async () => (overrides?.badge ? { [SkillLevel.L2]: overrides.badge } : {})) };
   const gateway = fakeGateway();
@@ -332,6 +347,109 @@ describe('AssessmentRequestsService', () => {
       await service.getForEmployer('org-1', request.id);
 
       expect(notifications.sendEmail).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('employer outcome — badge, pass/fail, score, and topic breakdown (the requesting employer only)', () => {
+    it('a completed TEST-format request carries passed, badge (hash/level/expiry), scorePercent, and topicBreakdown — reusing AssessmentsService.getScoreAndTopicBreakdown, not reimplementing it', async () => {
+      const { service, prisma, assessments } = makeService();
+      const signature = signaturePair('order-1', 'pay-1');
+      const request = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
+      await service.startFromRequest(request.id, 'user-candidate-1');
+      prisma._attempts[0].status = AttemptStatus.GRADED;
+      prisma._attempts[0].badge = { id: 'badge-earned-1' };
+
+      const result = await service.getForEmployer('org-1', request.id);
+
+      expect(result.passed).toBe(true);
+      expect(result.badge).toEqual({ id: 'badge-earned-1', verifyHash: 'hash-badge-earned-1', level: 'L2', expiresAt: new Date('2027-01-01') });
+      expect(assessments.getScoreAndTopicBreakdown).toHaveBeenCalledWith('attempt-1');
+      expect(result.scorePercent).toBe(80);
+      expect(result.topicBreakdown).toEqual({ topics: [{ topic: 'Chunking', correct: 4, asked: 5 }], excludedCount: 0 });
+    });
+
+    it('a completed request with no badge (failed) still gets passed:false and the score/breakdown — a fail is a paid-for result too', async () => {
+      const { service, prisma } = makeService();
+      const signature = signaturePair('order-1', 'pay-1');
+      const request = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
+      await service.startFromRequest(request.id, 'user-candidate-1');
+      prisma._attempts[0].status = AttemptStatus.GRADED;
+      prisma._attempts[0].badge = null; // graded but didn't pass
+
+      const result = await service.getForEmployer('org-1', request.id);
+
+      expect(result.passed).toBe(false);
+      expect(result.badge).toBeNull();
+      expect(result.scorePercent).toBe(80); // still surfaced — a fail is a result, not a non-result
+    });
+
+    it('a DISCUSSION-format completed request gets passed/badge but scorePercent/topicBreakdown are null — not zeroed, not an empty breakdown', async () => {
+      const { service, prisma, assessments } = makeService();
+      // Bypasses the full state machine deliberately — this test is about
+      // withEmployerOutcome's own branching (attemptId vs sessionId), not
+      // about re-exercising startFromRequest's DISCUSSION path (already
+      // covered by this file's other describe blocks and by
+      // AssessmentSessionsService's own tests).
+      const row = await prisma.assessmentRequest.create({
+        data: {
+          orgId: 'org-1',
+          requestedByUserId: 'user-employer-1',
+          candidateId: 'candidate-1',
+          skillId: 'skill-1',
+          level: 'L2',
+          status: AssessmentRequestStatus.COMPLETED,
+          attemptId: null,
+          sessionId: 'session-1',
+          badgeId: 'badge-discussion-1',
+        },
+      });
+
+      const result = await service.getForEmployer('org-1', row.id);
+
+      expect(result.passed).toBe(true);
+      expect(result.badge).toEqual({ id: 'badge-discussion-1', verifyHash: 'hash-badge-discussion-1', level: 'L2', expiresAt: new Date('2027-01-01') });
+      expect(result.scorePercent).toBeNull();
+      expect(result.topicBreakdown).toBeNull();
+      expect(assessments.getScoreAndTopicBreakdown).not.toHaveBeenCalled();
+    });
+
+    it('a not-yet-completed request gets passed:null and no score/breakdown — nothing to report yet', async () => {
+      const { service, assessments } = makeService();
+      const signature = signaturePair('order-1', 'pay-1');
+      const request = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
+      // Still PAID_PENDING_START — never started.
+
+      const result = await service.getForEmployer('org-1', request.id);
+
+      expect(result.passed).toBeNull();
+      expect(result.scorePercent).toBeNull();
+      expect(result.topicBreakdown).toBeNull();
+      expect(assessments.getScoreAndTopicBreakdown).not.toHaveBeenCalled();
+    });
+
+    it('listForEmployer enriches every completed request in the list, not just a single get', async () => {
+      const { service, prisma } = makeService();
+      const signature = signaturePair('order-1', 'pay-1');
+      const request = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
+      await service.startFromRequest(request.id, 'user-candidate-1');
+      prisma._attempts[0].status = AttemptStatus.GRADED;
+      prisma._attempts[0].badge = { id: 'badge-earned-1' };
+
+      const [result] = await service.listForEmployer('org-1');
+
+      expect(result.passed).toBe(true);
+      expect(result.scorePercent).toBe(80);
+    });
+
+    it('never reaches an employer outside the owning org — the ownership check runs before any enrichment', async () => {
+      const { service, prisma } = makeService();
+      const signature = signaturePair('order-1', 'pay-1');
+      const request = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
+      await service.startFromRequest(request.id, 'user-candidate-1');
+      prisma._attempts[0].status = AttemptStatus.GRADED;
+      prisma._attempts[0].badge = { id: 'badge-earned-1' };
+
+      await expect(service.getForEmployer('some-other-org', request.id)).rejects.toThrow('Assessment request not found');
     });
   });
 });

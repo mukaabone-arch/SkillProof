@@ -12,10 +12,12 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AssessmentsService } from '../assessments/assessments.service';
+import { TopicBreakdown } from '../assessments/topic-breakdown';
 import { AssessmentSessionsService } from '../assessment-sessions/assessment-sessions.service';
 import { BadgeResolverService } from '../badges/badge-resolver.service';
 import { SKILL_LEVEL as DISCUSSION_LEVEL, SKILL_NAME as DISCUSSION_SKILL_NAME } from '../assessment-sessions/rag-systems-l2.rubric';
 import { RAZORPAY_GATEWAY, RazorpayGateway } from './razorpay-gateway';
+import { WEB_BASE_URL } from '../../config/web-base-url';
 
 /**
  * Paise. "$5" in the product brief, but this Razorpay account is INR-only
@@ -273,13 +275,13 @@ export class AssessmentRequestsService {
   }
 
   /** Employer-facing single request, reconciling STARTED->COMPLETED on read (see reconcile's own doc comment) before returning. */
-  /** display: display-only fields both the employer and candidate list/get views need — never used by any enforcement/state-machine logic above. */
-  private readonly displayInclude = { skill: true, organization: true } as const;
+  /** display: display-only fields both the employer and candidate list/get views need — never used by any enforcement/state-machine logic above. badge (hash/level/expiry) is display-only too, same as skill/organization — this is what makes the badge visible on the request at all, not just its id. */
+  private readonly displayInclude = { skill: true, organization: true, badge: true } as const;
 
   async getForEmployer(orgId: string, requestId: string) {
     const request = await this.prisma.assessmentRequest.findUnique({ where: { id: requestId }, include: this.displayInclude });
     if (!request || request.orgId !== orgId) throw new NotFoundException('Assessment request not found');
-    return this.reconcile(request);
+    return this.withEmployerOutcome(await this.reconcile(request));
   }
 
   async listForEmployer(orgId: string, candidateId?: string) {
@@ -288,7 +290,43 @@ export class AssessmentRequestsService {
       include: this.displayInclude,
       orderBy: { createdAt: 'desc' },
     });
-    return Promise.all(requests.map((r) => this.reconcile(r)));
+    const reconciled = await Promise.all(requests.map((r) => this.reconcile(r)));
+    return Promise.all(reconciled.map((r) => this.withEmployerOutcome(r)));
+  }
+
+  /**
+   * Adds the requesting employer's paid-for outcome on top of the shared
+   * display fields: `passed` for any completed request (TEST or DISCUSSION
+   * format), plus `scorePercent`/`topicBreakdown` for a completed,
+   * TEST-format one specifically — reusing AssessmentsService's
+   * getScoreAndTopicBreakdown rather than re-deriving pass/fail or
+   * re-implementing the topic aggregation here (see that method's own doc
+   * comment, and topic-breakdown.ts's, for the leak-boundary reasoning this
+   * shares with the candidate-facing endpoint).
+   *
+   * Only ever called from getForEmployer/listForEmployer above, both already
+   * orgId-scoped (OrgMemberGuard plus the explicit orgId check in
+   * getForEmployer) — that, not a check inside this method, is what keeps
+   * "only the requesting employer sees score and breakdown" true. Never
+   * called from listForCandidate or any badge-browsing path.
+   *
+   * scorePercent/topicBreakdown are `null` — not a zeroed-out breakdown —
+   * for anything that isn't a completed, attempt-linked request. A
+   * DISCUSSION-format request (RAG Systems L2) resolves via `sessionId`,
+   * never `attemptId`, and has no MCQ score/topic concept at all; the
+   * frontend must render `null` as "not applicable to this format," not as
+   * a 0% score or an empty breakdown card.
+   */
+  private async withEmployerOutcome(request: any) {
+    const passed = request.status === AssessmentRequestStatus.COMPLETED ? !!request.badgeId : null;
+    let scorePercent: number | null = null;
+    let topicBreakdown: TopicBreakdown | null = null;
+    if (request.status === AssessmentRequestStatus.COMPLETED && request.attemptId) {
+      const scored = await this.assessments.getScoreAndTopicBreakdown(request.attemptId);
+      scorePercent = scored.scorePercent;
+      topicBreakdown = scored.topicBreakdown;
+    }
+    return { ...request, passed, scorePercent, topicBreakdown };
   }
 
   /** Candidate-facing: every request made about them, most recent first — pending invitations and history both, so the client can filter/section as it likes. */
@@ -386,13 +424,28 @@ export class AssessmentRequestsService {
         where: { id: requestId },
         include: { organization: true, skill: true, candidateProfile: true },
       });
+      // Disclosure copy depends on format — a TEST (MCQ) request gets an
+      // employer score/topic breakdown (see getScoreAndTopicBreakdown
+      // above), a DISCUSSION one (RAG Systems L2) only ever gets pass/fail;
+      // saying "your score" on a format that has none would be dishonest,
+      // not just imprecise. Same disclosure as EmployerInvitations.tsx's
+      // pre-start card — both places exist so a candidate can't reach
+      // "start" without having been told what the requesting employer sees.
+      const format = await this.resolveFormat(request.skillId, request.level).catch(() => null);
+      const disclosure =
+        format?.type === 'TEST'
+          ? `<p>When you finish, ${request.organization.name} will see whether you passed, your score, and how you ` +
+            `performed by topic. They won't see your individual answers or the questions themselves.</p>`
+          : `<p>When you finish, ${request.organization.name} will see whether you passed. They won't see the ` +
+            `conversation itself.</p>`;
       await this.notifications.sendEmail(
         request.candidateProfile.userId,
         NotificationType.ASSESSMENT_REQUEST_INVITE,
         `${request.organization.name} invited you to take a ${request.skill.name} ${request.level} assessment`,
         `<p><strong>${request.organization.name}</strong> has invited you to take a verified ` +
           `<strong>${request.skill.name} ${request.level}</strong> assessment.</p>` +
-          `<p>It's free to you — start within 5 days, before ${request.expiresAt?.toDateString()}.</p>`,
+          `<p>It's free to you — start within 5 days, before ${request.expiresAt?.toDateString()}.</p>` +
+          disclosure,
       );
     } catch {
       // Best-effort — same contract as every other NotificationsService caller.
@@ -406,13 +459,22 @@ export class AssessmentRequestsService {
         include: { skill: true, candidateProfile: true, requestedByUser: true, badge: true },
       });
       const passed = !!full.badgeId;
+      // No dedicated per-request detail page exists in the employer portal
+      // today — the closest thing is the candidate's card on the shortlist
+      // (AssessCandidateAction, rendered from EmployerShortlist), which
+      // already shows this request's status. That page already supports
+      // query-param-seeded filtering (?stage=/&jobId=, see its own comment)
+      // for exactly this kind of deep link, so ?candidateId= follows the
+      // same shape rather than inventing a new pattern.
+      const url = `${WEB_BASE_URL}/employer/shortlist?candidateId=${full.candidateId}`;
       await this.notifications.sendEmail(
         full.requestedByUserId,
         NotificationType.ASSESSMENT_REQUEST_RESULT,
         `Result ready: ${full.candidateProfile.fullName ?? 'Candidate'} — ${full.skill.name} ${full.level}`,
         `<p>The ${full.skill.name} ${full.level} assessment you requested for ` +
           `<strong>${full.candidateProfile.fullName ?? 'this candidate'}</strong> is complete.</p>` +
-          `<p>Result: <strong>${passed ? 'Passed — badge issued' : 'Not passed'}</strong>.</p>`,
+          `<p>Result: <strong>${passed ? 'Passed — badge issued' : 'Not passed'}</strong>.</p>` +
+          `<p><a href="${url}">View on the shortlist</a></p>`,
       );
     } catch {
       // Best-effort.

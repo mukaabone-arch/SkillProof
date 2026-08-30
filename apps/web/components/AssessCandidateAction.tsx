@@ -38,13 +38,35 @@ type RequestStatus =
   | 'REFUND_FAILED'
   | 'ALREADY_BADGED';
 
+interface TopicStat {
+  topic: string;
+  correct: number;
+  asked: number;
+}
+/** Aggregate counts only — see AssessmentsService.getScoreAndTopicBreakdown / topic-breakdown.ts on the API side for why this can never carry per-question detail. */
+interface TopicBreakdownView {
+  topics: TopicStat[];
+  excludedCount: number;
+}
+
 interface AssessmentRequestView {
   id: string;
   skillId: string;
+  skill: { name: string };
   level: string;
   status: RequestStatus;
   badgeId: string | null;
   createdAt: string;
+  /** null until COMPLETED — not derivable from badgeId alone client-side, since a null badgeId means either "not done yet" or "done, didn't pass". */
+  passed: boolean | null;
+  badge: { verifyHash: string; level: string; expiresAt: string } | null;
+  /**
+   * Present only for a completed TEST-format (MCQ) request — null, not 0,
+   * for a DISCUSSION-format one (RAG Systems L2), which has no score/topic
+   * concept at all. Must render as "not applicable", never as a 0% result.
+   */
+  scorePercent: number | null;
+  topicBreakdown: TopicBreakdownView | null;
 }
 
 interface InitiateResponse {
@@ -164,12 +186,52 @@ export default function AssessCandidateAction({ candidateId }: { candidateId: st
       <Script src="https://checkout.razorpay.com/v1/checkout.js" onLoad={() => setScriptReady(true)} strategy="afterInteractive" />
 
       {requests.length > 0 && (
-        <div className="row" style={{ flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-          {requests.map((r) => (
-            <span key={r.id} className="ui-badge ui-badge-neutral">
-              {STATUS_LABELS[r.status]} · {r.level}
-            </span>
-          ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+          {requests.map((r) =>
+            r.status === 'COMPLETED' ? (
+              <div key={r.id} className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4, padding: 10 }}>
+                <div className="row" style={{ margin: 0, alignItems: 'center', gap: 8 }}>
+                  <span className={`ui-badge ${r.passed ? 'ui-badge-verified' : 'ui-badge-danger'}`}>
+                    {r.passed ? 'Passed' : 'Not passed'}
+                  </span>
+                  <strong>
+                    {r.skill.name} — {r.level}
+                  </strong>
+                  {r.scorePercent !== null && <span className="meta" style={{ margin: 0 }}>Score: {r.scorePercent}%</span>}
+                </div>
+                {/*
+                  scorePercent/topicBreakdown are null (not 0 / not an empty
+                  list) for a DISCUSSION-format request — this section is
+                  entirely absent for that case rather than rendering a
+                  misleading "0% — no topics" block. Only ever the requesting
+                  employer sees this at all (GET /assessment-requests is
+                  orgId-scoped) — a browsing employer only ever sees the badge.
+                */}
+                {r.topicBreakdown && r.topicBreakdown.topics.length > 0 && (
+                  <details className="hint-toggle">
+                    <summary>Performance by topic</summary>
+                    {r.topicBreakdown.excludedCount > 0 && (
+                      <p className="meta" style={{ marginTop: 4 }}>
+                        {r.topicBreakdown.excludedCount} question{r.topicBreakdown.excludedCount === 1 ? '' : 's'} weren&apos;t
+                        part of a tracked topic and aren&apos;t included below.
+                      </p>
+                    )}
+                    <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                      {r.topicBreakdown.topics.map((t) => (
+                        <li key={t.topic} className="meta">
+                          {t.topic}: {t.correct}/{t.asked} correct
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            ) : (
+              <span key={r.id} className="ui-badge ui-badge-neutral" style={{ alignSelf: 'flex-start' }}>
+                {STATUS_LABELS[r.status]} · {r.level}
+              </span>
+            ),
+          )}
         </div>
       )}
 

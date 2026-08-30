@@ -12,7 +12,18 @@ import { RAZORPAY_GATEWAY, RazorpaySdkGateway } from './razorpay-gateway';
 
 @Module({
   imports: [AuthModule, BadgesModule, AssessmentsModule, AssessmentSessionsModule, NotificationsModule],
-  controllers: [EmployerAssessmentRequestsController, CandidateAssessmentRequestsController],
+  // CandidateAssessmentRequestsController MUST be registered before
+  // EmployerAssessmentRequestsController — Nest/Express matches routes in
+  // registration order, and the employer controller's `GET
+  // assessment-requests/:id` would otherwise greedily match `GET
+  // assessment-requests/mine` (id='mine') first, 403ing every candidate who
+  // tries to list their invitations (RolesGuard rejects a CANDIDATE token on
+  // that employer-only route) before the candidate controller's own literal
+  // `assessment-requests/mine` route ever gets a chance to run. Found while
+  // verifying the candidate-facing disclosure copy in EmployerInvitations.tsx
+  // — that component's own `.catch(() => setInvitations([]))` was silently
+  // swallowing this, so no candidate had ever actually seen an invitation.
+  controllers: [CandidateAssessmentRequestsController, EmployerAssessmentRequestsController],
   providers: [
     AssessmentRequestsService,
     AssessmentRequestsRefundJob,

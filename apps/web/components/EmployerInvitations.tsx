@@ -89,9 +89,24 @@ export default function EmployerInvitations() {
       <h2 style={{ marginTop: 8, marginBottom: 4 }}>
         {pending.length === 1 ? "You've been invited to an assessment" : `You've been invited to ${pending.length} assessments`}
       </h2>
-      <p style={{ marginBottom: 16 }}>
+      <p style={{ marginBottom: 8 }}>
         Free to you — an employer paid to verify this skill on your profile. The badge is yours either way, and
         employers can see it independently of who requested it.
+      </p>
+      {/*
+        Disclosure, not just courtesy copy — the candidate needs to know
+        this before "Start now", not after. Worded to be true for both
+        formats at once (a skills test gets a score/topic breakdown, a
+        conversational assessment only ever gets pass/fail) rather than
+        branching per-invitation, since this intro sits above the whole
+        list and could cover a mix of both. See
+        AssessmentRequestsService.notifyCandidateInvited for the
+        per-format-precise wording sent in the invite email itself.
+      */}
+      <p style={{ marginBottom: 16 }} className="meta">
+        When you finish, the requesting employer will see your result — whether you passed, and for a skills test,
+        your score and how you performed by topic. They won&apos;t see your individual answers, the questions, or
+        (for a conversation-based assessment) the conversation itself.
       </p>
       {pending.map((inv) => (
         <div key={inv.id} className="row" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
