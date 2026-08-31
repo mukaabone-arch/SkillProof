@@ -1,4 +1,6 @@
 import { SubscriptionTier } from '@prisma/client';
+import { BillingInterval } from '../modules/subscriptions/subscriptions.dto';
+import { splitGst, DEFAULT_PLACE_OF_SUPPLY_STATE_CODE } from './gst.config';
 
 /**
  * Single source of truth for what each subscription tier gets. Every limit
@@ -180,3 +182,44 @@ export const PLANS: Record<SubscriptionTier, PlanLimits> = {
     maxOrgMembers: 5,
   },
 };
+
+/**
+ * Base (GST-exclusive) subscription prices — the single source of truth
+ * for what PREMIUM costs before tax. Every consumer that needs a price —
+ * the /plans response (pricing-page copy, checkout breakdown), the
+ * webhook's Transaction tax split — reads basePaise from here and derives
+ * gst/total via gst.config.ts's splitGst, never a second hardcoded number.
+ * The Razorpay Plan objects created for RAZORPAY_PLAN_ID_MONTHLY/ANNUAL
+ * are priced at the GST-INCLUSIVE total (splitGst(basePaise,
+ * DEFAULT_PLACE_OF_SUPPLY_STATE_CODE).totalPaise) — Razorpay charges one
+ * flat amount regardless of the CGST/SGST-vs-IGST split, which is an
+ * accounting concern recorded on Transaction, not something the provider
+ * needs to know about.
+ */
+export const SUBSCRIPTION_PRICING: Record<BillingInterval, { basePaise: number }> = {
+  MONTHLY: { basePaise: 29900 }, // ₹299.00
+  ANNUAL: { basePaise: 299900 }, // ₹2,999.00
+};
+
+/**
+ * Maps a Razorpay plan_id back to the base amount it represents — but only
+ * when it's one of the CURRENTLY-configured plan ids
+ * (RAZORPAY_PLAN_ID_MONTHLY/ANNUAL). Returns null for anything else,
+ * deliberately: an existing subscriber charged on an older Plan (created
+ * before GST pricing shipped, or before some future price change) must
+ * never have a tax split silently fabricated for a charge that was never
+ * actually structured that way — see RazorpayWebhookService.recordCharge,
+ * the only caller, for what it does with a null result (records the charge
+ * with no tax breakdown, exactly as this codebase already did before this
+ * feature existed, rather than guessing).
+ */
+export function basePaiseForPlanId(planId: string): number | null {
+  if (planId === process.env.RAZORPAY_PLAN_ID_MONTHLY) return SUBSCRIPTION_PRICING.MONTHLY.basePaise;
+  if (planId === process.env.RAZORPAY_PLAN_ID_ANNUAL) return SUBSCRIPTION_PRICING.ANNUAL.basePaise;
+  return null;
+}
+
+/** Convenience for callers that just want the fully-computed pricing (base/gst/total) for a known interval, assuming the default place of supply — used by the /plans response, which has no candidate-specific state to price against. */
+export function defaultPricingFor(interval: BillingInterval) {
+  return splitGst(SUBSCRIPTION_PRICING[interval].basePaise, DEFAULT_PLACE_OF_SUPPLY_STATE_CODE);
+}

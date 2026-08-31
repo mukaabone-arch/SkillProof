@@ -1003,6 +1003,35 @@ model Transaction {
   description String?
 
   /**
+   * GST breakdown — nullable as a set (all six columns null together, never
+   * a partial set) because not every Transaction is a GST-relevant taxable
+   * supply recorded post-GST-rollout: rows predating this feature, and any
+   * charge on a Razorpay Plan no longer in RAZORPAY_PLAN_ID_MONTHLY/ANNUAL
+   * (see plans.config.ts's basePaiseForPlanId — an existing subscriber's
+   * charge on their original, pre-GST Plan is recorded with amountPaise
+   * only, exactly as before, rather than a fabricated split), have none of
+   * these set. See gst.config.ts's splitGst for the only place this split
+   * is computed and the exact rounding rules (gstPaise = round(basePaise *
+   * 18/100), computed as integer math, never basePaise * 0.18 directly;
+   * totalPaise — not stored here, since it's always amountPaise — is
+   * always basePaise + gstPaise, never independently rounded; an odd
+   * leftover paise in the CGST/SGST split always goes to CGST). When set,
+   * basePaise + gstPaise MUST equal amountPaise, and gstPaise MUST equal
+   * cgstPaise + sgstPaise + igstPaise — enforced in code
+   * (TransactionsService.recordSystemTransaction), not by a DB constraint,
+   * consistent with this model's existing style (see amendsTransactionId's
+   * own comment — application-level invariants throughout, not CHECK
+   * constraints).
+   */
+  basePaise               Int?
+  gstPaise                Int?
+  cgstPaise               Int?
+  sgstPaise               Int?
+  igstPaise               Int?
+  /** The 2-digit GST place-of-supply state code actually used for this transaction's CGST/SGST-vs-IGST split — recorded even when it was the default (gst.config.ts's DEFAULT_PLACE_OF_SUPPLY_STATE_CODE, Maharashtra), not just when a real customer-supplied state was known. A later admin correction to BillingProfile.gstStateCode must never retroactively change what an already-recorded transaction says it used. */
+  placeOfSupplyStateCode  String?
+
+  /**
    * Reserved for the not-yet-integrated payment provider — nullable until
    * then, same convention as Subscription.provider/providerSubId. Opaque
    * reference strings only (Razorpay's own order/payment ids), same shape

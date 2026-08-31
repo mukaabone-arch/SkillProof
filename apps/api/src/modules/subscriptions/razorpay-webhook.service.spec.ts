@@ -82,7 +82,11 @@ function fakePrisma() {
       }),
     },
     billingProfile: {
-      findUnique: jest.fn(async ({ where }: any) => billingProfiles.get(where.candidateId) ?? null),
+      findUnique: jest.fn(async ({ where }: any) => {
+        if (where.candidateId) return billingProfiles.get(where.candidateId) ?? null;
+        if (where.id) return [...billingProfiles.values()].find((p) => p.id === where.id) ?? null;
+        return null;
+      }),
       create: jest.fn(async ({ data }: any) => {
         const row = { id: `bp-${billingProfiles.size + 1}`, ...data };
         billingProfiles.set(data.candidateId, row);
@@ -208,6 +212,114 @@ describe('RazorpayWebhookService.handle', () => {
       createdByAdminId: null,
     });
     expect(billingProfiles.get('cand-1')).toMatchObject({ candidateId: 'cand-1', legalEntityName: 'Test Candidate' });
+  });
+
+  describe('GST split on subscription.charged', () => {
+    const originalMonthly = process.env.RAZORPAY_PLAN_ID_MONTHLY;
+    const originalAnnual = process.env.RAZORPAY_PLAN_ID_ANNUAL;
+
+    beforeEach(() => {
+      process.env.RAZORPAY_PLAN_ID_MONTHLY = 'plan_gst_monthly';
+      process.env.RAZORPAY_PLAN_ID_ANNUAL = 'plan_gst_annual';
+    });
+    afterEach(() => {
+      process.env.RAZORPAY_PLAN_ID_MONTHLY = originalMonthly;
+      process.env.RAZORPAY_PLAN_ID_ANNUAL = originalAnnual;
+    });
+
+    it('records the full base/gst/cgst/sgst split, defaulting place of supply to Maharashtra when the auto-created BillingProfile has no state on file', async () => {
+      const { svc, transactions } = buildService();
+      await svc.handle(
+        'evt_gst_1',
+        subscriptionPayload({
+          event: 'subscription.charged',
+          createdAt: 1000,
+          candidateId: 'cand-1',
+          planId: 'plan_gst_monthly',
+          payment: { id: 'pay_gst_1', amount: 35282, currency: 'INR' }, // ₹352.82 — the GST-inclusive total
+        }),
+      );
+
+      expect(transactions[0]).toMatchObject({
+        amountPaise: 35282,
+        basePaise: 29900,
+        gstPaise: 5382,
+        cgstPaise: 2691,
+        sgstPaise: 2691,
+        igstPaise: 0,
+        placeOfSupplyStateCode: '27',
+      });
+    });
+
+    it('records IGST instead when the BillingProfile has a non-Maharashtra state on file', async () => {
+      const { svc, prisma, billingProfiles, transactions } = buildService();
+      // Pre-seed a BillingProfile with a known out-of-state code, same
+      // shape ensureMinimalBillingProfile would find via findUnique.
+      billingProfiles.set('cand-1', { id: 'bp-1', candidateId: 'cand-1', gstStateCode: '29' }); // Karnataka
+
+      await svc.handle(
+        'evt_gst_2',
+        subscriptionPayload({
+          event: 'subscription.charged',
+          createdAt: 1000,
+          candidateId: 'cand-1',
+          planId: 'plan_gst_annual',
+          payment: { id: 'pay_gst_2', amount: 353882, currency: 'INR' }, // ₹3,538.82
+        }),
+      );
+
+      expect(transactions[0]).toMatchObject({
+        amountPaise: 353882,
+        basePaise: 299900,
+        gstPaise: 53982,
+        cgstPaise: 0,
+        sgstPaise: 0,
+        igstPaise: 53982,
+        placeOfSupplyStateCode: '29',
+      });
+      expect(prisma.billingProfile.findUnique).toHaveBeenCalled();
+    });
+
+    it('records no GST split at all for a charge on a Plan that is no longer the configured one — an existing pre-GST subscriber stays on their original amount, un-fabricated', async () => {
+      const { svc, transactions } = buildService();
+      await svc.handle(
+        'evt_gst_legacy',
+        subscriptionPayload({
+          event: 'subscription.charged',
+          createdAt: 1000,
+          candidateId: 'cand-1',
+          planId: 'plan_old_pre_gst', // does not match either configured env plan id
+          payment: { id: 'pay_legacy', amount: 29900, currency: 'INR' }, // the old, flat, non-GST amount
+        }),
+      );
+
+      expect(transactions[0]).toMatchObject({ amountPaise: 29900 });
+      expect(transactions[0].basePaise).toBeNull();
+      expect(transactions[0].gstPaise).toBeNull();
+      expect(transactions[0].cgstPaise).toBeNull();
+      expect(transactions[0].sgstPaise).toBeNull();
+      expect(transactions[0].igstPaise).toBeNull();
+      expect(transactions[0].placeOfSupplyStateCode).toBeNull();
+    });
+
+    it('records no split (fails safe, still records the base charge) if the computed GST total does not match what was actually charged', async () => {
+      const { svc, transactions } = buildService();
+      await svc.handle(
+        'evt_gst_mismatch',
+        subscriptionPayload({
+          event: 'subscription.charged',
+          createdAt: 1000,
+          candidateId: 'cand-1',
+          planId: 'plan_gst_monthly',
+          // Wrong amount for this plan (should be 35282) — simulates a
+          // misconfigured Razorpay Plan.
+          payment: { id: 'pay_mismatch', amount: 30000, currency: 'INR' },
+        }),
+      );
+
+      expect(transactions[0]).toMatchObject({ amountPaise: 30000 });
+      expect(transactions[0].basePaise).toBeNull();
+    });
   });
 
   it('never records a second Transaction for the same providerPaymentId, even across two separate events', async () => {

@@ -4,6 +4,8 @@ import { SubscriptionStatus, SubscriptionTier, TransactionStatus, TransactionTyp
 import { PrismaService } from '../../prisma/prisma.service';
 import { TransactionsService } from '../billing/transactions.service';
 import { SubscriptionBillingProfileService } from './subscription-billing-profile.service';
+import { basePaiseForPlanId } from '../../config/plans.config';
+import { splitGst, DEFAULT_PLACE_OF_SUPPLY_STATE_CODE } from '../../config/gst.config';
 
 /**
  * Razorpay's own subscription-entity status values that map cleanly onto
@@ -216,6 +218,42 @@ export class RazorpayWebhookService {
     if (existingTransaction) return;
 
     const billingProfileId = await this.billingProfiles.ensureMinimalBillingProfile(candidateId);
+
+    // GST split — only ever computed when this charge's plan_id is one of
+    // the currently-configured RAZORPAY_PLAN_ID_MONTHLY/ANNUAL (see
+    // basePaiseForPlanId's own doc comment). An existing subscriber still
+    // on an earlier Plan (pre-GST, or a future price change) gets this
+    // charge recorded with amountPaise only, exactly as before this
+    // feature existed — never a fabricated split for a charge that was
+    // never actually structured that way. This is also what "existing
+    // subscribers stay on their original Plan at the old amount" means in
+    // practice here: nothing above assumes the configured Plan ID is what
+    // this specific charge is actually on.
+    const planId = payload.payload.subscription?.entity.plan_id;
+    const basePaise = planId ? basePaiseForPlanId(planId) : null;
+    let gst: Parameters<TransactionsService['recordSystemTransaction']>[1]['gst'];
+    if (basePaise != null) {
+      const profile = await this.prisma.billingProfile.findUnique({
+        where: { id: billingProfileId },
+        select: { gstStateCode: true },
+      });
+      const placeOfSupplyStateCode = profile?.gstStateCode ?? DEFAULT_PLACE_OF_SUPPLY_STATE_CODE;
+      const split = splitGst(basePaise, placeOfSupplyStateCode);
+      // splitGst's own totalPaise should already equal payment.amount for
+      // any charge on a currently-configured Plan (the Plan was created at
+      // exactly that inclusive total) — asserted, not assumed, so a
+      // misconfigured Plan (wrong amount set on Razorpay's side) fails loud
+      // here instead of silently recording a split that doesn't add up to
+      // what was actually charged.
+      if (split.totalPaise !== payment.amount) {
+        this.logger.error(
+          `subscription.charged for candidate ${candidateId}: computed GST total ${split.totalPaise} does not match actual charge ${payment.amount} for plan ${planId} — recording amountPaise only, no tax split.`,
+        );
+      } else {
+        gst = split;
+      }
+    }
+
     await this.transactions.recordSystemTransaction(billingProfileId, {
       amountPaise: payment.amount,
       currency: payment.currency,
@@ -224,6 +262,7 @@ export class RazorpayWebhookService {
       description: 'MyAmbii Premium subscription charge',
       provider: 'razorpay',
       providerPaymentId: payment.id,
+      gst,
     });
   }
 }

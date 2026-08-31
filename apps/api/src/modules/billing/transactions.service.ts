@@ -179,8 +179,38 @@ export class TransactionsService {
       provider: string;
       providerOrderId?: string | null;
       providerPaymentId?: string | null;
+      /**
+       * GST breakdown — all five present together, or omit the whole
+       * object (see Transaction.basePaise's own schema comment on why
+       * this is never a partial set). Caller is responsible for the two
+       * invariants this doesn't re-derive: basePaise + gstPaise ===
+       * amountPaise, and gstPaise === cgstPaise + sgstPaise + igstPaise —
+       * both guaranteed by construction if gst.config.ts's splitGst
+       * produced this object, so the only real requirement is "don't hand
+       * this a hand-built one that skips splitGst."
+       */
+      gst?: {
+        basePaise: number;
+        gstPaise: number;
+        cgstPaise: number;
+        sgstPaise: number;
+        igstPaise: number;
+        placeOfSupplyStateCode: string;
+      };
     },
   ): Promise<Transaction> {
+    if (data.gst && data.gst.basePaise + data.gst.gstPaise !== data.amountPaise) {
+      // Defensive, not expected to ever fire in practice — the one caller
+      // (RazorpayWebhookService.recordCharge) always builds `gst` from
+      // splitGst(basePaise, ...) against the exact same amountPaise it
+      // passes here, which is what guarantees this by construction. Catches
+      // a future caller wiring these up inconsistently rather than silently
+      // recording a ledger row whose parts don't sum to its own total.
+      throw new Error(
+        `recordSystemTransaction: gst.basePaise + gst.gstPaise (${data.gst.basePaise + data.gst.gstPaise}) !== amountPaise (${data.amountPaise})`,
+      );
+    }
+
     return this.prisma.transaction.create({
       data: {
         billingProfileId,
@@ -193,6 +223,12 @@ export class TransactionsService {
         provider: data.provider,
         providerOrderId: data.providerOrderId ?? null,
         providerPaymentId: data.providerPaymentId ?? null,
+        basePaise: data.gst?.basePaise ?? null,
+        gstPaise: data.gst?.gstPaise ?? null,
+        cgstPaise: data.gst?.cgstPaise ?? null,
+        sgstPaise: data.gst?.sgstPaise ?? null,
+        igstPaise: data.gst?.igstPaise ?? null,
+        placeOfSupplyStateCode: data.gst?.placeOfSupplyStateCode ?? null,
       },
     });
   }

@@ -25,11 +25,32 @@ interface MySubscription {
   interval: BillingInterval | null;
 }
 
+/** One interval's fully-computed pricing — mirrors gst.config.ts's GstSplit exactly. Always the DEFAULT place of supply (Maharashtra); the actual charge uses the candidate's own on-file state at charge time, see GET /plans's own doc comment (API side) for why this endpoint can't know that. */
+interface PricingBreakdown {
+  basePaise: number;
+  gstPaise: number;
+  totalPaise: number;
+  cgstPaise: number;
+  sgstPaise: number;
+  igstPaise: number;
+  placeOfSupplyStateCode: string;
+}
+
 interface PlansResponse {
   tiers: {
     FREE: PlanLimits;
     PREMIUM: PlanLimits;
   };
+  pricing: {
+    gstRate: number;
+    MONTHLY: PricingBreakdown;
+    ANNUAL: PricingBreakdown;
+  };
+}
+
+/** ₹3,538.82-style formatting from an integer paise amount — en-IN locale for the thousands grouping (2,999.00, not 2999.00), matching the pricing table's own formatting exactly. */
+function formatPaise(paise: number): string {
+  return `₹${(paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 const TIERS: SubscriptionTier[] = ['FREE', 'PREMIUM'];
@@ -161,11 +182,23 @@ export default function UpgradePage() {
         setActionError('Payment could not start — Razorpay is not ready. Please try again.');
         return;
       }
+      // The precise, GST-inclusive total — not the bare ₹299/₹2,999 base
+      // this used to show, which is no longer what's actually charged.
+      // Falls back to the base-only label only if /plans somehow hasn't
+      // loaded by the time checkout starts (shouldn't happen — the button
+      // that calls this only renders once `plans` is set).
+      const totalLabel = plans
+        ? plan === 'MONTHLY'
+          ? `${formatPaise(plans.pricing.MONTHLY.totalPaise)}/month (incl. GST)`
+          : `${formatPaise(plans.pricing.ANNUAL.totalPaise)}/year (incl. GST)`
+        : plan === 'MONTHLY'
+          ? '₹299/month + GST'
+          : '₹2,999/year + GST';
       const checkout = new window.Razorpay({
         key: result.keyId,
         subscription_id: result.subscriptionId,
         name: 'MyAmbii Premium',
-        description: plan === 'MONTHLY' ? '₹299/month' : '₹2,999/year',
+        description: totalLabel,
         theme: { color: '#5B4FE0' },
         handler: () => {
           void confirmAfterCheckout();
@@ -246,11 +279,20 @@ export default function UpgradePage() {
                   <h2 style={{ marginTop: isCurrent ? 8 : 0, marginBottom: 0 }}>{TIER_LABEL[tier]}</h2>
                   <div className="plan-column-price">
                     {priceFor(tier)}
-                    {tier === 'PREMIUM' && <span style={{ fontSize: '1rem', color: 'var(--ink-60)' }}> /month</span>}
+                    {tier === 'PREMIUM' && (
+                      <span style={{ fontSize: '1rem', color: 'var(--ink-60)' }}> /month + GST as applicable</span>
+                    )}
                   </div>
                   <div className="plan-column-price-sub">
                     {tier === 'PREMIUM'
-                      ? 'Billed monthly. Cancel anytime.'
+                      ? // Deliberately not a computed total here ("as applicable" —
+                        // covers the CGST/SGST-vs-IGST variation by place of
+                        // supply, resolved per-candidate at charge time, not
+                        // knowable on this unauthenticated comparison view). The
+                        // precise, exact-paise breakdown for whichever interval a
+                        // candidate is about to actually pay lives just above the
+                        // Subscribe buttons below instead.
+                        `Billed monthly. Cancel anytime. Or ${formatPaise(plans.pricing.ANNUAL.basePaise)}/year + GST as applicable, billed annually.`
                       : 'No card required.'}
                   </div>
                   <ul className="plan-feature-list">
@@ -264,17 +306,37 @@ export default function UpgradePage() {
                     ))}
                   </ul>
                   {tier === 'PREMIUM' && currentTier !== 'PREMIUM' && loggedIn && (
-                    <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <button onClick={() => startCheckout('MONTHLY')} disabled={checkoutBusy !== null || confirming}>
-                        {checkoutBusy === 'MONTHLY' ? 'Starting…' : 'Subscribe — ₹299/month'}
-                      </button>
-                      <button
-                        className="btn-secondary"
-                        onClick={() => startCheckout('ANNUAL')}
-                        disabled={checkoutBusy !== null || confirming}
-                      >
-                        {checkoutBusy === 'ANNUAL' ? 'Starting…' : 'Subscribe — ₹2,999/year'}
-                      </button>
+                    <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      {/*
+                        Explicit, exact-paise breakdown right before each
+                        Subscribe button — not a rounded/approximate figure,
+                        since this is the number actually charged. Computed
+                        server-side (GET /plans's pricing field, gst.config.ts's
+                        splitGst) and only ever displayed here, never
+                        recomputed client-side.
+                      */}
+                      <div>
+                        <p className="meta" style={{ margin: '0 0 6px' }}>
+                          Base {formatPaise(plans.pricing.MONTHLY.basePaise)} + GST 18%{' '}
+                          {formatPaise(plans.pricing.MONTHLY.gstPaise)} = {formatPaise(plans.pricing.MONTHLY.totalPaise)}
+                        </p>
+                        <button onClick={() => startCheckout('MONTHLY')} disabled={checkoutBusy !== null || confirming}>
+                          {checkoutBusy === 'MONTHLY' ? 'Starting…' : `Subscribe — ${formatPaise(plans.pricing.MONTHLY.totalPaise)}/month`}
+                        </button>
+                      </div>
+                      <div>
+                        <p className="meta" style={{ margin: '0 0 6px' }}>
+                          Base {formatPaise(plans.pricing.ANNUAL.basePaise)} + GST 18%{' '}
+                          {formatPaise(plans.pricing.ANNUAL.gstPaise)} = {formatPaise(plans.pricing.ANNUAL.totalPaise)}
+                        </p>
+                        <button
+                          className="btn-secondary"
+                          onClick={() => startCheckout('ANNUAL')}
+                          disabled={checkoutBusy !== null || confirming}
+                        >
+                          {checkoutBusy === 'ANNUAL' ? 'Starting…' : `Subscribe — ${formatPaise(plans.pricing.ANNUAL.totalPaise)}/year`}
+                        </button>
+                      </div>
                     </div>
                   )}
                   {tier === 'PREMIUM' && currentTier !== 'PREMIUM' && !loggedIn && (
