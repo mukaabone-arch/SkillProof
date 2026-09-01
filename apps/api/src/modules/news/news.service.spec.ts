@@ -1,5 +1,5 @@
 import { NewsService } from './news.service';
-import { CACHE_WINDOW_DAYS, STRIP_ITEM_LIMIT } from './news.config';
+import { CACHE_WINDOW_DAYS, MAX_ITEMS_PER_SOURCE, STRIP_ITEM_LIMIT } from './news.config';
 
 function fakePrisma(items: any[]) {
   return {
@@ -53,10 +53,12 @@ describe('NewsService.listRecent', () => {
     expect(result.map((r) => r.id)).toEqual(['2', '1']);
   });
 
-  it(`caps at STRIP_ITEM_LIMIT (${STRIP_ITEM_LIMIT}) even when more qualify`, async () => {
+  it(`caps at STRIP_ITEM_LIMIT (${STRIP_ITEM_LIMIT}) even when more qualify, spread across enough sources that the per-source cap never binds`, async () => {
+    // One item per source so MAX_ITEMS_PER_SOURCE can't be what's limiting
+    // the result here — STRIP_ITEM_LIMIT has to be the thing doing it.
     const items = Array.from({ length: STRIP_ITEM_LIMIT + 4 }, (_, i) => ({
       id: String(i),
-      source: 'OpenAI',
+      source: `Source ${i}`,
       title: `Item ${i}`,
       link: `https://x/${i}`,
       publishedAt: daysAgo(i),
@@ -66,5 +68,44 @@ describe('NewsService.listRecent', () => {
     const result = await service.listRecent();
 
     expect(result).toHaveLength(STRIP_ITEM_LIMIT);
+  });
+
+  it(`caps a single dominant source at MAX_ITEMS_PER_SOURCE (${MAX_ITEMS_PER_SOURCE}) even though it has the most recent items overall`, async () => {
+    // Mirrors the real production case this was added for: one publisher
+    // posts far more often than the others and would otherwise fill the
+    // whole strip on recency alone.
+    const dominant = Array.from({ length: 5 }, (_, i) => ({
+      id: `openai-${i}`,
+      source: 'OpenAI',
+      title: `OpenAI item ${i}`,
+      link: `https://openai/${i}`,
+      publishedAt: daysAgo(i), // 0..4 days ago — newer than every DeepMind item below
+    }));
+    const rare = { id: 'deepmind-1', source: 'DeepMind', title: 'DeepMind item', link: 'https://deepmind/1', publishedAt: daysAgo(10) };
+    const service = new NewsService(fakePrisma([...dominant, rare]) as any);
+
+    const result = await service.listRecent();
+
+    expect(result.filter((r) => r.source === 'OpenAI')).toHaveLength(MAX_ITEMS_PER_SOURCE);
+    expect(result.some((r) => r.source === 'DeepMind')).toBe(true);
+  });
+
+  it('fills remaining slots by recency after applying the per-source cap, not by re-including a capped source', async () => {
+    const openai = Array.from({ length: 3 }, (_, i) => ({
+      id: `openai-${i}`,
+      source: 'OpenAI',
+      title: `OpenAI item ${i}`,
+      link: `https://openai/${i}`,
+      publishedAt: daysAgo(i), // 0, 1, 2 days ago
+    }));
+    const deepmind = { id: 'deepmind-1', source: 'DeepMind', title: 'DeepMind item', link: 'https://deepmind/1', publishedAt: daysAgo(3) };
+    const service = new NewsService(fakePrisma([...openai, deepmind]) as any);
+
+    const result = await service.listRecent();
+
+    // Newest-first: OpenAI(0), OpenAI(1) fill the cap; OpenAI(2) is skipped
+    // even though it's more recent than DeepMind's item, which fills the
+    // next slot instead.
+    expect(result.map((r) => r.id)).toEqual(['openai-0', 'openai-1', 'deepmind-1']);
   });
 });

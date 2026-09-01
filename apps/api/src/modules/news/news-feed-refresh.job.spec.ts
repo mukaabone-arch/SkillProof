@@ -60,9 +60,9 @@ describe('NewsFeedRefreshJob', () => {
 
   describe('one source failing does not prevent the others from updating', () => {
     it('a source in the MIDDLE of the list throwing does not block the ones before or after it', async () => {
-      const [first, second, third] = NEWS_SOURCES;
+      const failing = NEWS_SOURCES[Math.floor(NEWS_SOURCES.length / 2)];
       parseURLMock.mockImplementation(async (url: string) => {
-        if (url === second.feedUrl) throw new Error('getaddrinfo ENOTFOUND — feed is down');
+        if (url === failing.feedUrl) throw new Error('getaddrinfo ENOTFOUND — feed is down');
         const source = NEWS_SOURCES.find((s) => s.feedUrl === url)!;
         return { items: [feedItem({ title: `${source.name} item`, link: `${url}/1` })] };
       });
@@ -71,16 +71,16 @@ describe('NewsFeedRefreshJob', () => {
 
       await job.run();
 
-      expect(prisma._items.some((i: any) => i.source === first.name)).toBe(true);
-      expect(prisma._items.some((i: any) => i.source === third.name)).toBe(true);
-      expect(prisma._items.some((i: any) => i.source === second.name)).toBe(false);
-      expect(prisma._items).toHaveLength(2);
+      for (const source of NEWS_SOURCES) {
+        expect(prisma._items.some((i: any) => i.source === source.name)).toBe(source.name !== failing.name);
+      }
+      expect(prisma._items).toHaveLength(NEWS_SOURCES.length - 1);
     });
 
     it('the FIRST source throwing does not block the ones after it', async () => {
-      const [first, second, third] = NEWS_SOURCES;
+      const failing = NEWS_SOURCES[0];
       parseURLMock.mockImplementation(async (url: string) => {
-        if (url === first.feedUrl) throw new Error('connect ECONNREFUSED');
+        if (url === failing.feedUrl) throw new Error('connect ECONNREFUSED');
         const source = NEWS_SOURCES.find((s) => s.feedUrl === url)!;
         return { items: [feedItem({ title: `${source.name} item`, link: `${url}/1` })] };
       });
@@ -89,15 +89,16 @@ describe('NewsFeedRefreshJob', () => {
 
       await job.run();
 
-      expect(prisma._items.some((i: any) => i.source === second.name)).toBe(true);
-      expect(prisma._items.some((i: any) => i.source === third.name)).toBe(true);
-      expect(prisma._items).toHaveLength(2);
+      for (const source of NEWS_SOURCES.slice(1)) {
+        expect(prisma._items.some((i: any) => i.source === source.name)).toBe(true);
+      }
+      expect(prisma._items).toHaveLength(NEWS_SOURCES.length - 1);
     });
 
     it('the LAST source throwing does not block the ones before it, and run() itself never throws', async () => {
-      const [first, second, third] = NEWS_SOURCES;
+      const failing = NEWS_SOURCES[NEWS_SOURCES.length - 1];
       parseURLMock.mockImplementation(async (url: string) => {
-        if (url === third.feedUrl) throw new Error('read ETIMEDOUT');
+        if (url === failing.feedUrl) throw new Error('read ETIMEDOUT');
         const source = NEWS_SOURCES.find((s) => s.feedUrl === url)!;
         return { items: [feedItem({ title: `${source.name} item`, link: `${url}/1` })] };
       });
@@ -106,9 +107,10 @@ describe('NewsFeedRefreshJob', () => {
 
       await expect(job.run()).resolves.toBeUndefined();
 
-      expect(prisma._items.some((i: any) => i.source === first.name)).toBe(true);
-      expect(prisma._items.some((i: any) => i.source === second.name)).toBe(true);
-      expect(prisma._items).toHaveLength(2);
+      for (const source of NEWS_SOURCES.slice(0, -1)) {
+        expect(prisma._items.some((i: any) => i.source === source.name)).toBe(true);
+      }
+      expect(prisma._items).toHaveLength(NEWS_SOURCES.length - 1);
     });
 
     it('a source rejecting with a non-Error value (a raw thrown string) is still isolated, not an unhandled crash', async () => {
