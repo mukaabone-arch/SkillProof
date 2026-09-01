@@ -88,6 +88,7 @@ export default function ContactPage() {
     <main className="lp-page lp-contact-page" id="top">
       <div className="lp-container lp-contact-wrap">
         <BrandLockup variant="hero" href="/" ariaLabel="MyAmbii home" />
+        <p><Link href="/">← Back to main site</Link></p>
 
         <div className="lp-contact-card">
           {sent ? (

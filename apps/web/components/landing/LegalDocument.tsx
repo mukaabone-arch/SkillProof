@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import BrandLockup from '../BrandLockup';
 
 /**
@@ -27,6 +28,7 @@ export default function LegalDocument({ title, lastUpdated, children }: Props) {
     <main className="lp-page lp-legal-page">
       <div className="lp-container lp-legal-wrap">
         <BrandLockup variant="hero" href="/" ariaLabel="MyAmbii home" />
+        <p><Link href="/">← Back to main site</Link></p>
         <header className="lp-legal-header">
           <h1 className="lp-legal-title">{title}</h1>
           <p className="lp-legal-updated">Last updated: {lastUpdated}</p>

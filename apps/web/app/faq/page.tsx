@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import BrandLockup from '@/components/BrandLockup';
 
 /**
@@ -56,6 +57,7 @@ export default function FaqPage() {
     <main className="lp-page lp-faq-page" id="top">
       <div className="lp-container lp-faq-wrap">
         <BrandLockup variant="hero" href="/" ariaLabel="MyAmbii home" />
+        <p><Link href="/">← Back to main site</Link></p>
 
         <div className="lp-faq-panel">
           <p className="lp-section-eyebrow">FAQ</p>
