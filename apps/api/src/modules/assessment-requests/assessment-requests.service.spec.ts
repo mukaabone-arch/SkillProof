@@ -75,6 +75,12 @@ function fakePrisma() {
         return { count: matched.length };
       }),
     },
+    billingProfile: {
+      findUnique: jest.fn(async ({ where }: any) => ({ id: where.id, gstStateCode: null })),
+    },
+    transaction: {
+      findFirst: jest.fn(async () => null),
+    },
   };
 
   function matches(row: any, where: any): boolean {
@@ -136,6 +142,8 @@ function makeService(overrides?: { badge?: any }) {
   const assessmentSessions = { createSession: jest.fn(async () => ({ session: prisma._sessions[0], turns: [], claimFeedback: [] })) };
   const badgeResolver = { resolveLevelMap: jest.fn(async () => (overrides?.badge ? { [SkillLevel.L2]: overrides.badge } : {})) };
   const gateway = fakeGateway();
+  const transactions = { recordSystemTransaction: jest.fn(async () => ({ id: 'txn-1' })) };
+  const billingProfiles = { ensureMinimalBillingProfile: jest.fn(async () => 'billing-profile-1') };
 
   const service = new AssessmentRequestsService(
     prisma as any,
@@ -144,8 +152,10 @@ function makeService(overrides?: { badge?: any }) {
     assessmentSessions as any,
     badgeResolver as any,
     gateway,
+    transactions as any,
+    billingProfiles as any,
   );
-  return { service, prisma, notifications, assessments, assessmentSessions, badgeResolver, gateway };
+  return { service, prisma, notifications, assessments, assessmentSessions, badgeResolver, gateway, transactions, billingProfiles };
 }
 
 const SIGNATURE_SECRET = 'test-secret';
@@ -201,6 +211,15 @@ describe('AssessmentRequestsService', () => {
       expect(gateway.createOrder).toHaveBeenCalledTimes(1);
       expect(prisma._requests).toHaveLength(0); // nothing persisted until payment verifies
     });
+
+    it('orders the GST-inclusive total (₹150 base + 18% = ₹177), not the base amount', async () => {
+      const { service, gateway } = makeService();
+
+      const result = await service.initiate('org-1', 'user-employer-1', 'candidate-1', 'skill-1', SkillLevel.L2);
+
+      expect(result.amount).toBe(17700);
+      expect(gateway.createOrder).toHaveBeenCalledWith(expect.objectContaining({ amount: 17700 }));
+    });
   });
 
   describe('verifyAndCreate', () => {
@@ -249,6 +268,49 @@ describe('AssessmentRequestsService', () => {
       });
       const signature = signaturePair('order-1', 'pay-1');
       await expect(service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature)).rejects.toThrow();
+    });
+
+    describe('GST ledger', () => {
+      it('records a system Transaction with the correct base/GST split and links it back onto the request', async () => {
+        const { service, transactions, billingProfiles } = makeService();
+        const signature = signaturePair('order-1', 'pay-1');
+
+        const request = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
+
+        expect(billingProfiles.ensureMinimalBillingProfile).toHaveBeenCalledWith('org-1');
+        expect(transactions.recordSystemTransaction).toHaveBeenCalledWith(
+          'billing-profile-1',
+          expect.objectContaining({
+            amountPaise: 17700,
+            type: 'ASSESSMENT_REQUEST_PAYMENT',
+            status: 'SUCCEEDED',
+            provider: 'razorpay',
+            providerOrderId: 'order-1',
+            providerPaymentId: 'pay-1',
+            // Default place of supply (Maharashtra) is intra-state, so the
+            // 18% splits evenly into 9%+9% CGST/SGST, none IGST.
+            gst: { basePaise: 15000, gstPaise: 2700, totalPaise: 17700, cgstPaise: 1350, sgstPaise: 1350, igstPaise: 0, placeOfSupplyStateCode: '27' },
+          }),
+        );
+        expect(request.transactionId).toBe('txn-1');
+      });
+
+      it('retries recordCharge on a duplicate verify call if the first call never finished linking a transaction', async () => {
+        const { service, prisma, transactions } = makeService();
+        const signature = signaturePair('order-1', 'pay-1');
+
+        const first = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
+        // Simulate a prior call that created the row but crashed before
+        // recordCharge finished (e.g. a DB blip writing transactionId back).
+        prisma._requests.find((r: any) => r.id === first.id).transactionId = null;
+        transactions.recordSystemTransaction.mockClear();
+
+        const second = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
+
+        expect(second.id).toBe(first.id);
+        expect(transactions.recordSystemTransaction).toHaveBeenCalledTimes(1);
+        expect(second.transactionId).toBe('txn-1');
+      });
     });
   });
 

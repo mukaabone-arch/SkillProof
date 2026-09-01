@@ -955,6 +955,7 @@ model BillingProfile {
   deletedAt DateTime?
 
   transactions Transaction[]
+  documents    Document[]
 
   @@index([candidateId])
   @@index([organizationId])
@@ -1023,13 +1024,15 @@ model Transaction {
    * own comment — application-level invariants throughout, not CHECK
    * constraints).
    */
-  basePaise               Int?
-  gstPaise                Int?
-  cgstPaise               Int?
-  sgstPaise               Int?
-  igstPaise               Int?
-  /** The 2-digit GST place-of-supply state code actually used for this transaction's CGST/SGST-vs-IGST split — recorded even when it was the default (gst.config.ts's DEFAULT_PLACE_OF_SUPPLY_STATE_CODE, Maharashtra), not just when a real customer-supplied state was known. A later admin correction to BillingProfile.gstStateCode must never retroactively change what an already-recorded transaction says it used. */
-  placeOfSupplyStateCode  String?
+  basePaise              Int?
+  gstPaise               Int?
+  cgstPaise              Int?
+  sgstPaise              Int?
+  igstPaise              Int?
+  /**
+   * The 2-digit GST place-of-supply state code actually used for this transaction's CGST/SGST-vs-IGST split — recorded even when it was the default (gst.config.ts's DEFAULT_PLACE_OF_SUPPLY_STATE_CODE, Maharashtra), not just when a real customer-supplied state was known. A later admin correction to BillingProfile.gstStateCode must never retroactively change what an already-recorded transaction says it used.
+   */
+  placeOfSupplyStateCode String?
 
   /**
    * Reserved for the not-yet-integrated payment provider — nullable until
@@ -1075,8 +1078,199 @@ model Transaction {
 
   createdAt DateTime @default(now())
 
+  /**
+   * Set only for the ASSESSMENT_REQUEST_PAYMENT this transaction records —
+   * the one-time-charge side of the business (see AssessmentRequest.
+   * transactionId's own doc comment for why this is a plain 1:1 rather than
+   * billingProfileId-only like the subscription side, which never needs to
+   * find "the one Transaction for this specific charge" the way a refund or
+   * a Document does). Null for every SUBSCRIPTION_CHARGE row.
+   */
+  assessmentRequest AssessmentRequest?
+
+  /**
+   * The GST document (tax invoice or receipt — see DocumentSeries) issued
+   * for this charge, once generated — null until DocumentsGenerationJob's
+   * sweep picks this row up (basePaise non-null = GST-bearing = eligible),
+   * and permanently null for any transaction with no GST split at all (see
+   * this model's own basePaise doc comment above). A REFUNDED transaction
+   * keeps its original document — GST document generation records what was
+   * actually charged at the time it was charged; a credit note for the
+   * refund is a distinct, not-yet-built document type (see
+   * refund-policy-content.md — no refunds existed when GST invoicing
+   * shipped, so this is deliberately out of scope here).
+   */
+  document Document?
+
   @@index([billingProfileId])
   @@index([amendsTransactionId])
+}
+
+/**
+ * Both are the same document under Section 31 CGST — a GST tax invoice —
+ * differing only in which Rule 46 fields are mandatory (buyer GSTIN/name/
+ * address only for TAX_INVOICE; a RECEIPT still carries every seller field,
+ * the SAC code, and the full CGST/SGST/IGST breakdown). Decided once, at
+ * generation time, purely from whether the BillingProfile had a `gstin` on
+ * file at that moment (see DocumentsService.classify) — never a manual
+ * choice, and never revisited after generation even if the profile is
+ * later updated (see Document's own snapshot fields). Kept as two
+ * numbering series rather than one (see DocumentSequence) — Rule 46
+ * permits either; separate series keeps a B2B invoice register trivially
+ * separable from B2C receipts for GSTR-1 purposes.
+ */
+enum DocumentSeries {
+  TAX_INVOICE
+  RECEIPT
+}
+
+/**
+ * PENDING: numbered (sequenceNumber/documentNumber are set and permanent —
+ * see DocumentSequence) but no file yet, either because generation hasn't
+ * run or a render/upload attempt failed and will be retried.
+ * GENERATED: fileKey is set, the document is retrievable.
+ * FAILED_NEEDS_ATTENTION: generationAttempts hit
+ * DocumentsService.MAX_GENERATION_ATTEMPTS — the sweep stops touching this row
+ * automatically; a platform admin must act (see AdminController's
+ * GET /admin/documents?status=FAILED_NEEDS_ATTENTION and
+ * POST /admin/documents/:id/retry, which resets generationAttempts to 0
+ * and this back to PENDING). Never silently retried forever and never
+ * silently dropped — a document stuck here is a compliance gap (the number
+ * was already spent — see DocumentSequence — so this Transaction can never
+ * get a different document instead), which is exactly why this state
+ * exists as something to actively surface rather than just a log line.
+ */
+enum DocumentStatus {
+  PENDING
+  GENERATED
+  FAILED_NEEDS_ATTENTION
+}
+
+/**
+ * The gap-free counter GST invoicing actually requires (Rule 46(b):
+ * "consecutive serial number... unique for a financial year"). Deliberately
+ * NOT a Postgres SEQUENCE — see organization_code_seq's own migration
+ * comment ("a rolled-back org create burns a number, which just leaves a
+ * harmless gap... same trade-off as most systems' sequential display IDs")
+ * for the exact failure mode that's acceptable for a cosmetic org code and
+ * is not acceptable here: nextval() is not transactional, so a rollback
+ * after nextval() permanently burns a number with no legitimate business
+ * explanation for the gap on audit.
+ * Instead, DocumentsService.reserveAndCreate takes `pg_advisory_xact_lock`
+ * on hashtext(financialYear || series) and, inside that same DB
+ * transaction, upserts this row's lastNumber (increment) and creates the
+ * Document row carrying that number — both commit together or neither
+ * does. The advisory lock is transaction-scoped (auto-released on commit
+ * OR rollback) and serializes concurrent reservations for the same
+ * (financialYear, series) pair; it does not need to also lock this row via
+ * SELECT...FOR UPDATE, since nothing else ever touches this table outside
+ * that same locked section.
+ * financialYear is India's Apr 1–Mar 31 year, formatted "2026-27" — see
+ * document-numbering.util.ts's financialYearFor. Resets every FY per Rule
+ * 46(b)'s "unique for a financial year," by simply starting a fresh row
+ * (lastNumber default 0) the first time that FY's first document of a
+ * given series is reserved.
+ */
+model DocumentSequence {
+  financialYear String
+  series        DocumentSeries
+  lastNumber    Int            @default(0)
+
+  @@id([financialYear, series])
+}
+
+/**
+ * A GST tax invoice or receipt (see DocumentSeries) issued for exactly one
+ * Transaction — never edited after creation, same immutable-financial-core
+ * posture as Transaction itself. Every tax/party field below is a snapshot
+ * frozen at generation time (copied from Transaction and BillingProfile as
+ * they stood at that moment) and is never re-derived or re-read from those
+ * rows later — a subsequent correction to BillingProfile.gstin/address, or
+ * a hypothetical future change to gst.config.ts's SELLER_* constants, must
+ * never retroactively change what an already-issued document says it
+ * charged or who it says it was issued to. This mirrors
+ * Transaction.placeOfSupplyStateCode's own doc comment ("a later admin
+ * correction... must never retroactively change what an already-recorded
+ * transaction says it used").
+ * Generation is two-phase, deliberately split across two different
+ * atomicity domains — see DocumentsGenerationJob:
+ * 1. Number + row creation (reserveAndCreate) — transactional with
+ * DocumentSequence's increment (see that model's own doc comment).
+ * Once this commits, sequenceNumber/documentNumber are permanent,
+ * file or no file.
+ * 2. PDF render + S3 upload (renderAndStore) — not transactional (can't
+ * be, it's an external call), retried independently against this same
+ * already-numbered row via status/generationAttempts. A render/upload
+ * failure never re-reserves a number for the same Transaction.
+ */
+model Document {
+  id String @id @default(uuid())
+
+  transactionId String      @unique
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+
+  billingProfileId String
+  billingProfile   BillingProfile @relation(fields: [billingProfileId], references: [id])
+
+  series         DocumentSeries
+  financialYear  String
+  sequenceNumber Int
+  /**
+   * e.g. "INV/2026-27/000001" or "RCT/2026-27/000001" — see document-numbering.util.ts's formatDocumentNumber. Redundant with (financialYear, series, sequenceNumber) below by design: this is the exact string printed on the document and shown to a customer, so it's stored verbatim rather than re-formatted at every read site.
+   */
+  documentNumber String         @unique
+
+  // Tax snapshot — copied verbatim from the Transaction this document was
+  // generated for (see that model's own basePaise/gstPaise/etc. doc
+  // comment for the rounding rules that produced these).
+  basePaise              Int
+  gstPaise               Int
+  cgstPaise              Int
+  sgstPaise              Int
+  igstPaise              Int
+  totalPaise             Int
+  placeOfSupplyStateCode String
+
+  // Seller snapshot — copied from gst.config.ts's SELLER_LEGAL_NAME/
+  // SELLER_ADDRESS/GSTIN/SAC_CODE at generation time. Deliberately
+  // duplicated per-row rather than read live from config at render/display
+  // time, for the same "an already-issued document never silently changes"
+  // reason as the tax snapshot above.
+  sellerGstin     String
+  sellerLegalName String
+  sellerAddress   String
+  sacCode         String
+
+  // Buyer snapshot — copied from BillingProfile.legalEntityName/gstin/
+  // address at generation time. buyerGstin non-null is what decided
+  // `series` above; buyerAddress is frequently null for a RECEIPT (see
+  // BillingProfile.legalEntityName's own doc comment on auto-created
+  // profiles) — that's correct, not a gap, since Rule 46 only mandates
+  // buyer name/address on a B2C document above ₹50,000, which no product
+  // sold here reaches.
+  buyerLegalName String?
+  buyerGstin     String?
+  buyerAddress   String?
+
+  status              DocumentStatus @default(PENDING)
+  fileKey             String?
+  generationAttempts  Int            @default(0)
+  lastGenerationError String?
+
+  /**
+   * The Transaction's own createdAt — i.e. when the supply/payment actually
+   * happened — NOT wall-clock time at generation. This is what
+   * financialYear is computed from, so a backfilled document for an old
+   * charge lands in the FY that charge actually occurred in, not whatever
+   * FY the backfill sweep happened to run in.
+   */
+  issuedAt    DateTime
+  generatedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([financialYear, series, sequenceNumber])
+  @@index([billingProfileId])
+  @@index([status])
 }
 
 // ---------- Taxonomy (spec section 4.3) ----------
@@ -1693,6 +1887,20 @@ model AssessmentRequest {
    * Set only once a refund actually succeeds — the double-refund guard the expiry job checks before ever calling Razorpay again.
    */
   razorpayRefundId  String?
+
+  /**
+   * The ASSESSMENT_REQUEST_PAYMENT ledger row for this request's charge —
+   * set inside verifyAndCreate, in the same write as this row's own
+   * creation, so a paid AssessmentRequest is never left without one. Null
+   * only for ALREADY_BADGED (never charged, same condition as `amount`
+   * above) and for any row created before this column existed. A 1:1 FK
+   * (not just "look it up via BillingProfile.transactions") because a
+   * refund and a GST document both need "the one Transaction for this
+   * specific charge," not a query over every charge this org has ever
+   * made.
+   */
+  transactionId String?      @unique
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
 
   paidAt    DateTime?
   /**

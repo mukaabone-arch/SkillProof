@@ -30,6 +30,7 @@ import { AccountModule } from './modules/account/account.module';
 import { AssessmentRequestsModule } from './modules/assessment-requests/assessment-requests.module';
 import { ContactModule } from './modules/contact/contact.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 import { StorageModule } from './storage/storage.module';
 
 @Module({
@@ -66,6 +67,7 @@ import { StorageModule } from './storage/storage.module';
     AssessmentRequestsModule,
     ContactModule,
     SubscriptionsModule,
+    DocumentsModule,
   ],
 })
 export class AppModule {}

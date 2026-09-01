@@ -23,6 +23,12 @@ function fakePrisma(rows: any[]) {
         return { count: matched.length };
       }),
     },
+    transaction: {
+      findUnique: jest.fn(async ({ where }: any) => {
+        const row = rows.find((r) => r.transactionId === where.id);
+        return row ? { id: where.id, status: 'SUCCEEDED' } : null;
+      }),
+    },
   };
 
   function matches(row: any, where: any): boolean {
@@ -70,9 +76,10 @@ function expiredRequest(overrides: Record<string, any> = {}): Record<string, any
 function makeJob(rows: any[]) {
   const prisma = fakePrisma(rows);
   const notifications = { sendEmail: jest.fn(async () => undefined) };
+  const transactions = { recordSystemRefund: jest.fn(async () => undefined) };
   const gateway = fakeGateway();
-  const job = new AssessmentRequestsRefundJob(prisma as any, notifications as any, gateway);
-  return { job, prisma, notifications, gateway };
+  const job = new AssessmentRequestsRefundJob(prisma as any, notifications as any, transactions as any, gateway);
+  return { job, prisma, notifications, transactions, gateway };
 }
 
 describe('AssessmentRequestsRefundJob', () => {
@@ -205,6 +212,44 @@ describe('AssessmentRequestsRefundJob', () => {
 
       expect(gateway.refundPayment).not.toHaveBeenCalled();
       expect(rows[0].status).toBe(AssessmentRequestStatus.STARTED);
+    });
+  });
+
+  describe('ledger sync', () => {
+    it('flips the linked Transaction to REFUNDED once the Razorpay refund succeeds', async () => {
+      const rows = [expiredRequest({ transactionId: 'txn-1' })];
+      const { job, transactions } = makeJob(rows);
+
+      await job.run();
+
+      expect(transactions.recordSystemRefund).toHaveBeenCalledWith('txn-1');
+    });
+
+    it('does nothing for a row with no linked Transaction (pre-existing rows before this column existed)', async () => {
+      const rows = [expiredRequest({ transactionId: null })];
+      const { job, transactions } = makeJob(rows);
+
+      await job.run();
+
+      expect(transactions.recordSystemRefund).not.toHaveBeenCalled();
+    });
+
+    it('recovers the ledger side on a resync run, even when the AssessmentRequest row already shows EXPIRED_REFUNDED', async () => {
+      // Simulates a previous run that refunded via Razorpay and updated
+      // this row, then crashed before the Transaction itself flipped to
+      // REFUNDED — the next sweep must still close that gap.
+      const rows = [
+        expiredRequest({
+          status: AssessmentRequestStatus.EXPIRED_REFUNDED,
+          razorpayRefundId: 'refund-already-done',
+          transactionId: 'txn-1',
+        }),
+      ];
+      const { job, transactions } = makeJob(rows);
+
+      await job.refundOne('req-1', 'EXPIRED');
+
+      expect(transactions.recordSystemRefund).toHaveBeenCalledWith('txn-1');
     });
   });
 

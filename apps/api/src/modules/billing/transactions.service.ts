@@ -154,19 +154,19 @@ export class TransactionsService {
 
   /**
    * The one path allowed to write createdByAdminId: null — a Transaction
-   * whose actor is the Razorpay webhook handler, not a human admin. Used
-   * exclusively by RazorpayWebhookService to record a subscription charge
-   * (see Transaction.createdByAdminId's own schema doc comment for why
-   * this is a dedicated method rather than widening create()/
+   * whose actor is a system process, not a human admin. Two callers:
+   * RazorpayWebhookService (subscription charges) and
+   * AssessmentRequestsService.recordCharge (assessment-request charges) —
+   * see Transaction.createdByAdminId's own schema doc comment for why this
+   * is a dedicated method rather than widening create()/
    * attachProviderReference() to accept a nullable admin id: every
    * admin-facing method on this service keeps requiring a real
-   * adminUserId, unchanged). No AdminAccessLog write here — there is no
-   * admin action to log; RazorpayWebhookEvent is this write's own audit
-   * trail instead. Callers are responsible for their own idempotency check
-   * (e.g. "does a Transaction with this providerPaymentId already exist")
-   * before calling this — same division of responsibility as
-   * AssessmentRequestsService.verifyAndCreate's own idempotency check
-   * ahead of its create() call.
+   * adminUserId, unchanged. No AdminAccessLog write here — there is no
+   * admin action to log; RazorpayWebhookEvent (for the subscription path)
+   * or the AssessmentRequest row itself (for the other) is each caller's
+   * own audit trail instead. Callers are responsible for their own
+   * idempotency check (e.g. "does a Transaction with this
+   * providerPaymentId already exist") before calling this.
    */
   async recordSystemTransaction(
     billingProfileId: string,
@@ -231,6 +231,30 @@ export class TransactionsService {
         placeOfSupplyStateCode: data.gst?.placeOfSupplyStateCode ?? null,
       },
     });
+  }
+
+  /**
+   * The system-actor counterpart to transitionStatus — SUCCEEDED ->
+   * REFUNDED with no human admin behind the write, same
+   * createdByAdminId-null-path posture as recordSystemTransaction above.
+   * Used by AssessmentRequestsRefundJob once Razorpay's own refund call
+   * has actually succeeded: that job's own row (AssessmentRequest.status
+   * EXPIRED_REFUNDED + razorpayRefundId) is its audit trail, so no
+   * AdminAccessLog write here either. Still goes through
+   * ALLOWED_STATUS_TRANSITIONS like every other status change — a
+   * transaction not currently SUCCEEDED can't be refunded twice.
+   */
+  async recordSystemRefund(transactionId: string): Promise<Transaction> {
+    const transaction = await this.getOwned(transactionId);
+
+    const allowed = ALLOWED_STATUS_TRANSITIONS[transaction.status];
+    if (!allowed.includes(TransactionStatus.REFUNDED)) {
+      throw new ConflictException(
+        `Cannot transition a transaction from ${transaction.status} to REFUNDED. Allowed from ${transaction.status}: ${allowed.length ? allowed.join(', ') : 'none (terminal)'}.`,
+      );
+    }
+
+    return this.prisma.transaction.update({ where: { id: transactionId }, data: { status: TransactionStatus.REFUNDED } });
   }
 
   private async getOwned(id: string): Promise<Transaction & { billingProfile: { candidateId: string | null; organizationId: string | null } }> {

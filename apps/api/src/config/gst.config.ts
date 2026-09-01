@@ -18,6 +18,47 @@ export const REGISTERED_STATE_NAME = 'Maharashtra';
 export const GST_RATE = 0.18;
 
 /**
+ * Printed on every GST tax invoice/receipt (see the `documents` module) —
+ * the actual registered legal entity and address on file, not a display
+ * name. Source: docs/legal/refund-policy-content.md ("MyAmbii is operated
+ * by Mukaab Technologies Private Ltd.") plus the registered address
+ * supplied directly for this purpose. Changing either without updating the
+ * real GST/company registration would misstate every document issued from
+ * that point on — same caution as the GSTIN/state constants above.
+ */
+export const SELLER_LEGAL_NAME = 'Mukaab Technologies Private Limited';
+export const SELLER_ADDRESS = 'F/602, Mahavir Heritage, Sector 35 G, Kharghar, Navi Mumbai, 410210, Maharashtra';
+
+/**
+ * Accounting Services Code for MyAmbii's taxable supply (subscriptions and
+ * assessment requests alike — one business, one service classification):
+ * "Information technology consulting and support services." Printed on
+ * every GST document (Rule 46 requires it). A single SAC code covering
+ * both revenue flows is a deliberate simplification, not an oversight — if
+ * the two are ever classified differently for tax purposes, this becomes
+ * two constants and Document.sacCode already snapshots per-row, so no
+ * historical document would need to change.
+ */
+export const SAC_CODE = '998313';
+
+/**
+ * E-INVOICING (IRN/IRP) THRESHOLD — NOT YET APPLICABLE, RECHECK ON GROWTH.
+ * E-invoicing (generating an IRN via a GST-approved Invoice Registration
+ * Portal before a B2B tax invoice is valid) is mandatory only above this
+ * aggregate turnover, computed across any financial year since 2017-18,
+ * and only for B2B/export supplies — never B2C. Nothing in this codebase
+ * tracks aggregate turnover, so nothing here will ever detect the
+ * threshold being crossed automatically; whoever reviews financials
+ * periodically needs to check this by hand. The threshold has been
+ * lowered repeatedly since e-invoicing was introduced (₹500cr in 2020 down
+ * to ₹5cr by 2023) — if turnover ever approaches it, this needs closing
+ * before the `documents` module's TAX_INVOICE series can keep shipping
+ * without an IRP call added first, and this comment should be updated
+ * with the date it stopped being true.
+ */
+export const E_INVOICE_TURNOVER_THRESHOLD_PAISE = 5_00_00_000_00; // ₹5 crore
+
+/**
  * Place of supply is collected after the first charge, not at checkout
  * (BillingProfile.gstStateCode stays null until an admin fills it in — see
  * SubscriptionBillingProfileService.ensureMinimalBillingProfile, which only
@@ -78,16 +119,12 @@ export function splitGst(basePaise: number, placeOfSupplyStateCode: string): Gst
 }
 
 /**
- * KNOWN GAP, FLAGGED DELIBERATELY — not fixed here, out of scope for the
- * change that introduced GST on subscriptions (see that change's own
- * notes): AssessmentRequest (employer-triggered, pay-per-assessment,
- * currently a flat ₹150/₹500-class charge via
- * AssessmentRequestsService.initiate) is equally a taxable supply and
- * currently carries no GST at all — no split, no inclusive pricing,
- * nothing. Shipping GST on subscriptions while assessment requests stay
- * untaxed is an inconsistency in MyAmbii's own GST position, not just a
- * missing feature, and needs closing before either goes live for real.
- * Whoever picks this up should reuse splitGst/these constants exactly the
- * same way this file's own callers do — do not write a second tax
- * calculation.
+ * CLOSED — AssessmentRequest (employer-triggered, pay-per-assessment) now
+ * charges GST the same way subscriptions do: ₹150 base, splitGst'd via
+ * this same function, ₹177 actually charged. See
+ * AssessmentRequestsService.initiate/verifyAndCreate. This comment
+ * previously flagged that gap; kept as a record that the inconsistency
+ * was real and was deliberately closed, not just quietly patched — the two
+ * revenue flows must never diverge in their GST treatment again without a
+ * conscious decision.
  */

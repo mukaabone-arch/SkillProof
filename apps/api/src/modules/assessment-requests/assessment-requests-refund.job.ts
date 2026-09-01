@@ -1,8 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { AssessmentRequestStatus, NotificationType } from '@prisma/client';
+import { AssessmentRequestStatus, NotificationType, TransactionStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { TransactionsService } from '../billing/transactions.service';
 import { RAZORPAY_GATEWAY, RazorpayGateway } from './razorpay-gateway';
 
 /**
@@ -23,6 +24,7 @@ export class AssessmentRequestsRefundJob {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly transactions: TransactionsService,
     @Inject(RAZORPAY_GATEWAY) private readonly razorpay: RazorpayGateway,
   ) {}
 
@@ -120,6 +122,10 @@ export class AssessmentRequestsRefundJob {
           data: { status: AssessmentRequestStatus.EXPIRED_REFUNDED },
         });
       }
+      // Same recovery for the ledger side: a prior run could have refunded
+      // via Razorpay and updated this row, then crashed before the
+      // Transaction itself ever flipped to REFUNDED.
+      await this.syncTransactionRefunded(requestId, request.transactionId);
       return;
     }
 
@@ -134,12 +140,38 @@ export class AssessmentRequestsRefundJob {
         where: { id: requestId },
         data: { status: AssessmentRequestStatus.EXPIRED_REFUNDED, razorpayRefundId: refund.id },
       });
+      await this.syncTransactionRefunded(requestId, request.transactionId);
       await this.notifyEmployer(requestId, reason);
     } catch (err) {
       // Stays at REFUND_FAILED (already set above) — the *next* sweep
       // retries it. Never silently dropped: a row can only leave
       // REFUND_FAILED via a logged, successful Razorpay refund call.
       this.logger.error(`Razorpay refund failed for AssessmentRequest ${requestId}: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Flips the ledger side of a refund — TransactionsService.recordSystemRefund
+   * (SUCCEEDED -> REFUNDED) — for the Transaction this request's charge was
+   * originally recorded on. Called from both refundOne exit points (the
+   * "already refunded, just resync" path and the "just refunded it" path)
+   * so either one recovers correctly if a previous run crashed between the
+   * two writes. `transactionId` is null for any row created before this
+   * column existed — nothing to sync for those, silently skipped rather
+   * than erroring on old data. Best-effort: the actual Razorpay refund has
+   * already happened by the time this runs (or already ran on a previous
+   * sweep) — a failure here is a ledger bookkeeping gap to fix, never a
+   * reason to have withheld or reversed money that's already moved.
+   */
+  private async syncTransactionRefunded(requestId: string, transactionId: string | null): Promise<void> {
+    if (!transactionId) return;
+    try {
+      const transaction = await this.prisma.transaction.findUnique({ where: { id: transactionId }, select: { status: true } });
+      if (transaction?.status === TransactionStatus.SUCCEEDED) {
+        await this.transactions.recordSystemRefund(transactionId);
+      }
+    } catch (err) {
+      this.logger.error(`Failed to sync Transaction ${transactionId} to REFUNDED for AssessmentRequest ${requestId}: ${(err as Error).message}`);
     }
   }
 

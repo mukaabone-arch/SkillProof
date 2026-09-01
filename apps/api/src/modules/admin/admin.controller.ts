@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { DocumentStatus, Role } from '@prisma/client';
 import { AuthenticatedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -9,6 +9,7 @@ import { DataExportService } from '../data-export/data-export.service';
 import { ListExportRequestsQueryDto } from '../data-export/data-export.dto';
 import { BillingProfilesService } from '../billing/billing-profiles.service';
 import { TransactionsService } from '../billing/transactions.service';
+import { DocumentsService } from '../documents/documents.service';
 import {
   AmendTransactionDto,
   AttachProviderReferenceDto,
@@ -39,6 +40,7 @@ export class AdminController {
     private readonly dataExport: DataExportService,
     private readonly billingProfiles: BillingProfilesService,
     private readonly transactions: TransactionsService,
+    private readonly documents: DocumentsService,
   ) {}
 
   /** Compliance Center / Privacy Requests — see AccountService.listActionsForAdmin's own doc comment for exactly what each derived field does and doesn't claim. */
@@ -212,5 +214,27 @@ export class AdminController {
     @Body() dto: AttachProviderReferenceDto,
   ) {
     return this.transactions.attachProviderReference(req.user.sub, id, dto);
+  }
+
+  // ---------- GST documents ----------
+
+  /**
+   * ?status=FAILED_NEEDS_ATTENTION is the one a platform admin actually
+   * needs to find — see DocumentStatus's own schema doc comment for why
+   * that state exists as something to actively surface. No status filter
+   * lists everything, newest first.
+   */
+  @Get('documents')
+  listDocuments(@Query('status') status?: string) {
+    if (status && !Object.values(DocumentStatus).includes(status as DocumentStatus)) {
+      throw new BadRequestException(`status must be one of ${Object.values(DocumentStatus).join(', ')}`);
+    }
+    return this.documents.listForAdmin(status as DocumentStatus | undefined);
+  }
+
+  /** Resets a FAILED_NEEDS_ATTENTION document back to PENDING for the next sweep tick — see DocumentsService.retry's own doc comment. */
+  @Post('documents/:id/retry')
+  retryDocument(@Param('id') id: string) {
+    return this.documents.retry(id);
   }
 }

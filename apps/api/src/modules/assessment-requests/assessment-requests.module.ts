@@ -4,14 +4,16 @@ import { BadgesModule } from '../badges/badges.module';
 import { AssessmentsModule } from '../assessments/assessments.module';
 import { AssessmentSessionsModule } from '../assessment-sessions/assessment-sessions.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { BillingModule } from '../billing/billing.module';
 import { EmployerAssessmentRequestsController } from './employer-assessment-requests.controller';
 import { CandidateAssessmentRequestsController } from './candidate-assessment-requests.controller';
 import { AssessmentRequestsService } from './assessment-requests.service';
 import { AssessmentRequestsRefundJob } from './assessment-requests-refund.job';
+import { AssessmentRequestBillingProfileService } from './assessment-request-billing-profile.service';
 import { RAZORPAY_GATEWAY, RazorpaySdkGateway } from './razorpay-gateway';
 
 @Module({
-  imports: [AuthModule, BadgesModule, AssessmentsModule, AssessmentSessionsModule, NotificationsModule],
+  imports: [AuthModule, BadgesModule, AssessmentsModule, AssessmentSessionsModule, NotificationsModule, BillingModule],
   // CandidateAssessmentRequestsController MUST be registered before
   // EmployerAssessmentRequestsController — Nest/Express matches routes in
   // registration order, and the employer controller's `GET
@@ -27,6 +29,7 @@ import { RAZORPAY_GATEWAY, RazorpaySdkGateway } from './razorpay-gateway';
   providers: [
     AssessmentRequestsService,
     AssessmentRequestsRefundJob,
+    AssessmentRequestBillingProfileService,
     { provide: RAZORPAY_GATEWAY, useClass: RazorpaySdkGateway },
   ],
   // AssessmentRequestsRefundJob — so AccountService can reuse its refundOne

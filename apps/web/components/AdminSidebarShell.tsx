@@ -55,7 +55,10 @@ const GROUPS: NavGroup[] = [
   },
   {
     label: 'Billing',
-    items: [{ kind: 'link', href: '/admin/billing', label: 'Billing Profiles' }],
+    items: [
+      { kind: 'link', href: '/admin/billing', label: 'Billing Profiles' },
+      { kind: 'link', href: '/admin/billing/documents', label: 'GST Documents' },
+    ],
   },
   {
     label: 'Roadmap',

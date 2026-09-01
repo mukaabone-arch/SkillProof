@@ -7,7 +7,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { AssessmentRequestStatus, AssessmentSessionStatus, AttemptStatus, NotificationType, SkillLevel } from '@prisma/client';
+import { AssessmentRequestStatus, AssessmentSessionStatus, AttemptStatus, NotificationType, SkillLevel, TransactionStatus, TransactionType } from '@prisma/client';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -18,22 +18,42 @@ import { BadgeResolverService } from '../badges/badge-resolver.service';
 import { SKILL_LEVEL as DISCUSSION_LEVEL, SKILL_NAME as DISCUSSION_SKILL_NAME } from '../assessment-sessions/rag-systems-l2.rubric';
 import { RAZORPAY_GATEWAY, RazorpayGateway } from './razorpay-gateway';
 import { WEB_BASE_URL } from '../../config/web-base-url';
+import { TransactionsService } from '../billing/transactions.service';
+import { AssessmentRequestBillingProfileService } from './assessment-request-billing-profile.service';
+import { splitGst, DEFAULT_PLACE_OF_SUPPLY_STATE_CODE } from '../../config/gst.config';
 
 /**
- * Paise. "$5" in the product brief, but this Razorpay account is INR-only
- * (see the feat/razorpay-test STEP 0 investigation — no evidence of
- * multi-currency/international settlement being configured), so this is
- * ₹500 instead of a literal USD charge. Configurable per the brief's "amount
- * configurable" — env override, hardcoded fallback, never client-supplied.
+ * Paise, GST-EXCLUSIVE. "$5" in the product brief, but this Razorpay
+ * account is INR-only (see the feat/razorpay-test STEP 0 investigation —
+ * no evidence of multi-currency/international settlement being
+ * configured); the brief's flat ₹500 was later revised down to ₹150 base
+ * (₹177 GST-inclusive — see splitGst) as part of bringing this flow's GST
+ * treatment in line with subscriptions'. Configurable per the brief's
+ * "amount configurable" — env override, hardcoded fallback, never
+ * client-supplied. The env var name predates the base/exclusive-vs-total
+ * distinction and still names the base amount, not the amount actually
+ * charged — baseAmountPaise() below is the only thing that reads it.
  */
-const DEFAULT_AMOUNT_PAISE = 50000;
+const DEFAULT_BASE_AMOUNT_PAISE = 15000;
 const CURRENCY = 'INR';
 const EXPIRY_WINDOW_MS = 5 * 24 * 60 * 60 * 1000; // 5 days
 
-function amountPaise(): number {
+function baseAmountPaise(): number {
   const fromEnv = process.env.ASSESSMENT_REQUEST_AMOUNT_PAISE;
   const parsed = fromEnv ? Number(fromEnv) : NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_AMOUNT_PAISE;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_BASE_AMOUNT_PAISE;
+}
+
+/**
+ * The amount actually charged via Razorpay — GST-inclusive total. Place of
+ * supply doesn't change this (splitGst's totalPaise is state-invariant,
+ * only the CGST/SGST-vs-IGST composition varies), so this can be computed
+ * once at order-creation time with no BillingProfile/org context yet —
+ * mirrors how SUBSCRIPTION_PRICING's Razorpay Plans are priced at the
+ * GST-inclusive total regardless of which state a given subscriber is in.
+ */
+function chargeAmountPaise(): number {
+  return splitGst(baseAmountPaise(), DEFAULT_PLACE_OF_SUPPLY_STATE_CODE).totalPaise;
 }
 
 interface OrderNotes {
@@ -81,6 +101,8 @@ export class AssessmentRequestsService {
     private readonly assessmentSessions: AssessmentSessionsService,
     private readonly badgeResolver: BadgeResolverService,
     @Inject(RAZORPAY_GATEWAY) private readonly razorpay: RazorpayGateway,
+    private readonly transactions: TransactionsService,
+    private readonly billingProfiles: AssessmentRequestBillingProfileService,
   ) {}
 
   /**
@@ -128,7 +150,7 @@ export class AssessmentRequestsService {
       throw new BadRequestException('Razorpay is not configured — set RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET.');
     }
 
-    const amount = amountPaise();
+    const amount = chargeAmountPaise();
     const notes: OrderNotes = { orgId, requestedByUserId, candidateId, skillId, level };
     const order = await this.razorpay.createOrder({
       amount,
@@ -167,7 +189,19 @@ export class AssessmentRequestsService {
     }
 
     const existing = await this.prisma.assessmentRequest.findFirst({ where: { razorpayPaymentId } });
-    if (existing) return existing;
+    if (existing) {
+      // Idempotent on razorpayPaymentId (see this method's own doc
+      // comment) — but a request row existing doesn't by itself mean
+      // recordCharge ever finished; if a prior call created this row and
+      // then failed before/during recordCharge, transactionId is still
+      // null and this retry is exactly what closes that gap, rather than
+      // returning a row whose charge was never recorded anywhere.
+      if (!existing.transactionId) {
+        await this.recordCharge(existing.id, existing.orgId, existing.amount!, razorpayOrderId, razorpayPaymentId);
+        return this.prisma.assessmentRequest.findUniqueOrThrow({ where: { id: existing.id } });
+      }
+      return existing;
+    }
 
     const order = await this.razorpay.fetchOrder(razorpayOrderId);
     const notes = (order.notes ?? {}) as unknown as Partial<OrderNotes>;
@@ -182,6 +216,7 @@ export class AssessmentRequestsService {
     }
 
     const paidAt = new Date();
+    const chargedAmount = chargeAmountPaise();
     const request = await this.prisma.assessmentRequest.create({
       data: {
         orgId: notes.orgId,
@@ -192,14 +227,84 @@ export class AssessmentRequestsService {
         status: AssessmentRequestStatus.PAID_PENDING_START,
         razorpayOrderId,
         razorpayPaymentId,
-        amount: amountPaise(),
+        amount: chargedAmount,
         paidAt,
         expiresAt: new Date(paidAt.getTime() + EXPIRY_WINDOW_MS),
       },
     });
 
+    await this.recordCharge(request.id, notes.orgId, chargedAmount, razorpayOrderId, razorpayPaymentId);
     await this.notifyCandidateInvited(request.id);
     return request;
+  }
+
+  /**
+   * Ledger + GST split for a just-verified charge — mirrors
+   * RazorpayWebhookService.recordCharge's own posture (system-actor
+   * Transaction, defensive totalPaise assertion) for the one-time-charge
+   * side of the business. Runs synchronously inside verifyAndCreate, not
+   * fire-and-forget: unlike a document (queued, retried independently —
+   * see the `documents` module), the ledger entry for money that has
+   * already left Razorpay must exist before this call returns, or a
+   * successful charge could be recorded nowhere at all. A failure here
+   * throws and the caller sees a 500 — the AssessmentRequest row itself
+   * was already created and is idempotent on razorpayPaymentId (see this
+   * method's own doc comment above), so a retried verify call is safe and
+   * simply re-attempts recordCharge rather than double-creating anything.
+   */
+  private async recordCharge(
+    requestId: string,
+    orgId: string,
+    chargedAmount: number,
+    razorpayOrderId: string,
+    razorpayPaymentId: string,
+  ): Promise<void> {
+    // Deduped on providerPaymentId — same pattern as
+    // RazorpayWebhookService.recordCharge — so two verify calls racing
+    // before either has written transactionId back onto the
+    // AssessmentRequest row (see this method's one caller) can never
+    // create two Transaction rows for the same actual payment. Attaches
+    // whichever transaction already exists rather than erroring, so the
+    // loser of the race still ends up linked correctly.
+    const existingTransaction = await this.prisma.transaction.findFirst({ where: { providerPaymentId: razorpayPaymentId } });
+    if (existingTransaction) {
+      await this.prisma.assessmentRequest.update({ where: { id: requestId }, data: { transactionId: existingTransaction.id } });
+      return;
+    }
+
+    const billingProfileId = await this.billingProfiles.ensureMinimalBillingProfile(orgId);
+
+    const basePaise = baseAmountPaise();
+    const profile = await this.prisma.billingProfile.findUnique({
+      where: { id: billingProfileId },
+      select: { gstStateCode: true },
+    });
+    const placeOfSupplyStateCode = profile?.gstStateCode ?? DEFAULT_PLACE_OF_SUPPLY_STATE_CODE;
+    const split = splitGst(basePaise, placeOfSupplyStateCode);
+
+    if (split.totalPaise !== chargedAmount) {
+      // Same defensive posture as RazorpayWebhookService.recordCharge — a
+      // misconfiguration (env var changed between order creation and
+      // verify, or a stale client) fails loud rather than recording a
+      // split that doesn't add up to what was actually charged.
+      this.logger.error(
+        `AssessmentRequest ${requestId}: computed GST total ${split.totalPaise} does not match actual charge ${chargedAmount} — recording amountPaise only, no tax split.`,
+      );
+    }
+
+    const transaction = await this.transactions.recordSystemTransaction(billingProfileId, {
+      amountPaise: chargedAmount,
+      currency: CURRENCY,
+      type: TransactionType.ASSESSMENT_REQUEST_PAYMENT,
+      status: TransactionStatus.SUCCEEDED,
+      description: 'MyAmbii assessment request charge',
+      provider: 'razorpay',
+      providerOrderId: razorpayOrderId,
+      providerPaymentId: razorpayPaymentId,
+      gst: split.totalPaise === chargedAmount ? split : undefined,
+    });
+
+    await this.prisma.assessmentRequest.update({ where: { id: requestId }, data: { transactionId: transaction.id } });
   }
 
   /**

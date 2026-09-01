@@ -36,6 +36,9 @@ interface AccountActionRow {
   createdAt: string;
   needsAttention: boolean;
 }
+interface DocumentRow {
+  id: string;
+}
 
 const TYPE_LABEL: Record<AccountActionRow['type'], string> = {
   DEACTIVATED: 'Deactivation',
@@ -52,6 +55,7 @@ export default function AdminDashboardPage() {
   const [flaggedAttempts, setFlaggedAttempts] = useState<AttemptRow[] | null>(null);
   const [interviewQuestions, setInterviewQuestions] = useState<InterviewQuestionRow[] | null>(null);
   const [recentActions, setRecentActions] = useState<AccountActionRow[] | null>(null);
+  const [failedDocuments, setFailedDocuments] = useState<DocumentRow[] | null>(null);
 
   useEffect(() => {
     if (!getToken()) {
@@ -76,6 +80,7 @@ export default function AdminDashboardPage() {
     api<AccountActionRow[]>('/admin/account-actions')
       .then((rows) => setRecentActions(rows.slice(0, RECENT_ACTIONS_SHOWN)))
       .catch(() => undefined);
+    api<DocumentRow[]>('/admin/documents?status=FAILED_NEEDS_ATTENTION').then(setFailedDocuments).catch(() => undefined);
   }, []);
 
   if (status === 'loading') {
@@ -135,6 +140,21 @@ export default function AdminDashboardPage() {
             <div className="status-card-label">Interview Questions</div>
             <div className="status-stat">{activeQuestions}</div>
             <p className="meta" style={{ margin: 0 }}>Active · {interviewQuestions.length - (activeQuestions ?? 0)} inactive</p>
+          </Link>
+        )}
+
+        {failedDocuments && (
+          <Link
+            href="/admin/billing/documents"
+            className={failedDocuments.length > 0 ? 'status-card status-card-flag' : 'status-card'}
+          >
+            <div className="status-card-label">GST Documents</div>
+            <div className="status-stat" style={failedDocuments.length > 0 ? { color: 'var(--error)' } : undefined}>
+              {failedDocuments.length}
+            </div>
+            <p className="meta" style={{ margin: 0 }}>
+              {failedDocuments.length > 0 ? 'Failed to generate — needs attention' : 'Needing attention'}
+            </p>
           </Link>
         )}
       </div>
