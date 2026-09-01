@@ -22,6 +22,7 @@ const SECTIONS = [
   { href: '/employer/candidates', label: 'Find Candidates' },
   { href: '/employer/applicants', label: 'Applicants' },
   { href: '/employer/shortlist', label: 'Shortlist' },
+  { href: '/employer/billing', label: 'Billing' },
   { href: '/employer/settings', label: 'Settings' },
 ];
 

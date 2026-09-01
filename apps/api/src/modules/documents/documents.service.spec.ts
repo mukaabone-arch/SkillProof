@@ -374,6 +374,38 @@ describe('DocumentsService', () => {
     });
   });
 
+  describe('listForAdmin', () => {
+    it('with no status filter, includes FAILED_NEEDS_ATTENTION rows alongside every other status — nothing hidden by default', async () => {
+      // This is the property GET /admin/documents (no query param) and the
+      // admin dashboard's failed-count card both depend on: a document
+      // that exhausts its retries must be visible without anyone having to
+      // think to apply a status filter first.
+      const prisma = fakePrisma();
+      const service = new DocumentsService(prisma, fakeStorage() as any);
+      const pending = await service.reserveAndCreate('txn-receipt');
+      const failed = await service.reserveAndCreate('txn-invoice');
+      Object.assign(prisma._documents.find((d: any) => d.id === failed.id), { status: DocumentStatus.FAILED_NEEDS_ATTENTION });
+
+      const all = await service.listForAdmin();
+
+      expect(all.map((d) => d.id).sort()).toEqual([pending.id, failed.id].sort());
+      expect(all.some((d) => d.status === DocumentStatus.FAILED_NEEDS_ATTENTION)).toBe(true);
+    });
+
+    it('a status filter narrows the list — e.g. exactly what the "needs attention" view/count would query', async () => {
+      const prisma = fakePrisma();
+      const service = new DocumentsService(prisma, fakeStorage() as any);
+      const pending = await service.reserveAndCreate('txn-receipt');
+      const failed = await service.reserveAndCreate('txn-invoice');
+      Object.assign(prisma._documents.find((d: any) => d.id === failed.id), { status: DocumentStatus.FAILED_NEEDS_ATTENTION });
+
+      const onlyFailed = await service.listForAdmin(DocumentStatus.FAILED_NEEDS_ATTENTION);
+
+      expect(onlyFailed.map((d) => d.id)).toEqual([failed.id]);
+      expect(onlyFailed.some((d) => d.id === pending.id)).toBe(false);
+    });
+  });
+
   describe('retry (admin)', () => {
     it('resets a FAILED_NEEDS_ATTENTION document back to PENDING with a clean attempt count', async () => {
       const prisma = fakePrisma();

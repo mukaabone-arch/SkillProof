@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Req, UseGuards } from '@nestjs/common';
 import { AuthenticatedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OrgMemberGuard, OrgScopedRequest } from '../auth/org-member.guard';
+import { OrgSetupCompleteGuard } from '../auth/org-setup-complete.guard';
 import { DocumentsService } from './documents.service';
 
 /**
@@ -29,15 +30,17 @@ export class CandidateDocumentsController {
 }
 
 /**
- * Organisation-facing GST documents — will start returning rows once
- * assessment-request documents ship (currently only subscriptions
- * generate documents, and those are always candidate-owned, so this list
- * is empty for every org today; wired up now rather than left as a TODO,
- * since the ownership-scoping logic is identical either way and adding it
- * later would mean touching this same guard/route shape again).
+ * Organisation-facing GST documents — covers assessment-request charges
+ * (org-owned BillingProfile) the same way CandidateDocumentsController
+ * covers subscription charges. OrgSetupCompleteGuard matches the dominant
+ * guard shape on every other employer-portal controller (see
+ * EmployerAssessmentRequestsController) — see app/employer/layout.tsx's
+ * own doc comment on SETUP_EXEMPT_PATHS for why that pairing matters: an
+ * incomplete org shouldn't be able to reach this via direct API call any
+ * more than through the UI.
  */
 @Controller('documents/org')
-@UseGuards(JwtAuthGuard, OrgMemberGuard)
+@UseGuards(JwtAuthGuard, OrgMemberGuard, OrgSetupCompleteGuard)
 export class OrgDocumentsController {
   constructor(private readonly documents: DocumentsService) {}
 

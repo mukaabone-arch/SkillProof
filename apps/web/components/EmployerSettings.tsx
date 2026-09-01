@@ -12,6 +12,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { employerApi } from '@/lib/api';
 import { Badge } from '@/components/ui';
 import { SearchableSelect } from '@/components/SearchableSelect';
@@ -426,7 +427,9 @@ export default function EmployerSettings() {
             </p>
           )}
 
-          <p className="meta" style={{ marginTop: 4 }}>Billing isn&apos;t configurable yet.</p>
+          <p className="meta" style={{ marginTop: 4 }}>
+            Billing isn&apos;t configurable yet. <Link href="/employer/billing">View billing documents →</Link>
+          </p>
         </div>
       )}
 

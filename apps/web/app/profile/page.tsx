@@ -427,6 +427,8 @@ function ProfilePageInner() {
       <p>Keep this up to date — employers see it alongside your verified badges.</p>
       <p style={{ marginTop: -16 }}>
         <Link href="/profile/account">Account settings →</Link>
+        {' · '}
+        <Link href="/profile/billing">Billing documents →</Link>
       </p>
 
       {isSafeReturnTo(returnTo) && (

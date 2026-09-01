@@ -96,6 +96,103 @@ describeIfDb('DocumentsService.reserveAndCreate — concurrency (real Postgres)'
   }, 30_000);
 });
 
+describeIfDb('DocumentsGenerationJob backfill — numbering follows charge date, not insertion order (real Postgres)', () => {
+  let prisma: PrismaClient;
+  let service: DocumentsService;
+  let userId: string;
+  let candidateId: string;
+  let billingProfileId: string;
+  const testMarker = `doc-backfill-test-${Date.now()}`;
+  // All within FY 2024-25, deliberately older than "today" so this test's
+  // DocumentSequence bucket never collides with the concurrency test's
+  // (which uses the CURRENT financial year) — the two can run in any order
+  // or in parallel without affecting each other's baseline math.
+  const chargeDatesOldestFirst = [
+    new Date('2024-05-01T00:00:00.000Z'),
+    new Date('2024-08-15T00:00:00.000Z'),
+    new Date('2024-11-30T00:00:00.000Z'),
+    new Date('2025-01-10T00:00:00.000Z'),
+    new Date('2025-03-20T00:00:00.000Z'),
+  ];
+
+  beforeAll(async () => {
+    prisma = new PrismaClient();
+    await prisma.$connect();
+    service = new DocumentsService(prisma as any, { write: async () => undefined } as any);
+
+    const user = await prisma.user.create({ data: { email: `${testMarker}@example.com` } });
+    userId = user.id;
+    const candidate = await prisma.candidateProfile.create({ data: { userId, fullName: testMarker } });
+    candidateId = candidate.id;
+    const billingProfile = await prisma.billingProfile.create({ data: { candidateId, legalEntityName: testMarker } });
+    billingProfileId = billingProfile.id;
+
+    // Insert in a DELIBERATELY SHUFFLED order (not chronological) — this is
+    // the actual shape a real backfill hits: pre-existing rows created
+    // whenever they historically were, discovered by this feature in
+    // whatever order Postgres happens to return them absent an ORDER BY.
+    // If numbering followed insertion/discovery order instead of
+    // createdAt, this shuffle would expose it immediately.
+    const insertionOrder = [3, 0, 4, 1, 2]; // indexes into chargeDatesOldestFirst
+    for (const i of insertionOrder) {
+      await prisma.transaction.create({
+        data: {
+          billingProfileId,
+          amountPaise: 35282,
+          type: 'SUBSCRIPTION_CHARGE',
+          status: 'SUCCEEDED',
+          basePaise: 29900,
+          gstPaise: 5382,
+          cgstPaise: 2691,
+          sgstPaise: 2691,
+          igstPaise: 0,
+          placeOfSupplyStateCode: '27',
+          description: `${testMarker} charge for ${chargeDatesOldestFirst[i].toISOString()}`,
+          createdAt: chargeDatesOldestFirst[i],
+        },
+      });
+    }
+  }, 30_000);
+
+  afterAll(async () => {
+    await prisma.document.deleteMany({ where: { billingProfileId } });
+    await prisma.transaction.deleteMany({ where: { billingProfileId } });
+    await prisma.billingProfile.delete({ where: { id: billingProfileId } });
+    await prisma.candidateProfile.delete({ where: { id: candidateId } });
+    await prisma.user.delete({ where: { id: userId } });
+    await prisma.$disconnect();
+  });
+
+  it('numbers documents in charge-date order regardless of the order rows were inserted/discovered in', async () => {
+    // The exact query DocumentsGenerationJob.reservePhase drives off —
+    // real findMany against the real table, not a mock, so this also
+    // proves the ORDER BY is actually doing its job.
+    const pending = await service.findTransactionsNeedingDocuments();
+    // findTransactionsNeedingDocuments doesn't filter by billingProfileId
+    // (it's a global sweep query), so isolate this test's own rows before
+    // asserting order — other data in the shared dev DB must not affect
+    // this assertion either way.
+    const ourTransactionIds = new Set(
+      (await prisma.transaction.findMany({ where: { billingProfileId }, select: { id: true } })).map((t) => t.id),
+    );
+    const orderedIds = pending.filter((t) => ourTransactionIds.has(t.id)).map((t) => t.id);
+    expect(orderedIds).toHaveLength(chargeDatesOldestFirst.length);
+
+    // Sequential reservation, exactly like DocumentsGenerationJob.reservePhase's for-loop (never Promise.all here — order matters).
+    const documents = [];
+    for (const id of orderedIds) {
+      documents.push(await service.reserveAndCreate(id));
+    }
+
+    const sortedByCreatedAt = [...documents].sort((a, b) => a.issuedAt.getTime() - b.issuedAt.getTime());
+    expect(documents.map((d) => d.sequenceNumber)).toEqual(sortedByCreatedAt.map((d) => d.sequenceNumber));
+    // And that order is strictly increasing — proves numbering tracked charge date, not discovery order.
+    for (let i = 1; i < documents.length; i++) {
+      expect(documents[i].sequenceNumber).toBeGreaterThan(documents[i - 1].sequenceNumber);
+    }
+  }, 30_000);
+});
+
 function currentFinancialYear(): string {
   const now = new Date();
   const year = now.getUTCFullYear();
