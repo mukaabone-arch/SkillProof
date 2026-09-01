@@ -31,15 +31,47 @@ export const SELLER_ADDRESS = 'F/602, Mahavir Heritage, Sector 35 G, Kharghar, N
 
 /**
  * Accounting Services Code for MyAmbii's taxable supply (subscriptions and
- * assessment requests alike — one business, one service classification):
- * "Information technology consulting and support services." Printed on
- * every GST document (Rule 46 requires it). A single SAC code covering
- * both revenue flows is a deliberate simplification, not an oversight — if
- * the two are ever classified differently for tax purposes, this becomes
- * two constants and Document.sacCode already snapshots per-row, so no
- * historical document would need to change.
+ * assessment requests alike — one business, one service classification).
+ * Printed on every GST document (Rule 46 requires it). A single SAC code
+ * covering both revenue flows is a deliberate simplification, not an
+ * oversight — if the two are ever classified differently for tax purposes,
+ * this becomes two constants and Document.sacCode already snapshots
+ * per-row, so no historical document would need to change.
+ *
+ * Changed from 998313 to 9985 (tax consultant advice, 2026-09-01) — this
+ * constant is only read at Document creation (DocumentsService.
+ * reserveAndCreate snapshots it into Document.sacCode once, at numbering
+ * time); every Document row created before this change keeps 998313
+ * permanently in its own sacCode column, and any of those already rendered
+ * to PDF have it baked into the stored file in S3. Neither is altered by
+ * changing this constant — see the backfill/handling discussion wherever
+ * this change was decided.
  */
-export const SAC_CODE = '998313';
+export const SAC_CODE = '9985';
+
+/**
+ * SNAPSHOT PROPERTY — GSTIN, SELLER_LEGAL_NAME, SELLER_ADDRESS, and SAC_CODE
+ * above are read from this file exactly ONCE per document, in
+ * DocumentsService.reserveAndCreate, at numbering time — never again after
+ * that. renderAndStore builds the PDF from document.sellerGstin/
+ * sellerLegalName/sellerAddress/sacCode (the frozen Document columns), not
+ * from these live constants, and nothing else in the codebase (no admin
+ * action, no web screen — the only place any of this is ever displayed is
+ * that one PDF) re-reads them for an existing Document either.
+ *
+ * This is deliberate and must be preserved: a GST document is legally
+ * meant to reflect the seller's registration details as they stood at the
+ * time of supply, so editing any of these four constants must only affect
+ * Documents created after the edit, never silently rewrite what an
+ * already-issued document says. If a future change (e.g. a "regenerate
+ * PDF from current config" admin action) would read these constants live
+ * for an existing Document instead of its own stored snapshot, that's the
+ * moment this needs a real historical-values mechanism (e.g. an
+ * effective-dated config table), not just a call added into the current
+ * render path. Flagging this now, not building it — as of 2026-09-01
+ * (the 998313 -> 9985 SAC change) zero documents had been generated, so
+ * there was nothing to reconcile and no gap to close yet.
+ */
 
 /**
  * E-INVOICING (IRN/IRP) THRESHOLD — NOT YET APPLICABLE, RECHECK ON GROWTH.

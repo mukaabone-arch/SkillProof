@@ -1,5 +1,6 @@
 import { DocumentSeries, DocumentStatus } from '@prisma/client';
 import { DocumentsService, MAX_GENERATION_ATTEMPTS } from './documents.service';
+import { SAC_CODE } from '../../config/gst.config';
 
 function fakePrisma() {
   const documents: any[] = [];
@@ -195,7 +196,7 @@ describe('DocumentsService', () => {
 
       expect(doc.sellerGstin).toBe('27AAUCM4131F1ZC');
       expect(doc.sellerLegalName).toBe('Mukaab Technologies Private Limited');
-      expect(doc.sacCode).toBe('998313');
+      expect(doc.sacCode).toBe(SAC_CODE);
     });
 
     it('two documents in the same (financialYear, series) get sequential numbers, not the same one', async () => {

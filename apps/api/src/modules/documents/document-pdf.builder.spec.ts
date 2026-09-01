@@ -10,7 +10,7 @@ function baseInput(overrides: Partial<DocumentPdfInput> = {}): DocumentPdfInput 
     sellerLegalName: 'Mukaab Technologies Private Limited',
     sellerAddress: 'F/602, Mahavir Heritage, Sector 35 G, Kharghar, Navi Mumbai, 410210, Maharashtra',
     sellerGstin: '27AAUCM4131F1ZC',
-    sacCode: '998313',
+    sacCode: '9985',
     buyerLegalName: 'Jordan Lee',
     buyerGstin: null,
     buyerAddress: null,
