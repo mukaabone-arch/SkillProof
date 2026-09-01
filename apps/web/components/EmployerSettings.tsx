@@ -95,6 +95,7 @@ export default function EmployerSettings() {
   const [website, setWebsite] = useState('');
   const [savingOrgInfo, setSavingOrgInfo] = useState(false);
   const [orgInfoError, setOrgInfoError] = useState('');
+  const [orgInfoSuccess, setOrgInfoSuccess] = useState('');
 
   const [submittingVerification, setSubmittingVerification] = useState(false);
   const [verificationError, setVerificationError] = useState('');
@@ -169,6 +170,7 @@ export default function EmployerSettings() {
   async function saveOrgInfo() {
     setSavingOrgInfo(true);
     setOrgInfoError('');
+    setOrgInfoSuccess('');
     try {
       const updated = await api<OrgMe['organization']>('/orgs/me', {
         method: 'PATCH',
@@ -183,6 +185,7 @@ export default function EmployerSettings() {
         }),
       });
       setOrg((prev) => (prev ? { ...prev, organization: updated } : prev));
+      setOrgInfoSuccess('Saved.');
     } catch (e) {
       setOrgInfoError((e as Error).message);
     } finally {
@@ -379,6 +382,7 @@ export default function EmployerSettings() {
           {isAdmin ? (
             <>
               {orgInfoError && <p className="error" style={{ margin: 0 }}>{orgInfoError}</p>}
+              {orgInfoSuccess && <p className="ok" style={{ margin: 0 }}>{orgInfoSuccess}</p>}
               <div className="field">
                 <label htmlFor="orgIndustry">Industry</label>
                 <SearchableSelect
@@ -428,7 +432,8 @@ export default function EmployerSettings() {
           )}
 
           <p className="meta" style={{ marginTop: 4 }}>
-            Billing isn&apos;t configurable yet. <Link href="/employer/billing">View billing documents →</Link>
+            GST invoices and receipts are generated automatically for each charge.{' '}
+            <Link href="/employer/billing">View billing documents →</Link>
           </p>
         </div>
       )}
