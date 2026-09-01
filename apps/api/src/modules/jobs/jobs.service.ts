@@ -32,6 +32,7 @@ export class JobsService {
   ) {}
 
   async create(orgId: string, dto: CreateJobDto) {
+    assertSalaryShape(dto.salaryMin, dto.salaryMax, dto.salaryNotDisclosed ?? false);
     try {
       return await this.prisma.job.create({ data: { orgId, ...dto, code: normalizeCode(dto.code) } });
     } catch (err) {
@@ -49,6 +50,21 @@ export class JobsService {
 
   async update(orgId: string, jobId: string, dto: UpdateJobDto) {
     const job = await this.getOwnedJob(orgId, jobId);
+
+    // A PATCH can touch just one of the three salary fields — validate the
+    // RESULTING combination (this dto's value where provided, the job's
+    // current value otherwise), not the dto in isolation. This is also
+    // what forces a client toggling salaryNotDisclosed to true to
+    // explicitly clear salaryMin/salaryMax (send null) rather than
+    // leaving stale numbers sitting underneath an unenforced flag — a
+    // request that flips the flag without clearing pre-existing amounts
+    // is rejected here, not silently accepted.
+    assertSalaryShape(
+      dto.salaryMin !== undefined ? dto.salaryMin : job.salaryMin,
+      dto.salaryMax !== undefined ? dto.salaryMax : job.salaryMax,
+      dto.salaryNotDisclosed !== undefined ? dto.salaryNotDisclosed : job.salaryNotDisclosed,
+    );
+
     const data = dto.code !== undefined ? { ...dto, code: normalizeCode(dto.code) } : dto;
     let updated;
     try {
@@ -410,6 +426,35 @@ function translateCodeConflict(err: unknown): unknown {
     return new ConflictException('A job with this code already exists for your organization.');
   }
   return err;
+}
+
+/**
+ * The one cross-field invariant CreateJobDto/UpdateJobDto's own decorators
+ * can't express — mutual exclusivity between salaryNotDisclosed and
+ * salaryMin/salaryMax, and min <= max — enforced here rather than a DB
+ * CHECK constraint, same "application-level invariants" posture as
+ * Transaction's own doc comment / BillingProfilesService's owner-
+ * exclusivity check. Called against the RESULTING effective values (see
+ * update()'s own comment on merging a partial patch against the current
+ * row), never the raw dto alone.
+ */
+function assertSalaryShape(salaryMin: number | null | undefined, salaryMax: number | null | undefined, salaryNotDisclosed: boolean): void {
+  const hasMin = salaryMin != null;
+  const hasMax = salaryMax != null;
+
+  if (salaryNotDisclosed) {
+    if (hasMin || hasMax) {
+      throw new BadRequestException('salaryMin/salaryMax must not be set when salaryNotDisclosed is true.');
+    }
+    return;
+  }
+
+  if (hasMin !== hasMax) {
+    throw new BadRequestException('salaryMin and salaryMax must be set together — a lone bound is not a range.');
+  }
+  if (hasMin && hasMax && salaryMin! > salaryMax!) {
+    throw new BadRequestException('salaryMin must not be greater than salaryMax.');
+  }
 }
 
 /** Employer-authored free text (job title) landing in an HTML email body — same local escape as ShortlistPipelineService's own, not shared, since neither module exports one today. */

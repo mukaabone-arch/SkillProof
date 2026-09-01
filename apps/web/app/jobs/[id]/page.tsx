@@ -26,10 +26,19 @@ interface JobDetail {
   experienceMin: number | null;
   experienceMax: number | null;
   description: string;
+  /** Paise, annual — see Job.salaryMin's own schema doc comment. Formatted only at display time (formatSalaryRange below), never elsewhere. */
   salaryMin: number | null;
   salaryMax: number | null;
+  salaryCurrency: string;
+  salaryNotDisclosed: boolean;
   skills: JobSkillView[];
   alreadyApplied: boolean;
+}
+
+/** ₹, Indian digit grouping (lakhs/crore), whole rupees only — paise is never a meaningful unit to show a candidate. Currency symbol is hardcoded to ₹ since salaryCurrency is INR-only for now (see Job.salaryCurrency's own schema doc comment); revisit once that's no longer true. */
+function formatSalaryRange(min: number, max: number): string {
+  const format = (paise: number) => `₹${Math.round(paise / 100).toLocaleString('en-IN')}`;
+  return min === max ? `${format(min)} / year` : `${format(min)}–${format(max)} / year`;
 }
 
 /** Machine-readable codes the backend returns when apply-time requirements aren't met. */
@@ -206,9 +215,12 @@ export default function JobDetailPage() {
         {(job.experienceMin !== null || job.experienceMax !== null) &&
           ` · ${job.experienceMin ?? 0}–${job.experienceMax ?? '∞'} yrs experience`}
       </p>
-      {(job.salaryMin !== null || job.salaryMax !== null) && (
+      {job.salaryNotDisclosed && (
+        <p className="meta" style={{ fontSize: '1rem' }}>Salary: Not disclosed</p>
+      )}
+      {!job.salaryNotDisclosed && job.salaryMin !== null && job.salaryMax !== null && (
         <p className="meta" style={{ fontSize: '1rem' }}>
-          Salary: {job.salaryMin ?? '?'}–{job.salaryMax ?? '?'}
+          Salary: {formatSalaryRange(job.salaryMin, job.salaryMax)}
         </p>
       )}
 

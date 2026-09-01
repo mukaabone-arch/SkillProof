@@ -62,8 +62,11 @@ interface Job {
   remote: boolean;
   experienceMin: number | null;
   experienceMax: number | null;
+  /** Paise, annual — see Job.salaryMin's own schema doc comment. Converted to/from rupees only at this component's own boundary (openEditForm/saveJob), never stored as rupees anywhere. */
   salaryMin: number | null;
   salaryMax: number | null;
+  salaryCurrency: string;
+  salaryNotDisclosed: boolean;
   status: JobStatus;
   skills: JobSkillView[];
 }
@@ -116,8 +119,10 @@ interface JobForm {
   remote: boolean;
   experienceMin: string;
   experienceMax: string;
+  /** Rupees, as typed — the only place in this component's data that isn't paise. Converted to paise (×100) only when building the request body in saveJob(). */
   salaryMin: string;
   salaryMax: string;
+  salaryNotDisclosed: boolean;
   status: string;
 }
 
@@ -182,6 +187,7 @@ const emptyForm: JobForm = {
   experienceMax: '',
   salaryMin: '',
   salaryMax: '',
+  salaryNotDisclosed: false,
   status: 'DRAFT',
 };
 
@@ -285,8 +291,10 @@ export default function EmployerJobs() {
       remote: job.remote,
       experienceMin: job.experienceMin !== null ? String(job.experienceMin) : '',
       experienceMax: job.experienceMax !== null ? String(job.experienceMax) : '',
-      salaryMin: job.salaryMin !== null ? String(job.salaryMin) : '',
-      salaryMax: job.salaryMax !== null ? String(job.salaryMax) : '',
+      // Paise -> rupees, the only unit conversion in this form.
+      salaryMin: job.salaryMin !== null ? String(job.salaryMin / 100) : '',
+      salaryMax: job.salaryMax !== null ? String(job.salaryMax / 100) : '',
+      salaryNotDisclosed: job.salaryNotDisclosed,
       status: job.status,
     });
     setSuggested([]);
@@ -497,8 +505,18 @@ export default function EmployerJobs() {
       }
       if (form.experienceMin !== '') body.experienceMin = Number(form.experienceMin);
       if (form.experienceMax !== '') body.experienceMax = Number(form.experienceMax);
-      if (form.salaryMin !== '') body.salaryMin = Number(form.salaryMin);
-      if (form.salaryMax !== '') body.salaryMax = Number(form.salaryMax);
+      body.salaryNotDisclosed = form.salaryNotDisclosed;
+      if (form.salaryNotDisclosed) {
+        // Explicit null, not omission — a PATCH that flips this flag without
+        // clearing pre-existing amounts is rejected server-side (see
+        // JobsService.update's own comment on why omission isn't enough here).
+        body.salaryMin = null;
+        body.salaryMax = null;
+      } else {
+        // Rupees -> paise, the API boundary — see Job.salaryMin's own schema doc comment.
+        if (form.salaryMin !== '') body.salaryMin = Math.round(Number(form.salaryMin) * 100);
+        if (form.salaryMax !== '') body.salaryMax = Math.round(Number(form.salaryMax) * 100);
+      }
 
       const jobId = editingJobId
         ? (await api<{ id: string }>(`/jobs/${editingJobId}`, { method: 'PATCH', body: JSON.stringify(body) })).id
@@ -648,7 +666,7 @@ export default function EmployerJobs() {
           </div>
 
           <div className="field">
-            <label htmlFor="salaryMin">Salary range (optional)</label>
+            <label htmlFor="salaryMin">Annual salary range, ₹ (optional)</label>
             <div className="row" style={{ margin: 0 }}>
               <input
                 id="salaryMin"
@@ -656,6 +674,7 @@ export default function EmployerJobs() {
                 min={0}
                 placeholder="Min"
                 value={form.salaryMin}
+                disabled={form.salaryNotDisclosed}
                 onChange={(e) => setForm({ ...form, salaryMin: e.target.value })}
               />
               <input
@@ -663,9 +682,27 @@ export default function EmployerJobs() {
                 min={0}
                 placeholder="Max"
                 value={form.salaryMax}
+                disabled={form.salaryNotDisclosed}
                 onChange={(e) => setForm({ ...form, salaryMax: e.target.value })}
               />
             </div>
+            <label className="row" style={{ alignItems: 'center', marginTop: 8 }}>
+              <input
+                type="checkbox"
+                checked={form.salaryNotDisclosed}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    salaryNotDisclosed: e.target.checked,
+                    // Clear locally too, not just server-side — an
+                    // employer re-checking "not disclosed" shouldn't leave
+                    // stale numbers sitting in the (now-disabled) inputs.
+                    ...(e.target.checked ? { salaryMin: '', salaryMax: '' } : {}),
+                  })
+                }
+              />
+              Salary not disclosed
+            </label>
           </div>
 
           <div className="field">

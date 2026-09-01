@@ -61,6 +61,8 @@ const JOB_DETAIL_SELECT = {
   description: true,
   salaryMin: true,
   salaryMax: true,
+  salaryCurrency: true,
+  salaryNotDisclosed: true,
 } satisfies Prisma.JobSelect;
 
 type JobListRow = Prisma.JobGetPayload<{ select: typeof JOB_LIST_SELECT }>;
@@ -123,8 +125,15 @@ export class CandidateJobsService {
     if (!job) throw new NotFoundException('Job not found');
 
     const applied = await this.appliedJobIds(userId);
-    return { ...this.toPublicJob(job), description: job.description, salaryMin: job.salaryMin,
-      salaryMax: job.salaryMax, alreadyApplied: applied.has(job.id) };
+    return {
+      ...this.toPublicJob(job),
+      description: job.description,
+      salaryMin: job.salaryMin,
+      salaryMax: job.salaryMax,
+      salaryCurrency: job.salaryCurrency,
+      salaryNotDisclosed: job.salaryNotDisclosed,
+      alreadyApplied: applied.has(job.id),
+    };
   }
 
   /**

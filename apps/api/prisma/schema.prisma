@@ -1660,10 +1660,10 @@ model ProfileView {
 // ---------- Job postings (employer side, step 3b) ----------
 
 model Job {
-  id              String         @id @default(uuid())
-  orgId           String
-  organization    Organization   @relation(fields: [orgId], references: [id])
-  title           String
+  id                 String         @id @default(uuid())
+  orgId              String
+  organization       Organization   @relation(fields: [orgId], references: [id])
+  title              String
   /**
    * Employer-assigned requisition reference (e.g. "JOB-0001"), unique per
    * org — never globally, since two different employers each using
@@ -1672,9 +1672,9 @@ model Job {
    * create/update), so the constraint behaves case-insensitively. Internal
    * to the employer portal — never surfaced to candidates.
    */
-  code            String
-  description     String
-  employmentType  EmploymentType
+  code               String
+  description        String
+  employmentType     EmploymentType
   /**
    * Structured city selection from GET /locations/search (Google Places
    * Autocomplete — see LocationSearchService), same shape as
@@ -1683,12 +1683,12 @@ model Job {
    * given a structured location yet"). ISO 3166-1 alpha-2 for
    * locationCountry (e.g. "US", "IN") — never a full country name.
    */
-  locationCity    String?
-  locationRegion  String?
-  locationCountry String?
-  locationPlaceId String?
-  locationLat     Float?
-  locationLng     Float?
+  locationCity       String?
+  locationRegion     String?
+  locationCountry    String?
+  locationPlaceId    String?
+  locationLat        Float?
+  locationLng        Float?
   /**
    * Pre-migration free-text location value — never silently dropped (see
    * the add_structured_job_location migration's backfill). Jobs whose
@@ -1698,15 +1698,55 @@ model Job {
    * going forward — new saves always populate the structured fields
    * above, never this column.
    */
-  locationLegacy  String?
-  remote          Boolean        @default(false)
-  experienceMin   Int?
-  experienceMax   Int?
-  salaryMin       Int?
-  salaryMax       Int?
-  status          JobStatus      @default(DRAFT)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  locationLegacy     String?
+  remote             Boolean        @default(false)
+  experienceMin      Int?
+  experienceMax      Int?
+  /**
+   * Paise (matching Transaction.amountPaise/Razorpay Plan amounts
+   * elsewhere in this codebase) — never rupees, never lakhs-as-integer.
+   * Annual compensation only; there is deliberately no salaryPeriod
+   * column — monthly/daily aren't supported, and a column that would only
+   * ever hold one constant value is documentation pretending to be data.
+   * If per-period support is ever built, that's a new column added then,
+   * not something to infer retroactively from these two.
+   * As of the migration that added salaryCurrency/salaryNotDisclosed
+   * (2026-09), production had exactly one Job row and zero of them had a
+   * salary value set — these columns existed since the very first Job
+   * migration but were effectively unused, so no backfill/unit-conversion
+   * was needed; nothing pre-existing to reinterpret.
+   * Both null together is the ordinary "not set" case (an employer simply
+   * hasn't filled this in — see JobsService's own mutual-exclusivity
+   * check against salaryNotDisclosed, enforced at the service layer, not
+   * a DB CHECK constraint — same "application-level invariants" posture
+   * as Transaction's own doc comment). Setting either while
+   * salaryNotDisclosed is true is rejected, not silently overwritten —
+   * see CreateJobDto/UpdateJobDto and JobsService.assertSalaryShape.
+   */
+  salaryMin          Int?
+  salaryMax          Int?
+  /**
+   * ISO 4217. Only ever "INR" today — @IsIn(['INR']) at the DTO layer
+   * enforces that even though the column itself accepts any string — but
+   * added now (rather than assumed implicitly) specifically so expanding
+   * beyond India later needs a DTO/config change, not a schema migration.
+   * See gst.config.ts's own SELLER_* constants for the same
+   * India-only-for-now posture stated explicitly rather than left
+   * implicit.
+   */
+  salaryCurrency     String         @default("INR")
+  /**
+   * An explicit "employer chose not to disclose" signal — distinguishes a
+   * deliberate omission from an unfinished form (salaryMin/Max simply
+   * null, which could mean either). Indian employers frequently don't
+   * disclose salary; requiring a number would suppress otherwise-valid
+   * postings. Mutually exclusive with salaryMin/Max being set — enforced
+   * in JobsService, not the DB (see salaryMin's own comment above).
+   */
+  salaryNotDisclosed Boolean        @default(false)
+  status             JobStatus      @default(DRAFT)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   skills           JobSkill[]
   applications     Application[]
