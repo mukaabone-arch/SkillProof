@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import LandingHeader from '@/components/landing/LandingHeader';
+import NewsStrip from '@/components/landing/NewsStrip';
 
 /**
  * Marketing landing page — served at the domain root ("/"). The candidate
@@ -161,6 +162,9 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ---------- AI news strip — below the fold, after both CTAs, renders nothing if there's nothing cached (see NewsStrip's own doc comment) ---------- */}
+      <NewsStrip />
 
       {/* ---------- About ---------- */}
       <section className="lp-section lp-section-alt" id="about" aria-labelledby="lp-about-heading">

@@ -2793,3 +2793,50 @@ enum LiveFeedbackTone {
   MIXED
   NEEDS_WORK
 }
+
+/**
+ * A server-side cache of raw RSS headlines (title/link/publishedAt, never
+ * AI-summarized, never personalized) shown as a public, unauthenticated
+ * strip on the marketing landing page — a credibility/freshness signal for
+ * an anonymous visitor, not a candidate-retention feature. Populated
+ * exclusively by NewsFeedRefreshJob's hourly sweep over a fixed source
+ * list (see news.config.ts — currently OpenAI, DeepMind, Hugging Face;
+ * Anthropic and Meta AI were investigated and excluded because neither
+ * currently publishes a discoverable RSS/Atom feed at all, not because
+ * their content was filtered out — see that file's own comment). Never
+ * written to from a request handler — GET /news is a pure read against
+ * whatever's already here, so a slow or dead feed can never slow down or
+ * break the landing page itself.
+ * @@unique([source, link]) makes the refresh job's per-item write an
+ * upsert, not an insert — a feed re-serving an already-seen item (every
+ * feed re-serves its recent history on every poll) is a no-op, not a
+ * growing pile of duplicates.
+ * Rows are never deleted by age — NewsService.listRecent() filters to the
+ * last 30 days at READ time instead (see that method's own comment for
+ * why: a permanently-dead feed's last real item ages out of what the
+ * landing page shows on its own, without a separate cleanup job, while
+ * the row itself stays around harmlessly for debugging/history). A
+ * temporary source outage of a few days never empties the strip; a feed
+ * that's dead for months does, which is the actual property being
+ * protected here — "freshness," not "we once saw this."
+ */
+model NewsItem {
+  id          String   @id @default(uuid())
+  /**
+   * Display name, not a feed URL — "OpenAI" / "DeepMind" / "Hugging Face". Matches NewsSource.name in news.config.ts.
+   */
+  source      String
+  title       String
+  link        String
+  /**
+   * The feed's own <pubDate>/<isoDate> — what listRecent()'s 30-day window is computed against, never fetchedAt.
+   */
+  publishedAt DateTime
+  /**
+   * When this job run last saw the item — display-only (nothing currently reads it), kept for debugging a stuck/stale source without needing application logs.
+   */
+  fetchedAt   DateTime @default(now())
+
+  @@unique([source, link])
+  @@index([publishedAt])
+}

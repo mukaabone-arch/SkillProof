@@ -2298,6 +2298,26 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .lp-step-title { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; color: var(--ink); letter-spacing: -0.01em; margin-bottom: 0; text-wrap: balance; }
 .lp-inline-cta { margin-top: 36px; }
 
+/* ---- AI news strip — a compact list, deliberately not another card grid:
+   this is a supporting credibility signal below both CTAs, not a headline
+   section competing with them for visual weight. See NewsStrip.tsx's own
+   doc comment — the whole section renders or doesn't, never a heading
+   with an empty list under it. */
+.lp-news-strip { display: flex; flex-direction: column; gap: 2px; max-width: 720px; }
+.lp-news-item {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+  padding: 14px 0; border-top: 1px solid var(--ink-12);
+}
+.lp-news-item:last-child { border-bottom: 1px solid var(--ink-12); }
+.lp-news-item-title {
+  font-family: var(--font-body); font-weight: 500; font-size: 0.96rem; color: var(--ink);
+  text-decoration: none; flex: 1; min-width: 0;
+}
+.lp-news-item-title:hover { color: var(--brand-600); text-decoration: underline; }
+.lp-news-item-meta {
+  font-family: var(--font-body); font-size: 0.8rem; color: var(--ink-60); white-space: nowrap; flex-shrink: 0;
+}
+
 /* ---- Prose (About / Contact) + placeholder tag ---- */
 .lp-prose-body { color: var(--ink-60); font-size: 1.05rem; line-height: 1.6; max-width: 62ch; }
 .lp-prose-body strong { color: var(--ink); }
