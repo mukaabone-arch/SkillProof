@@ -158,6 +158,72 @@ describe('NewsFeedRefreshJob', () => {
     expect(prisma._items).toHaveLength(1);
   });
 
+  describe('decoding HTML entities in a title', () => {
+    it('decodes a numeric entity that rss-parser left literal — the actual shape of a CDATA-wrapped title (e.g. The Verge\'s Atom feed)', async () => {
+      const [first] = NEWS_SOURCES;
+      parseURLMock.mockImplementation(async (url: string) =>
+        url === first.feedUrl
+          ? { items: [feedItem({ title: 'Anthropic launches Claude Fable 5.1 and says it&#8217;s cheaper', link: `${url}/1` })] }
+          : { items: [] },
+      );
+      const prisma = fakePrisma();
+      const job = new NewsFeedRefreshJob(prisma as any);
+
+      await job.run();
+
+      expect(prisma._items[0].title).toBe('Anthropic launches Claude Fable 5.1 and says it’s cheaper');
+    });
+
+    it('decodes named and numeric entities together (Hugging Face/Ars Technica style)', async () => {
+      const [first] = NEWS_SOURCES;
+      parseURLMock.mockImplementation(async (url: string) =>
+        url === first.feedUrl
+          ? { items: [feedItem({ title: 'Fast &amp; Local: H Company&apos;s new &quot;Holo&quot; model', link: `${url}/1` })] }
+          : { items: [] },
+      );
+      const prisma = fakePrisma();
+      const job = new NewsFeedRefreshJob(prisma as any);
+
+      await job.run();
+
+      expect(prisma._items[0].title).toBe('Fast & Local: H Company\'s new "Holo" model');
+    });
+
+    it('leaves a title with no entities untouched — decoding is a no-op, not a transform every title goes through', async () => {
+      const [first] = NEWS_SOURCES;
+      const clean = 'OpenAI supports California’s bill to advance youth AI safety';
+      parseURLMock.mockImplementation(async (url: string) =>
+        url === first.feedUrl ? { items: [feedItem({ title: clean, link: `${url}/1` })] } : { items: [] },
+      );
+      const prisma = fakePrisma();
+      const job = new NewsFeedRefreshJob(prisma as any);
+
+      await job.run();
+
+      expect(prisma._items[0].title).toBe(clean);
+    });
+
+    it('decodes entities without ever producing markup — a title with an escaped angle bracket decodes to a literal character, not parsed HTML, so it stays plain text', async () => {
+      const [first] = NEWS_SOURCES;
+      parseURLMock.mockImplementation(async (url: string) =>
+        url === first.feedUrl
+          ? { items: [feedItem({ title: 'Study finds &lt;script&gt; tags in 12% of scraped datasets', link: `${url}/1` })] }
+          : { items: [] },
+      );
+      const prisma = fakePrisma();
+      const job = new NewsFeedRefreshJob(prisma as any);
+
+      await job.run();
+
+      // The decoded string legitimately contains literal "<"/">" characters
+      // now — that's correct entity decoding, not an HTML-injection bug.
+      // Safety here comes from the render side (NewsStrip.tsx's plain JSX
+      // text interpolation, never dangerouslySetInnerHTML), not from
+      // withholding the decode.
+      expect(prisma._items[0].title).toBe('Study finds <script> tags in 12% of scraped datasets');
+    });
+  });
+
   it('constructs each Parser with the configured fetch timeout', async () => {
     parseURLMock.mockImplementation(async () => ({ items: [] }));
     const prisma = fakePrisma();

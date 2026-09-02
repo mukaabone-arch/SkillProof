@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { decodeHTML } from 'entities';
 import Parser from 'rss-parser';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FEED_FETCH_TIMEOUT_MS, NEWS_SOURCES, NewsSource, PER_SOURCE_FETCH_LIMIT } from './news.config';
@@ -61,17 +62,47 @@ export class NewsFeedRefreshJob {
       const publishedAt = item.isoDate ? new Date(item.isoDate) : item.pubDate ? new Date(item.pubDate) : null;
       if (!publishedAt || Number.isNaN(publishedAt.getTime())) continue;
 
+      // decodeHTML, not the parser's own decoding: rss-parser (via xml2js)
+      // only decodes entities that sit in plain XML character data — a
+      // title wrapped in <![CDATA[...]]> (The Verge does this for every
+      // item, per its own Atom type="html" convention) is passed through
+      // completely untouched by XML parsing, since CDATA's entire point is
+      // "don't interpret this." The literal text "&#8217;s" was reaching
+      // the DB and the page verbatim, not a double-decode — see the PR
+      // description for the raw-XML investigation. Applied to every
+      // source's title uniformly (not just The Verge's) since this is a
+      // property of how a given source's feed happens to be generated, not
+      // something to special-case per source name — a no-op for a title
+      // with no entities in it (confirmed against all seven sources' real
+      // feeds: only The Verge's items actually change). Title only, not
+      // link — a link's entities (e.g. a literal `&` in a query string,
+      // written as `&amp;` per the XML spec) are never CDATA-wrapped in any
+      // of these feeds and are already correctly decoded by the XML parser
+      // itself; running decodeHTML on it too is unnecessary.
+      //
+      // Safe against XSS: decodeHTML turns entity text back into the
+      // literal characters they represent (e.g. "&lt;" -> "<") — it does
+      // NOT parse or execute HTML. The result is stored as plain text and
+      // is only ever rendered via NewsStrip.tsx's plain JSX text
+      // interpolation ({item.title}), which React escapes on render;
+      // nothing in this codebase renders a NewsItem via
+      // dangerouslySetInnerHTML or similar. Decoding entities earlier
+      // (here) rather than at render time keeps that guarantee centralized
+      // at the one place untrusted feed content enters the system, instead
+      // of depending on every future consumer remembering to decode too.
+      const title = decodeHTML(item.title);
+
       try {
         await this.prisma.newsItem.upsert({
           where: { source_link: { source: source.name, link: item.link } },
-          create: { source: source.name, title: item.title, link: item.link, publishedAt },
-          update: { title: item.title, publishedAt, fetchedAt: new Date() },
+          create: { source: source.name, title, link: item.link, publishedAt },
+          update: { title, publishedAt, fetchedAt: new Date() },
         });
       } catch (err) {
         // One malformed/conflicting row must not abort the rest of this
         // source's items — same isolation principle as the per-source
         // try/catch above, one level down.
-        this.logger.error(`Failed to upsert news item "${item.title}" from ${source.name}: ${(err as Error).message}`);
+        this.logger.error(`Failed to upsert news item "${title}" from ${source.name}: ${(err as Error).message}`);
       }
     }
   }
