@@ -2298,17 +2298,45 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .lp-step-title { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; color: var(--ink); letter-spacing: -0.01em; margin-bottom: 0; text-wrap: balance; }
 .lp-inline-cta { margin-top: 36px; }
 
-/* ---- AI news strip — a compact list, deliberately not another card grid:
-   this is a supporting credibility signal below both CTAs, not a headline
-   section competing with them for visual weight. See NewsStrip.tsx's own
-   doc comment — the whole section renders or doesn't, never a heading
-   with an empty list under it. */
-.lp-news-strip { display: flex; flex-direction: column; gap: 2px; max-width: 720px; }
+/* ---- AI news strip — a supporting credibility signal below both CTAs, not
+   a headline section competing with them for visual weight. See
+   NewsStrip.tsx's own doc comment — the whole section (card included)
+   renders or doesn't, never a heading with an empty card under it, since
+   .lp-news-card only exists inside the JSX branch that already required
+   a non-empty item list.
+
+   .lp-news-card follows the same base recipe as .lp-card/.plan-column
+   (var(--card) surface, var(--ink-12) hairline, var(--radius-lg)), plus a
+   quiet echo of .auth-split-visual's radial-gradient language — two
+   low-opacity brand washes (10%/12% color-mix, versus the 45–65% that
+   full-bleed hero panel uses) so this reads as a deliberately abstract
+   surface rather than a flat gray box, without approaching the visual
+   weight of the CTA above it. No grain texture: that's a hero-scale
+   flourish that would read as noise at this compact size, not texture.
+   overflow: hidden clips both radial gradients to the card's own rounded
+   corners rather than letting them bleed past it. */
+.lp-news-card {
+  position: relative; overflow: hidden; max-width: 720px;
+  background:
+    radial-gradient(ellipse 70% 60% at 8% 0%, color-mix(in srgb, var(--brand-400) 10%, transparent) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 55% at 100% 100%, color-mix(in srgb, var(--brand-600) 12%, transparent) 0%, transparent 65%),
+    var(--card);
+  border: 1px solid color-mix(in srgb, var(--brand-600) 25%, var(--ink-12));
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+}
+.lp-news-strip { display: flex; flex-direction: column; gap: 2px; }
 .lp-news-item {
   display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
   padding: 14px 0; border-top: 1px solid var(--ink-12);
 }
-.lp-news-item:last-child { border-bottom: 1px solid var(--ink-12); }
+/* The card's own padding is now the outer boundary (replacing the old
+   bare-list's top/bottom border pair), so the first/last item don't also
+   need a divider or the full 14px of padding stacked on top of it —
+   avoids a visibly larger gap at the card's top/bottom edge than between
+   items. */
+.lp-news-item:first-child { border-top: none; padding-top: 0; }
+.lp-news-item:last-child { padding-bottom: 0; }
 .lp-news-item-title {
   font-family: var(--font-body); font-weight: 500; font-size: 0.96rem; color: var(--ink);
   text-decoration: none; flex: 1; min-width: 0;
@@ -2316,6 +2344,14 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .lp-news-item-title:hover { color: var(--brand-600); text-decoration: underline; }
 .lp-news-item-meta {
   font-family: var(--font-body); font-size: 0.8rem; color: var(--ink-60); white-space: nowrap; flex-shrink: 0;
+}
+@media (max-width: 480px) {
+  /* Same padding reduction .auth-card takes at this width (26px -> still
+     generous but not the full var(--space-6)=24px-on-every-side desktop
+     amount stacked against a narrow column) — verified no overflow at
+     360–414px: .lp-container already leaves ~312px inner width at 360px,
+     and this card's own horizontal padding drops here well within that. */
+  .lp-news-card { padding: var(--space-4) var(--space-5); }
 }
 
 /* ---- Prose (About / Contact) + placeholder tag ---- */

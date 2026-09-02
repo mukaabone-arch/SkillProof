@@ -60,18 +60,20 @@ export default function NewsStrip() {
         <h2 id="lp-news-heading" className="lp-section-title">
           What&apos;s moving in AI
         </h2>
-        <ul className="lp-news-strip">
-          {items.map((item) => (
-            <li key={item.id} className="lp-news-item">
-              <a href={item.link} target="_blank" rel="noopener noreferrer" className="lp-news-item-title">
-                {item.title}
-              </a>
-              <span className="lp-news-item-meta">
-                {item.source} · {new Date(item.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <div className="lp-news-card">
+          <ul className="lp-news-strip">
+            {items.map((item) => (
+              <li key={item.id} className="lp-news-item">
+                <a href={item.link} target="_blank" rel="noopener noreferrer" className="lp-news-item-title">
+                  {item.title}
+                </a>
+                <span className="lp-news-item-meta">
+                  {item.source} · {new Date(item.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </section>
   );
