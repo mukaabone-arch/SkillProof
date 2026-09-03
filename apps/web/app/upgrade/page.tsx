@@ -321,7 +321,7 @@ export default function UpgradePage() {
                           {formatPaise(plans.pricing.MONTHLY.gstPaise)} = {formatPaise(plans.pricing.MONTHLY.totalPaise)}
                         </p>
                         <button onClick={() => startCheckout('MONTHLY')} disabled={checkoutBusy !== null || confirming}>
-                          {checkoutBusy === 'MONTHLY' ? 'Starting…' : `Subscribe — ${formatPaise(plans.pricing.MONTHLY.totalPaise)}/month`}
+                          {checkoutBusy === 'MONTHLY' ? 'Starting…' : 'Subscribe monthly'}
                         </button>
                       </div>
                       <div>
@@ -334,7 +334,7 @@ export default function UpgradePage() {
                           onClick={() => startCheckout('ANNUAL')}
                           disabled={checkoutBusy !== null || confirming}
                         >
-                          {checkoutBusy === 'ANNUAL' ? 'Starting…' : `Subscribe — ${formatPaise(plans.pricing.ANNUAL.totalPaise)}/year`}
+                          {checkoutBusy === 'ANNUAL' ? 'Starting…' : 'Subscribe annually'}
                         </button>
                       </div>
                     </div>
