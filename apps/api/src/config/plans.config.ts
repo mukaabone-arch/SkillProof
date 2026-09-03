@@ -40,6 +40,19 @@ export interface PlanLimits {
    * badge can never be inflated by unlimited retries regardless of tier.
    */
   retakesPerSkillLifetime: number;
+  /**
+   * When true, a candidate's self-serve MCQ attempts (any level) are
+   * restricted to a single skill for life — the first skill they start an
+   * attempt in, recorded on CandidateProfile.freeSkillLockId. Not a
+   * CountableMetric: it's a one-time lifetime lock, not a periodic count,
+   * so it's enforced directly in AssessmentsService.startAttempt via
+   * EntitlementsService.checkSkillLockEligibility, the same way
+   * retakeCooldownDays/retakesPerSkillLifetime are. Employer-paid attempts
+   * (skipLevelAndRetakeChecks) never consult this flag — the employer
+   * already paid for a specific skill regardless of tier. See
+   * CandidateProfile.freeSkillLockId's own doc comment in schema.prisma.
+   */
+  singleSkillRestriction: boolean;
   /** Job applications allowed per calendar month. null = unlimited. */
   applicationsPerMonth: number | null;
   /** What a candidate sees about who viewed their profile — see ProfileViewsService.getViewersForCandidate. */
@@ -133,8 +146,9 @@ export const PLANS: Record<SubscriptionTier, PlanLimits> = {
     get discussionSessionsPerMonth() {
       return isAiDiscussionPromoActive() ? 1 : 0;
     },
-    retakeCooldownDays: 60,
+    retakeCooldownDays: 0,
     retakesPerSkillLifetime: 1,
+    singleSkillRestriction: true,
     applicationsPerMonth: 10,
     profileViewers: 'count_only',
     applicationStatusDetail: false,
@@ -152,6 +166,7 @@ export const PLANS: Record<SubscriptionTier, PlanLimits> = {
     discussionSessionsPerMonth: 2,
     retakeCooldownDays: 0,
     retakesPerSkillLifetime: 3,
+    singleSkillRestriction: false,
     applicationsPerMonth: null,
     profileViewers: 'full',
     applicationStatusDetail: true,

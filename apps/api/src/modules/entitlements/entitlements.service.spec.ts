@@ -454,22 +454,9 @@ describe('EntitlementsService.checkRetakeEligibility', () => {
     expect(result.attemptNumber).toBe(1);
   });
 
-  it('FREE: a retake within the 60-day cooldown is blocked with metric retakeCooldownDays', async () => {
+  it('FREE: retakeCooldownDays is 0, so a retake immediately after a prior attempt succeeds as attempt #2', async () => {
     const { prisma, attempts } = fakePrisma();
-    withAttempts(attempts, 'user-1', 'skill-1', [{ daysAgo: 10 }]); // one prior attempt, 10 days ago
-    prisma.subscription.findUnique.mockResolvedValue(
-      fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
-    );
-    const svc = new EntitlementsService(prisma as any);
-
-    await expect(svc.checkRetakeEligibility('user-1', 'skill-1')).rejects.toMatchObject({
-      response: { code: 'LIMIT_REACHED', metric: 'retakeCooldownDays', limit: 60 },
-    });
-  });
-
-  it('FREE: a retake after the 60-day cooldown has elapsed succeeds as attempt #2', async () => {
-    const { prisma, attempts } = fakePrisma();
-    withAttempts(attempts, 'user-1', 'skill-1', [{ daysAgo: 61 }]);
+    withAttempts(attempts, 'user-1', 'skill-1', [{ daysAgo: 0 }]); // one prior attempt, today
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
@@ -659,5 +646,107 @@ describe('EntitlementsService.refund', () => {
     // With the unit back, a genuinely new charge succeeds again.
     const result = await svc.checkAndIncrement('user-1', 'assessments');
     expect(result.used).toBe(2);
+  });
+});
+
+describe('EntitlementsService.checkSkillLockEligibility', () => {
+  /**
+   * Dedicated fake, not the shared fakePrisma above — that one's $queryRaw
+   * mock reproduces incrementBounded's INSERT ... ON CONFLICT shape
+   * specifically (see its own doc comment), which is a different statement
+   * from checkSkillLockEligibility's claiming UPDATE ... WHERE ... IS NULL.
+   * Kept as one mutable `profile` object (not a Map) since every test here
+   * only ever exercises a single candidate.
+   */
+  function fakeProfilePrisma(profile: { freeSkillLockId: string | null; freeSkillLockExempt: boolean }) {
+    const state = { ...profile };
+    const prisma: Record<string, any> = {
+      candidateProfile: {
+        findUnique: jest.fn(async () => ({ ...state })),
+        create: jest.fn(async ({ data }: any) => ({ id: `profile-${data.userId}` })),
+      },
+      subscription: { findUnique: jest.fn(async () => null) },
+      $queryRaw: jest.fn(async (_strings: TemplateStringsArray, ..._values: any[]) => {
+        if (state.freeSkillLockId !== null) return [];
+        state.freeSkillLockId = _values[0]; // the skillId being claimed
+        return [{ freeSkillLockId: state.freeSkillLockId }];
+      }),
+    };
+    return { prisma, state };
+  }
+
+  it('no-op on PREMIUM regardless of lock state — singleSkillRestriction is false there', async () => {
+    const { prisma } = fakeProfilePrisma({ freeSkillLockId: null, freeSkillLockExempt: false });
+    prisma.subscription.findUnique.mockResolvedValue(
+      fakeSubscription({ tier: SubscriptionTier.PREMIUM, status: SubscriptionStatus.ACTIVE }),
+    );
+    const svc = new EntitlementsService(prisma as any);
+
+    await expect(svc.checkSkillLockEligibility('user-1', 'skill-a')).resolves.toBeUndefined();
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('FREE, no lock yet: the first self-serve attempt claims this skill as the lock', async () => {
+    const { prisma, state } = fakeProfilePrisma({ freeSkillLockId: null, freeSkillLockExempt: false });
+    prisma.subscription.findUnique.mockResolvedValue(
+      fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+    );
+    const svc = new EntitlementsService(prisma as any);
+
+    await expect(svc.checkSkillLockEligibility('user-1', 'skill-a')).resolves.toBeUndefined();
+    expect(state.freeSkillLockId).toBe('skill-a');
+  });
+
+  it('FREE, already locked to this same skill: repeat attempts in it are always allowed', async () => {
+    const { prisma } = fakeProfilePrisma({ freeSkillLockId: 'skill-a', freeSkillLockExempt: false });
+    prisma.subscription.findUnique.mockResolvedValue(
+      fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+    );
+    const svc = new EntitlementsService(prisma as any);
+
+    await expect(svc.checkSkillLockEligibility('user-1', 'skill-a')).resolves.toBeUndefined();
+  });
+
+  it('FREE, locked to a different skill: blocked with metric singleSkillRestriction', async () => {
+    const { prisma } = fakeProfilePrisma({ freeSkillLockId: 'skill-a', freeSkillLockExempt: false });
+    prisma.subscription.findUnique.mockResolvedValue(
+      fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+    );
+    const svc = new EntitlementsService(prisma as any);
+
+    await expect(svc.checkSkillLockEligibility('user-1', 'skill-b')).rejects.toMatchObject({
+      response: { code: 'LIMIT_REACHED', metric: 'singleSkillRestriction', limit: null, resetsAt: null },
+    });
+  });
+
+  it('FREE, grandfathered exempt: any skill is allowed, lock is never claimed', async () => {
+    const { prisma, state } = fakeProfilePrisma({ freeSkillLockId: null, freeSkillLockExempt: true });
+    prisma.subscription.findUnique.mockResolvedValue(
+      fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+    );
+    const svc = new EntitlementsService(prisma as any);
+
+    await expect(svc.checkSkillLockEligibility('user-1', 'skill-a')).resolves.toBeUndefined();
+    await expect(svc.checkSkillLockEligibility('user-1', 'skill-b')).resolves.toBeUndefined();
+    expect(state.freeSkillLockId).toBeNull();
+  });
+
+  it('lost the claim race to a concurrent first attempt that locked a different skill: blocked', async () => {
+    const { prisma, state } = fakeProfilePrisma({ freeSkillLockId: null, freeSkillLockExempt: false });
+    prisma.subscription.findUnique.mockResolvedValue(
+      fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+    );
+    // Simulate a concurrent winner: the claiming UPDATE returns zero rows
+    // (someone else's WHERE ... IS NULL already fired), and by the time this
+    // call re-reads the profile, the lock is already set to a different skill.
+    prisma.$queryRaw = jest.fn(async () => {
+      state.freeSkillLockId = 'skill-a';
+      return [];
+    });
+    const svc = new EntitlementsService(prisma as any);
+
+    await expect(svc.checkSkillLockEligibility('user-1', 'skill-b')).rejects.toMatchObject({
+      response: { code: 'LIMIT_REACHED', metric: 'singleSkillRestriction' },
+    });
   });
 });

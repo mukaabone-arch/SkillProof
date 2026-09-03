@@ -733,6 +733,33 @@ model CandidateProfile {
   roleTitle      CandidateRoleTitle?
   roleTitleOther String?
 
+  /**
+   * FREE-tier single-skill lock: the skill this candidate's self-serve MCQ
+   * attempts are restricted to, set the first time a FREE candidate starts
+   * an attempt (see AssessmentsService.startAttempt /
+   * EntitlementsService.checkSkillLockEligibility). Null until that first
+   * self-serve start. Deliberately NOT reset on tier change — set once
+   * while FREE, it persists through a PREMIUM upgrade and any later
+   * downgrade back to FREE, so a candidate can't reset it by cycling
+   * subscriptions. Employer-paid attempts (AssessmentRequestsService, via
+   * skipLevelAndRetakeChecks) never read or write this field — the
+   * employer already paid for that specific skill, so it must not consume
+   * or be gated by the candidate's own free skill.
+   */
+  freeSkillLockId    String?
+  freeSkillLock      Skill?    @relation("FreeSkillLock", fields: [freeSkillLockId], references: [id])
+  freeSkillLockedAt  DateTime?
+  /**
+   * One-time grandfather flag for candidates who, at the moment this
+   * restriction shipped, already had MCQ attempts across more than one
+   * skill — set only by the backfill migration, never by application code.
+   * Exempts them permanently from the single-skill check regardless of
+   * current tier, rather than retroactively locking them to one skill and
+   * stripping access to ones they'd already legitimately used under the
+   * old unlimited-skills rule.
+   */
+  freeSkillLockExempt Boolean  @default(false)
+
   skillClaims           SkillClaim[]
   applications          Application[]
   externalCredentials   ExternalCredential[]
@@ -1303,6 +1330,7 @@ model Skill {
   jobSkills          JobSkill[]
   badges             Badge[]
   assessmentRequests AssessmentRequest[]
+  freeLockedByProfiles CandidateProfile[] @relation("FreeSkillLock")
 
   @@unique([domainId, name])
 }

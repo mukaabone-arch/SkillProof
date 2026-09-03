@@ -46,6 +46,20 @@ export class AssessmentsController {
     return this.svc.getCandidateSummary(req.user.sub);
   }
 
+  /**
+   * Declared after the two literal 'assessments/catalog...' routes above —
+   * same ordering rule those routes' own comments document. Lets the
+   * take-flow page (apps/web's TakeAssessmentPage) learn the assessment's
+   * skill before the candidate starts it, so it can show the FREE-tier
+   * single-skill lock-in notice up front rather than only after a rejected
+   * POST.
+   */
+  @Get('assessments/:id')
+  @UseGuards(JwtAuthGuard)
+  getOne(@Param('id') id: string) {
+    return this.svc.getOne(id);
+  }
+
   @Post('assessments/:id/attempts')
   @UseGuards(JwtAuthGuard, EntitlementGuard)
   @RequiresEntitlement('assessments')

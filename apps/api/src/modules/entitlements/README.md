@@ -20,16 +20,22 @@ field is safe.
   "limits": {
     // The full PLANS[tier] entry — see plans.config.ts's PlanLimits for the
     // exact keys (assessmentsPerMonth, retakeCooldownDays,
-    // retakesPerSkillLifetime, applicationsPerMonth, profileViewers,
-    // applicationStatusDetail, searchRankBoost, gapAnalysis, resumeBranding,
-    // resumeTemplates, interviewPrep). A numeric limit of `null` means
-    // unlimited.
+    // retakesPerSkillLifetime, singleSkillRestriction, applicationsPerMonth,
+    // profileViewers, applicationStatusDetail, searchRankBoost, gapAnalysis,
+    // resumeBranding, resumeTemplates, interviewPrep). A numeric limit of
+    // `null` means unlimited.
   },
   "usage": {
     "assessments": { "used": 1, "limit": null, "resetsAt": "2026-08-01T00:00:00.000Z" },
     "applications": { "used": 4, "limit": 10, "resetsAt": "2026-08-01T00:00:00.000Z" },
     "discussionSessions": { "used": 0, "limit": 1, "resetsAt": "2026-08-01T00:00:00.000Z" }
-  }
+  },
+  // Present only when limits.singleSkillRestriction is true (FREE today) and
+  // the candidate has actually locked a skill (CandidateProfile.
+  // freeSkillLockId) — null before their first self-serve MCQ attempt, and
+  // always null for a grandfathered/exempt candidate or on a tier without
+  // the restriction. See EntitlementsService.checkSkillLockEligibility.
+  "freeSkillLock": { "skillId": "...", "skillName": "LLM Evaluation" } // or null
 }
 ```
 
@@ -87,6 +93,27 @@ field is safe.
   `retakesPerSkillLifetime` and returns the same 402 shape, with
   `metric: 'retakeCooldownDays'` or `metric: 'retakesPerSkillLifetime'`.
   A lifetime-cap breach has `resetsAt: null` — there is no reset.
+
+- `EntitlementsService.checkSkillLockEligibility` (also called directly from
+  `AssessmentsService.startAttempt`'s self-serve branch, alongside
+  `checkRetakeEligibility`) enforces `singleSkillRestriction`: a FREE
+  candidate's self-serve MCQ attempts, across every level, are locked to the
+  first skill they ever start one in
+  (`CandidateProfile.freeSkillLockId`/`freeSkillLockedAt`). A breach throws
+  the same 402 shape with `metric: 'singleSkillRestriction'`,
+  `resetsAt: null` — there is no reset, the lock is for the life of the
+  account (it survives a PREMIUM upgrade and any later downgrade back to
+  FREE; it is never reset by a tier change). No-op on any tier where
+  `singleSkillRestriction` is false (PREMIUM today), and for a candidate
+  grandfathered via `CandidateProfile.freeSkillLockExempt` — set only by the
+  one-time backfill migration for candidates who already had attempts
+  across multiple skills before this restriction shipped, never by
+  application code. Employer-paid attempts
+  (`AssessmentRequestsService`, via `skipLevelAndRetakeChecks`) never reach
+  this check, the same as the retake cooldown/lifetime cap above — the
+  employer already paid for a specific skill regardless of the candidate's
+  own free-skill lock, and an employer-triggered start never sets that lock
+  either.
 
 - The tier is **always** resolved server-side from the candidate's
   `Subscription` row (`resolveEffectiveTier`) — a client can never send a

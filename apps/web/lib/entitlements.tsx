@@ -26,6 +26,8 @@ export interface PlanLimits {
   discussionSessionsPerMonth: number | null;
   retakeCooldownDays: number;
   retakesPerSkillLifetime: number;
+  /** When true (FREE today), self-serve MCQ attempts are locked to a single skill for life — see freeSkillLock below. */
+  singleSkillRestriction: boolean;
   applicationsPerMonth: number | null;
   profileViewers: 'count_only' | 'full';
   applicationStatusDetail: boolean;
@@ -43,6 +45,9 @@ export interface UsageEntry {
   resetsAt: string;
 }
 
+/** Null before the candidate's first self-serve MCQ attempt, or when limits.singleSkillRestriction is false — see apps/api's EntitlementsResponse.freeSkillLock doc comment. */
+export type FreeSkillLock = { skillId: string; skillName: string } | null;
+
 export interface EntitlementsResponse {
   tier: SubscriptionTier;
   limits: PlanLimits;
@@ -51,6 +56,7 @@ export interface EntitlementsResponse {
     applications: UsageEntry;
     discussionSessions: UsageEntry;
   };
+  freeSkillLock: FreeSkillLock;
 }
 
 interface EntitlementsState {
@@ -58,6 +64,7 @@ interface EntitlementsState {
   tier: SubscriptionTier | null;
   limits: PlanLimits | null;
   usage: EntitlementsResponse['usage'] | null;
+  freeSkillLock: FreeSkillLock;
   loading: boolean;
   error: string | null;
 }
@@ -66,7 +73,7 @@ interface EntitlementsContextValue extends EntitlementsState {
   refetch: () => Promise<void>;
 }
 
-const EMPTY_STATE: EntitlementsState = { tier: null, limits: null, usage: null, loading: false, error: null };
+const EMPTY_STATE: EntitlementsState = { tier: null, limits: null, usage: null, freeSkillLock: null, loading: false, error: null };
 
 const EntitlementsContext = createContext<EntitlementsContextValue | null>(null);
 
@@ -82,7 +89,7 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
       const res = await api<EntitlementsResponse>('/me/entitlements');
-      setState({ tier: res.tier, limits: res.limits, usage: res.usage, loading: false, error: null });
+      setState({ tier: res.tier, limits: res.limits, usage: res.usage, freeSkillLock: res.freeSkillLock, loading: false, error: null });
     } catch (e) {
       // An unverified candidate 400s here (apps/api's CandidateVerificationGuard)
       // until they finish /verify — expected app state, not an entitlements

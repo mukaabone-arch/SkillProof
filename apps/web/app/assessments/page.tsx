@@ -500,7 +500,26 @@ function EarnedLevelsSummary({
   );
 }
 
-function SkillCard({ skill, profileReady }: { skill: CatalogSkill; profileReady: boolean }) {
+/**
+ * True only for a skill a FREE candidate could never start regardless of
+ * level state — a different skill than the one their free plan is already
+ * locked to. Skills the candidate already holds a badge in stay fully
+ * visible either way (behindLevels/EarnedLevelsSummary above already
+ * handles that), since a badge earned before or during a lock is never
+ * revoked — this only gates *new* attempts, matching
+ * EntitlementsService.checkSkillLockEligibility exactly. A UX courtesy
+ * only: the server enforces the real rule (see that method) regardless of
+ * whether this banner renders correctly.
+ */
+function SkillCard({
+  skill,
+  profileReady,
+  freeSkillLocked,
+}: {
+  skill: CatalogSkill;
+  profileReady: boolean;
+  freeSkillLocked: { skillName: string } | null;
+}) {
   const [showBehind, setShowBehind] = useState(false);
   const behindLevels = skill.levels.filter((l) => BEHIND_STATES.has(l.state));
   const aheadLevels = skill.levels.filter((l) => !BEHIND_STATES.has(l.state));
@@ -519,9 +538,18 @@ function SkillCard({ skill, profileReady }: { skill: CatalogSkill; profileReady:
       )}
       {behindLevels.length > 0 && showBehind &&
         behindLevels.map((level) => <LevelRow key={level.level} level={level} profileReady={profileReady} />)}
-      {aheadLevels.map((level) => (
-        <LevelRow key={level.level} level={level} profileReady={profileReady} />
-      ))}
+      {freeSkillLocked ? (
+        <div className="assessment-row">
+          <div className="assessment-info">
+            <div className="meta">
+              🔒 Your free plan&apos;s assessments are locked to <strong>{freeSkillLocked.skillName}</strong>.{' '}
+              <Link href="/upgrade">Upgrade to Premium</Link> to attempt {skill.skillName} too.
+            </div>
+          </div>
+        </div>
+      ) : (
+        aheadLevels.map((level) => <LevelRow key={level.level} level={level} profileReady={profileReady} />)
+      )}
     </div>
   );
 }
@@ -542,12 +570,14 @@ function CategorySection({
   expanded,
   onToggle,
   profileReady,
+  freeSkillLock,
 }: {
   domainName: string;
   skills: CatalogSkill[];
   expanded: boolean;
   onToggle: () => void;
   profileReady: boolean;
+  freeSkillLock: { skillId: string; skillName: string } | null;
 }) {
   const earnedCount = skills.filter(skillHasEarnedBadge).length;
   return (
@@ -564,7 +594,12 @@ function CategorySection({
       {expanded && (
         <div className="assessment-category-body">
           {skills.map((skill) => (
-            <SkillCard key={skill.skillId} skill={skill} profileReady={profileReady} />
+            <SkillCard
+              key={skill.skillId}
+              skill={skill}
+              profileReady={profileReady}
+              freeSkillLocked={freeSkillLock && freeSkillLock.skillId !== skill.skillId ? freeSkillLock : null}
+            />
           ))}
         </div>
       )}
@@ -591,7 +626,13 @@ function AssessmentsPageInner() {
   const returnTo = searchParams.get('returnTo');
 
   const ready = useRequireAuth();
-  const { usage } = useEntitlements();
+  const { usage, tier, limits, freeSkillLock } = useEntitlements();
+  // Only meaningful once the restriction is actually in force for this
+  // candidate's tier and they've already locked a skill — mirrors
+  // TakeAssessmentPage's willLockFreeSkill / EntitlementsService.
+  // checkSkillLockEligibility exactly, so this banner and the server's
+  // actual rejection can never disagree about which skills are gated.
+  const activeFreeSkillLock = tier === 'FREE' && limits?.singleSkillRestriction ? freeSkillLock : null;
   const [skills, setSkills] = useState<CatalogSkill[]>([]);
   const [error, setError] = useState('');
   const [profile, setProfile] = useState<{
@@ -726,6 +767,7 @@ function AssessmentsPageInner() {
             expanded={expandedDomains?.has(cat.domainName) ?? true}
             onToggle={() => toggleDomain(cat.domainName)}
             profileReady={profileReady}
+            freeSkillLock={activeFreeSkillLock}
           />
         ))}
       </main>

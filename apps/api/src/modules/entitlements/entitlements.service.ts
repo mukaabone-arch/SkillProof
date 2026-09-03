@@ -28,6 +28,18 @@ export interface EntitlementsResponse {
     applications: UsageEntry;
     discussionSessions: UsageEntry;
   };
+  /**
+   * Present only when limits.singleSkillRestriction is true (FREE today)
+   * and the candidate has actually locked a skill (see
+   * CandidateProfile.freeSkillLockId) — null before their first self-serve
+   * MCQ attempt, and always null for an exempt/grandfathered candidate
+   * (freeSkillLockExempt) or on a tier without the restriction. The web/
+   * mobile "start assessment" flow reads this to decide whether to show the
+   * one-time lock-in notice (limits.singleSkillRestriction is true AND this
+   * is null) versus silently proceeding (already locked to this skill, or
+   * restriction doesn't apply).
+   */
+  freeSkillLock: { skillId: string; skillName: string } | null;
 }
 
 /** Start of date's UTC calendar month — the fixed boundary UsageCounter.periodStart buckets on. */
@@ -85,13 +97,22 @@ export class EntitlementsService {
     const tier = await this.resolveEffectiveTierForProfile(candidateId);
     const limits = PLANS[tier];
 
-    const [assessments, applications, discussionSessions] = await Promise.all([
+    const [assessments, applications, discussionSessions, profile] = await Promise.all([
       this.readUsage(candidateId, 'assessments', limits.assessmentsPerMonth),
       this.readUsage(candidateId, 'applications', limits.applicationsPerMonth),
       this.readUsage(candidateId, 'discussionSessions', limits.discussionSessionsPerMonth),
+      this.prisma.candidateProfile.findUnique({
+        where: { id: candidateId },
+        select: { freeSkillLockId: true, freeSkillLock: { select: { name: true } } },
+      }),
     ]);
 
-    return { tier, limits, usage: { assessments, applications, discussionSessions } };
+    const freeSkillLock =
+      profile?.freeSkillLockId && profile.freeSkillLock
+        ? { skillId: profile.freeSkillLockId, skillName: profile.freeSkillLock.name }
+        : null;
+
+    return { tier, limits, usage: { assessments, applications, discussionSessions }, freeSkillLock };
   }
 
   /**
@@ -263,6 +284,65 @@ export class EntitlementsService {
     }
 
     return { attemptNumber };
+  }
+
+  /**
+   * Enforces singleSkillRestriction: a FREE candidate's self-serve MCQ
+   * attempts (any level) are locked to one skill for life, set the first
+   * time they start an attempt — see CandidateProfile.freeSkillLockId's own
+   * doc comment in schema.prisma. No-op on any tier where
+   * singleSkillRestriction is false (PREMIUM today) and for a candidate
+   * grandfathered via freeSkillLockExempt (set only by the one-time
+   * backfill migration for candidates who already had attempts across
+   * multiple skills before this restriction shipped).
+   *
+   * Deliberately keyed off freeSkillLockId, a plain lifetime fact on
+   * CandidateProfile, not a CountableMetric/UsageCounter row — there's no
+   * periodic reset here, and UsageCounter's (candidateId, metric,
+   * periodStart) shape has nowhere to hold a skill id anyway. Called from
+   * AssessmentsService.startAttempt's self-serve branch only —
+   * employer-paid starts (skipLevelAndRetakeChecks) never reach this, same
+   * as checkRetakeEligibility.
+   *
+   * Race-safety: two concurrent first attempts in different skills must
+   * never both succeed in locking to different skills, the same concern
+   * incrementBounded's own doc comment above walks through for monthly
+   * counters. The claiming UPDATE below is a single `WHERE
+   * "freeSkillLockId" IS NULL` statement — Postgres resolves which of two
+   * simultaneous callers actually wins the row lock, so a loser here always
+   * observes whatever the winner set, never a torn/duplicate lock.
+   */
+  async checkSkillLockEligibility(userId: string, skillId: string): Promise<void> {
+    const candidateId = await this.ensureProfileId(userId);
+    const tier = await this.resolveEffectiveTierForProfile(candidateId);
+    if (!PLANS[tier].singleSkillRestriction) return;
+
+    const profile = await this.prisma.candidateProfile.findUnique({
+      where: { id: candidateId },
+      select: { freeSkillLockId: true, freeSkillLockExempt: true },
+    });
+    if (profile?.freeSkillLockExempt) return;
+    if (profile?.freeSkillLockId === skillId) return;
+    if (profile?.freeSkillLockId) {
+      throw new EntitlementLimitException('singleSkillRestriction', null, null);
+    }
+
+    const claimed = await this.prisma.$queryRaw<{ freeSkillLockId: string }[]>`
+      UPDATE "CandidateProfile"
+      SET "freeSkillLockId" = ${skillId}, "freeSkillLockedAt" = now()
+      WHERE id = ${candidateId} AND "freeSkillLockId" IS NULL
+      RETURNING "freeSkillLockId"
+    `;
+    if (claimed.length === 1) return; // this call won the race, lock set to skillId
+
+    // Lost the race to a concurrent first attempt — re-check what it locked to.
+    const settled = await this.prisma.candidateProfile.findUnique({
+      where: { id: candidateId },
+      select: { freeSkillLockId: true },
+    });
+    if (settled?.freeSkillLockId !== skillId) {
+      throw new EntitlementLimitException('singleSkillRestriction', null, null);
+    }
   }
 
   /** Public wrapper for callers outside this module that need just the tier — e.g. ProfileViewsService's display gate. */

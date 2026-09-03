@@ -268,6 +268,23 @@ export class AssessmentsService {
     return { skills };
   }
 
+  /** GET /assessments/:id — see AssessmentsController.getOne's own doc comment for why the take-flow page needs this. */
+  async getOne(id: string) {
+    const assessment = await this.prisma.assessment.findUnique({
+      where: { id },
+      include: { skill: true },
+    });
+    if (!assessment || !assessment.isLive) throw new NotFoundException('Assessment not found');
+    return {
+      id: assessment.id,
+      title: assessment.title,
+      skillId: assessment.skillId,
+      skillName: assessment.skill.name,
+      targetLevel: assessment.targetLevel,
+      durationMins: assessment.durationMins,
+    };
+  }
+
   listLive() {
     return this.prisma.assessment.findMany({
       where: { isLive: true },
@@ -288,13 +305,18 @@ export class AssessmentsService {
   /**
    * `skipLevelAndRetakeChecks` exists for exactly one caller:
    * AssessmentRequestsService, starting an employer-paid, employer-targeted
-   * verification — sequential leveling and the candidate's own retake
-   * cooldown/lifetime cap are self-serve-progression rules that don't apply
-   * to a specific paid request the employer already chose the level for.
-   * The normal candidate-initiated path (AssessmentsController.start, the
-   * only other caller) never passes this, so its behavior is byte-for-byte
-   * unchanged. Entitlement charging isn't a concern either way — that
-   * happens at the controller/guard level (@RequiresEntitlement), which an
+   * verification — sequential leveling, the candidate's own retake
+   * cooldown/lifetime cap, and the FREE-tier single-skill lock
+   * (EntitlementsService.checkSkillLockEligibility) are all self-serve-
+   * progression rules that don't apply to a specific paid request the
+   * employer already chose the skill+level for. The employer has already
+   * paid for this exact skill, so it must never consume or be blocked by
+   * whichever skill the candidate's own free attempts are locked to — nor
+   * does an employer-triggered start ever set that lock itself. The normal
+   * candidate-initiated path (AssessmentsController.start, the only other
+   * caller) never passes this, so its behavior is byte-for-byte unchanged.
+   * Entitlement charging isn't a concern either way — that happens at the
+   * controller/guard level (@RequiresEntitlement), which an
    * employer-triggered start never goes through since it calls this method
    * directly, not the guarded route.
    */
@@ -354,6 +376,12 @@ export class AssessmentsService {
       // return above), so a candidate already mid-attempt from before this
       // policy existed is never retroactively locked out of finishing it.
       await this.badgeResolver.assertLevelAvailable(userId, assessment.skillId, assessment.targetLevel);
+
+      // FREE-tier single-skill lock — see
+      // EntitlementsService.checkSkillLockEligibility. No-op on tiers
+      // without the restriction; locks the candidate to this skill on their
+      // first self-serve attempt otherwise.
+      await this.entitlements.checkSkillLockEligibility(userId, assessment.skillId);
 
       // Tier-based retake cooldown/lifetime cap — see
       // EntitlementsService.checkRetakeEligibility. Also gives us this

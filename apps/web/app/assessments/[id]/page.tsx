@@ -40,17 +40,25 @@ interface StartIssueBody {
 }
 /**
  * The 402 body for a blocked attempt-start — same LIMIT_REACHED shape as
- * lib/limitReachedBus.ts, distinguished by `metric`. Three cases reach this
- * page (EntitlementsService throws the same exception shape for all three —
- * see that service's checkRetakeEligibility/checkAndIncrement):
+ * lib/limitReachedBus.ts, distinguished by `metric`. Four cases reach this
+ * page (EntitlementsService throws the same exception shape for all four —
+ * see that service's checkRetakeEligibility/checkSkillLockEligibility/
+ * checkAndIncrement):
  *  - retakeCooldownDays: real resetsAt (when the wait is over — Premium
  *    removes it outright).
  *  - retakesPerSkillLifetime: resetsAt is always null — that cap is
  *    permanent regardless of tier, only its size changes (1 on Free, 3 on
  *    Premium), so "upgrade" only ever helps if there's still headroom
  *    under the higher cap.
+ *  - singleSkillRestriction: resetsAt is always null — a FREE candidate
+ *    tried to start a skill other than the one they're locked to (see
+ *    freeSkillLock in lib/entitlements.tsx). The "before you begin" gate
+ *    below already discloses the lock up front on a candidate's very first
+ *    self-serve attempt, so reaching this branch means either a direct
+ *    link/bookmark to a second skill, or a stale UI somewhere else that
+ *    didn't yet know about the lock.
  *  - assessments: the monthly quota shared across every skill (not
- *    per-skill like the two above) — also reaches the global
+ *    per-skill like the others) — also reaches the global
  *    LimitReachedModal (lib/api.ts publishes to limitReachedBus for every
  *    LIMIT_REACHED response, not just this one), but this page renders its
  *    own inline version too rather than leaving nothing behind it once
@@ -58,9 +66,16 @@ interface StartIssueBody {
  */
 interface LimitIssueBody {
   code?: 'LIMIT_REACHED';
-  metric?: 'retakeCooldownDays' | 'retakesPerSkillLifetime' | 'assessments';
+  metric?: 'retakeCooldownDays' | 'retakesPerSkillLifetime' | 'assessments' | 'singleSkillRestriction';
   limit?: number | null;
   resetsAt?: string | null;
+}
+/** GET /assessments/:id — just enough to know this attempt's skill before starting it. */
+interface AssessmentInfo {
+  id: string;
+  title: string;
+  skillId: string;
+  skillName: string;
 }
 /** One topic's aggregate performance — never per-question detail; see AssessmentsService.getResult's own doc comment on the leak boundary this is built against. */
 interface TopicStat {
@@ -91,7 +106,8 @@ function topicPercent(t: TopicStat): number {
 export default function TakeAssessmentPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { tier, limits, usage, refetch } = useEntitlements();
+  const { tier, limits, usage, freeSkillLock, refetch } = useEntitlements();
+  const [assessmentInfo, setAssessmentInfo] = useState<AssessmentInfo>();
   const [attemptId, setAttemptId] = useState<string>();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, number>>({});
@@ -112,6 +128,28 @@ export default function TakeAssessmentPage() {
   // explicitly acknowledged the monitoring notice below.
   const [acknowledged, setAcknowledged] = useState(false);
   const [ackChecked, setAckChecked] = useState(false);
+  // Separate checkbox, required only when this attempt would set the
+  // FREE-tier single-skill lock (see willLockFreeSkill below) — kept apart
+  // from ackChecked (the integrity-monitoring notice) since the two are
+  // unrelated facts and a candidate should explicitly confirm each.
+  const [lockAckChecked, setLockAckChecked] = useState(false);
+
+  useEffect(() => {
+    api<AssessmentInfo>(`/assessments/${id}`).then(setAssessmentInfo).catch(() => undefined);
+  }, [id]);
+
+  /**
+   * True only for the one moment this actually matters: FREE tier, the
+   * restriction is in force, the candidate has never locked a skill yet,
+   * and this attempt is for a *different* skill than any existing lock
+   * would be moot to restate — mirrors exactly what
+   * EntitlementsService.checkSkillLockEligibility itself would do
+   * server-side (see that method), so this notice only ever appears when
+   * starting really would set the lock, never after it's already set to
+   * this same skill.
+   */
+  const willLockFreeSkill =
+    tier === 'FREE' && !!limits?.singleSkillRestriction && !freeSkillLock && !!assessmentInfo;
 
   // Ref (not state) so in-flight event listeners always see the latest
   // value without needing to be torn down/rebuilt on every render.
@@ -139,7 +177,10 @@ export default function TakeAssessmentPage() {
         setStartIssue(body);
       } else if (
         body?.code === 'LIMIT_REACHED' &&
-        (body.metric === 'retakeCooldownDays' || body.metric === 'retakesPerSkillLifetime' || body.metric === 'assessments')
+        (body.metric === 'retakeCooldownDays' ||
+          body.metric === 'retakesPerSkillLifetime' ||
+          body.metric === 'assessments' ||
+          body.metric === 'singleSkillRestriction')
       ) {
         // retakeCooldownDays/retakesPerSkillLifetime are handled inline
         // here rather than by the global LimitReachedModal — see that
@@ -278,6 +319,7 @@ export default function TakeAssessmentPage() {
     setLoaded(false);
     setError('');
     setAckChecked(false);
+    setLockAckChecked(false);
     setAcknowledged(false);
   }
 
@@ -479,6 +521,24 @@ export default function TakeAssessmentPage() {
             />
             I understand and agree to these conditions.
           </label>
+          {willLockFreeSkill && assessmentInfo && (
+            <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, borderColor: 'var(--warning, #b45309)' }}>
+              <strong>This locks in your free skill</strong>
+              <p style={{ margin: 0 }}>
+                Your plan allows self-serve assessments in one skill only. Starting this attempt fixes{' '}
+                <strong>{assessmentInfo.skillName}</strong> as that skill — every level of it stays available to
+                you, but attempting any other skill will require Premium.
+              </p>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={lockAckChecked}
+                  onChange={(e) => setLockAckChecked(e.target.checked)}
+                />
+                I understand this locks {assessmentInfo.skillName} in as my free skill.
+              </label>
+            </div>
+          )}
           {usage && (
             <UsageMeter
               label="assessment starts"
@@ -489,7 +549,7 @@ export default function TakeAssessmentPage() {
           )}
           <button
             onClick={() => setAcknowledged(true)}
-            disabled={!ackChecked}
+            disabled={!ackChecked || (willLockFreeSkill && !lockAckChecked)}
             style={{ alignSelf: 'flex-start' }}
           >
             I understand, begin
@@ -536,6 +596,21 @@ export default function TakeAssessmentPage() {
                   <Link href="/upgrade">Premium removes retake cooldowns entirely →</Link>
                 </p>
               )}
+            </>
+          ) : limitIssue.metric === 'singleSkillRestriction' ? (
+            <>
+              <strong>This skill isn&apos;t included on your plan</strong>
+              <p style={{ margin: 0 }}>
+                Your free plan&apos;s self-serve assessments are locked to{' '}
+                {freeSkillLock ? <strong>{freeSkillLock.skillName}</strong> : 'a different skill'} — Premium
+                unlocks every skill.
+              </p>
+              <p className="meta" style={{ margin: 0 }}>
+                <Link href="/upgrade">Upgrade to Premium →</Link>
+              </p>
+              <p style={{ margin: 0 }}>
+                <Link href="/assessments">← Back to assessments</Link>
+              </p>
             </>
           ) : limitIssue.metric === 'retakesPerSkillLifetime' ? (
             <>
