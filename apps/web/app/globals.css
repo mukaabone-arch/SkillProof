@@ -32,6 +32,55 @@
   --brand-800: #B5ABFC;   /* accent-400: brighter-than-primary — hover-lighten fills, "strong match" text, open-hint text */
   --brand-900: #2B2741;   /* accent-900: darkest — dark panels, hero/footer gradient stop */
 
+  /* ---- Lavender (landing-page card gradients: numbered cards AND the news
+     strip card, one shared visual language) ----
+     Two swatches from the redesign reference, not renames of the ramp
+     above. --lavender-mid is the mobile app's Nocturne --color-accent
+     (AppColors.primary, #9184D9) — same ~249° hue as --brand-400/600 above,
+     just a step this web ramp never picked up; --lavender-light
+     (#B294DB) doesn't exist anywhere else in either codebase and sits at a
+     genuinely different ~265° hue (warmer/more magenta) than every other
+     purple defined here. Both fail AA as a text-on-flat-fill background
+     (2.1–2.7:1 against --ink) — never used as a flat surface fill anywhere
+     below, only as gradient highlight stops whose peak opacity is bounded
+     per-consumer (see --lp-lavender-bg vs --lp-news-lavender-bg below —
+     the two consumers need different bounds, not different colors). */
+  --lavender-light: #B294DB;
+  --lavender-mid:   #9184D9;
+  /* Numbered-card gradient (.lp-card.lp-card-feature / .lp-step) — see that
+     rule's own doc comment for why every ellipse is anchored off the right
+     edge and never reaches the text: with text confined to the card's left
+     column (align-items: flex-start, one short heading), keeping the
+     ellipses' PEAK opacity away from the text column is sufficient, so
+     these run hot (50–65% peak) for a bolder curve. */
+  --lp-lavender-bg:
+    radial-gradient(ellipse 65% 90% at 100% -20%, color-mix(in srgb, var(--lavender-light) 65%, transparent) 0%, transparent 62%),
+    radial-gradient(ellipse 60% 85% at 112% 55%, color-mix(in srgb, var(--lavender-mid) 55%, transparent) 0%, transparent 58%),
+    radial-gradient(ellipse 85% 100% at 102% 118%, color-mix(in srgb, var(--brand-600) 50%, transparent) 0%, transparent 62%),
+    linear-gradient(115deg, var(--brand-900) 0%, var(--card) 48%, var(--card) 100%);
+  --lp-lavender-border: 1px solid color-mix(in srgb, var(--brand-600) 28%, var(--ink-12));
+  /* News-card gradient (.lp-news-card) — same 3-ellipse-plus-diagonal-base
+     recipe and the same two lavender hues, but a card of six full-width
+     headline rows has no text-free column to anchor around the way the
+     numbered cards do: any row's title can run most of the card's width,
+     and the source/date meta text at 0.8rem is both smaller and dimmer
+     (--ink-60, not --ink) than the numbered cards' bold 1.15rem heading —
+     so it needs the *stricter* 4.5:1 AA-normal-text floor, not the 3:1
+     AA-large-text floor a bold heading gets. Peaks are capped at 24%/22%/16%
+     (vs. the numbered cards' 65%/55%/50%) specifically so contrast holds
+     under WORST-CASE overlap, not just in isolation: verified via sRGB
+     alpha-compositing math (relative-luminance contrast formula) that even
+     the pathological case of all three ellipses' peaks fully coinciding at
+     one point — never how they're actually laid out; real peaks sit in
+     different corners so this never happens — still clears 4.68:1 for
+     --ink-60 and 5.75:1 for --ink. Any single ellipse in isolation clears
+     6.6–9:1. */
+  --lp-news-lavender-bg:
+    radial-gradient(ellipse 75% 70% at 4% -12%, color-mix(in srgb, var(--lavender-light) 24%, transparent) 0%, transparent 65%),
+    radial-gradient(ellipse 70% 65% at 100% 108%, color-mix(in srgb, var(--lavender-mid) 22%, transparent) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 55% at 55% 45%, color-mix(in srgb, var(--brand-600) 16%, transparent) 0%, transparent 55%),
+    linear-gradient(115deg, var(--brand-900) 0%, var(--card) 55%, var(--card) 100%);
+
   /* ---- Accent: warm coral (rationed) — brightened one/two steps so it
      still pops as a "verified/earned" signal against a dark page instead
      of reading as a muted brown. ---- */
@@ -2278,6 +2327,33 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .lp-card { background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-lg); padding: 28px 26px; }
 .lp-card-title { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; color: var(--ink); letter-spacing: -0.01em; margin-bottom: 10px; }
 
+/* ---- Numbered-card lavender gradient (platform strip, verification steps,
+   employer section — .lp-card-feature and .lp-step both use it) ----
+   Extends .lp-news-card's own technique below (layered radial-gradient
+   ellipses via color-mix, overflow:hidden, brand-tinted border) rather than
+   a new vocabulary — same recipe, just more ellipses and richer mix
+   percentages, since these cards are meant to read as deliberately
+   lavender-toned, not a subtle wash.
+
+   Legibility (the binding constraint here): --lavender-light/-mid both fail
+   AA as a flat fill under --ink text (2.1–2.7:1 — see their own doc comment
+   above), so neither rule below ever puts text directly on top of one.
+   Every ellipse is anchored off the RIGHT edge (at 100–112% x) and fades to
+   transparent well before the card's left half, where the number badge and
+   heading always sit (both cards use align-items: flex-start). The
+   linear-gradient base underneath carries the actual light-to-dark sweep:
+   lavender-light at the top-right corner, through lavender-mid, down to
+   --brand-900 under the text — so the "light-to-dark gradient" is real and
+   visible, it just never crosses under the copy it would make illegible.
+   --lp-lavender-bg/-border themselves are defined once, in :root above,
+   and shared verbatim by .lp-step below so both card shapes render the
+   same treatment from one source. */
+.lp-card.lp-card-feature {
+  position: relative; overflow: hidden;
+  background: var(--lp-lavender-bg);
+  border: var(--lp-lavender-border);
+}
+
 /* ---- Steps (how verification works) ---- */
 .lp-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 /* Heading-only step cards: compact, and the number+heading vertically
@@ -2286,7 +2362,9 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    heading with only a small gap, so "01" still reads as that step's marker
    sitting with its label rather than floating in a tall empty card. */
 .lp-step {
-  background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-lg);
+  position: relative; overflow: hidden;
+  background: var(--lp-lavender-bg);
+  border: var(--lp-lavender-border); border-radius: var(--radius-lg);
   padding: 22px 24px; min-height: 104px;
   display: flex; flex-direction: column; justify-content: center; align-items: flex-start;
 }
@@ -2305,23 +2383,26 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    .lp-news-card only exists inside the JSX branch that already required
    a non-empty item list.
 
-   .lp-news-card follows the same base recipe as .lp-card/.plan-column
-   (var(--card) surface, var(--ink-12) hairline, var(--radius-lg)), plus a
-   quiet echo of .auth-split-visual's radial-gradient language — two
-   low-opacity brand washes (10%/12% color-mix, versus the 45–65% that
-   full-bleed hero panel uses) so this reads as a deliberately abstract
-   surface rather than a flat gray box, without approaching the visual
-   weight of the CTA above it. No grain texture: that's a hero-scale
-   flourish that would read as noise at this compact size, not texture.
-   overflow: hidden clips both radial gradients to the card's own rounded
-   corners rather than letting them bleed past it. */
+   Shares the numbered cards' lavender gradient language on purpose — same
+   two hues, same 3-ellipse-plus-diagonal-base recipe, same brand-tinted
+   border (--lp-lavender-border, defined once in :root and reused verbatim
+   here so both card families draw literally the same border) — rather than
+   the two similar-but-different treatments this card and .lp-card-feature/
+   .lp-step used to each have (this one: a lower-effort 2-ellipse wash at
+   10–12%; those: no gradient at all before this pass). The one deliberate
+   difference is intensity: --lp-news-lavender-bg's peaks are capped far
+   lower than --lp-lavender-bg's (see that token's own doc comment for the
+   measured worst-case contrast numbers) because six full-width headline
+   rows have no text-free zone to anchor curves around the way a single
+   left-aligned heading does — every ellipse here is safe to sit UNDER any
+   row, not just clear of one. overflow: hidden clips every gradient layer
+   to the card's own rounded corners rather than letting them bleed past
+   it. No grain texture: that's a hero-scale flourish that would read as
+   noise at this compact size, not texture. */
 .lp-news-card {
   position: relative; overflow: hidden; max-width: 720px;
-  background:
-    radial-gradient(ellipse 70% 60% at 8% 0%, color-mix(in srgb, var(--brand-400) 10%, transparent) 0%, transparent 70%),
-    radial-gradient(ellipse 60% 55% at 100% 100%, color-mix(in srgb, var(--brand-600) 12%, transparent) 0%, transparent 65%),
-    var(--card);
-  border: 1px solid color-mix(in srgb, var(--brand-600) 25%, var(--ink-12));
+  background: var(--lp-news-lavender-bg);
+  border: var(--lp-lavender-border);
   border-radius: var(--radius-lg);
   padding: var(--space-6);
 }
