@@ -1,4 +1,4 @@
-import { AttemptStatus, Subscription, SubscriptionStatus, SubscriptionTier } from '@prisma/client';
+import { AttemptStatus, SkillLevel, Subscription, SubscriptionStatus, SubscriptionTier } from '@prisma/client';
 import { EntitlementsService, periodStartOf, nextPeriodStartOf, resolveEffectiveTier } from './entitlements.service';
 import { EntitlementLimitException } from './entitlements.errors';
 import { AI_DISCUSSION_PROMO_LAUNCH_DATE, isAiDiscussionPromoActive } from '../../config/plans.config';
@@ -193,11 +193,11 @@ function fakePrisma() {
     return [{ count: existing.count }];
   });
 
-  const attempts: { userId: string; status: AttemptStatus; skillId: string; submittedAt: Date | null; createdAt: Date }[] = [];
+  const attempts: { userId: string; status: AttemptStatus; skillId: string; level: SkillLevel; submittedAt: Date | null; createdAt: Date }[] = [];
 
   // Non-revoked badges, used only by checkRetakeEligibility's most-recent-lapse
   // lookup. `expiresAt` in the future = still valid; in the past = lapsed.
-  const badges: { userId: string; skillId: string; revokedAt: Date | null; expiresAt: Date }[] = [];
+  const badges: { userId: string; skillId: string; level: SkillLevel; revokedAt: Date | null; expiresAt: Date }[] = [];
 
   const prisma: Record<string, any> = {
     badge: {
@@ -207,6 +207,7 @@ function fakePrisma() {
             (b) =>
               b.userId === where.userId &&
               b.skillId === where.skillId &&
+              b.level === where.level &&
               b.revokedAt === null &&
               b.expiresAt.getTime() <= where.expiresAt.lte.getTime(),
           )
@@ -233,7 +234,13 @@ function fakePrisma() {
     attempt: {
       findMany: jest.fn(async ({ where }: any) =>
         attempts
-          .filter((a) => a.userId === where.userId && a.status === where.status && a.skillId === where.assessment.skillId)
+          .filter(
+            (a) =>
+              a.userId === where.userId &&
+              a.status === where.status &&
+              a.skillId === where.assessment.skillId &&
+              a.level === where.assessment.targetLevel,
+          )
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
           .map((a) => ({ submittedAt: a.submittedAt, createdAt: a.createdAt })),
       ),
@@ -435,71 +442,101 @@ describe('EntitlementsService.getEntitlements', () => {
 });
 
 describe('EntitlementsService.checkRetakeEligibility', () => {
-  function withAttempts(attempts: ReturnType<typeof fakePrisma>['attempts'], userId: string, skillId: string, entries: { daysAgo: number }[]) {
+  function withAttempts(
+    attempts: ReturnType<typeof fakePrisma>['attempts'],
+    userId: string,
+    skillId: string,
+    level: SkillLevel,
+    entries: { daysAgo: number }[],
+  ) {
     const now = Date.now();
     for (const e of entries) {
       const at = new Date(now - e.daysAgo * DAY_MS);
-      attempts.push({ userId, status: AttemptStatus.GRADED, skillId, submittedAt: at, createdAt: at });
+      attempts.push({ userId, status: AttemptStatus.GRADED, skillId, level, submittedAt: at, createdAt: at });
     }
   }
 
-  it('a skill\'s very first attempt is never gated, on any tier', async () => {
+  it('a level\'s very first attempt is never gated, on any tier', async () => {
     const { prisma } = fakePrisma();
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
     const svc = new EntitlementsService(prisma as any);
 
-    const result = await svc.checkRetakeEligibility('user-1', 'skill-1');
+    const result = await svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1);
     expect(result.attemptNumber).toBe(1);
   });
 
   it('FREE: retakeCooldownDays is 0, so a retake immediately after a prior attempt succeeds as attempt #2', async () => {
     const { prisma, attempts } = fakePrisma();
-    withAttempts(attempts, 'user-1', 'skill-1', [{ daysAgo: 0 }]); // one prior attempt, today
+    withAttempts(attempts, 'user-1', 'skill-1', SkillLevel.L1, [{ daysAgo: 0 }]); // one prior attempt, today
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
     const svc = new EntitlementsService(prisma as any);
 
-    const result = await svc.checkRetakeEligibility('user-1', 'skill-1');
+    const result = await svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1);
     expect(result.attemptNumber).toBe(2);
   });
 
-  it('FREE: a third attempt (2nd retake) is blocked by the lifetime cap regardless of cooldown', async () => {
+  it('FREE: a third attempt at the SAME level (2nd retake) is blocked by the lifetime cap regardless of cooldown', async () => {
     const { prisma, attempts } = fakePrisma();
-    withAttempts(attempts, 'user-1', 'skill-1', [{ daysAgo: 200 }, { daysAgo: 100 }]); // 2 prior attempts, cooldown long since cleared
+    withAttempts(attempts, 'user-1', 'skill-1', SkillLevel.L1, [{ daysAgo: 200 }, { daysAgo: 100 }]); // 2 prior attempts, cooldown long since cleared
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
     const svc = new EntitlementsService(prisma as any);
 
-    await expect(svc.checkRetakeEligibility('user-1', 'skill-1')).rejects.toMatchObject({
+    await expect(svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1)).rejects.toMatchObject({
       response: { code: 'LIMIT_REACHED', metric: 'retakesPerSkillLifetime', limit: 1, resetsAt: null },
     });
   });
 
-  it('PREMIUM: retakes are immediately allowed (no cooldown) up to the 3-retake lifetime cap', async () => {
+  /**
+   * Regression test for the bug this per-skill+level rescoping fixes: a
+   * FREE candidate who cleanly passed L1 and L2 of their one locked skill
+   * (2 GRADED attempts total, exhausting the OLD skill-wide budget of
+   * 1 + retakesPerSkillLifetime = 2) must still be able to start L3 —
+   * that's a first attempt at a different assessment, not a 3rd retake of
+   * the same one. Before this fix, this exact scenario threw
+   * retakesPerSkillLifetime and blocked L3 outright.
+   */
+  it('FREE: passing L1 and L2 of the locked skill does not block starting L3 — each level has its own budget', async () => {
     const { prisma, attempts } = fakePrisma();
-    withAttempts(attempts, 'user-1', 'skill-1', [{ daysAgo: 0 }, { daysAgo: 0 }, { daysAgo: 0 }]); // 3 prior attempts, all today
+    withAttempts(attempts, 'user-1', 'skill-1', SkillLevel.L1, [{ daysAgo: 30 }]); // L1 passed on the first try
+    withAttempts(attempts, 'user-1', 'skill-1', SkillLevel.L2, [{ daysAgo: 10 }]); // L2 passed on the first try
+    prisma.subscription.findUnique.mockResolvedValue(
+      fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+    );
+    const svc = new EntitlementsService(prisma as any);
+
+    // L3 has zero prior attempts of its own — never gated, regardless of
+    // how many attempts L1/L2 separately hold.
+    const result = await svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L3);
+    expect(result.attemptNumber).toBe(1);
+  });
+
+  it('PREMIUM: retakes are immediately allowed (no cooldown) up to the 3-retake lifetime cap, per level', async () => {
+    const { prisma, attempts } = fakePrisma();
+    withAttempts(attempts, 'user-1', 'skill-1', SkillLevel.L1, [{ daysAgo: 0 }, { daysAgo: 0 }, { daysAgo: 0 }]); // 3 prior attempts, all today
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.PREMIUM, status: SubscriptionStatus.ACTIVE }),
     );
     const svc = new EntitlementsService(prisma as any);
 
-    const result = await svc.checkRetakeEligibility('user-1', 'skill-1');
+    const result = await svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1);
     expect(result.attemptNumber).toBe(4); // 1 original + 3 retakes = 4th attempt, still within cap
   });
 
-  it('PREMIUM: the 5th attempt (4th retake) is blocked by the lifetime cap', async () => {
+  it('PREMIUM: the 5th attempt at the same level (4th retake) is blocked by the lifetime cap', async () => {
     const { prisma, attempts } = fakePrisma();
-    withAttempts(attempts, 'user-1', 'skill-1', [{ daysAgo: 0 }, { daysAgo: 0 }, { daysAgo: 0 }, { daysAgo: 0 }]);
+    withAttempts(attempts, 'user-1', 'skill-1', SkillLevel.L1, [{ daysAgo: 0 }, { daysAgo: 0 }, { daysAgo: 0 }, { daysAgo: 0 }]);
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.PREMIUM, status: SubscriptionStatus.ACTIVE }),
     );
     const svc = new EntitlementsService(prisma as any);
 
-    await expect(svc.checkRetakeEligibility('user-1', 'skill-1')).rejects.toMatchObject({
+    await expect(svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1)).rejects.toMatchObject({
       response: { code: 'LIMIT_REACHED', metric: 'retakesPerSkillLifetime', limit: 3, resetsAt: null },
     });
   });
@@ -508,6 +545,7 @@ describe('EntitlementsService.checkRetakeEligibility', () => {
     badges: ReturnType<typeof fakePrisma>['badges'],
     userId: string,
     skillId: string,
+    level: SkillLevel,
     entries: { expiresInDays: number; revoked?: boolean }[],
   ) {
     const now = Date.now();
@@ -515,18 +553,19 @@ describe('EntitlementsService.checkRetakeEligibility', () => {
       badges.push({
         userId,
         skillId,
+        level,
         revokedAt: e.revoked ? new Date() : null,
         expiresAt: new Date(now + e.expiresInDays * DAY_MS),
       });
     }
   }
 
-  it('FREE: the lifetime cap that blocked a 3rd attempt is reset once the backing badge lapses — only attempts after the lapse count', async () => {
+  it('FREE: the lifetime cap that blocked a 3rd attempt at the same level is reset once the backing badge lapses — only attempts after the lapse count', async () => {
     const { prisma, attempts, badges } = fakePrisma();
     // Two prior attempts spent the FREE budget (1 original + 1 retake) and earned
     // a badge that has since expired 10 days ago. Both attempts predate the lapse.
-    withAttempts(attempts, 'user-1', 'skill-1', [{ daysAgo: 400 }, { daysAgo: 380 }]);
-    withBadges(badges, 'user-1', 'skill-1', [{ expiresInDays: -10 }]);
+    withAttempts(attempts, 'user-1', 'skill-1', SkillLevel.L1, [{ daysAgo: 400 }, { daysAgo: 380 }]);
+    withBadges(badges, 'user-1', 'skill-1', SkillLevel.L1, [{ expiresInDays: -10 }]);
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
@@ -534,7 +573,7 @@ describe('EntitlementsService.checkRetakeEligibility', () => {
 
     // Without the lapse reset this would throw the lifetime cap; instead the
     // window reopens and the renewal attempt is allowed as attempt #3.
-    const result = await svc.checkRetakeEligibility('user-1', 'skill-1');
+    const result = await svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1);
     expect(result.attemptNumber).toBe(3);
   });
 
@@ -542,42 +581,56 @@ describe('EntitlementsService.checkRetakeEligibility', () => {
     const { prisma, attempts, badges } = fakePrisma();
     // One attempt before the lapse, then two attempts after it: the post-lapse
     // window already holds original+retake, so a further retake is blocked again.
-    withAttempts(attempts, 'user-1', 'skill-1', [{ daysAgo: 400 }, { daysAgo: 5 }, { daysAgo: 3 }]);
-    withBadges(badges, 'user-1', 'skill-1', [{ expiresInDays: -10 }]);
+    withAttempts(attempts, 'user-1', 'skill-1', SkillLevel.L1, [{ daysAgo: 400 }, { daysAgo: 5 }, { daysAgo: 3 }]);
+    withBadges(badges, 'user-1', 'skill-1', SkillLevel.L1, [{ expiresInDays: -10 }]);
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
     const svc = new EntitlementsService(prisma as any);
 
-    await expect(svc.checkRetakeEligibility('user-1', 'skill-1')).rejects.toMatchObject({
+    await expect(svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1)).rejects.toMatchObject({
       response: { code: 'LIMIT_REACHED', metric: 'retakesPerSkillLifetime', limit: 1, resetsAt: null },
     });
   });
 
   it('a revoked badge past its expiresAt does NOT open a fresh window (revocation is not a lapse)', async () => {
     const { prisma, attempts, badges } = fakePrisma();
-    withAttempts(attempts, 'user-1', 'skill-1', [{ daysAgo: 400 }, { daysAgo: 380 }]);
-    withBadges(badges, 'user-1', 'skill-1', [{ expiresInDays: -10, revoked: true }]);
+    withAttempts(attempts, 'user-1', 'skill-1', SkillLevel.L1, [{ daysAgo: 400 }, { daysAgo: 380 }]);
+    withBadges(badges, 'user-1', 'skill-1', SkillLevel.L1, [{ expiresInDays: -10, revoked: true }]);
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
     const svc = new EntitlementsService(prisma as any);
 
-    await expect(svc.checkRetakeEligibility('user-1', 'skill-1')).rejects.toMatchObject({
+    await expect(svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1)).rejects.toMatchObject({
       response: { code: 'LIMIT_REACHED', metric: 'retakesPerSkillLifetime', limit: 1, resetsAt: null },
     });
   });
 
   it('a still-valid badge (expiresAt in the future) is not a lapse — the lifetime cap applies unchanged', async () => {
     const { prisma, attempts, badges } = fakePrisma();
-    withAttempts(attempts, 'user-1', 'skill-1', [{ daysAgo: 200 }, { daysAgo: 100 }]);
-    withBadges(badges, 'user-1', 'skill-1', [{ expiresInDays: 300 }]);
+    withAttempts(attempts, 'user-1', 'skill-1', SkillLevel.L1, [{ daysAgo: 200 }, { daysAgo: 100 }]);
+    withBadges(badges, 'user-1', 'skill-1', SkillLevel.L1, [{ expiresInDays: 300 }]);
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
     const svc = new EntitlementsService(prisma as any);
 
-    await expect(svc.checkRetakeEligibility('user-1', 'skill-1')).rejects.toMatchObject({
+    await expect(svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1)).rejects.toMatchObject({
+      response: { code: 'LIMIT_REACHED', metric: 'retakesPerSkillLifetime', limit: 1, resetsAt: null },
+    });
+  });
+
+  it("a lapsed badge at a DIFFERENT level does not open a fresh window for this level (lapse lookup is level-scoped too)", async () => {
+    const { prisma, attempts, badges } = fakePrisma();
+    withAttempts(attempts, 'user-1', 'skill-1', SkillLevel.L2, [{ daysAgo: 200 }, { daysAgo: 100 }]); // L2's own budget spent
+    withBadges(badges, 'user-1', 'skill-1', SkillLevel.L1, [{ expiresInDays: -10 }]); // L1's badge lapsed — irrelevant to L2
+    prisma.subscription.findUnique.mockResolvedValue(
+      fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+    );
+    const svc = new EntitlementsService(prisma as any);
+
+    await expect(svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L2)).rejects.toMatchObject({
       response: { code: 'LIMIT_REACHED', metric: 'retakesPerSkillLifetime', limit: 1, resetsAt: null },
     });
   });

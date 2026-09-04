@@ -56,9 +56,11 @@ field is safe.
   independent quotas, not one shared "assessments" pool, even though both
   are ways of earning a badge — see `src/modules/assessment-sessions` for
   the discussion format. Retake limits
-  (`retakeCooldownDays`/`retakesPerSkillLifetime`) are per-skill, not
-  monthly, and aren't part of this response's `usage` block; they surface
-  per-skill instead, alongside the assessment catalog.
+  (`retakeCooldownDays`/`retakesPerSkillLifetime`) are per skill+level (each
+  level is its own assessment with its own budget — see
+  `checkRetakeEligibility`'s own doc comment), not monthly, and aren't part
+  of this response's `usage` block; they surface per-skill instead,
+  alongside the assessment catalog.
 - FREE's `discussionSessionsPerMonth` is time-limited, not a plain static
   number — 1/month during a promotional window ending three months after
   launch (`AI_DISCUSSION_PROMO_LAUNCH_DATE` in `plans.config.ts`), 0/month
@@ -89,10 +91,13 @@ field is safe.
 
 - `EntitlementsService.checkRetakeEligibility` (called directly from
   `AssessmentsService.startAttempt`, not through the guard, since it needs
-  the target skill) enforces `retakeCooldownDays` /
-  `retakesPerSkillLifetime` and returns the same 402 shape, with
-  `metric: 'retakeCooldownDays'` or `metric: 'retakesPerSkillLifetime'`.
-  A lifetime-cap breach has `resetsAt: null` — there is no reset.
+  the target skill+level) enforces `retakeCooldownDays` /
+  `retakesPerSkillLifetime` **per skill+level, not per skill** — each level
+  is its own assessment, so a first attempt at a new level is never gated
+  by another level's budget, only a genuine repeat of the *same* level is.
+  Returns the same 402 shape, with `metric: 'retakeCooldownDays'` or
+  `metric: 'retakesPerSkillLifetime'`. A lifetime-cap breach has
+  `resetsAt: null` — there is no reset.
 
 - `EntitlementsService.checkSkillLockEligibility` (also called directly from
   `AssessmentsService.startAttempt`'s self-serve branch, alongside

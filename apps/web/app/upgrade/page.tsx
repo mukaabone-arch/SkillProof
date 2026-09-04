@@ -77,7 +77,7 @@ const FEATURE_ROWS: { label: string; format: (l: PlanLimits) => string }[] = [
     format: (l) => (l.retakeCooldownDays === 0 ? 'None — retake right away' : `${l.retakeCooldownDays}-day wait between retakes`),
   },
   {
-    label: 'Retakes per skill',
+    label: 'Retakes per level',
     format: (l) => `${l.retakesPerSkillLifetime} retake${l.retakesPerSkillLifetime === 1 ? '' : 's'}, lifetime`,
   },
   {

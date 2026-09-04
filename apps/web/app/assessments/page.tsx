@@ -135,9 +135,9 @@ function describeLimitReached(
   if (body.metric === 'retakesPerSkillLifetime') {
     return (
       <>
-        You&apos;ve used all {body.limit} retake{body.limit === 1 ? '' : 's'} allowed for this skill — this cap
-        doesn&apos;t reset.{' '}
-        {tier !== 'PREMIUM' && <Link href="/upgrade">Premium allows more retakes per skill →</Link>}
+        You&apos;ve used all {body.limit} retake{body.limit === 1 ? '' : 's'} allowed for this level — this cap
+        doesn&apos;t reset. Other levels of this skill aren&apos;t affected.{' '}
+        {tier !== 'PREMIUM' && <Link href="/upgrade">Premium allows more retakes per level →</Link>}
       </>
     );
   }

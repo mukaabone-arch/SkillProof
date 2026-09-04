@@ -383,10 +383,13 @@ export class AssessmentsService {
       // first self-serve attempt otherwise.
       await this.entitlements.checkSkillLockEligibility(userId, assessment.skillId);
 
-      // Tier-based retake cooldown/lifetime cap — see
-      // EntitlementsService.checkRetakeEligibility. Also gives us this
-      // attempt's ordinal attemptNumber, stamped below.
-      ({ attemptNumber } = await this.entitlements.checkRetakeEligibility(userId, assessment.skillId));
+      // Tier-based retake cooldown/lifetime cap — scoped to this exact
+      // skill+level (see EntitlementsService.checkRetakeEligibility's own
+      // doc comment on why: each level is its own assessment, so a first
+      // attempt at a new level must never be gated by another level's
+      // budget). Also gives us this attempt's ordinal attemptNumber,
+      // stamped below.
+      ({ attemptNumber } = await this.entitlements.checkRetakeEligibility(userId, assessment.skillId, assessment.targetLevel));
     }
 
     const pool = await this.prisma.question.findMany({

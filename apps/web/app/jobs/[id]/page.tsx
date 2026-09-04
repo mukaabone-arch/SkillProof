@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api, getToken, type ApiError } from '@/lib/api';
-import { ErrorState, JobDescription, LoadingState } from '@/components/ui';
+import { Card, ErrorState, JobDescription, LoadingState } from '@/components/ui';
 import { useEntitlements } from '@/lib/entitlements';
 import { UsageMeter } from '@/components/UsageMeter';
 
@@ -74,6 +74,18 @@ interface MatchedResponse {
  * Deliberately NOT salary-band mapping: most job postings don't carry
  * salary data at all, so there's no real range to map a gap onto — see
  * plans.config.ts's own comment on PLANS.PREMIUM.gapAnalysis for why.
+ *
+ * Wrapped in the shared `<Card>` (.ui-card) rather than the bare `.field`
+ * every sibling section on this page uses — everything above this (title,
+ * salary, required skills, description) is the employer's own job posting;
+ * this is personalized analysis about the viewing candidate, and running
+ * on with only a `<label>` to separate it read as part of that posting. A
+ * plain card is deliberate, not a new "about you" accent: no such
+ * provenance-signaling pattern exists elsewhere in this codebase to extend
+ * (checked — `.status-card-flag`'s accent border means "needs attention,"
+ * `.badge-card`'s tint means "earned/verified," neither means "this is
+ * about you"), so introducing one here would be a new visual language for
+ * a single section rather than reuse of an established one.
  */
 function GapAnalysis({
   missing,
@@ -88,7 +100,7 @@ function GapAnalysis({
 
   if (!detailed) {
     return (
-      <div className="field">
+      <Card className="field">
         <label>Skill gap for this role</label>
         <p style={{ margin: 0 }}>
           Missing: {missing.map((m) => `${m.skillName} (${m.requiredLevel})`).join(', ')}
@@ -96,14 +108,14 @@ function GapAnalysis({
         <p className="meta" style={{ marginTop: 6 }}>
           <Link href="/upgrade">Upgrade</Link> to see which of these gaps matter most across your matches.
         </p>
-      </div>
+      </Card>
     );
   }
 
   const ranked = [...missing].sort((a, b) => (skillFrequency[b.skillId] ?? 1) - (skillFrequency[a.skillId] ?? 1));
 
   return (
-    <div className="field">
+    <Card className="field">
       <label>Skill gap for this role</label>
       <ul style={{ margin: 0, paddingLeft: 20 }}>
         {ranked.map((m) => {
@@ -116,7 +128,7 @@ function GapAnalysis({
           );
         })}
       </ul>
-    </div>
+    </Card>
   );
 }
 

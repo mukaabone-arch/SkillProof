@@ -49,7 +49,12 @@ interface StartIssueBody {
  *  - retakesPerSkillLifetime: resetsAt is always null — that cap is
  *    permanent regardless of tier, only its size changes (1 on Free, 3 on
  *    Premium), so "upgrade" only ever helps if there's still headroom
- *    under the higher cap.
+ *    under the higher cap. Despite the metric's name, the cap itself is
+ *    scoped per skill+LEVEL, not the whole skill — each level is its own
+ *    assessment with its own budget (see apps/api's
+ *    EntitlementsService.checkRetakeEligibility), so this only ever blocks
+ *    a retry of the level this page is currently on; other levels of the
+ *    same skill are unaffected.
  *  - singleSkillRestriction: resetsAt is always null — a FREE candidate
  *    tried to start a skill other than the one they're locked to (see
  *    freeSkillLock in lib/entitlements.tsx). The "before you begin" gate
@@ -70,11 +75,12 @@ interface LimitIssueBody {
   limit?: number | null;
   resetsAt?: string | null;
 }
-/** GET /assessments/:id — just enough to know this attempt's skill before starting it. */
+/** GET /assessments/:id — just enough to know this attempt's skill+level before starting it. */
 interface AssessmentInfo {
   id: string;
   title: string;
   skillId: string;
+  targetLevel: string;
   skillName: string;
 }
 /** One topic's aggregate performance — never per-question detail; see AssessmentsService.getResult's own doc comment on the leak boundary this is built against. */
@@ -427,8 +433,8 @@ export default function TakeAssessmentPage() {
                 Retakes on your plan have a cooldown — you&apos;ll likely be eligible for {result.skillName}{' '}
                 again around{' '}
                 {new Date(Date.now() + limits.retakeCooldownDays * 24 * 60 * 60 * 1000).toLocaleDateString()}.
-                Retakes are also capped at {limits.retakesPerSkillLifetime} per skill, lifetime, so if this
-                was your last one for {result.skillName},{' '}
+                Retakes are also capped at {limits.retakesPerSkillLifetime} per level, lifetime, so if this
+                was your last one for this level of {result.skillName},{' '}
                 <Link href="/assessments">another skill</Link> is the better use of the wait.{' '}
                 <Link href="/upgrade">Premium removes the cooldown →</Link>
               </p>
@@ -614,14 +620,16 @@ export default function TakeAssessmentPage() {
             </>
           ) : limitIssue.metric === 'retakesPerSkillLifetime' ? (
             <>
-              <strong>Retake limit reached for this skill</strong>
+              <strong>Retake limit reached for this level</strong>
               <p style={{ margin: 0 }}>
-                You&apos;ve used all {limitIssue.limit} retake{limitIssue.limit === 1 ? '' : 's'} allowed for
-                this skill — this cap doesn&apos;t reset.
+                You&apos;ve used all {limitIssue.limit} retake{limitIssue.limit === 1 ? '' : 's'} allowed for{' '}
+                {assessmentInfo ? `${assessmentInfo.skillName} (${assessmentInfo.targetLevel})` : 'this level'} —
+                this cap doesn&apos;t reset. Other levels of {assessmentInfo?.skillName ?? 'this skill'} aren&apos;t
+                affected.
               </p>
               {tier !== 'PREMIUM' && (
                 <p className="meta" style={{ margin: 0 }}>
-                  <Link href="/upgrade">Premium allows more retakes per skill →</Link>
+                  <Link href="/upgrade">Premium allows more retakes per level →</Link>
                 </p>
               )}
             </>

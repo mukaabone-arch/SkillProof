@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { employerApi, downloadBlob } from '@/lib/api';
-import { Badge, EmptyState } from '@/components/ui';
+import { Badge, Card, EmptyState } from '@/components/ui';
 import ShortlistButton from './ShortlistButton';
 import ApplicantCard, { type ApplicantCardData } from './ApplicantCard';
 import { LocationAutocomplete, LocationSuggestion } from './LocationAutocomplete';
@@ -895,17 +895,19 @@ export default function EmployerJobs() {
                     </div>
                   )}
                   {c.missing.length > 0 && (
-                    <div className="error" style={{ margin: 0, fontSize: '0.85rem' }}>
-                      Gap:{' '}
-                      {c.missing
-                        .map((m) => {
-                          const has = m.candidateLevel
-                            ? `has ${m.verified ? 'verified' : 'unverified'} ${m.candidateLevel}`
-                            : 'no claim';
-                          return `${m.skillName} (needs ${m.requiredLevel}, ${has})`;
-                        })
-                        .join(', ')}
-                    </div>
+                    <Card className="field" style={{ marginBottom: 0 }}>
+                      <label>Skill gap</label>
+                      <p className="error" style={{ margin: 0, fontSize: '0.85rem' }}>
+                        {c.missing
+                          .map((m) => {
+                            const has = m.candidateLevel
+                              ? `has ${m.verified ? 'verified' : 'unverified'} ${m.candidateLevel}`
+                              : 'no claim';
+                            return `${m.skillName} (needs ${m.requiredLevel}, ${has})`;
+                          })
+                          .join(', ')}
+                      </p>
+                    </Card>
                   )}
                 </div>
               ))}

@@ -437,6 +437,11 @@ code { font-family: var(--font-body); }
 
 .ui-card { background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-lg); padding: var(--space-6); }
 .ui-card-elevated { box-shadow: var(--shadow-md); }
+/* .ui-card deliberately nests inside the bespoke `.card` on the employer
+   matches panel and the candidate job page (both: a per-candidate/per-job
+   skill-gap block) — the inner border is intentional separation of
+   personalized gap analysis from the surrounding record, not accidental
+   double-boxing. */
 
 .field-error { color: var(--error); font-size: var(--text-xs); margin-top: 2px; }
 .field-input-error { border-color: var(--error) !important; }

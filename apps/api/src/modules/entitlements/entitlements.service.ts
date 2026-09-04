@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { AttemptStatus, Subscription, SubscriptionStatus, SubscriptionTier } from '@prisma/client';
+import { AttemptStatus, SkillLevel, Subscription, SubscriptionStatus, SubscriptionTier } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PLANS } from '../../config/plans.config';
 import { BooleanFeature, CountableMetric } from './requires-entitlement.decorator';
@@ -220,38 +220,46 @@ export class EntitlementsService {
    * count that gates the attempt and the count stored on it can never
    * disagree.
    *
-   * "Prior attempts" = this user's GRADED attempts across every assessment
-   * for this skill (any level) — CREATED/IN_PROGRESS attempts don't count
-   * (nothing to retake yet), and a skill's very first attempt is never
-   * gated by either rule regardless of tier. Scoped to skill, not
-   * skill+level, per this feature's own spec: a candidate's retake budget
-   * is shared across a skill's whole ladder, not reset per level.
+   * "Prior attempts" = this user's GRADED attempts at this exact skill+level
+   * — CREATED/IN_PROGRESS attempts don't count (nothing to retake yet), and
+   * a level's very first attempt is never gated by either rule regardless
+   * of tier. Scoped to skill+level, NOT skill-wide: each level is its own
+   * assessment with its own retake budget, so passing L1 then attempting L2
+   * is a first attempt at a *different* assessment, not a retake, and must
+   * never draw against L1's budget. (Previously scoped to skill-wide across
+   * every level — that meant a FREE candidate who cleanly passed two levels
+   * of their one locked skill had already exhausted the shared budget and
+   * was blocked from a third level's first-ever attempt, misreported as a
+   * "retake limit reached." That collided with the single-skill-lock
+   * feature's whole promise — a locked skill's three levels are what a FREE
+   * candidate is told they get — so this was a bug in the cap's scope, not
+   * a variant of the free-skill lock working as intended.)
    *
-   * attemptNumber itself is always the true lifetime count, never reset —
-   * it's copied onto Badge.attemptNumber and shown publicly ("earned on
-   * attempt #N"), and that's an honest historical fact regardless of any
-   * badge expiring later (see Badge's own doc comment: a permanent,
-   * immutable log of evidence). Only the *cap check* below is windowed.
+   * attemptNumber is the lifetime count *at this level* (not summed across
+   * the skill's other levels) — it's copied onto Badge.attemptNumber and
+   * shown publicly ("earned on attempt #N"), and under per-level scoping
+   * that N is honestly "the Nth time this specific assessment was
+   * attempted," matching what a candidate/employer would actually assume
+   * attempt-numbering means. Only the *cap check* below is windowed by lapse.
    *
    * Without the reset below, a candidate who spent their retake budget
    * earning a badge could never recover it once that badge expires — on
    * FREE tier (retakesPerSkillLifetime: 1) this is guaranteed to happen to
-   * anyone who failed once before passing: their 2 lifetime attempts are
-   * both already spent the moment they first earn the badge, a year before
-   * it even lapses. Once the most recently expired (non-revoked) badge for
-   * this skill is found, only attempts *after* that badge's own expiresAt
-   * count toward the cap — each lapse opens exactly one fresh window, not
-   * a permanently growing exemption if a candidate lets several badges
-   * expire over time. Level-agnostic, matching this cap's own existing
-   * "shared across a skill's whole ladder" scope.
+   * anyone who failed once before passing: their 2 lifetime attempts at
+   * this level are both already spent the moment they earn the badge, a
+   * year before it even lapses. Once the most recently expired
+   * (non-revoked) badge for this exact skill+level is found, only attempts
+   * *after* that badge's own expiresAt count toward the cap — each lapse
+   * opens exactly one fresh window, not a permanently growing exemption if
+   * a candidate lets several badges expire over time.
    */
-  async checkRetakeEligibility(userId: string, skillId: string): Promise<{ attemptNumber: number }> {
+  async checkRetakeEligibility(userId: string, skillId: string, level: SkillLevel): Promise<{ attemptNumber: number }> {
     const candidateId = await this.ensureProfileId(userId);
     const tier = await this.resolveEffectiveTierForProfile(candidateId);
     const { retakeCooldownDays, retakesPerSkillLifetime } = PLANS[tier];
 
     const priorAttempts = await this.prisma.attempt.findMany({
-      where: { userId, status: AttemptStatus.GRADED, assessment: { skillId } },
+      where: { userId, status: AttemptStatus.GRADED, assessment: { skillId, targetLevel: level } },
       orderBy: { createdAt: 'desc' },
       select: { submittedAt: true, createdAt: true },
     });
@@ -261,7 +269,7 @@ export class EntitlementsService {
     if (priorCount === 0) return { attemptNumber };
 
     const mostRecentLapse = await this.prisma.badge.findFirst({
-      where: { userId, skillId, revokedAt: null, expiresAt: { lte: new Date() } },
+      where: { userId, skillId, level, revokedAt: null, expiresAt: { lte: new Date() } },
       orderBy: { expiresAt: 'desc' },
       select: { expiresAt: true },
     });
