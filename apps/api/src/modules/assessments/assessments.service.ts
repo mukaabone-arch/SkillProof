@@ -5,7 +5,16 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { AttemptStatus, BadgeVerificationMethod, IntegrityEventType, IntegrityStatus, Prisma, SkillLevel } from '@prisma/client';
+import {
+  AssessmentSessionStatus,
+  AttemptStatus,
+  BadgeVerificationMethod,
+  IntegrityEventType,
+  IntegrityStatus,
+  Prisma,
+  SkillLevel,
+  SubscriptionTier,
+} from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RecordIntegrityEventDto } from './assessments.dto';
@@ -73,7 +82,107 @@ export class AssessmentsService {
    * row it's folded into.
    */
   async getCatalog(userId: string) {
-    return this.buildSkillBuckets(userId);
+    const skills = await this.buildSkillBuckets(userId);
+    return this.sortByRecentActivity(userId, skills);
+  }
+
+  /**
+   * Personalises getCatalog's own order only — buildSkillBuckets itself
+   * stays unsorted (plain assessment-creation order) because
+   * getCandidateSummary (the mobile catalog) shares it and must not change.
+   *
+   * Recently-attempted skills sort first, most recent first; skills never
+   * attempted keep buildSkillBuckets' original relative order (a stable
+   * sort — see the comparator below). "Attempted" is deliberately narrower
+   * than "has any Attempt row": only a GRADED attempt counts, matching
+   * checkRetakeEligibility's own definition of a real prior attempt exactly
+   * — an abandoned CREATED/IN_PROGRESS/SUBMITTED/GRADING row already has
+   * its own "in progress" signal on the card and shouldn't also claim the
+   * recency slot. The one hardcoded discussion skill (RAG Systems L2) has
+   * no Attempt rows at all — it tracks via AssessmentSession instead, whose
+   * ISSUED/REJECTED-with-decidedAt is the exact same "terminal, graded"
+   * concept, so it's checked in parallel rather than silently excluded.
+   *
+   * A FREE candidate locked to one skill (limits.singleSkillRestriction)
+   * sees every other skill behind CategorySection's lock banner on the web
+   * page — that one skill is pinned first unconditionally, ahead of the
+   * recency sort, since it's the only thing they can still act on. Without
+   * this, a lock set by an attempt that was started but never graded would
+   * leave that skill sorted among the never-attempted ones, buried under
+   * skills the candidate can no longer touch at all.
+   */
+  private async sortByRecentActivity(
+    userId: string,
+    skills: Awaited<ReturnType<AssessmentsService['buildSkillBuckets']>>,
+  ) {
+    const assessmentIdToSkillId = new Map<string, string>();
+    let discussionSkillId: string | null = null;
+    for (const skill of skills) {
+      for (const level of skill.levels) {
+        for (const format of level.formats) {
+          if (format.type === 'TEST' && format.assessmentId) {
+            assessmentIdToSkillId.set(format.assessmentId, skill.skillId);
+          } else if (format.type === 'DISCUSSION') {
+            discussionSkillId = skill.skillId;
+          }
+        }
+      }
+    }
+
+    const lastActivityBySkill = new Map<string, number>();
+    const record = (skillId: string, at: Date) => {
+      const time = at.getTime();
+      const existing = lastActivityBySkill.get(skillId);
+      if (existing === undefined || time > existing) lastActivityBySkill.set(skillId, time);
+    };
+
+    if (assessmentIdToSkillId.size > 0) {
+      const gradedAttempts = await this.prisma.attempt.findMany({
+        where: { userId, status: AttemptStatus.GRADED, assessmentId: { in: [...assessmentIdToSkillId.keys()] } },
+        select: { assessmentId: true, createdAt: true },
+      });
+      for (const attempt of gradedAttempts) {
+        const skillId = assessmentIdToSkillId.get(attempt.assessmentId);
+        if (skillId) record(skillId, attempt.createdAt);
+      }
+    }
+
+    if (discussionSkillId) {
+      // Queried directly rather than via AssessmentSessionsService.getMine
+      // — that method's return type deliberately omits decidedAt (it's
+      // shared by callers with no use for it), and this is the only piece
+      // of this sort self-contained enough not to warrant widening a
+      // shared method's shape for one caller.
+      const session = await this.prisma.assessmentSession.findFirst({
+        where: {
+          userId,
+          decidedAt: { not: null },
+          status: { in: [AssessmentSessionStatus.ISSUED, AssessmentSessionStatus.REJECTED] },
+        },
+        orderBy: { decidedAt: 'desc' },
+        select: { decidedAt: true },
+      });
+      if (session?.decidedAt) record(discussionSkillId, session.decidedAt);
+    }
+
+    const entitlements = await this.entitlements.getEntitlements(userId);
+    const pinnedSkillId =
+      entitlements.tier === SubscriptionTier.FREE && entitlements.limits.singleSkillRestriction && entitlements.freeSkillLock
+        ? entitlements.freeSkillLock.skillId
+        : null;
+
+    return [...skills].sort((a, b) => {
+      if (pinnedSkillId) {
+        if (a.skillId === pinnedSkillId) return -1;
+        if (b.skillId === pinnedSkillId) return 1;
+      }
+      const aTime = lastActivityBySkill.get(a.skillId);
+      const bTime = lastActivityBySkill.get(b.skillId);
+      if (aTime === undefined && bTime === undefined) return 0;
+      if (aTime === undefined) return 1;
+      if (bTime === undefined) return -1;
+      return bTime - aTime;
+    });
   }
 
   /**
