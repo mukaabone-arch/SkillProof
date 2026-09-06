@@ -11,10 +11,11 @@ import { AmendTransactionDto, AttachProviderReferenceDto, CreateTransactionDto }
  * outgoing transitions at all.
  */
 const ALLOWED_STATUS_TRANSITIONS: Record<TransactionStatus, TransactionStatus[]> = {
-  PENDING: [TransactionStatus.SUCCEEDED, TransactionStatus.FAILED],
+  PENDING: [TransactionStatus.SUCCEEDED, TransactionStatus.FAILED, TransactionStatus.VOIDED],
   SUCCEEDED: [TransactionStatus.REFUNDED],
   FAILED: [],
   REFUNDED: [],
+  VOIDED: [],
 };
 
 /**
@@ -156,17 +157,17 @@ export class TransactionsService {
    * The one path allowed to write createdByAdminId: null — a Transaction
    * whose actor is a system process, not a human admin. Two callers:
    * RazorpayWebhookService (subscription charges) and
-   * AssessmentRequestsService.recordCharge (assessment-request charges) —
-   * see Transaction.createdByAdminId's own schema doc comment for why this
-   * is a dedicated method rather than widening create()/
-   * attachProviderReference() to accept a nullable admin id: every
-   * admin-facing method on this service keeps requiring a real
-   * adminUserId, unchanged. No AdminAccessLog write here — there is no
-   * admin action to log; RazorpayWebhookEvent (for the subscription path)
-   * or the AssessmentRequest row itself (for the other) is each caller's
-   * own audit trail instead. Callers are responsible for their own
-   * idempotency check (e.g. "does a Transaction with this
-   * providerPaymentId already exist") before calling this.
+   * AssessmentRequestsService.create (assessment-request accruals,
+   * written the instant a request is created — postpaid, 2026-09; no
+   * longer keyed on a Razorpay payment id) — see Transaction.
+   * createdByAdminId's own schema doc comment for why this is a dedicated
+   * method rather than widening create()/attachProviderReference() to
+   * accept a nullable admin id: every admin-facing method on this service
+   * keeps requiring a real adminUserId, unchanged. No AdminAccessLog write
+   * here — there is no admin action to log; RazorpayWebhookEvent (for the
+   * subscription path) or the AssessmentRequest row itself (for the other)
+   * is each caller's own audit trail instead. Callers are responsible for
+   * their own idempotency check before calling this.
    */
   async recordSystemTransaction(
     billingProfileId: string,
@@ -176,7 +177,16 @@ export class TransactionsService {
       type: TransactionType;
       status: TransactionStatus;
       description?: string;
-      provider: string;
+      /**
+       * Optional (unlike the historical Razorpay-only shape) — an
+       * ASSESSMENT_REQUEST_ACCRUAL transaction has no payment provider at
+       * all when this is written, since it's recorded at accrual, before
+       * any money moves (postpaid — see AssessmentRequestsService.create).
+       * Left null for that caller; still required in spirit for
+       * RazorpayWebhookService's subscription-charge path, which always
+       * passes 'razorpay'.
+       */
+      provider?: string;
       providerOrderId?: string | null;
       providerPaymentId?: string | null;
       /**
@@ -200,12 +210,13 @@ export class TransactionsService {
     },
   ): Promise<Transaction> {
     if (data.gst && data.gst.basePaise + data.gst.gstPaise !== data.amountPaise) {
-      // Defensive, not expected to ever fire in practice — the one caller
-      // (RazorpayWebhookService.recordCharge) always builds `gst` from
-      // splitGst(basePaise, ...) against the exact same amountPaise it
-      // passes here, which is what guarantees this by construction. Catches
-      // a future caller wiring these up inconsistently rather than silently
-      // recording a ledger row whose parts don't sum to its own total.
+      // Defensive, not expected to ever fire in practice — both callers
+      // (RazorpayWebhookService.recordCharge, AssessmentRequestsService.
+      // create) always build `gst` from splitGst(basePaise, ...) against
+      // the exact same amountPaise they pass here, which is what
+      // guarantees this by construction. Catches a future caller wiring
+      // these up inconsistently rather than silently recording a ledger
+      // row whose parts don't sum to its own total.
       throw new Error(
         `recordSystemTransaction: gst.basePaise + gst.gstPaise (${data.gst.basePaise + data.gst.gstPaise}) !== amountPaise (${data.amountPaise})`,
       );
@@ -220,7 +231,7 @@ export class TransactionsService {
         status: data.status,
         description: data.description,
         createdByAdminId: null,
-        provider: data.provider,
+        provider: data.provider ?? null,
         providerOrderId: data.providerOrderId ?? null,
         providerPaymentId: data.providerPaymentId ?? null,
         basePaise: data.gst?.basePaise ?? null,
@@ -255,6 +266,33 @@ export class TransactionsService {
     }
 
     return this.prisma.transaction.update({ where: { id: transactionId }, data: { status: TransactionStatus.REFUNDED } });
+  }
+
+  /**
+   * The system-actor counterpart to transitionStatus for the other terminal
+   * PENDING transition — PENDING -> VOIDED, no human admin behind the
+   * write, same posture as recordSystemRefund above. Used by
+   * AssessmentRequestExpiryJob (and AccountService, on candidate
+   * deactivation/deletion) when an ASSESSMENT_REQUEST_ACCRUAL transaction's
+   * request expired without the candidate ever starting it — that
+   * AssessmentRequest's own status (EXPIRED_UNBILLED) is the audit trail,
+   * so no AdminAccessLog write here either. Unlike a refund, voiding never
+   * calls an external payment provider — it's a pure local status write —
+   * so there is no "the void attempt itself failed" case symmetric to
+   * REFUND_FAILED; this either succeeds or the transaction genuinely
+   * wasn't PENDING (already invoiced, or already voided).
+   */
+  async recordSystemVoid(transactionId: string): Promise<Transaction> {
+    const transaction = await this.getOwned(transactionId);
+
+    const allowed = ALLOWED_STATUS_TRANSITIONS[transaction.status];
+    if (!allowed.includes(TransactionStatus.VOIDED)) {
+      throw new ConflictException(
+        `Cannot transition a transaction from ${transaction.status} to VOIDED. Allowed from ${transaction.status}: ${allowed.length ? allowed.join(', ') : 'none (terminal)'}.`,
+      );
+    }
+
+    return this.prisma.transaction.update({ where: { id: transactionId }, data: { status: TransactionStatus.VOIDED } });
   }
 
   private async getOwned(id: string): Promise<Transaction & { billingProfile: { candidateId: string | null; organizationId: string | null } }> {

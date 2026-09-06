@@ -2,17 +2,32 @@ import PDFDocument from 'pdfkit';
 import { DocumentSeries } from '@prisma/client';
 
 /**
+ * One taxable line item — a Document has one of these per covered
+ * Transaction (see Document's own schema doc comment on the 2026-09
+ * prepaid -> postpaid change: still exactly one for a SUBSCRIPTION_CHARGE
+ * document, potentially many for an ASSESSMENT_REQUEST_ACCRUAL invoice).
+ * basePaise here is that one Transaction's own taxable value; the
+ * Document-level basePaise/gstPaise/etc. fields this builder also receives
+ * are already the correct sum/total across every line item, computed once
+ * by DocumentsService rather than re-derived here.
+ */
+export interface DocumentLineItem {
+  description: string;
+  basePaise: number;
+}
+
+/**
  * Everything the layout needs, already resolved to plain values — this
- * function takes a Document row (plus one derived description string) and
- * has no I/O of its own, same "pure layout, no I/O" contract as
- * resume-pdf.builder.ts's buildResumePdf. Field names match Document's own
- * columns so a caller can spread a Prisma row in directly.
+ * function takes a Document row (plus its line items) and has no I/O of
+ * its own, same "pure layout, no I/O" contract as resume-pdf.builder.ts's
+ * buildResumePdf. Field names match Document's own columns so a caller can
+ * spread a Prisma row in directly.
  */
 export interface DocumentPdfInput {
   series: DocumentSeries;
   documentNumber: string;
   issuedAt: Date;
-  description: string;
+  lineItems: DocumentLineItem[];
 
   sellerLegalName: string;
   sellerAddress: string;
@@ -115,7 +130,7 @@ function renderParties(doc: PDFKit.PDFDocument, input: DocumentPdfInput) {
   doc.moveDown(0.6);
 }
 
-/** One row, one taxable supply — this product has never sold more than one line item per charge. If that ever changes, this becomes a loop; not built ahead of that need. */
+/** One row per line item — a plain per-item taxable-value list, no per-row tax split (each line item shares the one place of supply printed in the parties block, so cgst/sgst/igst is only ever shown once, in the totals). */
 function renderLineItem(doc: PDFKit.PDFDocument, input: DocumentPdfInput) {
   const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const descWidth = width * 0.6;
@@ -128,10 +143,13 @@ function renderLineItem(doc: PDFKit.PDFDocument, input: DocumentPdfInput) {
   ruler(doc);
   doc.moveDown(0.4);
 
-  const rowY = doc.y;
-  doc.fillColor(INK).font('Helvetica').fontSize(10).text(input.description, x, rowY, { width: descWidth });
-  doc.text(rupees(input.basePaise), x + descWidth, rowY, { width: amountWidth, align: 'right' });
-  doc.moveDown(0.8);
+  for (const item of input.lineItems) {
+    const rowY = doc.y;
+    doc.fillColor(INK).font('Helvetica').fontSize(10).text(item.description, x, rowY, { width: descWidth });
+    doc.text(rupees(item.basePaise), x + descWidth, rowY, { width: amountWidth, align: 'right' });
+    doc.moveDown(0.5);
+  }
+  doc.moveDown(0.3);
   ruler(doc);
   doc.moveDown(0.5);
 }

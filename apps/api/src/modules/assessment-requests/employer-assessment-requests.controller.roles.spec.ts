@@ -7,9 +7,11 @@ import { EmployerAssessmentRequestsController } from './employer-assessment-requ
 /**
  * Exercises the real @Roles metadata on the real controller class through
  * the real RolesGuard — not a re-implementation of the rule, a check that
- * the rule is actually attached where this task needs it: initiate/verify
- * (the $5 paid-assessment trigger, which spends the organization's money)
- * are admin-only; list/get (read-only visibility) stay open to both roles.
+ * the rule is actually attached where this task needs it: create (the
+ * ₹177-per-assessment trigger, which accrues a charge against the
+ * organization's account — postpaid, 2026-09, no separate verify route
+ * anymore) is admin-only; list/get (read-only visibility) stay open to
+ * both roles.
  */
 function contextFor(handler: (...args: never[]) => unknown, role: Role): ExecutionContext {
   return {
@@ -23,21 +25,14 @@ describe('EmployerAssessmentRequestsController — role gating', () => {
   const guard = new RolesGuard(new Reflector());
   const proto = EmployerAssessmentRequestsController.prototype;
 
-  it('blocks EMPLOYER_MEMBER from initiating a paid assessment request', () => {
-    expect(() => guard.canActivate(contextFor(proto.initiate, Role.EMPLOYER_MEMBER))).toThrow(
+  it('blocks EMPLOYER_MEMBER from creating an assessment request', () => {
+    expect(() => guard.canActivate(contextFor(proto.create, Role.EMPLOYER_MEMBER))).toThrow(
       'Insufficient permissions',
     );
   });
 
-  it('blocks EMPLOYER_MEMBER from verifying/completing the payment', () => {
-    expect(() => guard.canActivate(contextFor(proto.verify, Role.EMPLOYER_MEMBER))).toThrow(
-      'Insufficient permissions',
-    );
-  });
-
-  it('allows EMPLOYER_ADMIN to initiate and verify', () => {
-    expect(guard.canActivate(contextFor(proto.initiate, Role.EMPLOYER_ADMIN))).toBe(true);
-    expect(guard.canActivate(contextFor(proto.verify, Role.EMPLOYER_ADMIN))).toBe(true);
+  it('allows EMPLOYER_ADMIN to create', () => {
+    expect(guard.canActivate(contextFor(proto.create, Role.EMPLOYER_ADMIN))).toBe(true);
   });
 
   it('still allows EMPLOYER_MEMBER to list and get — read-only visibility stays shared', () => {

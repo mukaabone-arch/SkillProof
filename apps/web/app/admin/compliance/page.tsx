@@ -15,12 +15,19 @@
  * AccountService.listActionsForAdmin's own doc comment for the full
  * reasoning: confirmationEmailStatus is a real, exactly-attributable fact
  * (one email per action, paired in strict chronological order).
- * pipelinesUnavailable and candidateHasFailedRefund are the candidate's
- * *current* live state, only ever attached to their most recent
- * unavailability-causing action — not a historical count of what that
- * specific action caused, because no such count is stored anywhere.
- * Nothing here ever shows a scrubbed name or email — only the short,
- * anonymous candidateRef (mirrors /admin/review's "Case {id}" convention).
+ * pipelinesUnavailable is the candidate's *current* live state, only ever
+ * attached to their most recent unavailability-causing action — not a
+ * historical count of what that specific action caused, because no such
+ * count is stored anywhere. Nothing here ever shows a scrubbed name or
+ * email — only the short, anonymous candidateRef (mirrors /admin/review's
+ * "Case {id}" convention).
+ *
+ * (2026-09, prepaid -> postpaid assessment-request switch: this page used
+ * to also surface a candidateHasFailedRefund signal — whether the
+ * candidate had a stuck REFUND_FAILED assessment request. That status no
+ * longer exists; excluding a request from billing is a pure local
+ * Transaction status write with no external payment call that could fail
+ * independently, so there's no equivalent "stuck" case left to show here.)
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, getToken } from '@/lib/api';
@@ -47,7 +54,6 @@ interface AccountActionRow {
   candidateCurrentlyDeleted: boolean;
   confirmationEmailStatus: NotificationStatus | null;
   pipelinesUnavailable: number | null;
-  candidateHasFailedRefund: boolean;
   needsAttention: boolean;
 }
 
@@ -81,7 +87,6 @@ function formatDateTime(iso: string): string {
 function attentionReason(row: AccountActionRow): string {
   const parts: string[] = [];
   if (row.confirmationEmailStatus === 'FAILED') parts.push('confirmation email failed to send');
-  if (row.candidateHasFailedRefund) parts.push('has a stuck refund (REFUND_FAILED)');
   return parts.join(' · ');
 }
 
@@ -252,7 +257,6 @@ export default function CompliancePrivacyRequestsPage() {
                   ) : (
                     <>No live pipeline effect from this action (superseded, or none applied)</>
                   )}
-                  {row.candidateHasFailedRefund && ' · has a stuck refund (REFUND_FAILED)'}
                 </div>
 
                 <div className="meta">

@@ -31,29 +31,35 @@ const NOT_AN_EMPLOYER_MESSAGE = "This account isn't registered as an employer. C
 const NOT_A_CANDIDATE_MESSAGE = "This isn't a candidate account.";
 
 /**
- * Deliberately vague — the add-identifier flow must never confirm whether a
- * phone/email already belongs to *some other* account. A message like "already
- * in use" would turn the authenticated link endpoint into an enumeration
- * oracle: a logged-in attacker could probe numbers/addresses and read back
- * which ones have a MyAmbii account. This copy instead reads like a typo /
- * ineligible-value hint, and is returned identically at both the request-time
- * guard (assert*Linkable) and the commit-time unique-constraint race, so those
- * two paths can't be distinguished from each other either.
- *
- * Residual, accepted on purpose: refusing is still observably different from
- * the "OTP sent" success path, so a determined attacker can still infer *that*
- * a value is taken (just not from the wording). We keep refusing anyway — the
- * only way to erase that difference is to always send the code, which would let
- * this same endpoint be abused to spam SMS/email to arbitrary third parties.
- * The "your account already has a phone/email" case below is a separate message
- * because it's about the caller's *own* account and leaks nothing.
+ * Explicit on purpose — a candidate hitting this from the mandatory
+ * verification gate (candidate-verification.guard.ts) needs to know *why*
+ * linking failed well enough to act on it; a value already belonging to
+ * someone else and a value the caller mistyped read identically under vague
+ * copy, and the vague version was actively misread during testing as "your
+ * account already has one" (a genuinely different case — see below) even
+ * though it never said that. Reverted from an earlier deliberately-vague
+ * "double-check it" wording that traded clarity for anti-enumeration: this
+ * endpoint requires the caller to already be authenticated (JwtAuthGuard),
+ * which narrows but doesn't remove the enumeration surface — a logged-in
+ * attacker could still create a throwaway account and probe values through
+ * it. Accepted as a smaller, authenticated-only residual risk in exchange for
+ * a message that isn't actively misleading. Returned identically at both the
+ * request-time guard (assert*Linkable) and the commit-time unique-constraint
+ * race, so those two paths still can't be distinguished from each other.
+ * The "your account already has a phone/email" case below stays a separate
+ * message — it's about the caller's *own* account, a different case entirely.
  */
-const PHONE_NOT_LINKABLE_MESSAGE =
-  "This phone number can't be added to your account. Double-check it and try again.";
-const EMAIL_NOT_LINKABLE_MESSAGE =
-  "This email address can't be added to your account. Double-check it and try again.";
+const PHONE_NOT_LINKABLE_MESSAGE = 'This phone number is already in use by another account.';
+const EMAIL_NOT_LINKABLE_MESSAGE = 'This email address is already in use by another account.';
 
-/** Change-flow counterparts — same anti-enumeration reasoning as the two above, just worded for "change" rather than "add". */
+/**
+ * Change-flow counterparts — still deliberately vague, unlike the two
+ * link-flow messages above (see their own doc comment for why those two
+ * reverted to explicit copy). Out of scope for that reversal: the change
+ * flow replaces an existing, already-verified identifier rather than
+ * satisfying the mandatory verification gate, so there's no equivalent
+ * "candidate is stuck and needs to act on this" pressure here.
+ */
 const PHONE_NOT_CHANGEABLE_MESSAGE =
   "This phone number can't be used. Double-check it and try again.";
 const EMAIL_NOT_CHANGEABLE_MESSAGE =

@@ -13,7 +13,7 @@ import { renderNotificationEmail } from '../notifications/notification-email.tem
 import { WEB_BASE_URL } from '../../config/web-base-url';
 import { STORAGE_SERVICE, StorageService } from '../../storage/storage.interface';
 import { DeactivateAccountDto, DeleteAccountDto } from './account.dto';
-import { AssessmentRequestsRefundJob } from '../assessment-requests/assessment-requests-refund.job';
+import { AssessmentRequestsExpiryJob } from '../assessment-requests/assessment-requests-expiry.job';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 /** A live pipeline is one an employer is actively waiting on the candidate for — SHORTLISTED alone isn't (the employer hasn't reached out), and the terminal stages need no transition at all. */
@@ -26,7 +26,7 @@ export class AccountService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
-    private readonly refundJob: AssessmentRequestsRefundJob,
+    private readonly expiryJob: AssessmentRequestsExpiryJob,
     private readonly subscriptions: SubscriptionsService,
     @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
   ) {}
@@ -263,9 +263,9 @@ export class AccountService {
       }),
     ]);
 
-    // Any AssessmentRequest an employer paid for this candidate, still
-    // PAID_PENDING_START, was already refunded above — see
-    // makeCandidateUnavailableToEmployers -> refundPendingAssessmentRequests.
+    // Any AssessmentRequest an employer accrued for this candidate, still
+    // ACCRUED_PENDING_START, was already excluded from billing above — see
+    // makeCandidateUnavailableToEmployers -> excludePendingAssessmentRequests.
     // No need to wait out the 5-day expiry window to find out this
     // candidate deleted their account and is never starting it.
 
@@ -298,24 +298,21 @@ export class AccountService {
    *    Nth-oldest ACCOUNT_DEACTIVATED notification for that user, via
    *    ascending-createdAt zip, not a fragile time-window guess. Null for
    *    REACTIVATED — reactivate() sends no email at all.
-   *  - pipelinesUnavailable / candidateHasFailedRefund: live current
-   *    state (this candidate's ShortlistEntry rows still sitting in
-   *    CANDIDATE_UNAVAILABLE right now, and whether they have an
-   *    AssessmentRequest stuck at REFUND_FAILED right now), attached only
-   *    to a candidate's most recent DEACTIVATED/DELETED action *if* no
-   *    later REACTIVATED action has superseded it. There is no per-
-   *    pipeline historical count anywhere in this schema (see
+   *  - pipelinesUnavailable: live current state (this candidate's
+   *    ShortlistEntry rows still sitting in CANDIDATE_UNAVAILABLE right
+   *    now), attached only to a candidate's most recent DEACTIVATED/DELETED
+   *    action *if* no later REACTIVATED action has superseded it. There is
+   *    no per-pipeline historical count anywhere in this schema (see
    *    makeCandidateUnavailableToEmployers's pipeline loop — it's a live
-   *    WHERE filter and a fire-and-forget email loop, not an audit
-   *    table). Refunds *are* now triggered synchronously from this exact
-   *    method (refundPendingAssessmentRequests, reusing
-   *    AssessmentRequestsRefundJob.refundOne) — but AssessmentRequest
-   *    itself still carries no field recording *why* a given refund ran,
-   *    so a REFUND_FAILED row on a deactivated/deleted candidate could
-   *    equally be this action's own trigger or the unrelated hourly
-   *    5-day-expiry sweep catching an unstarted request that predates it.
-   *    This field is honestly "the candidate currently has a stuck
-   *    refund," not "this action caused a stuck refund."
+   *    WHERE filter and a fire-and-forget email loop, not an audit table).
+   *    (2026-09, prepaid -> postpaid switch: this section used to also
+   *    surface `candidateHasFailedRefund` — whether the candidate had an
+   *    AssessmentRequest stuck at the old REFUND_FAILED status. That status
+   *    no longer exists: excluding a request from billing is now a pure
+   *    local Transaction status write (see AssessmentRequestsExpiryJob),
+   *    with no external payment call that could fail independently the way
+   *    a Razorpay refund could — so there is no equivalent "stuck, needs
+   *    admin attention" case to surface here anymore.)
    */
   async listActionsForAdmin(query: {
     type?: AccountActionType;
@@ -335,16 +332,11 @@ export class AccountService {
     const candidateProfileIds = [...new Set(actions.map((a) => a.candidateProfileId))];
     const userIds = [...new Set(actions.map((a) => a.candidateProfile.userId))];
 
-    const [pipelineCounts, refundFailedRows, confirmationEmails] = await Promise.all([
+    const [pipelineCounts, confirmationEmails] = await Promise.all([
       this.prisma.shortlistEntry.groupBy({
         by: ['candidateId'],
         where: { candidateId: { in: candidateProfileIds }, stage: ShortlistStage.CANDIDATE_UNAVAILABLE },
         _count: { _all: true },
-      }),
-      this.prisma.assessmentRequest.findMany({
-        where: { candidateId: { in: candidateProfileIds }, status: AssessmentRequestStatus.REFUND_FAILED },
-        select: { candidateId: true },
-        distinct: ['candidateId'],
       }),
       this.prisma.notification.findMany({
         where: {
@@ -357,7 +349,6 @@ export class AccountService {
     ]);
 
     const pipelinesByCandidateId = new Map(pipelineCounts.map((p) => [p.candidateId, p._count._all]));
-    const refundFailedCandidateIds = new Set(refundFailedRows.map((r) => r.candidateId));
 
     // FIFO queues per (userId, notification type) — shift() below consumes
     // them in the same ascending-createdAt order `actions` is already in,
@@ -395,9 +386,8 @@ export class AccountService {
       const pipelinesUnavailable = isCurrentUnavailabilityAction
         ? pipelinesByCandidateId.get(a.candidateProfileId) ?? 0
         : null;
-      const candidateHasFailedRefund = isCurrentUnavailabilityAction && refundFailedCandidateIds.has(a.candidateProfileId);
 
-      const needsAttention = confirmationEmailStatus === NotificationStatus.FAILED || candidateHasFailedRefund;
+      const needsAttention = confirmationEmailStatus === NotificationStatus.FAILED;
 
       return {
         id: a.id,
@@ -413,7 +403,6 @@ export class AccountService {
         candidateCurrentlyDeleted: a.candidateProfile.deletedAt !== null,
         confirmationEmailStatus,
         pipelinesUnavailable,
-        candidateHasFailedRefund,
         needsAttention,
       };
     });
@@ -476,28 +465,28 @@ export class AccountService {
       data: { status: 'WITHDRAWN' },
     });
 
-    await this.refundPendingAssessmentRequests(profileId);
+    await this.excludePendingAssessmentRequests(profileId);
   }
 
   /**
    * The seam feat/employer-triggered-assessment's own comment left for
-   * this branch to fill: an employer who paid $5 for this candidate to
-   * take a specific assessment shouldn't have to wait out the 5-day expiry
-   * window to be made whole once the candidate is no longer reachable at
-   * all. Reuses AssessmentRequestsRefundJob.refundOne exactly as the hourly
-   * sweep does — same atomic PAID_PENDING_START claim (so a candidate
-   * mid-attempt right now can never be refunded out from under them),
-   * same double-refund guard, same REFUND_FAILED retry contract picked up
-   * by that job's next run if Razorpay itself fails here. Nothing about
-   * the refund mechanics is duplicated; only the trigger is new.
+   * this branch to fill: an employer who accrued a charge for this
+   * candidate to take a specific assessment shouldn't have that charge
+   * eventually land on their invoice once the candidate is no longer
+   * reachable at all — nor should they have to wait out the 5-day expiry
+   * window to find that out. Reuses AssessmentRequestsExpiryJob.excludeOne
+   * exactly as the hourly sweep does — same atomic ACCRUED_PENDING_START
+   * claim (so a candidate mid-attempt right now can never be excluded out
+   * from under them). Nothing about the exclusion mechanics is duplicated;
+   * only the trigger is new.
    */
-  private async refundPendingAssessmentRequests(profileId: string): Promise<void> {
+  private async excludePendingAssessmentRequests(profileId: string): Promise<void> {
     const pending = await this.prisma.assessmentRequest.findMany({
-      where: { candidateId: profileId, status: AssessmentRequestStatus.PAID_PENDING_START },
+      where: { candidateId: profileId, status: AssessmentRequestStatus.ACCRUED_PENDING_START },
       select: { id: true },
     });
     for (const { id } of pending) {
-      await this.refundJob.refundOne(id, 'CANDIDATE_UNAVAILABLE');
+      await this.expiryJob.excludeOne(id, 'CANDIDATE_UNAVAILABLE');
     }
   }
 

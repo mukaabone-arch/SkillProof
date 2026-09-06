@@ -43,6 +43,109 @@ function fakePrisma() {
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       description: 'Pre-GST charge',
     },
+    // Monthly-invoicing fixtures — ASSESSMENT_REQUEST_ACCRUAL transactions,
+    // each linked to an AssessmentRequest via assessmentRequestId (fake
+    // relation, resolved manually below since this is a hand-rolled mock,
+    // not a real join).
+    {
+      id: 'txn-accrual-started-1',
+      billingProfileId: 'bp-org',
+      type: 'ASSESSMENT_REQUEST_ACCRUAL',
+      status: 'PENDING',
+      documentId: null,
+      basePaise: 15000,
+      gstPaise: 2700,
+      cgstPaise: 0,
+      sgstPaise: 0,
+      igstPaise: 2700,
+      amountPaise: 17700,
+      placeOfSupplyStateCode: '29',
+      createdAt: new Date('2026-09-01T00:00:00.000Z'),
+      description: 'MyAmbii assessment request charge',
+      assessmentRequestId: 'areq-started-1',
+    },
+    {
+      id: 'txn-accrual-started-2',
+      billingProfileId: 'bp-org',
+      type: 'ASSESSMENT_REQUEST_ACCRUAL',
+      status: 'PENDING',
+      documentId: null,
+      basePaise: 15000,
+      gstPaise: 2700,
+      cgstPaise: 0,
+      sgstPaise: 0,
+      igstPaise: 2700,
+      amountPaise: 17700,
+      placeOfSupplyStateCode: '29',
+      createdAt: new Date('2026-09-02T00:00:00.000Z'),
+      description: 'MyAmbii assessment request charge',
+      assessmentRequestId: 'areq-started-2',
+    },
+    {
+      id: 'txn-accrual-unresolved',
+      billingProfileId: 'bp-org',
+      type: 'ASSESSMENT_REQUEST_ACCRUAL',
+      status: 'PENDING',
+      documentId: null,
+      basePaise: 15000,
+      gstPaise: 2700,
+      cgstPaise: 0,
+      sgstPaise: 0,
+      igstPaise: 2700,
+      amountPaise: 17700,
+      placeOfSupplyStateCode: '29',
+      createdAt: new Date('2026-09-03T00:00:00.000Z'),
+      description: 'MyAmbii assessment request charge',
+      assessmentRequestId: 'areq-unresolved', // still ACCRUED_PENDING_START — must never be invoiced
+    },
+    {
+      id: 'txn-accrual-excluded',
+      billingProfileId: 'bp-org-2',
+      type: 'ASSESSMENT_REQUEST_ACCRUAL',
+      status: 'PENDING',
+      documentId: null,
+      basePaise: 15000,
+      gstPaise: 2700,
+      cgstPaise: 0,
+      sgstPaise: 0,
+      igstPaise: 2700,
+      amountPaise: 17700,
+      placeOfSupplyStateCode: '29',
+      createdAt: new Date('2026-09-01T00:00:00.000Z'),
+      description: 'MyAmbii assessment request charge',
+      assessmentRequestId: 'areq-excluded', // EXPIRED_UNBILLED — must never count toward whether bp-org-2 needs an invoice
+    },
+    {
+      // Only real billable accrual for bp-org-2 — a gstin-less org (see its
+      // BillingProfile fixture) proving the series is TAX_INVOICE
+      // regardless.
+      id: 'txn-accrual-org2-started',
+      billingProfileId: 'bp-org-2',
+      type: 'ASSESSMENT_REQUEST_ACCRUAL',
+      status: 'PENDING',
+      documentId: null,
+      basePaise: 15000,
+      gstPaise: 2700,
+      cgstPaise: 0,
+      sgstPaise: 0,
+      igstPaise: 2700,
+      amountPaise: 17700,
+      placeOfSupplyStateCode: '29',
+      createdAt: new Date('2026-09-04T00:00:00.000Z'),
+      description: 'MyAmbii assessment request charge',
+      assessmentRequestId: 'areq-org2-started',
+    },
+  ];
+  const assessmentRequests: any[] = [
+    { id: 'areq-started-1', status: 'STARTED', skillId: 'skill-1', candidateId: 'candidate-1' },
+    { id: 'areq-started-2', status: 'COMPLETED', skillId: 'skill-2', candidateId: 'candidate-2' },
+    { id: 'areq-unresolved', status: 'ACCRUED_PENDING_START', skillId: 'skill-1', candidateId: 'candidate-1' },
+    { id: 'areq-excluded', status: 'EXPIRED_UNBILLED', skillId: 'skill-1', candidateId: 'candidate-1' },
+    { id: 'areq-org2-started', status: 'STARTED', skillId: 'skill-1', candidateId: 'candidate-1' },
+  ];
+  const skills: any[] = [
+    { id: 'skill-1', name: 'LLM Evaluation' },
+    { id: 'skill-2', name: 'RAG Systems' },
   ];
   const billingProfiles: any[] = [
     {
@@ -65,11 +168,26 @@ function fakePrisma() {
       state: 'Karnataka',
       postalCode: '560001',
     },
+    {
+      // Deliberately NO gstin — an org that hasn't had an admin fill this in
+      // yet (see AssessmentRequestBillingProfileService.
+      // ensureMinimalBillingProfile). Its assessment-request invoice must
+      // still be TAX_INVOICE, never RECEIPT — see reserveAndCreateForOrgPeriod's
+      // own tests below.
+      id: 'bp-org-2',
+      legalEntityName: 'Beta LLC',
+      gstin: null,
+      addressLine1: null,
+      addressLine2: null,
+      city: null,
+      state: null,
+      postalCode: null,
+    },
   ];
   const candidateProfiles: any[] = [{ id: 'candidate-1', userId: 'user-candidate-1' }];
 
   const documentModel = {
-    findUnique: jest.fn(async ({ where }: any) => documents.find((d) => (where.id ? d.id === where.id : d.transactionId === where.transactionId)) ?? null),
+    findUnique: jest.fn(async ({ where }: any) => documents.find((d) => d.id === where.id) ?? null),
     findUniqueOrThrow: jest.fn(async ({ where }: any) => {
       const row = documents.find((d) => d.id === where.id);
       if (!row) throw new Error('not found');
@@ -123,6 +241,7 @@ function fakePrisma() {
   const prisma: any = {
     _documents: documents,
     _sequences: sequences,
+    _transactions: transactions,
     document: documentModel,
     documentSequence: documentSequenceModel,
     transaction: {
@@ -131,6 +250,49 @@ function fakePrisma() {
         const row = transactions.find((t) => t.id === where.id);
         if (!row) throw new Error('not found');
         return row;
+      }),
+      update: jest.fn(async ({ where, data }: any) => {
+        const row = transactions.find((t) => t.id === where.id);
+        Object.assign(row, data);
+        return row;
+      }),
+      updateMany: jest.fn(async ({ where, data }: any) => {
+        const ids: string[] = where?.id?.in ?? [];
+        const matched = transactions.filter((t) => ids.includes(t.id));
+        for (const t of matched) Object.assign(t, data);
+        return { count: matched.length };
+      }),
+      // Minimal join emulation for the assessmentRequest relation filter —
+      // real Prisma resolves this via SQL; here it's a manual lookup
+      // against the assessmentRequests fixture keyed by
+      // transaction.assessmentRequestId.
+      findMany: jest.fn(async ({ where, select, distinct, orderBy }: any = {}) => {
+        let rows = transactions.filter((t) => {
+          if (where?.billingProfileId && t.billingProfileId !== where.billingProfileId) return false;
+          if (where?.type && t.type !== where.type) return false;
+          if (where?.status && t.status !== where.status) return false;
+          if ('documentId' in (where ?? {}) && where.documentId === null && t.documentId != null) return false;
+          const statusIn = where?.assessmentRequest?.status?.in as string[] | undefined;
+          if (statusIn) {
+            const areq = assessmentRequests.find((a) => a.id === t.assessmentRequestId);
+            if (!areq || !statusIn.includes(areq.status)) return false;
+          }
+          return true;
+        });
+        if (orderBy?.createdAt === 'asc') rows = [...rows].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+        if (distinct) {
+          const seen = new Set<string>();
+          rows = rows.filter((r) => {
+            const key = distinct.map((f: string) => r[f]).join(':');
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+        }
+        if (select) {
+          return rows.map((r) => Object.fromEntries(Object.keys(select).map((k) => [k, r[k]])));
+        }
+        return rows;
       }),
     },
     billingProfile: {
@@ -204,8 +366,11 @@ describe('DocumentsService', () => {
       const service = new DocumentsService(prisma, fakeStorage() as any);
 
       const first = await service.reserveAndCreate('txn-receipt');
-      // A second GST-bearing charge on the same billing profile/series (e.g. a renewal) — clone the fixture under a new transaction id.
-      const clone = {
+      // A second GST-bearing charge on the same billing profile/series (e.g.
+      // a renewal) — clone the fixture under a new transaction id, pushed
+      // into the same backing array reserveAndCreate's own transaction.update
+      // call needs to find and mutate (documentId gets attached to it).
+      prisma._transactions.push({
         id: 'txn-receipt-clone',
         billingProfileId: 'bp-candidate',
         status: 'SUCCEEDED',
@@ -218,11 +383,7 @@ describe('DocumentsService', () => {
         placeOfSupplyStateCode: '27',
         createdAt: new Date('2026-09-15T00:00:00.000Z'),
         description: 'Renewal',
-      };
-      const originalFindUnique = prisma.transaction.findUnique;
-      prisma.transaction.findUnique = jest.fn(async ({ where }: any) =>
-        where.id === 'txn-receipt-clone' ? clone : originalFindUnique({ where }),
-      );
+      });
       const second = await service.reserveAndCreate('txn-receipt-clone');
 
       expect(first.sequenceNumber).toBe(1);
@@ -252,7 +413,10 @@ describe('DocumentsService', () => {
 
     it('uses the Transaction createdAt for financialYear/issuedAt, not wall-clock time', async () => {
       const prisma = fakePrisma();
-      prisma.transaction.findUnique = jest.fn(async () => ({
+      // Pushed into the backing array (not a findUnique override) so
+      // reserveAndCreate's own transaction.update call (documentId
+      // attachment) has a real row to find and mutate.
+      prisma._transactions.push({
         id: 'txn-old',
         billingProfileId: 'bp-candidate',
         status: 'SUCCEEDED',
@@ -265,7 +429,7 @@ describe('DocumentsService', () => {
         placeOfSupplyStateCode: '27',
         createdAt: new Date('2025-02-10T00:00:00.000Z'), // backfill case: an old charge, financial year 2024-25
         description: 'Backfilled charge',
-      }));
+      });
       const service = new DocumentsService(prisma, fakeStorage() as any);
 
       const doc = await service.reserveAndCreate('txn-old');
@@ -273,6 +437,128 @@ describe('DocumentsService', () => {
       expect(doc.financialYear).toBe('2024-25');
       expect(doc.documentNumber).toBe('RCT/2024-25/000001');
       expect(doc.issuedAt).toEqual(new Date('2025-02-10T00:00:00.000Z'));
+    });
+  });
+
+  describe('findOrgsWithAccrualsNeedingInvoice', () => {
+    it('returns only orgs with at least one PENDING accrual whose request is STARTED or COMPLETED', async () => {
+      const prisma = fakePrisma();
+      const service = new DocumentsService(prisma, fakeStorage() as any);
+
+      const orgs = await service.findOrgsWithAccrualsNeedingInvoice();
+
+      expect(orgs.map((o) => o.billingProfileId).sort()).toEqual(['bp-org', 'bp-org-2']);
+    });
+
+    it('never returns an org whose only accrual is still unresolved (ACCRUED_PENDING_START) — never invoice before it is known to be billable', async () => {
+      const prisma = fakePrisma();
+      // Isolate bp-org-3 with only an unresolved accrual.
+      prisma._transactions.push({
+        id: 'txn-only-unresolved',
+        billingProfileId: 'bp-org-3',
+        type: 'ASSESSMENT_REQUEST_ACCRUAL',
+        status: 'PENDING',
+        documentId: null,
+        basePaise: 15000,
+        amountPaise: 17700,
+        createdAt: new Date(),
+        assessmentRequestId: 'areq-unresolved',
+      });
+      const service = new DocumentsService(prisma, fakeStorage() as any);
+
+      const orgs = await service.findOrgsWithAccrualsNeedingInvoice();
+
+      expect(orgs.map((o) => o.billingProfileId)).not.toContain('bp-org-3');
+    });
+
+    it('never returns an org whose only accrual is EXPIRED_UNBILLED', async () => {
+      const prisma = fakePrisma();
+      // bp-org-2 already has one EXPIRED_UNBILLED accrual (txn-accrual-excluded)
+      // alongside its one real STARTED one — remove the STARTED one so only
+      // the excluded accrual remains, proving that alone is not enough to
+      // qualify.
+      prisma._transactions.length = 0;
+      prisma._transactions.push({
+        id: 'txn-accrual-excluded',
+        billingProfileId: 'bp-org-2',
+        type: 'ASSESSMENT_REQUEST_ACCRUAL',
+        status: 'PENDING',
+        documentId: null,
+        basePaise: 15000,
+        amountPaise: 17700,
+        createdAt: new Date(),
+        assessmentRequestId: 'areq-excluded',
+      });
+      const service = new DocumentsService(prisma, fakeStorage() as any);
+
+      const orgs = await service.findOrgsWithAccrualsNeedingInvoice();
+
+      expect(orgs).toHaveLength(0);
+    });
+  });
+
+  describe('reserveAndCreateForOrgPeriod', () => {
+    it('aggregates every billable, uninvoiced accrual for one org into a single Document, summing amounts', async () => {
+      const prisma = fakePrisma();
+      const service = new DocumentsService(prisma, fakeStorage() as any);
+
+      const doc = await service.reserveAndCreateForOrgPeriod('bp-org');
+
+      // Only txn-accrual-started-1/2 qualify (bp-org's unresolved accrual is excluded).
+      expect(doc.basePaise).toBe(30000);
+      expect(doc.gstPaise).toBe(5400);
+      expect(doc.igstPaise).toBe(5400);
+      expect(doc.totalPaise).toBe(35400);
+    });
+
+    it('series is TAX_INVOICE even for an org with no gstin on file — never the gstin-presence branch reserveAndCreate uses', async () => {
+      const prisma = fakePrisma();
+      const service = new DocumentsService(prisma, fakeStorage() as any);
+
+      const doc = await service.reserveAndCreateForOrgPeriod('bp-org-2');
+
+      expect(doc.series).toBe(DocumentSeries.TAX_INVOICE);
+      expect(doc.documentNumber).toMatch(/^INV\//);
+    });
+
+    it('flips every covered Transaction from PENDING to SUCCEEDED and attaches this Document', async () => {
+      const prisma = fakePrisma();
+      const service = new DocumentsService(prisma, fakeStorage() as any);
+
+      const doc = await service.reserveAndCreateForOrgPeriod('bp-org');
+
+      const t1 = prisma._transactions.find((t: any) => t.id === 'txn-accrual-started-1');
+      const t2 = prisma._transactions.find((t: any) => t.id === 'txn-accrual-started-2');
+      expect(t1.status).toBe('SUCCEEDED');
+      expect(t1.documentId).toBe(doc.id);
+      expect(t2.status).toBe('SUCCEEDED');
+      expect(t2.documentId).toBe(doc.id);
+
+      // The unresolved accrual for the same org is untouched.
+      const unresolved = prisma._transactions.find((t: any) => t.id === 'txn-accrual-unresolved');
+      expect(unresolved.status).toBe('PENDING');
+      expect(unresolved.documentId).toBeNull();
+    });
+
+    it('throws rather than reserving a number for an org with nothing billable and uninvoiced', async () => {
+      const prisma = fakePrisma();
+      prisma._transactions.length = 0; // no accruals at all
+      const service = new DocumentsService(prisma, fakeStorage() as any);
+
+      await expect(service.reserveAndCreateForOrgPeriod('bp-org')).rejects.toThrow(/no billable, uninvoiced accruals/);
+      expect(prisma._documents).toHaveLength(0);
+      expect(prisma.documentSequence.upsert).not.toHaveBeenCalled();
+    });
+
+    it('numbers against the same TAX_INVOICE sequence reserveAndCreate itself would use — no separate counter for the aggregate path', async () => {
+      const prisma = fakePrisma();
+      const service = new DocumentsService(prisma, fakeStorage() as any);
+
+      const first = await service.reserveAndCreate('txn-invoice'); // an ordinary org TAX_INVOICE, numbered 1
+      const aggregate = await service.reserveAndCreateForOrgPeriod('bp-org'); // must continue the same sequence, not restart at 1
+
+      expect(first.documentNumber).toBe('INV/2026-27/000001');
+      expect(aggregate.documentNumber).toBe('INV/2026-27/000002');
     });
   });
 

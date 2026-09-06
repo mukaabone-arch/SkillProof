@@ -989,7 +989,19 @@ model BillingProfile {
 }
 
 enum TransactionType {
-  ASSESSMENT_REQUEST_PAYMENT
+  /**
+   * Renamed from ASSESSMENT_REQUEST_PAYMENT (2026-09, the prepaid ->
+   * postpaid switch) — no existing rows of this type in production at the
+   * time of the rename (AssessmentRequest itself had zero rows, and this
+   * type is only ever written in the same operation that creates one, so
+   * the rename cost nothing). "PAYMENT" was already false the moment this
+   * became accrual-based: the Transaction is now written the instant an
+   * AssessmentRequest is created, before any money has changed hands — see
+   * AssessmentRequestsService.create and AssessmentRequest's own doc
+   * comment. "ACCRUAL" is honest about that: a recorded obligation, not a
+   * receipt.
+   */
+  ASSESSMENT_REQUEST_ACCRUAL
   SUBSCRIPTION_CHARGE
   REFUND
   ADJUSTMENT
@@ -1001,6 +1013,19 @@ enum TransactionStatus {
   SUCCEEDED
   FAILED
   REFUNDED
+  /**
+   * PENDING -> VOIDED: an ASSESSMENT_REQUEST_ACCRUAL transaction whose
+   * request expired without the candidate ever starting it (or the
+   * candidate deactivated/deleted their account first) — see
+   * AssessmentRequestExpiryJob and AccountService.excludeUnstartedRequestsFromInvoice.
+   * Added deliberately distinct from FAILED (which reads as "an attempted
+   * charge did not succeed") — voiding never attempted anything; it's
+   * "this accrual did not become a billable supply." Introduced at the
+   * same time as the prepaid -> postpaid switch, while only two
+   * Transaction rows existed in production (both unrelated
+   * SUBSCRIPTION_CHARGE rows) — free to add.
+   */
+  VOIDED
 }
 
 /**
@@ -1106,45 +1131,70 @@ model Transaction {
   createdAt DateTime @default(now())
 
   /**
-   * Set only for the ASSESSMENT_REQUEST_PAYMENT this transaction records —
+   * Set only for the ASSESSMENT_REQUEST_ACCRUAL this transaction records —
    * the one-time-charge side of the business (see AssessmentRequest.
    * transactionId's own doc comment for why this is a plain 1:1 rather than
    * billingProfileId-only like the subscription side, which never needs to
-   * find "the one Transaction for this specific charge" the way a refund or
-   * a Document does). Null for every SUBSCRIPTION_CHARGE row.
+   * find "the one Transaction for this specific charge" the way a Document
+   * does). Null for every SUBSCRIPTION_CHARGE row.
    */
   assessmentRequest AssessmentRequest?
 
   /**
-   * The GST document (tax invoice or receipt — see DocumentSeries) issued
-   * for this charge, once generated — null until DocumentsGenerationJob's
-   * sweep picks this row up (basePaise non-null = GST-bearing = eligible),
-   * and permanently null for any transaction with no GST split at all (see
-   * this model's own basePaise doc comment above). A REFUNDED transaction
-   * keeps its original document — GST document generation records what was
+   * The GST document (tax invoice or receipt — see DocumentSeries) this
+   * charge was invoiced on, once generated — null until picked up (see
+   * that model's own doc comment for the two different triggers:
+   * per-transaction for SUBSCRIPTION_CHARGE, monthly-aggregated for
+   * ASSESSMENT_REQUEST_ACCRUAL), and permanently null for any transaction
+   * with no GST split at all (see this model's own basePaise doc comment
+   * above). Many-to-one, not the 1:1 it was before the prepaid -> postpaid
+   * switch (2026-09) — a single monthly Document now covers every
+   * ASSESSMENT_REQUEST_ACCRUAL transaction an org had that period, each
+   * pointing back at the same Document via this column; a
+   * SUBSCRIPTION_CHARGE transaction is still, in practice, the only member
+   * of whichever Document it points to, just expressed through the same
+   * relation rather than a dedicated 1:1 one. A REFUNDED transaction keeps
+   * its original document — GST document generation records what was
    * actually charged at the time it was charged; a credit note for the
    * refund is a distinct, not-yet-built document type (see
    * refund-policy-content.md — no refunds existed when GST invoicing
    * shipped, so this is deliberately out of scope here).
    */
-  document Document?
+  documentId String?
+  document   Document? @relation(fields: [documentId], references: [id])
 
   @@index([billingProfileId])
   @@index([amendsTransactionId])
+  @@index([documentId])
 }
 
 /**
  * Both are the same document under Section 31 CGST — a GST tax invoice —
  * differing only in which Rule 46 fields are mandatory (buyer GSTIN/name/
  * address only for TAX_INVOICE; a RECEIPT still carries every seller field,
- * the SAC code, and the full CGST/SGST/IGST breakdown). Decided once, at
- * generation time, purely from whether the BillingProfile had a `gstin` on
- * file at that moment (see DocumentsService.classify) — never a manual
- * choice, and never revisited after generation even if the profile is
- * later updated (see Document's own snapshot fields). Kept as two
- * numbering series rather than one (see DocumentSequence) — Rule 46
- * permits either; separate series keeps a B2B invoice register trivially
- * separable from B2C receipts for GSTR-1 purposes.
+ * the SAC code, and the full CGST/SGST/IGST breakdown). For a
+ * SUBSCRIPTION_CHARGE transaction, decided once at generation time, purely
+ * from whether the BillingProfile had a `gstin` on file at that moment (see
+ * DocumentsService.reserveAndCreate) — never a manual choice, and never
+ * revisited after generation even if the profile is later updated (see
+ * Document's own snapshot fields).
+ *
+ * An org's monthly ASSESSMENT_REQUEST_ACCRUAL invoice is always
+ * TAX_INVOICE, unconditionally — NOT the same gstin-presence branch (see
+ * DocumentsService.reserveAndCreateForOrgPeriod). Two independent reasons,
+ * either alone sufficient: (1) nothing has been received under the
+ * postpaid model this document type exists for — a RECEIPT documents money
+ * already collected, which by construction hasn't happened yet for an
+ * invoice awaiting offline bank-transfer settlement; (2) the buyer is
+ * always an Organization, never an individual consumer, so this is
+ * inherently B2B regardless of whether an admin has gotten around to
+ * entering the org's GSTIN yet (AssessmentRequestBillingProfileService
+ * auto-creates the BillingProfile with gstin left null — that's an
+ * intake gap to fill in later, not a signal this is a B2C sale).
+ *
+ * Kept as two numbering series rather than one (see DocumentSequence) —
+ * Rule 46 permits either; separate series keeps a B2B invoice register
+ * trivially separable from B2C receipts for GSTR-1 purposes.
  */
 enum DocumentSeries {
   TAX_INVOICE
@@ -1207,34 +1257,44 @@ model DocumentSequence {
 }
 
 /**
- * A GST tax invoice or receipt (see DocumentSeries) issued for exactly one
- * Transaction — never edited after creation, same immutable-financial-core
+ * A GST tax invoice or receipt (see DocumentSeries) issued for one or more
+ * Transactions — never edited after creation, same immutable-financial-core
  * posture as Transaction itself. Every tax/party field below is a snapshot
- * frozen at generation time (copied from Transaction and BillingProfile as
- * they stood at that moment) and is never re-derived or re-read from those
- * rows later — a subsequent correction to BillingProfile.gstin/address, or
- * a hypothetical future change to gst.config.ts's SELLER_* constants, must
- * never retroactively change what an already-issued document says it
- * charged or who it says it was issued to. This mirrors
- * Transaction.placeOfSupplyStateCode's own doc comment ("a later admin
- * correction... must never retroactively change what an already-recorded
- * transaction says it used").
+ * frozen at generation time (summed/copied from the covered Transaction(s)
+ * and BillingProfile as they stood at that moment) and is never re-derived
+ * or re-read from those rows later — a subsequent correction to
+ * BillingProfile.gstin/address, or a hypothetical future change to
+ * gst.config.ts's SELLER_* constants, must never retroactively change what
+ * an already-issued document says it charged or who it says it was issued
+ * to. This mirrors Transaction.placeOfSupplyStateCode's own doc comment
+ * ("a later admin correction... must never retroactively change what an
+ * already-recorded transaction says it used").
+ *
+ * One-to-many with Transaction (see that model's own documentId doc
+ * comment for why the FK moved there in the 2026-09 prepaid -> postpaid
+ * change): a SUBSCRIPTION_CHARGE Document still covers exactly one
+ * Transaction in practice (DocumentsService.reserveAndCreate), while an
+ * ASSESSMENT_REQUEST_ACCRUAL Document covers every transaction an org
+ * accrued in the invoiced period (DocumentsService.
+ * reserveAndCreateForOrgPeriod) — basePaise/gstPaise/etc. below are the SUM
+ * across whichever set this is, and the rendered PDF's line-item table
+ * (see document-pdf.builder.ts) has one row per covered Transaction.
+ *
  * Generation is two-phase, deliberately split across two different
  * atomicity domains — see DocumentsGenerationJob:
- * 1. Number + row creation (reserveAndCreate) — transactional with
- * DocumentSequence's increment (see that model's own doc comment).
- * Once this commits, sequenceNumber/documentNumber are permanent,
- * file or no file.
+ * 1. Number + row creation (reserveAndCreate /
+ * reserveAndCreateForOrgPeriod) — transactional with DocumentSequence's
+ * increment (see that model's own doc comment). Once this commits,
+ * sequenceNumber/documentNumber are permanent, file or no file.
  * 2. PDF render + S3 upload (renderAndStore) — not transactional (can't
  * be, it's an external call), retried independently against this same
  * already-numbered row via status/generationAttempts. A render/upload
- * failure never re-reserves a number for the same Transaction.
+ * failure never re-reserves a number for the same Transaction(s).
  */
 model Document {
   id String @id @default(uuid())
 
-  transactionId String      @unique
-  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  transactions Transaction[]
 
   billingProfileId String
   billingProfile   BillingProfile @relation(fields: [billingProfileId], references: [id])
@@ -1247,9 +1307,11 @@ model Document {
    */
   documentNumber String         @unique
 
-  // Tax snapshot — copied verbatim from the Transaction this document was
-  // generated for (see that model's own basePaise/gstPaise/etc. doc
-  // comment for the rounding rules that produced these).
+  // Tax snapshot — for a SUBSCRIPTION_CHARGE Document, copied verbatim from
+  // the one Transaction it covers; for an ASSESSMENT_REQUEST_ACCRUAL
+  // Document, the SUM across every Transaction it covers (see that model's
+  // own basePaise/gstPaise/etc. doc comment for the rounding rules that
+  // produced each individual one before summing).
   basePaise              Int
   gstPaise               Int
   cgstPaise              Int
@@ -1285,11 +1347,15 @@ model Document {
   lastGenerationError String?
 
   /**
-   * The Transaction's own createdAt — i.e. when the supply/payment actually
-   * happened — NOT wall-clock time at generation. This is what
-   * financialYear is computed from, so a backfilled document for an old
-   * charge lands in the FY that charge actually occurred in, not whatever
-   * FY the backfill sweep happened to run in.
+   * For a SUBSCRIPTION_CHARGE Document, the one Transaction's own
+   * createdAt — i.e. when the supply/payment actually happened — NOT
+   * wall-clock time at generation. For an ASSESSMENT_REQUEST_ACCRUAL
+   * Document, the moment the monthly invoicing run actually generated it
+   * (there is no single "the supply happened" instant across a whole
+   * period's worth of accruals). Either way, this is what financialYear is
+   * computed from, so a backfilled document for an old charge lands in the
+   * FY that charge actually occurred in, not whatever FY the backfill
+   * sweep happened to run in.
    */
   issuedAt    DateTime
   generatedAt DateTime?
@@ -1894,11 +1960,19 @@ model ShortlistEntry {
 
 enum AssessmentRequestStatus {
   /**
-   * Payment captured, candidate invited, waiting for them to start within expiresAt.
+   * Renamed from PAID_PENDING_START (2026-09, prepaid -> postpaid switch —
+   * zero existing rows at rename time, so this cost nothing). Accrual
+   * recorded (see AssessmentRequest.transactionId), candidate invited,
+   * waiting for them to start within expiresAt. Deliberately not "PAID" —
+   * no money has moved; it's invoiced monthly and settled offline.
    */
-  PAID_PENDING_START
+  ACCRUED_PENDING_START
   /**
-   * Candidate started within the window — attemptId/sessionId is now set. Terminal for refund purposes: a STARTED request is never refunded.
+   * Candidate started within the window — attemptId/sessionId is now set.
+   * Terminal for billing-exclusion purposes: a STARTED request is always
+   * billable, even if it's later abandoned mid-attempt or expires from this
+   * point forward — see AssessmentRequestExpiryJob's own doc comment on why
+   * "started" is what earns the charge, not "finished."
    */
   STARTED
   /**
@@ -1906,13 +1980,15 @@ enum AssessmentRequestStatus {
    */
   COMPLETED
   /**
-   * Candidate never started within the 5-day window; the $5 was refunded.
+   * Renamed from EXPIRED_REFUNDED (2026-09, prepaid -> postpaid switch).
+   * Candidate never started within the 5-day window — this request is
+   * permanently excluded from invoicing (the linked Transaction is voided,
+   * not refunded — see TransactionStatus.VOIDED). REFUND_FAILED (the old
+   * companion status for "the refund attempt itself failed") is gone
+   * entirely: voiding is a local status write with no external payment
+   * call to fail, so there is no equivalent failure mode to retry.
    */
-  EXPIRED_REFUNDED
-  /**
-   * Expiry job attempted the refund and it failed — retried on the job's next run, never silently dropped.
-   */
-  REFUND_FAILED
+  EXPIRED_UNBILLED
   /**
    * Candidate already held a verified badge at the requested skill+level — set at creation, no payment ever taken. Terminal from the start.
    */
@@ -1921,10 +1997,11 @@ enum AssessmentRequestStatus {
 
 /**
  * One employer's request to verify a specific candidate at a specific
- * skill+level, triggered from the shortlist/pipeline. See
- * AssessmentRequestsService for the full state machine and payment flow;
- * this model is deliberately a thin data record — every transition and
- * every Razorpay call lives in the service, not here.
+ * skill+level, triggered from the shortlist/pipeline. Postpaid (2026-09):
+ * accrues a Transaction the moment it's created, no payment gateway
+ * involved — see AssessmentRequestsService for the full state machine.
+ * This model is deliberately a thin data record — every transition lives
+ * in the service, not here.
  */
 model AssessmentRequest {
   id String @id @default(uuid())
@@ -1942,37 +2019,34 @@ model AssessmentRequest {
   skill             Skill            @relation(fields: [skillId], references: [id])
   level             SkillLevel
 
-  status AssessmentRequestStatus @default(PAID_PENDING_START)
+  status AssessmentRequestStatus @default(ACCRUED_PENDING_START)
 
   /**
    * Paise. Server-decided at creation time — never trust a client-supplied amount. Null only for ALREADY_BADGED, which never charges.
    */
   amount Int?
 
-  razorpayOrderId   String?
-  razorpayPaymentId String?
   /**
-   * Set only once a refund actually succeeds — the double-refund guard the expiry job checks before ever calling Razorpay again.
-   */
-  razorpayRefundId  String?
-
-  /**
-   * The ASSESSMENT_REQUEST_PAYMENT ledger row for this request's charge —
-   * set inside verifyAndCreate, in the same write as this row's own
-   * creation, so a paid AssessmentRequest is never left without one. Null
-   * only for ALREADY_BADGED (never charged, same condition as `amount`
-   * above) and for any row created before this column existed. A 1:1 FK
-   * (not just "look it up via BillingProfile.transactions") because a
-   * refund and a GST document both need "the one Transaction for this
-   * specific charge," not a query over every charge this org has ever
-   * made.
+   * The ASSESSMENT_REQUEST_ACCRUAL ledger row for this request's charge —
+   * set inside create(), in the same write as this row's own creation, so
+   * an accruing AssessmentRequest is never left without one (2026-09,
+   * prepaid -> postpaid switch: previously set inside verifyAndCreate,
+   * only once Razorpay had actually confirmed payment — now written
+   * immediately, since the tax point is the supply being requested, not a
+   * payment that no longer happens here at all). Null only for
+   * ALREADY_BADGED (never charged, same condition as `amount` above) and
+   * for any row created before this column existed. A 1:1 FK (not just
+   * "look it up via BillingProfile.transactions") because excluding a
+   * request from invoicing and a GST document both need "the one
+   * Transaction for this specific charge," not a query over every charge
+   * this org has ever made.
    */
   transactionId String?      @unique
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
 
-  paidAt    DateTime?
   /**
-   * paidAt + 5 days. Null for ALREADY_BADGED (never paid, nothing to expire).
+   * createdAt + 5 days. Null for ALREADY_BADGED (never accrues, nothing to
+   * expire).
    */
   expiresAt DateTime?
   startedAt DateTime?
@@ -1989,7 +2063,7 @@ model AssessmentRequest {
 
   @@index([orgId])
   @@index([candidateId])
-  // The expiry job's own query shape: PAID_PENDING_START/REFUND_FAILED rows whose window has passed.
+  // The expiry job's own query shape: ACCRUED_PENDING_START rows whose window has passed.
   @@index([status, expiresAt])
 }
 

@@ -1,7 +1,6 @@
 import {
   AccountActionReason,
   AccountActionType,
-  AssessmentRequestStatus,
   NotificationStatus,
   NotificationType,
   ShortlistStage,
@@ -29,21 +28,24 @@ interface FakeShortlistEntry {
   candidateId: string;
   stage: ShortlistStage;
 }
-interface FakeAssessmentRequest {
-  candidateId: string;
-  status: AssessmentRequestStatus;
-}
 
-/** Minimal in-memory stand-in — just enough of the four models listActionsForAdmin reads to exercise its correlation logic without a real DB. */
+/**
+ * Minimal in-memory stand-in — just enough of the three models
+ * listActionsForAdmin reads to exercise its correlation logic without a
+ * real DB. No AssessmentRequest table here anymore (2026-09, prepaid ->
+ * postpaid switch) — the old REFUND_FAILED-driven candidateHasFailedRefund
+ * signal is gone; listActionsForAdmin no longer queries AssessmentRequest
+ * at all (see that method's own doc comment for why: excluding a request
+ * from billing is a pure local status write with no external-call failure
+ * mode left to surface here).
+ */
 function fakePrisma(seed: {
   actions: FakeAction[];
   notifications?: FakeNotification[];
   entries?: FakeShortlistEntry[];
-  requests?: FakeAssessmentRequest[];
 }) {
   const notifications = seed.notifications ?? [];
   const entries = seed.entries ?? [];
-  const requests = seed.requests ?? [];
 
   return {
     accountAction: {
@@ -70,15 +72,6 @@ function fakePrisma(seed: {
         return [...counts.entries()].map(([candidateId, count]) => ({ candidateId, _count: { _all: count } }));
       }),
     },
-    assessmentRequest: {
-      findMany: jest.fn(async ({ where }: { where: { candidateId: { in: string[] }; status: AssessmentRequestStatus } }) => {
-        const seen = new Set<string>();
-        return requests
-          .filter((r) => where.candidateId.in.includes(r.candidateId) && r.status === where.status)
-          .filter((r) => (seen.has(r.candidateId) ? false : (seen.add(r.candidateId), true)))
-          .map((r) => ({ candidateId: r.candidateId }));
-      }),
-    },
     notification: {
       findMany: jest.fn(async ({ where }: { where: { userId: { in: string[] }; type: { in: NotificationType[] } } }) => {
         return notifications
@@ -92,7 +85,7 @@ function fakePrisma(seed: {
 
 function makeService(seed: Parameters<typeof fakePrisma>[0]) {
   const prisma = fakePrisma(seed);
-  // listActionsForAdmin never touches notifications/refundJob/storage — all unused here.
+  // listActionsForAdmin never touches notifications/expiryJob/storage — all unused here.
   const service = new AccountService(prisma as never, {} as never, {} as never, {} as never, {} as never);
   return { service, prisma };
 }
@@ -203,7 +196,7 @@ describe('AccountService.listActionsForAdmin', () => {
   });
 
   describe('live downstream signals — only attached to the candidate\'s current action', () => {
-    it('attaches pipelinesUnavailable and candidateHasFailedRefund to the latest DEACTIVATED action', async () => {
+    it('attaches pipelinesUnavailable to the latest DEACTIVATED action', async () => {
       const { service } = makeService({
         actions: [
           { id: 'a1', candidateProfileId: 'cp1', userId: 'u1', type: AccountActionType.DEACTIVATED, reasonCategory: null, reasonText: null, createdAt: t('2026-01-01'), deletedAt: null, deactivatedAt: t('2026-01-01') },
@@ -213,14 +206,11 @@ describe('AccountService.listActionsForAdmin', () => {
           { candidateId: 'cp1', stage: ShortlistStage.CANDIDATE_UNAVAILABLE },
           { candidateId: 'cp1', stage: ShortlistStage.SHORTLISTED }, // not unavailable — must not count
         ],
-        requests: [{ candidateId: 'cp1', status: AssessmentRequestStatus.REFUND_FAILED }],
       });
 
       const [row] = await service.listActionsForAdmin();
 
       expect(row.pipelinesUnavailable).toBe(2);
-      expect(row.candidateHasFailedRefund).toBe(true);
-      expect(row.needsAttention).toBe(true);
     });
 
     it('does not attach live signals to an older action once a later action supersedes it', async () => {
@@ -230,7 +220,6 @@ describe('AccountService.listActionsForAdmin', () => {
           { id: 'reactivate', candidateProfileId: 'cp1', userId: 'u1', type: AccountActionType.REACTIVATED, reasonCategory: null, reasonText: null, createdAt: t('2026-02-01'), deletedAt: null, deactivatedAt: null },
         ],
         entries: [{ candidateId: 'cp1', stage: ShortlistStage.CANDIDATE_UNAVAILABLE }],
-        requests: [{ candidateId: 'cp1', status: AssessmentRequestStatus.REFUND_FAILED }],
       });
 
       const rows = await service.listActionsForAdmin();
@@ -239,7 +228,6 @@ describe('AccountService.listActionsForAdmin', () => {
 
       // The superseded DEACTIVATED row no longer claims live effects that have moved on.
       expect(oldRow.pipelinesUnavailable).toBeNull();
-      expect(oldRow.candidateHasFailedRefund).toBe(false);
       // REACTIVATED never carries these signals either — reactivation has no "pipelines unavailable" concept of its own.
       expect(reactivateRow.pipelinesUnavailable).toBeNull();
     });
@@ -259,13 +247,17 @@ describe('AccountService.listActionsForAdmin', () => {
   });
 
   describe('status filter (derived, not a stored column)', () => {
+    // The only failure signal left after the 2026-09 prepaid -> postpaid
+    // switch is a failed confirmation email — the old REFUND_FAILED-driven
+    // candidateHasFailedRefund signal is gone (see fakePrisma's own doc
+    // comment above).
     it('NEEDS_ATTENTION returns only rows with a failure signal', async () => {
       const { service } = makeService({
         actions: [
           { id: 'clean', candidateProfileId: 'cp1', userId: 'u1', type: AccountActionType.DEACTIVATED, reasonCategory: null, reasonText: null, createdAt: t('2026-01-01'), deletedAt: null, deactivatedAt: t('2026-01-01') },
           { id: 'stuck', candidateProfileId: 'cp2', userId: 'u2', type: AccountActionType.DELETED, reasonCategory: null, reasonText: null, createdAt: t('2026-02-01'), deletedAt: t('2026-02-01'), deactivatedAt: null },
         ],
-        requests: [{ candidateId: 'cp2', status: AssessmentRequestStatus.REFUND_FAILED }],
+        notifications: [{ userId: 'u2', type: NotificationType.ACCOUNT_DELETED, status: NotificationStatus.FAILED, createdAt: t('2026-02-01T00:00:01') }],
       });
 
       const rows = await service.listActionsForAdmin({ status: 'NEEDS_ATTENTION' });
@@ -279,7 +271,7 @@ describe('AccountService.listActionsForAdmin', () => {
           { id: 'clean', candidateProfileId: 'cp1', userId: 'u1', type: AccountActionType.DEACTIVATED, reasonCategory: null, reasonText: null, createdAt: t('2026-01-01'), deletedAt: null, deactivatedAt: t('2026-01-01') },
           { id: 'stuck', candidateProfileId: 'cp2', userId: 'u2', type: AccountActionType.DELETED, reasonCategory: null, reasonText: null, createdAt: t('2026-02-01'), deletedAt: t('2026-02-01'), deactivatedAt: null },
         ],
-        requests: [{ candidateId: 'cp2', status: AssessmentRequestStatus.REFUND_FAILED }],
+        notifications: [{ userId: 'u2', type: NotificationType.ACCOUNT_DELETED, status: NotificationStatus.FAILED, createdAt: t('2026-02-01T00:00:01') }],
       });
 
       const rows = await service.listActionsForAdmin({ status: 'CLEAN' });

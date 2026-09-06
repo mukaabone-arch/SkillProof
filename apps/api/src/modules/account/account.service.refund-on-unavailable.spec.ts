@@ -1,29 +1,37 @@
-import { AssessmentRequestStatus } from '@prisma/client';
+import { AssessmentRequestStatus, TransactionStatus } from '@prisma/client';
 import { AccountService } from './account.service';
-import { AssessmentRequestsRefundJob } from '../assessment-requests/assessment-requests-refund.job';
-import { RazorpayGateway } from '../assessment-requests/razorpay-gateway';
+import { AssessmentRequestsExpiryJob } from '../assessment-requests/assessment-requests-expiry.job';
 
 /**
- * Integration-style: exercises the REAL AssessmentRequestsRefundJob (not a
+ * Integration-style: exercises the REAL AssessmentRequestsExpiryJob (not a
  * mock) through AccountService.deactivate/delete, sharing one fake Prisma
  * so both sides observe the same AssessmentRequest row. The point is to
  * verify the *wiring* and the properties that only show up when two
  * trigger paths (an account going unavailable, and the independent hourly
- * expiry sweep) can touch the same row — refundOne's own unit coverage
- * already lives in assessment-requests-refund.job.spec.ts; this file
+ * expiry sweep) can touch the same row — excludeOne's own unit coverage
+ * already lives in assessment-requests-expiry.job.spec.ts; this file
  * doesn't re-test that, it tests that AccountService now reaches it at all.
+ *
+ * Postpaid (2026-09): there is no payment gateway anywhere in this flow —
+ * excluding a request from billing is a pure local status write (the
+ * AssessmentRequest to EXPIRED_UNBILLED, its linked Transaction PENDING ->
+ * VOIDED), so this file no longer needs a fake Razorpay gateway at all.
  */
 
 interface Row {
   id: string;
   candidateId: string;
   status: AssessmentRequestStatus;
-  razorpayPaymentId: string | null;
-  razorpayRefundId: string | null;
   amount: number | null;
+  transactionId: string | null;
   expiresAt: Date | null;
   skill: { name: string };
   candidateProfile: { fullName: string | null };
+}
+
+interface TransactionRow {
+  id: string;
+  status: TransactionStatus;
 }
 
 interface FakeProfile {
@@ -40,26 +48,17 @@ function requestRow(overrides: Partial<Row> = {}): Row {
   return {
     id: 'req-1',
     candidateId: 'profile-1',
-    status: AssessmentRequestStatus.PAID_PENDING_START,
-    razorpayPaymentId: 'pay-1',
-    razorpayRefundId: null,
-    amount: 50000,
-    expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // not yet expired — this candidate becoming unavailable is the only reason a refund fires
+    status: AssessmentRequestStatus.ACCRUED_PENDING_START,
+    amount: 17700,
+    transactionId: 'txn-1',
+    expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // not yet expired — this candidate becoming unavailable is the only reason exclusion fires
     skill: { name: 'RAG Systems' },
     candidateProfile: { fullName: 'Jordan Lee' },
     ...overrides,
   };
 }
 
-function fakeGateway(): jest.Mocked<RazorpayGateway> {
-  return {
-    createOrder: jest.fn(async (_params: Parameters<RazorpayGateway['createOrder']>[0]) => ({ id: 'unused' })),
-    fetchOrder: jest.fn(async (_orderId: string) => ({ notes: null })),
-    refundPayment: jest.fn(async (_paymentId: string, _amount: number) => ({ id: 'refund-1' })),
-  };
-}
-
-function setup(profile: FakeProfile, requests: Row[]) {
+function setup(profile: FakeProfile, requests: Row[], transactionRows: TransactionRow[] = [{ id: 'txn-1', status: TransactionStatus.PENDING }]) {
   const profiles = [profile];
   const accountActions: unknown[] = [];
 
@@ -101,11 +100,6 @@ function setup(profile: FakeProfile, requests: Row[]) {
         if (!row) throw new Error('not found');
         return row;
       }),
-      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Partial<Row> }) => {
-        const row = requests.find((r) => r.id === where.id)!;
-        Object.assign(row, data);
-        return row;
-      }),
       updateMany: jest.fn(async ({ where, data }: { where: { id: string; status: AssessmentRequestStatus }; data: Partial<Row> }) => {
         const row = requests.find((r) => r.id === where.id && r.status === where.status);
         if (!row) return { count: 0 };
@@ -113,97 +107,77 @@ function setup(profile: FakeProfile, requests: Row[]) {
         return { count: 1 };
       }),
     },
+    transaction: {
+      findUnique: jest.fn(async ({ where }: { where: { id: string } }) => transactionRows.find((t) => t.id === where.id) ?? null),
+    },
   };
 
   const notifications = { sendEmail: jest.fn(async () => undefined) };
-  const gateway = fakeGateway();
-  const transactions = { recordSystemRefund: jest.fn(async () => undefined) };
-  const refundJob = new AssessmentRequestsRefundJob(prisma as never, notifications as never, transactions as never, gateway);
+  const transactions = { recordSystemVoid: jest.fn(async () => undefined) };
+  const expiryJob = new AssessmentRequestsExpiryJob(prisma as never, notifications as never, transactions as never);
   const subscriptions = { cancelImmediatelyForDeletion: jest.fn(async () => undefined) };
-  const account = new AccountService(prisma as never, notifications as never, refundJob, subscriptions as never, {} as never);
+  const account = new AccountService(prisma as never, notifications as never, expiryJob, subscriptions as never, {} as never);
 
-  return { account, refundJob, prisma, notifications, gateway, requests, accountActions };
+  return { account, expiryJob, prisma, notifications, transactions, requests, accountActions };
 }
 
-describe('AccountService — connected to the assessment-request refund path', () => {
-  it('deleting an account with a pending paid request issues a real refund', async () => {
+describe('AccountService — connected to the assessment-request exclusion path', () => {
+  it('deleting an account with a pending accrual excludes it from billing', async () => {
     const profile: FakeProfile = { id: 'profile-1', userId: 'user-1', deactivatedAt: null, deletedAt: null, fullName: 'Jordan Lee', photoKey: null, resumeS3Key: null };
     const requests = [requestRow()];
-    const { account, gateway, requests: reqs } = setup(profile, requests);
+    const { account, transactions, requests: reqs } = setup(profile, requests);
 
     await account.delete('user-1', { confirmation: 'DELETE' });
 
-    expect(gateway.refundPayment).toHaveBeenCalledWith('pay-1', 50000);
-    expect(reqs[0].status).toBe(AssessmentRequestStatus.EXPIRED_REFUNDED);
-    expect(reqs[0].razorpayRefundId).toBe('refund-1');
+    expect(transactions.recordSystemVoid).toHaveBeenCalledWith('txn-1');
+    expect(reqs[0].status).toBe(AssessmentRequestStatus.EXPIRED_UNBILLED);
   });
 
-  it('deactivating (not just deleting) also triggers the refund — "unavailable" covers both', async () => {
+  it('deactivating (not just deleting) also triggers exclusion — "unavailable" covers both', async () => {
     const profile: FakeProfile = { id: 'profile-1', userId: 'user-1', deactivatedAt: null, deletedAt: null, fullName: 'Jordan Lee', photoKey: null, resumeS3Key: null };
     const requests = [requestRow()];
-    const { account, gateway, requests: reqs } = setup(profile, requests);
+    const { account, transactions, requests: reqs } = setup(profile, requests);
 
     await account.deactivate('user-1', {});
 
-    expect(gateway.refundPayment).toHaveBeenCalledTimes(1);
-    expect(reqs[0].status).toBe(AssessmentRequestStatus.EXPIRED_REFUNDED);
+    expect(transactions.recordSystemVoid).toHaveBeenCalledTimes(1);
+    expect(reqs[0].status).toBe(AssessmentRequestStatus.EXPIRED_UNBILLED);
   });
 
-  it('a request already STARTED (or otherwise not PAID_PENDING_START) is left completely alone', async () => {
+  it('a request already STARTED (or otherwise not ACCRUED_PENDING_START) is left completely alone', async () => {
     const profile: FakeProfile = { id: 'profile-1', userId: 'user-1', deactivatedAt: null, deletedAt: null, fullName: 'Jordan Lee', photoKey: null, resumeS3Key: null };
     const requests = [requestRow({ status: AssessmentRequestStatus.STARTED })];
-    const { account, gateway, requests: reqs } = setup(profile, requests);
+    const { account, transactions, requests: reqs } = setup(profile, requests);
 
     await account.delete('user-1', { confirmation: 'DELETE' });
 
-    expect(gateway.refundPayment).not.toHaveBeenCalled();
+    expect(transactions.recordSystemVoid).not.toHaveBeenCalled();
     expect(reqs[0].status).toBe(AssessmentRequestStatus.STARTED);
   });
 
-  it('double-refund guard holds when the account-lifecycle trigger and the independent hourly sweep both reach the same row', async () => {
+  it('idempotent when the account-lifecycle trigger and the independent hourly sweep both reach the same row', async () => {
     const profile: FakeProfile = { id: 'profile-1', userId: 'user-1', deactivatedAt: null, deletedAt: null, fullName: 'Jordan Lee', photoKey: null, resumeS3Key: null };
     const requests = [requestRow()];
-    const { account, refundJob, gateway, requests: reqs } = setup(profile, requests);
+    const { account, expiryJob, transactions, requests: reqs } = setup(profile, requests);
 
-    // The candidate deletes their account — this refunds the request.
+    // The candidate deletes their account — this excludes the request.
     await account.delete('user-1', { confirmation: 'DELETE' });
-    expect(gateway.refundPayment).toHaveBeenCalledTimes(1);
-    expect(reqs[0].status).toBe(AssessmentRequestStatus.EXPIRED_REFUNDED);
+    expect(transactions.recordSystemVoid).toHaveBeenCalledTimes(1);
+    expect(reqs[0].status).toBe(AssessmentRequestStatus.EXPIRED_UNBILLED);
 
     // The independent hourly sweep later reaches for the same row too (e.g.
     // its own expiresAt also happened to lapse around the same time) —
-    // must be a pure no-op, never a second call to Razorpay.
-    await refundJob.refundOne('req-1', 'EXPIRED');
+    // must be a pure no-op.
+    await expiryJob.excludeOne('req-1', 'EXPIRED');
 
-    expect(gateway.refundPayment).toHaveBeenCalledTimes(1);
-    expect(reqs[0].razorpayRefundId).toBe('refund-1');
+    expect(transactions.recordSystemVoid).toHaveBeenCalledTimes(1);
   });
 
-  it('a Razorpay failure during the account-lifecycle trigger lands the request at REFUND_FAILED, not silently dropped — and a later retry recovers it', async () => {
+  it('a candidate with no pending accruals deletes cleanly with nothing excluded', async () => {
     const profile: FakeProfile = { id: 'profile-1', userId: 'user-1', deactivatedAt: null, deletedAt: null, fullName: 'Jordan Lee', photoKey: null, resumeS3Key: null };
-    const requests = [requestRow()];
-    const { account, refundJob, gateway, requests: reqs } = setup(profile, requests);
-    gateway.refundPayment.mockRejectedValueOnce(new Error('Razorpay outage'));
-
-    await account.delete('user-1', { confirmation: 'DELETE' });
-
-    expect(reqs[0].status).toBe(AssessmentRequestStatus.REFUND_FAILED);
-    expect(reqs[0].razorpayRefundId).toBeNull();
-
-    // The next hourly sweep retries every REFUND_FAILED row — simulated
-    // directly here via the same refundOne the sweep itself calls.
-    await refundJob.refundOne('req-1', 'EXPIRED');
-
-    expect(reqs[0].status).toBe(AssessmentRequestStatus.EXPIRED_REFUNDED);
-    expect(reqs[0].razorpayRefundId).toBe('refund-1');
-    expect(gateway.refundPayment).toHaveBeenCalledTimes(2);
-  });
-
-  it('a candidate with no pending paid requests deletes cleanly with no refund attempted', async () => {
-    const profile: FakeProfile = { id: 'profile-1', userId: 'user-1', deactivatedAt: null, deletedAt: null, fullName: 'Jordan Lee', photoKey: null, resumeS3Key: null };
-    const { account, gateway } = setup(profile, []);
+    const { account, transactions } = setup(profile, []);
 
     await expect(account.delete('user-1', { confirmation: 'DELETE' })).resolves.toEqual({ deleted: true });
-    expect(gateway.refundPayment).not.toHaveBeenCalled();
+    expect(transactions.recordSystemVoid).not.toHaveBeenCalled();
   });
 });

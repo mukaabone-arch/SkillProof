@@ -1,14 +1,5 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Inject,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AssessmentRequestStatus, AssessmentSessionStatus, AttemptStatus, NotificationType, SkillLevel, TransactionStatus, TransactionType } from '@prisma/client';
-import { createHmac, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AssessmentsService } from '../assessments/assessments.service';
@@ -16,23 +7,19 @@ import { TopicBreakdown } from '../assessments/topic-breakdown';
 import { AssessmentSessionsService } from '../assessment-sessions/assessment-sessions.service';
 import { BadgeResolverService } from '../badges/badge-resolver.service';
 import { SKILL_LEVEL as DISCUSSION_LEVEL, SKILL_NAME as DISCUSSION_SKILL_NAME } from '../assessment-sessions/rag-systems-l2.rubric';
-import { RAZORPAY_GATEWAY, RazorpayGateway } from './razorpay-gateway';
 import { WEB_BASE_URL } from '../../config/web-base-url';
 import { TransactionsService } from '../billing/transactions.service';
 import { AssessmentRequestBillingProfileService } from './assessment-request-billing-profile.service';
 import { splitGst, DEFAULT_PLACE_OF_SUPPLY_STATE_CODE } from '../../config/gst.config';
 
 /**
- * Paise, GST-EXCLUSIVE. "$5" in the product brief, but this Razorpay
- * account is INR-only (see the feat/razorpay-test STEP 0 investigation —
- * no evidence of multi-currency/international settlement being
- * configured); the brief's flat ₹500 was later revised down to ₹150 base
- * (₹177 GST-inclusive — see splitGst) as part of bringing this flow's GST
+ * Paise, GST-EXCLUSIVE. "$5" in the product brief, later revised to ₹150
+ * base (₹177 GST-inclusive — see splitGst) to bring this flow's GST
  * treatment in line with subscriptions'. Configurable per the brief's
  * "amount configurable" — env override, hardcoded fallback, never
  * client-supplied. The env var name predates the base/exclusive-vs-total
  * distinction and still names the base amount, not the amount actually
- * charged — baseAmountPaise() below is the only thing that reads it.
+ * accrued — baseAmountPaise() below is the only thing that reads it.
  */
 const DEFAULT_BASE_AMOUNT_PAISE = 15000;
 const CURRENCY = 'INR';
@@ -45,50 +32,51 @@ function baseAmountPaise(): number {
 }
 
 /**
- * The amount actually charged via Razorpay — GST-inclusive total. Place of
- * supply doesn't change this (splitGst's totalPaise is state-invariant,
- * only the CGST/SGST-vs-IGST composition varies), so this can be computed
- * once at order-creation time with no BillingProfile/org context yet —
- * mirrors how SUBSCRIPTION_PRICING's Razorpay Plans are priced at the
- * GST-inclusive total regardless of which state a given subscriber is in.
+ * The amount accrued — GST-inclusive total, shown to the employer before
+ * they confirm (see the frontend's own disclosure copy) and recorded
+ * verbatim on the AssessmentRequest/Transaction. Place of supply doesn't
+ * change this (splitGst's totalPaise is state-invariant, only the
+ * CGST/SGST-vs-IGST composition varies), so this can be computed with no
+ * BillingProfile/org context yet — mirrors how SUBSCRIPTION_PRICING's
+ * Razorpay Plans are priced at the GST-inclusive total regardless of which
+ * state a given subscriber is in.
  */
 function chargeAmountPaise(): number {
   return splitGst(baseAmountPaise(), DEFAULT_PLACE_OF_SUPPLY_STATE_CODE).totalPaise;
 }
 
-interface OrderNotes {
-  orgId: string;
-  requestedByUserId: string;
-  candidateId: string;
-  skillId: string;
-  level: string;
-}
-
 /**
- * Employer-triggered candidate assessments, pay-per-assessment — Option C
- * (pay-then-refund), not authorize-then-capture. STEP 0 on this branch
- * (see the payments/test/create-auth-order harness and its report) found
- * Razorpay's manual-capture hold isn't reliably honored for UPI — the
- * dominant method in India — so this charges normally at request time
- * (works for every method, including UPI) and refunds automatically if the
- * candidate never starts within the 5-day window. Signature verification
- * reuses the exact proven HMAC-SHA256/timingSafeEqual pattern from
- * PaymentsService.verifyTestPayment; this is a fresh implementation rather
- * than a shared import because that module is explicitly throwaway
- * scaffolding (see its own doc comment) and this one additionally needs
- * refunds, which it never had.
+ * Employer-triggered candidate assessments — postpaid (2026-09, replacing
+ * the original prepaid Razorpay-per-request model). No payment happens at
+ * request time at all: the employer sees the exact amount up front (see
+ * the frontend's disclosure before submitting) and confirms, this creates
+ * the AssessmentRequest and accrues a Transaction for it immediately (the
+ * tax point is the supply being requested, not a payment — see
+ * TransactionType.ASSESSMENT_REQUEST_ACCRUAL's own doc comment), and every
+ * org's accrued, billable requests are aggregated into one GST tax invoice
+ * a month, settled by bank transfer offline (see
+ * AssessmentRequestInvoicingJob). No usage limit, no blocking on an
+ * overdue invoice — this module has no entitlement/payment gate at all,
+ * by design.
+ *
+ * The old Razorpay integration (order creation, HMAC-SHA256 signature
+ * verification, refund-on-expiry) is gone entirely, not left dormant —
+ * see the commit that made this change for the reasoning (zero production
+ * rows depended on it, and the subscriptions module's own Razorpay
+ * webhook verification remains a working reference if prepaid ever
+ * returns).
  *
  * State machine (AssessmentRequestStatus):
- *   (badge check) --already badged--> ALREADY_BADGED [terminal, never paid]
- *   (badge check) --not badged, paid+verified--> PAID_PENDING_START
- *   PAID_PENDING_START --candidate starts within window--> STARTED
- *   PAID_PENDING_START --expiresAt passes, never started--> EXPIRED_REFUNDED
- *                                                        (or REFUND_FAILED,
- *                                                         retried until it is)
+ *   (badge check) --already badged--> ALREADY_BADGED [terminal, never accrues]
+ *   (badge check) --not badged--> ACCRUED_PENDING_START [Transaction written immediately, PENDING]
+ *   ACCRUED_PENDING_START --candidate starts within window--> STARTED [billable — Transaction stays PENDING until invoiced]
+ *   ACCRUED_PENDING_START --expiresAt passes, never started--> EXPIRED_UNBILLED [Transaction voided — see AssessmentRequestExpiryJob]
  *   STARTED --linked attempt/session reaches a terminal decision--> COMPLETED
- * STARTED is never refunded, and PAID_PENDING_START is never both started
- * and refunded — see startFromRequest's atomic transition and the expiry
- * job's own doc comment for how each direction of that race is closed.
+ * STARTED is never excluded from billing, and ACCRUED_PENDING_START is
+ * never both started and excluded — see startFromRequest's atomic
+ * transition and the expiry job's own doc comment for how each direction
+ * of that race is closed (same race-closing shape as the old refund job,
+ * just without an external payment call on either side of it now).
  */
 @Injectable()
 export class AssessmentRequestsService {
@@ -100,26 +88,27 @@ export class AssessmentRequestsService {
     private readonly assessments: AssessmentsService,
     private readonly assessmentSessions: AssessmentSessionsService,
     private readonly badgeResolver: BadgeResolverService,
-    @Inject(RAZORPAY_GATEWAY) private readonly razorpay: RazorpayGateway,
     private readonly transactions: TransactionsService,
     private readonly billingProfiles: AssessmentRequestBillingProfileService,
   ) {}
 
   /**
-   * Step 1 of the employer flow. Validates the candidate is actually on
-   * this org's shortlist (IDOR guard — an employer may only request
-   * assessments for candidates they've shortlisted) and that skillId+level
-   * is something the catalog can actually deliver, then does the
-   * already-badged check BEFORE any payment exists — if it's already
-   * badged, this returns immediately with the existing badge and never
-   * touches Razorpay. Otherwise it creates a Razorpay order (amount decided
-   * here, server-side, never from the client) and pins the request context
-   * (org/candidate/skill/level) into the order's own `notes` — verifyAndCreate
-   * reads those back from Razorpay rather than trusting whatever the client
-   * resubmits at verify time, so a payment can never be credited toward a
-   * different candidate/skill/level than what was actually authorized here.
+   * The whole employer flow, in one call — no separate verify step exists
+   * anymore (postpaid, see this class's own doc comment). Validates the
+   * candidate is actually on this org's shortlist (IDOR guard — an
+   * employer may only request assessments for candidates they've
+   * shortlisted) and that skillId+level is something the catalog can
+   * actually deliver, then does the already-badged check — if it's
+   * already badged, this returns immediately with the existing badge and
+   * never accrues anything. Otherwise it creates the AssessmentRequest as
+   * ACCRUED_PENDING_START and records the accrual (amount decided here,
+   * server-side, never from the client) in the same call — the frontend
+   * is expected to have already disclosed this exact amount to the
+   * employer and gotten explicit confirmation before calling this at all
+   * (see AssessCandidateAction.tsx's own confirmation step), since there
+   * is no payment step left to double as that disclosure.
    */
-  async initiate(orgId: string, requestedByUserId: string, candidateId: string, skillId: string, level: SkillLevel) {
+  async create(orgId: string, requestedByUserId: string, candidateId: string, skillId: string, level: SkillLevel) {
     const shortlisted = await this.prisma.shortlistEntry.findFirst({ where: { orgId, candidateId } });
     if (!shortlisted) throw new ForbiddenException('This candidate is not on your shortlist.');
 
@@ -145,133 +134,46 @@ export class AssessmentRequestsService {
       return { alreadyBadged: true as const, badge, requestId: request.id };
     }
 
-    const keyId = process.env.RAZORPAY_KEY_ID;
-    if (!keyId || !process.env.RAZORPAY_KEY_SECRET) {
-      throw new BadRequestException('Razorpay is not configured — set RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET.');
-    }
-
-    const amount = chargeAmountPaise();
-    const notes: OrderNotes = { orgId, requestedByUserId, candidateId, skillId, level };
-    const order = await this.razorpay.createOrder({
-      amount,
-      currency: CURRENCY,
-      receipt: `assessreq_${Date.now()}`,
-      notes: notes as unknown as Record<string, string>,
-    });
-
-    return { alreadyBadged: false as const, orderId: order.id, keyId, amount, currency: CURRENCY };
-  }
-
-  /**
-   * Step 2 of the employer flow — the one security-critical step. Same
-   * HMAC-SHA256("{order_id}|{payment_id}", Key Secret) + timingSafeEqual
-   * check proven in PaymentsService.verifyTestPayment: a client claiming
-   * "payment succeeded" proves nothing by itself, so nothing is persisted
-   * until this passes. Idempotent on razorpayPaymentId — a duplicate call
-   * (double-click, retried request) returns the already-created row rather
-   * than creating a second one; a plain check-then-create is proportionate
-   * here (unlike EntitlementsService's usage counters or the OTP store,
-   * which face many truly concurrent requests per key, one employer
-   * completing one checkout is not a hot path a race is realistically
-   * expected on).
-   */
-  async verifyAndCreate(orgId: string, razorpayOrderId: string, razorpayPaymentId: string, razorpaySignature: string) {
-    const secret = process.env.RAZORPAY_KEY_SECRET;
-    if (!secret) throw new BadRequestException('Razorpay is not configured — set RAZORPAY_KEY_SECRET.');
-
-    const expected = createHmac('sha256', secret).update(`${razorpayOrderId}|${razorpayPaymentId}`).digest('hex');
-    const expectedBuf = Buffer.from(expected, 'hex');
-    const actualBuf = Buffer.from(razorpaySignature, 'hex');
-    const verified = expectedBuf.length === actualBuf.length && timingSafeEqual(expectedBuf, actualBuf);
-    if (!verified) {
-      this.logger.warn('AssessmentRequest payment signature verification failed');
-      throw new BadRequestException('Payment could not be verified.');
-    }
-
-    const existing = await this.prisma.assessmentRequest.findFirst({ where: { razorpayPaymentId } });
-    if (existing) {
-      // Idempotent on razorpayPaymentId (see this method's own doc
-      // comment) — but a request row existing doesn't by itself mean
-      // recordCharge ever finished; if a prior call created this row and
-      // then failed before/during recordCharge, transactionId is still
-      // null and this retry is exactly what closes that gap, rather than
-      // returning a row whose charge was never recorded anywhere.
-      if (!existing.transactionId) {
-        await this.recordCharge(existing.id, existing.orgId, existing.amount!, razorpayOrderId, razorpayPaymentId);
-        return this.prisma.assessmentRequest.findUniqueOrThrow({ where: { id: existing.id } });
-      }
-      return existing;
-    }
-
-    const order = await this.razorpay.fetchOrder(razorpayOrderId);
-    const notes = (order.notes ?? {}) as unknown as Partial<OrderNotes>;
-    if (!notes.orgId || !notes.candidateId || !notes.skillId || !notes.level || !notes.requestedByUserId) {
-      throw new BadRequestException('Payment is missing its request context — cannot create the assessment request.');
-    }
-    // The order's own pinned context is authoritative; orgId is asserted
-    // against the caller purely as a sanity check (JwtAuthGuard/OrgMemberGuard
-    // already scope req.orgId), not the actual access-control boundary.
-    if (notes.orgId !== orgId) {
-      throw new ForbiddenException('This payment was not made by your organization.');
-    }
-
-    const paidAt = new Date();
     const chargedAmount = chargeAmountPaise();
+    const createdAt = new Date();
     const request = await this.prisma.assessmentRequest.create({
       data: {
-        orgId: notes.orgId,
-        requestedByUserId: notes.requestedByUserId,
-        candidateId: notes.candidateId,
-        skillId: notes.skillId,
-        level: notes.level as SkillLevel,
-        status: AssessmentRequestStatus.PAID_PENDING_START,
-        razorpayOrderId,
-        razorpayPaymentId,
+        orgId,
+        requestedByUserId,
+        candidateId,
+        skillId,
+        level,
+        status: AssessmentRequestStatus.ACCRUED_PENDING_START,
         amount: chargedAmount,
-        paidAt,
-        expiresAt: new Date(paidAt.getTime() + EXPIRY_WINDOW_MS),
+        expiresAt: new Date(createdAt.getTime() + EXPIRY_WINDOW_MS),
       },
     });
 
-    await this.recordCharge(request.id, notes.orgId, chargedAmount, razorpayOrderId, razorpayPaymentId);
+    await this.recordAccrual(request.id, orgId, chargedAmount);
     await this.notifyCandidateInvited(request.id);
-    return request;
+    return { alreadyBadged: false as const, requestId: request.id, amount: chargedAmount, currency: CURRENCY };
   }
 
   /**
-   * Ledger + GST split for a just-verified charge — mirrors
+   * Ledger + GST split for a just-created request — mirrors
    * RazorpayWebhookService.recordCharge's own posture (system-actor
    * Transaction, defensive totalPaise assertion) for the one-time-charge
-   * side of the business. Runs synchronously inside verifyAndCreate, not
+   * side of the business, but written PENDING, not SUCCEEDED: this is an
+   * accrual, not a captured payment (see TransactionStatus's own doc
+   * comment) — it only reaches SUCCEEDED once AssessmentRequestInvoicingJob
+   * actually invoices it, or VOIDED if the request expires unstarted (see
+   * AssessmentRequestExpiryJob). Runs synchronously inside create(), not
    * fire-and-forget: unlike a document (queued, retried independently —
-   * see the `documents` module), the ledger entry for money that has
-   * already left Razorpay must exist before this call returns, or a
-   * successful charge could be recorded nowhere at all. A failure here
-   * throws and the caller sees a 500 — the AssessmentRequest row itself
-   * was already created and is idempotent on razorpayPaymentId (see this
-   * method's own doc comment above), so a retried verify call is safe and
-   * simply re-attempts recordCharge rather than double-creating anything.
+   * see the `documents` module), the ledger entry for an obligation that
+   * has already been created must exist before this call returns, or an
+   * AssessmentRequest could exist with nothing backing its `amount`
+   * anywhere in the ledger. A failure here throws and the caller sees a
+   * 500 — there is no retried-verify-call idempotency concern anymore
+   * (that existed purely to handle a client resubmitting a Razorpay
+   * checkout response), since create() is one request/response round trip
+   * with nothing to retry against.
    */
-  private async recordCharge(
-    requestId: string,
-    orgId: string,
-    chargedAmount: number,
-    razorpayOrderId: string,
-    razorpayPaymentId: string,
-  ): Promise<void> {
-    // Deduped on providerPaymentId — same pattern as
-    // RazorpayWebhookService.recordCharge — so two verify calls racing
-    // before either has written transactionId back onto the
-    // AssessmentRequest row (see this method's one caller) can never
-    // create two Transaction rows for the same actual payment. Attaches
-    // whichever transaction already exists rather than erroring, so the
-    // loser of the race still ends up linked correctly.
-    const existingTransaction = await this.prisma.transaction.findFirst({ where: { providerPaymentId: razorpayPaymentId } });
-    if (existingTransaction) {
-      await this.prisma.assessmentRequest.update({ where: { id: requestId }, data: { transactionId: existingTransaction.id } });
-      return;
-    }
-
+  private async recordAccrual(requestId: string, orgId: string, chargedAmount: number): Promise<void> {
     const billingProfileId = await this.billingProfiles.ensureMinimalBillingProfile(orgId);
 
     const basePaise = baseAmountPaise();
@@ -284,23 +186,21 @@ export class AssessmentRequestsService {
 
     if (split.totalPaise !== chargedAmount) {
       // Same defensive posture as RazorpayWebhookService.recordCharge — a
-      // misconfiguration (env var changed between order creation and
-      // verify, or a stale client) fails loud rather than recording a
-      // split that doesn't add up to what was actually charged.
+      // misconfiguration (env var changed between amount-decided and
+      // accrual-recorded, both in the same call here, so this should be
+      // unreachable in practice) fails loud rather than recording a split
+      // that doesn't add up to what was actually accrued.
       this.logger.error(
-        `AssessmentRequest ${requestId}: computed GST total ${split.totalPaise} does not match actual charge ${chargedAmount} — recording amountPaise only, no tax split.`,
+        `AssessmentRequest ${requestId}: computed GST total ${split.totalPaise} does not match accrued amount ${chargedAmount} — recording amountPaise only, no tax split.`,
       );
     }
 
     const transaction = await this.transactions.recordSystemTransaction(billingProfileId, {
       amountPaise: chargedAmount,
       currency: CURRENCY,
-      type: TransactionType.ASSESSMENT_REQUEST_PAYMENT,
-      status: TransactionStatus.SUCCEEDED,
+      type: TransactionType.ASSESSMENT_REQUEST_ACCRUAL,
+      status: TransactionStatus.PENDING,
       description: 'MyAmbii assessment request charge',
-      provider: 'razorpay',
-      providerOrderId: razorpayOrderId,
-      providerPaymentId: razorpayPaymentId,
       gst: split.totalPaise === chargedAmount ? split : undefined,
     });
 
@@ -308,25 +208,26 @@ export class AssessmentRequestsService {
   }
 
   /**
-   * Candidate-facing: start the assessment this request paid for. Atomic
-   * conditional transition (updateMany WHERE status = PAID_PENDING_START
-   * AND expiresAt > now) is what closes the start-vs-expiry race in both
-   * directions — whichever of this call and the expiry job's own
-   * conditional update actually flips the row first is the one that
-   * "wins"; the loser's WHERE clause simply matches zero rows, so a
-   * request can never end up both STARTED and refunded. A second call
-   * after this one already won (double-click, page reload) matches zero
-   * rows too, but for a different reason — see the reload below, which
-   * treats "already STARTED with startedAt already set" as this same
-   * candidate's already-started attempt/session and returns it rather than
-   * erroring, mirroring AssessmentsService.startAttempt's own idempotent
-   * pattern (never a double-start creating two attempts).
+   * Candidate-facing: start the assessment this request accrued for.
+   * Atomic conditional transition (updateMany WHERE status =
+   * ACCRUED_PENDING_START AND expiresAt > now) is what closes the
+   * start-vs-expiry race in both directions — whichever of this call and
+   * the expiry job's own conditional update actually flips the row first
+   * is the one that "wins"; the loser's WHERE clause simply matches zero
+   * rows, so a request can never end up both STARTED and excluded from
+   * billing. A second call after this one already won (double-click, page
+   * reload) matches zero rows too, but for a different reason — see the
+   * reload below, which treats "already STARTED with startedAt already
+   * set" as this same candidate's already-started attempt/session and
+   * returns it rather than erroring, mirroring
+   * AssessmentsService.startAttempt's own idempotent pattern (never a
+   * double-start creating two attempts).
    */
   async startFromRequest(requestId: string, userId: string) {
     const request = await this.getOwnedByCandidate(requestId, userId);
 
     const { count } = await this.prisma.assessmentRequest.updateMany({
-      where: { id: requestId, status: AssessmentRequestStatus.PAID_PENDING_START, expiresAt: { gt: new Date() } },
+      where: { id: requestId, status: AssessmentRequestStatus.ACCRUED_PENDING_START, expiresAt: { gt: new Date() } },
       data: { status: AssessmentRequestStatus.STARTED, startedAt: new Date() },
     });
 

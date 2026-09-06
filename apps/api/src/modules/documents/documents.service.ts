@@ -1,10 +1,10 @@
 import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { BillingProfile, Document, DocumentSeries, DocumentStatus } from '@prisma/client';
+import { AssessmentRequestStatus, BillingProfile, Document, DocumentSeries, DocumentStatus, Prisma, TransactionStatus, TransactionType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { STORAGE_SERVICE, StorageService } from '../../storage/storage.interface';
 import { GSTIN, SAC_CODE, SELLER_ADDRESS, SELLER_LEGAL_NAME } from '../../config/gst.config';
 import { financialYearFor, formatDocumentNumber } from './document-numbering.util';
-import { buildDocumentPdf } from './document-pdf.builder';
+import { buildDocumentPdf, DocumentLineItem } from './document-pdf.builder';
 
 /**
  * DocumentsGenerationJob's sweep stops retrying a PENDING document (numbered,
@@ -33,12 +33,57 @@ export class DocumentsService {
    * Oldest-first so numbering stays coherent with actual charge dates, both
    * for ordinary traffic and for the one-time backfill of pre-existing
    * charges.
+   *
+   * Excludes ASSESSMENT_REQUEST_ACCRUAL explicitly (2026-09, prepaid ->
+   * postpaid switch) — that type is never SUCCEEDED at the point this
+   * per-transaction sweep would otherwise pick it up anyway (it's written
+   * PENDING at accrual, and only reaches SUCCEEDED once
+   * AssessmentRequestInvoicingJob's monthly aggregation actually invoices
+   * it — see reserveAndCreateForOrgPeriod below), but the exclusion is
+   * still explicit rather than relying on that timing coincidence: an
+   * accrual transaction must never get its own 1:1 document even if some
+   * future change ever left one SUCCEEDED without going through the
+   * monthly job first.
    */
   async findTransactionsNeedingDocuments(): Promise<{ id: string }[]> {
     return this.prisma.transaction.findMany({
-      where: { status: 'SUCCEEDED', basePaise: { not: null }, document: null },
+      where: { status: 'SUCCEEDED', basePaise: { not: null }, documentId: null, type: { not: TransactionType.ASSESSMENT_REQUEST_ACCRUAL } },
       orderBy: { createdAt: 'asc' },
       select: { id: true },
+    });
+  }
+
+  /**
+   * Every BillingProfile with at least one ASSESSMENT_REQUEST_ACCRUAL
+   * transaction that's actually billable (its AssessmentRequest reached
+   * STARTED or COMPLETED — see AssessmentRequestStatus's own doc comment
+   * on why "started" is what earns the charge) and not yet invoiced
+   * (status still PENDING, documentId still null). Deliberately not
+   * filtered by a calendar-month window — see reserveAndCreateForOrgPeriod's
+   * own doc comment for why "whatever is currently pending and billable"
+   * is the correct query, not "whatever was created in the period just
+   * ended": a request created near a period boundary that hasn't resolved
+   * yet must never be invoiced before it's known to be billable, and this
+   * query naturally excludes it (still ACCRUED_PENDING_START, not
+   * STARTED/COMPLETED) until it resolves, at which point the next run
+   * picks it up correctly regardless of which calendar month that is.
+   *
+   * The query itself is what guarantees an org with nothing accrued never
+   * gets an invoice: an org with zero qualifying rows simply never appears
+   * in this result, so reserveAndCreateForOrgPeriod (and the gap-free
+   * numbering it reserves) is never invoked for them at all — not a
+   * zero-check after the fact.
+   */
+  async findOrgsWithAccrualsNeedingInvoice(): Promise<{ billingProfileId: string }[]> {
+    return this.prisma.transaction.findMany({
+      where: {
+        type: TransactionType.ASSESSMENT_REQUEST_ACCRUAL,
+        status: TransactionStatus.PENDING,
+        documentId: null,
+        assessmentRequest: { status: { in: [AssessmentRequestStatus.STARTED, AssessmentRequestStatus.COMPLETED] } },
+      },
+      select: { billingProfileId: true },
+      distinct: ['billingProfileId'],
     });
   }
 
@@ -61,10 +106,16 @@ export class DocumentsService {
    * transaction (a re-run after a partial failure elsewhere, or a race
    * with another sweep tick), returns the existing row rather than
    * reserving a second number for the same charge.
+   *
+   * One Transaction, one Document — the SUBSCRIPTION_CHARGE path (the only
+   * type this is ever called for, per findTransactionsNeedingDocuments'
+   * own exclusion — see reserveAndCreateForOrgPeriod below for the other
+   * path). Shares its numbering core (claimNextDocumentNumber) with that
+   * method rather than duplicating the advisory-lock/sequence-upsert logic.
    */
   async reserveAndCreate(transactionId: string): Promise<Document> {
-    const existing = await this.prisma.document.findUnique({ where: { transactionId } });
-    if (existing) return existing;
+    const owning = await this.prisma.transaction.findUnique({ where: { id: transactionId }, select: { documentId: true } });
+    if (owning?.documentId) return this.prisma.document.findUniqueOrThrow({ where: { id: owning.documentId } });
 
     const transaction = await this.prisma.transaction.findUnique({ where: { id: transactionId } });
     if (!transaction) throw new NotFoundException(`Transaction ${transactionId} not found`);
@@ -78,26 +129,15 @@ export class DocumentsService {
     const buyerAddress = formatBuyerAddress(billingProfile);
 
     return this.prisma.$transaction(async (tx) => {
-      // Transaction-scoped advisory lock — released automatically on
-      // commit OR rollback, serializing concurrent reservations for the
-      // same (financialYear, series) pair without a second SELECT...FOR
-      // UPDATE on DocumentSequence (see that model's own doc comment).
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${financialYear}:${series}`}))`;
+      const { sequenceNumber, documentNumber } = await claimNextDocumentNumber(tx, financialYear, series);
 
-      const sequence = await tx.documentSequence.upsert({
-        where: { financialYear_series: { financialYear, series } },
-        create: { financialYear, series, lastNumber: 1 },
-        update: { lastNumber: { increment: 1 } },
-      });
-
-      return tx.document.create({
+      const document = await tx.document.create({
         data: {
-          transactionId,
           billingProfileId: transaction.billingProfileId,
           series,
           financialYear,
-          sequenceNumber: sequence.lastNumber,
-          documentNumber: formatDocumentNumber(series, financialYear, sequence.lastNumber),
+          sequenceNumber,
+          documentNumber,
           basePaise: transaction.basePaise!,
           gstPaise: transaction.gstPaise!,
           cgstPaise: transaction.cgstPaise!,
@@ -115,6 +155,106 @@ export class DocumentsService {
           issuedAt: transaction.createdAt,
         },
       });
+      await tx.transaction.update({ where: { id: transactionId }, data: { documentId: document.id } });
+      return document;
+    });
+  }
+
+  /**
+   * The ASSESSMENT_REQUEST_ACCRUAL counterpart to reserveAndCreate — one
+   * Document aggregating every currently-billable, not-yet-invoiced accrual
+   * for one org (see findOrgsWithAccrualsNeedingInvoice's own doc comment
+   * for the exact eligibility query and why it's safe against an org with
+   * nothing to invoice). Idempotent the same way: if a caller re-runs this
+   * for an org with nothing newly eligible (everything already has a
+   * documentId), the qualifying-transaction query below simply returns
+   * empty and this throws rather than reserving a number for zero line
+   * items — see AssessmentRequestInvoicingJob, the only caller, which
+   * already only calls this for orgs findOrgsWithAccrualsNeedingInvoice
+   * just confirmed have at least one.
+   *
+   * series is unconditionally TAX_INVOICE — NOT the gstin-presence branch
+   * reserveAndCreate uses — see DocumentSeries's own schema doc comment
+   * for the two independent reasons: nothing has been received yet
+   * (postpaid), and the buyer is always an Organization, never a B2C
+   * consumer, regardless of whether its GSTIN has been entered.
+   *
+   * placeOfSupplyStateCode on the aggregate Document is cosmetic display
+   * only — each covered Transaction's own cgstPaise/sgstPaise/igstPaise
+   * was already correctly split against its OWN snapshot at accrual time
+   * (see Transaction.placeOfSupplyStateCode's own doc comment), and this
+   * method only ever sums those already-correct parts, never recomputes
+   * the split at the aggregate level. If they disagree (an admin corrected
+   * the org's gstStateCode mid-period), the most recent transaction's
+   * value is used for display and a warning is logged — the summed tax
+   * figures remain correct either way.
+   */
+  async reserveAndCreateForOrgPeriod(billingProfileId: string): Promise<Document> {
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        billingProfileId,
+        type: TransactionType.ASSESSMENT_REQUEST_ACCRUAL,
+        status: TransactionStatus.PENDING,
+        documentId: null,
+        assessmentRequest: { status: { in: [AssessmentRequestStatus.STARTED, AssessmentRequestStatus.COMPLETED] } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (transactions.length === 0) {
+      throw new Error(`reserveAndCreateForOrgPeriod: BillingProfile ${billingProfileId} has no billable, uninvoiced accruals`);
+    }
+
+    const billingProfile = await this.prisma.billingProfile.findUniqueOrThrow({ where: { id: billingProfileId } });
+    const series = DocumentSeries.TAX_INVOICE;
+    const issuedAt = new Date();
+    const financialYear = financialYearFor(issuedAt);
+    const buyerAddress = formatBuyerAddress(billingProfile);
+
+    const distinctStateCodes = new Set(transactions.map((t) => t.placeOfSupplyStateCode));
+    if (distinctStateCodes.size > 1) {
+      this.logger.warn(
+        `BillingProfile ${billingProfileId}: accruals being invoiced together have inconsistent placeOfSupplyStateCode values (${[...distinctStateCodes].join(', ')}) — using the most recent. Each transaction's own CGST/SGST/IGST split remains correct regardless.`,
+      );
+    }
+    const placeOfSupplyStateCode = transactions[transactions.length - 1].placeOfSupplyStateCode ?? GSTIN;
+
+    const sum = (field: 'basePaise' | 'gstPaise' | 'cgstPaise' | 'sgstPaise' | 'igstPaise' | 'amountPaise') =>
+      transactions.reduce((total, t) => total + (t[field] ?? 0), 0);
+
+    return this.prisma.$transaction(async (tx) => {
+      const { sequenceNumber, documentNumber } = await claimNextDocumentNumber(tx, financialYear, series);
+
+      const document = await tx.document.create({
+        data: {
+          billingProfileId,
+          series,
+          financialYear,
+          sequenceNumber,
+          documentNumber,
+          basePaise: sum('basePaise'),
+          gstPaise: sum('gstPaise'),
+          cgstPaise: sum('cgstPaise'),
+          sgstPaise: sum('sgstPaise'),
+          igstPaise: sum('igstPaise'),
+          totalPaise: sum('amountPaise'),
+          placeOfSupplyStateCode,
+          sellerGstin: GSTIN,
+          sellerLegalName: SELLER_LEGAL_NAME,
+          sellerAddress: SELLER_ADDRESS,
+          sacCode: SAC_CODE,
+          buyerLegalName: billingProfile.legalEntityName,
+          buyerGstin: billingProfile.gstin,
+          buyerAddress,
+          issuedAt,
+        },
+      });
+
+      await tx.transaction.updateMany({
+        where: { id: { in: transactions.map((t) => t.id) } },
+        data: { documentId: document.id, status: TransactionStatus.SUCCEEDED },
+      });
+
+      return document;
     });
   }
 
@@ -130,12 +270,29 @@ export class DocumentsService {
     if (document.status !== DocumentStatus.PENDING) return; // already GENERATED or FAILED_NEEDS_ATTENTION — nothing to do
 
     try {
-      const transaction = await this.prisma.transaction.findUniqueOrThrow({ where: { id: document.transactionId } });
+      // One row for a SUBSCRIPTION_CHARGE document (still 1:1 in practice —
+      // see Transaction.documentId's own doc comment); one row per covered
+      // accrual for an ASSESSMENT_REQUEST_ACCRUAL invoice, each named from
+      // its own AssessmentRequest (skill/level/candidate) rather than the
+      // Transaction's own generic description, since that's what actually
+      // distinguishes one line item from another on a multi-line invoice.
+      const transactions = await this.prisma.transaction.findMany({
+        where: { documentId: document.id },
+        orderBy: { createdAt: 'asc' },
+        include: { assessmentRequest: { include: { skill: true, candidateProfile: true } } },
+      });
+      const lineItems: DocumentLineItem[] = transactions.map((t) => ({
+        description: t.assessmentRequest
+          ? `${t.assessmentRequest.skill.name} ${t.assessmentRequest.level} assessment — ${t.assessmentRequest.candidateProfile.fullName ?? 'candidate'}`
+          : (t.description ?? 'MyAmbii charge'),
+        basePaise: t.basePaise ?? 0,
+      }));
+
       const pdf = await buildDocumentPdf({
         series: document.series,
         documentNumber: document.documentNumber,
         issuedAt: document.issuedAt,
-        description: transaction.description ?? 'MyAmbii charge',
+        lineItems,
         sellerLegalName: document.sellerLegalName,
         sellerAddress: document.sellerAddress,
         sellerGstin: document.sellerGstin,
@@ -200,7 +357,7 @@ export class DocumentsService {
     return document;
   }
 
-  /** Same as getOwnedByCandidateUser, org-scoped — for the employer side once assessment-request documents exist. */
+  /** Same as getOwnedByCandidateUser, org-scoped — for the employer side's assessment-request invoices. */
   async getOwnedByOrg(orgId: string, documentId: string): Promise<Document> {
     const document = await this.prisma.document.findFirst({ where: { id: documentId, billingProfile: { organizationId: orgId } } });
     if (!document) throw new NotFoundException('Document not found');
@@ -257,4 +414,34 @@ function formatBuyerAddress(profile: Pick<BillingProfile, 'addressLine1' | 'addr
     (p): p is string => !!p && p.trim().length > 0,
   );
   return parts.length > 0 ? parts.join(', ') : null;
+}
+
+/**
+ * The gap-free numbering core shared by reserveAndCreate (one Transaction)
+ * and reserveAndCreateForOrgPeriod (many) — factored out specifically so
+ * the advisory-lock/sequence-upsert logic exists in exactly one place
+ * regardless of which caller reserves a number. Must be called with an
+ * already-open Prisma `$transaction` client (`tx`), never `this.prisma`
+ * directly — the caller's own transaction is what makes the lock,
+ * increment, and the Document row it numbers commit or roll back together
+ * (see DocumentSequence's own doc comment).
+ */
+async function claimNextDocumentNumber(
+  tx: Prisma.TransactionClient,
+  financialYear: string,
+  series: DocumentSeries,
+): Promise<{ sequenceNumber: number; documentNumber: string }> {
+  // Transaction-scoped advisory lock — released automatically on commit OR
+  // rollback, serializing concurrent reservations for the same
+  // (financialYear, series) pair without a second SELECT...FOR UPDATE on
+  // DocumentSequence (see that model's own doc comment).
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${financialYear}:${series}`}))`;
+
+  const sequence = await tx.documentSequence.upsert({
+    where: { financialYear_series: { financialYear, series } },
+    create: { financialYear, series, lastNumber: 1 },
+    update: { lastNumber: { increment: 1 } },
+  });
+
+  return { sequenceNumber: sequence.lastNumber, documentNumber: formatDocumentNumber(series, financialYear, sequence.lastNumber) };
 }

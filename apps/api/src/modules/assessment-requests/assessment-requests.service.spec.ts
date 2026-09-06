@@ -1,6 +1,5 @@
-import { AssessmentRequestStatus, AssessmentSessionStatus, AttemptStatus, Role, SkillLevel } from '@prisma/client';
+import { AssessmentRequestStatus, AssessmentSessionStatus, AttemptStatus, SkillLevel } from '@prisma/client';
 import { AssessmentRequestsService } from './assessment-requests.service';
-import { RazorpayGateway } from './razorpay-gateway';
 
 /** Minimal in-memory AssessmentRequest table — just enough surface (findUnique/findFirst/findMany/create/update/updateMany) to exercise the service's own logic without a real DB. */
 function fakePrisma() {
@@ -78,9 +77,6 @@ function fakePrisma() {
     billingProfile: {
       findUnique: jest.fn(async ({ where }: any) => ({ id: where.id, gstStateCode: null })),
     },
-    transaction: {
-      findFirst: jest.fn(async () => null),
-    },
   };
 
   function matches(row: any, where: any): boolean {
@@ -114,16 +110,6 @@ function fakePrisma() {
   }
 }
 
-function fakeGateway(): jest.Mocked<RazorpayGateway> {
-  return {
-    createOrder: jest.fn(async (_params: Parameters<RazorpayGateway['createOrder']>[0]) => ({ id: 'order-1' })),
-    fetchOrder: jest.fn(async (_orderId: string) => ({
-      notes: { orgId: 'org-1', requestedByUserId: 'user-employer-1', candidateId: 'candidate-1', skillId: 'skill-1', level: 'L2' },
-    })),
-    refundPayment: jest.fn(async (_paymentId: string, _amount: number) => ({ id: 'refund-1' })),
-  };
-}
-
 function makeService(overrides?: { badge?: any }) {
   const prisma = fakePrisma();
   const notifications = { sendEmail: jest.fn(async () => undefined) };
@@ -141,7 +127,6 @@ function makeService(overrides?: { badge?: any }) {
   };
   const assessmentSessions = { createSession: jest.fn(async () => ({ session: prisma._sessions[0], turns: [], claimFeedback: [] })) };
   const badgeResolver = { resolveLevelMap: jest.fn(async () => (overrides?.badge ? { [SkillLevel.L2]: overrides.badge } : {})) };
-  const gateway = fakeGateway();
   const transactions = { recordSystemTransaction: jest.fn(async () => ({ id: 'txn-1' })) };
   const billingProfiles = { ensureMinimalBillingProfile: jest.fn(async () => 'billing-profile-1') };
 
@@ -151,43 +136,22 @@ function makeService(overrides?: { badge?: any }) {
     assessments as any,
     assessmentSessions as any,
     badgeResolver as any,
-    gateway,
     transactions as any,
     billingProfiles as any,
   );
-  return { service, prisma, notifications, assessments, assessmentSessions, badgeResolver, gateway, transactions, billingProfiles };
-}
-
-const SIGNATURE_SECRET = 'test-secret';
-
-function signaturePair(orderId: string, paymentId: string) {
-  const { createHmac } = require('crypto');
-  const sig = createHmac('sha256', SIGNATURE_SECRET).update(`${orderId}|${paymentId}`).digest('hex');
-  return sig;
+  return { service, prisma, notifications, assessments, assessmentSessions, badgeResolver, transactions, billingProfiles };
 }
 
 describe('AssessmentRequestsService', () => {
-  const originalSecret = process.env.RAZORPAY_KEY_SECRET;
-  const originalKeyId = process.env.RAZORPAY_KEY_ID;
-
-  beforeEach(() => {
-    process.env.RAZORPAY_KEY_SECRET = SIGNATURE_SECRET;
-    process.env.RAZORPAY_KEY_ID = 'rzp_test_fake';
-  });
-  afterEach(() => {
-    process.env.RAZORPAY_KEY_SECRET = originalSecret;
-    process.env.RAZORPAY_KEY_ID = originalKeyId;
-  });
-
-  describe('initiate — already-badged short-circuit', () => {
-    it('creates an ALREADY_BADGED row and never calls Razorpay', async () => {
+  describe('create — already-badged short-circuit', () => {
+    it('creates an ALREADY_BADGED row and never accrues anything', async () => {
       const badge = { id: 'badge-1' };
-      const { service, gateway, prisma } = makeService({ badge });
+      const { service, prisma, transactions } = makeService({ badge });
 
-      const result = await service.initiate('org-1', 'user-employer-1', 'candidate-1', 'skill-1', SkillLevel.L2);
+      const result = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', SkillLevel.L2);
 
       expect(result).toMatchObject({ alreadyBadged: true, badge });
-      expect(gateway.createOrder).not.toHaveBeenCalled();
+      expect(transactions.recordSystemTransaction).not.toHaveBeenCalled();
       expect(prisma._requests).toHaveLength(1);
       expect(prisma._requests[0]).toMatchObject({ status: AssessmentRequestStatus.ALREADY_BADGED });
       expect(prisma._requests[0].amount).toBeUndefined();
@@ -196,52 +160,29 @@ describe('AssessmentRequestsService', () => {
     it('rejects a candidate not on the org shortlist (IDOR guard)', async () => {
       const { service } = makeService();
       await expect(
-        service.initiate('org-1', 'user-employer-1', 'candidate-not-shortlisted', 'skill-1', SkillLevel.L2),
+        service.create('org-1', 'user-employer-1', 'candidate-not-shortlisted', 'skill-1', SkillLevel.L2),
       ).rejects.toThrow('This candidate is not on your shortlist.');
     });
   });
 
-  describe('initiate — not badged', () => {
-    it('creates a Razorpay order and does not persist a row yet', async () => {
-      const { service, gateway, prisma } = makeService();
-
-      const result = await service.initiate('org-1', 'user-employer-1', 'candidate-1', 'skill-1', SkillLevel.L2);
-
-      expect(result).toMatchObject({ alreadyBadged: false, orderId: 'order-1', keyId: 'rzp_test_fake' });
-      expect(gateway.createOrder).toHaveBeenCalledTimes(1);
-      expect(prisma._requests).toHaveLength(0); // nothing persisted until payment verifies
-    });
-
-    it('orders the GST-inclusive total (₹150 base + 18% = ₹177), not the base amount', async () => {
-      const { service, gateway } = makeService();
-
-      const result = await service.initiate('org-1', 'user-employer-1', 'candidate-1', 'skill-1', SkillLevel.L2);
-
-      expect(result.amount).toBe(17700);
-      expect(gateway.createOrder).toHaveBeenCalledWith(expect.objectContaining({ amount: 17700 }));
-    });
-  });
-
-  describe('verifyAndCreate', () => {
-    it('rejects an invalid signature and creates nothing', async () => {
-      const { service, prisma } = makeService();
-      await expect(service.verifyAndCreate('org-1', 'order-1', 'pay-1', 'not-a-real-signature')).rejects.toThrow(
-        'Payment could not be verified.',
-      );
-      expect(prisma._requests).toHaveLength(0);
-    });
-
-    it('a valid signature creates PAID_PENDING_START with expiresAt 5 days out, and notifies the candidate', async () => {
+  describe('create — not badged (postpaid: one call, no payment step)', () => {
+    it('creates ACCRUED_PENDING_START immediately, with expiresAt 5 days out, and notifies the candidate — no order/verify round trip', async () => {
       const { service, prisma, notifications } = makeService();
-      const signature = signaturePair('order-1', 'pay-1');
 
-      const request = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
+      // Captured independently of the fake's own `createdAt: new Date()`
+      // (a separate timestamp from whatever the service used internally
+      // to compute expiresAt) — asserting against a tolerance window
+      // avoids the test itself being flaky by comparing two independently
+      // taken instants for exact equality.
+      const before = Date.now();
+      const result = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', SkillLevel.L2);
 
-      expect(request.status).toBe(AssessmentRequestStatus.PAID_PENDING_START);
-      expect(request.candidateId).toBe('candidate-1');
-      expect(request.razorpayPaymentId).toBe('pay-1');
-      const expectedExpiry = new Date(request.paidAt!.getTime() + 5 * 24 * 60 * 60 * 1000);
-      expect(request.expiresAt!.getTime()).toBe(expectedExpiry.getTime());
+      expect(result).toMatchObject({ alreadyBadged: false, amount: 17700, currency: 'INR' });
+      const row = prisma._requests.find((r: any) => r.id === result.requestId);
+      expect(row.status).toBe(AssessmentRequestStatus.ACCRUED_PENDING_START);
+      expect(row.candidateId).toBe('candidate-1');
+      const expectedExpiry = before + 5 * 24 * 60 * 60 * 1000;
+      expect(Math.abs(row.expiresAt.getTime() - expectedExpiry)).toBeLessThan(5000);
       expect(notifications.sendEmail).toHaveBeenCalledWith(
         'user-candidate-1',
         'ASSESSMENT_REQUEST_INVITE',
@@ -250,95 +191,66 @@ describe('AssessmentRequestsService', () => {
       );
     });
 
-    it('is idempotent on razorpayPaymentId — a duplicate call returns the same row, not a second one', async () => {
-      const { service, prisma } = makeService();
-      const signature = signaturePair('order-1', 'pay-1');
+    it('accrues the GST-inclusive total (₹150 base + 18% = ₹177), not the base amount', async () => {
+      const { service } = makeService();
 
-      const first = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
-      const second = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
+      const result = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', SkillLevel.L2);
 
-      expect(second.id).toBe(first.id);
-      expect(prisma._requests).toHaveLength(1);
-    });
-
-    it('rejects when the order notes belong to a different org', async () => {
-      const { service, gateway } = makeService();
-      gateway.fetchOrder.mockResolvedValueOnce({
-        notes: { orgId: 'org-OTHER', requestedByUserId: 'u', candidateId: 'candidate-1', skillId: 'skill-1', level: 'L2' },
-      });
-      const signature = signaturePair('order-1', 'pay-1');
-      await expect(service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature)).rejects.toThrow();
+      expect(result.amount).toBe(17700);
     });
 
     describe('GST ledger', () => {
-      it('records a system Transaction with the correct base/GST split and links it back onto the request', async () => {
-        const { service, transactions, billingProfiles } = makeService();
-        const signature = signaturePair('order-1', 'pay-1');
+      it('records a PENDING system Transaction with the correct base/GST split and links it back onto the request — no provider/order/payment fields at all', async () => {
+        const { service, prisma, transactions, billingProfiles } = makeService();
 
-        const request = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
+        const result = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', SkillLevel.L2);
 
         expect(billingProfiles.ensureMinimalBillingProfile).toHaveBeenCalledWith('org-1');
         expect(transactions.recordSystemTransaction).toHaveBeenCalledWith(
           'billing-profile-1',
           expect.objectContaining({
             amountPaise: 17700,
-            type: 'ASSESSMENT_REQUEST_PAYMENT',
-            status: 'SUCCEEDED',
-            provider: 'razorpay',
-            providerOrderId: 'order-1',
-            providerPaymentId: 'pay-1',
+            type: 'ASSESSMENT_REQUEST_ACCRUAL',
+            status: 'PENDING',
             // Default place of supply (Maharashtra) is intra-state, so the
             // 18% splits evenly into 9%+9% CGST/SGST, none IGST.
             gst: { basePaise: 15000, gstPaise: 2700, totalPaise: 17700, cgstPaise: 1350, sgstPaise: 1350, igstPaise: 0, placeOfSupplyStateCode: '27' },
           }),
         );
-        expect(request.transactionId).toBe('txn-1');
-      });
-
-      it('retries recordCharge on a duplicate verify call if the first call never finished linking a transaction', async () => {
-        const { service, prisma, transactions } = makeService();
-        const signature = signaturePair('order-1', 'pay-1');
-
-        const first = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
-        // Simulate a prior call that created the row but crashed before
-        // recordCharge finished (e.g. a DB blip writing transactionId back).
-        prisma._requests.find((r: any) => r.id === first.id).transactionId = null;
-        transactions.recordSystemTransaction.mockClear();
-
-        const second = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
-
-        expect(second.id).toBe(first.id);
-        expect(transactions.recordSystemTransaction).toHaveBeenCalledTimes(1);
-        expect(second.transactionId).toBe('txn-1');
+        const call = (transactions.recordSystemTransaction as jest.Mock).mock.calls[0][1];
+        expect(call.provider).toBeUndefined();
+        expect(call.providerOrderId).toBeUndefined();
+        expect(call.providerPaymentId).toBeUndefined();
+        const row = prisma._requests.find((r: any) => r.id === result.requestId);
+        expect(row.transactionId).toBe('txn-1');
       });
     });
   });
 
   describe('startFromRequest', () => {
-    async function paidRequest(service: AssessmentRequestsService) {
-      const signature = signaturePair('order-1', 'pay-1');
-      return service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
+    async function accruedRequest(service: AssessmentRequestsService) {
+      return service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', SkillLevel.L2);
     }
 
     it('happy path: transitions to STARTED and launches the MCQ attempt', async () => {
       const { service, assessments, prisma } = makeService();
-      const request = await paidRequest(service);
+      const created = await accruedRequest(service);
 
-      const result = await service.startFromRequest(request.id, 'user-candidate-1');
+      const result = await service.startFromRequest(created.requestId!, 'user-candidate-1');
 
       expect(result.attemptId).toBe('attempt-1');
       expect(assessments.startAttempt).toHaveBeenCalledWith('user-candidate-1', 'assessment-1', { skipLevelAndRetakeChecks: true });
-      const updated = await prisma.assessmentRequest.findUnique({ where: { id: request.id } });
+      const updated = await prisma.assessmentRequest.findUnique({ where: { id: created.requestId } });
       expect(updated.status).toBe(AssessmentRequestStatus.STARTED);
       expect(updated.attemptId).toBe('attempt-1');
     });
 
     it('a second start call is idempotent — does not create a second attempt', async () => {
       const { service, assessments } = makeService();
-      const request = await paidRequest(service);
+      const created = await accruedRequest(service);
 
-      await service.startFromRequest(request.id, 'user-candidate-1');
-      const second = await service.startFromRequest(request.id, 'user-candidate-1');
+      await service.startFromRequest(created.requestId!, 'user-candidate-1');
+      const second = await service.startFromRequest(created.requestId!, 'user-candidate-1');
 
       expect(second.attemptId).toBe('attempt-1');
       expect(assessments.startAttempt).toHaveBeenCalledTimes(1);
@@ -346,46 +258,45 @@ describe('AssessmentRequestsService', () => {
 
     it('blocks starting after expiry with a graceful error', async () => {
       const { service, prisma } = makeService();
-      const request = await paidRequest(service);
+      const created = await accruedRequest(service);
       // Simulate the window having already closed.
-      await prisma.assessmentRequest.update({ where: { id: request.id }, data: { expiresAt: new Date(Date.now() - 1000) } });
+      await prisma.assessmentRequest.update({ where: { id: created.requestId }, data: { expiresAt: new Date(Date.now() - 1000) } });
 
-      await expect(service.startFromRequest(request.id, 'user-candidate-1')).rejects.toThrow('This invitation has expired.');
+      await expect(service.startFromRequest(created.requestId!, 'user-candidate-1')).rejects.toThrow('This invitation has expired.');
     });
 
-    it('the start-vs-expiry race: once the refund job has claimed a row, starting it is blocked, never both', async () => {
+    it('the start-vs-expiry race: once the expiry job has claimed a row, starting it is blocked, never both', async () => {
       const { service, prisma } = makeService();
-      const request = await paidRequest(service);
-      // Simulate the refund job's own atomic claim (PAID_PENDING_START -> REFUND_FAILED) winning first.
+      const created = await accruedRequest(service);
+      // Simulate the expiry job's own atomic claim (ACCRUED_PENDING_START -> EXPIRED_UNBILLED) winning first.
       await prisma.assessmentRequest.updateMany({
-        where: { id: request.id, status: AssessmentRequestStatus.PAID_PENDING_START },
-        data: { status: AssessmentRequestStatus.REFUND_FAILED },
+        where: { id: created.requestId, status: AssessmentRequestStatus.ACCRUED_PENDING_START },
+        data: { status: AssessmentRequestStatus.EXPIRED_UNBILLED },
       });
 
-      await expect(service.startFromRequest(request.id, 'user-candidate-1')).rejects.toThrow('This invitation has expired.');
+      await expect(service.startFromRequest(created.requestId!, 'user-candidate-1')).rejects.toThrow('This invitation has expired.');
       const { assessments } = makeService();
       expect(assessments.startAttempt).not.toHaveBeenCalled();
     });
 
     it('rejects a candidate who does not own the request', async () => {
       const { service } = makeService();
-      const request = await paidRequest(service);
-      await expect(service.startFromRequest(request.id, 'some-other-user')).rejects.toThrow();
+      const created = await accruedRequest(service);
+      await expect(service.startFromRequest(created.requestId!, 'some-other-user')).rejects.toThrow();
     });
   });
 
   describe('reconcile (STARTED -> COMPLETED)', () => {
     it('promotes to COMPLETED once the linked attempt is GRADED, and notifies the employer', async () => {
       const { service, prisma, notifications } = makeService();
-      const signature = signaturePair('order-1', 'pay-1');
-      const request = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
-      await service.startFromRequest(request.id, 'user-candidate-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', SkillLevel.L2);
+      await service.startFromRequest(created.requestId!, 'user-candidate-1');
 
       // Simulate grading finishing, independently of AssessmentRequestsService (pull-based reconciliation).
       prisma._attempts[0].status = AttemptStatus.GRADED;
       prisma._attempts[0].badge = { id: 'badge-earned-1' };
 
-      const result = await service.getForEmployer('org-1', request.id);
+      const result = await service.getForEmployer('org-1', created.requestId!);
 
       expect(result.status).toBe(AssessmentRequestStatus.COMPLETED);
       expect(result.badgeId).toBe('badge-earned-1');
@@ -399,14 +310,13 @@ describe('AssessmentRequestsService', () => {
 
     it('does not re-notify on a second read once already COMPLETED', async () => {
       const { service, prisma, notifications } = makeService();
-      const signature = signaturePair('order-1', 'pay-1');
-      const request = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
-      await service.startFromRequest(request.id, 'user-candidate-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', SkillLevel.L2);
+      await service.startFromRequest(created.requestId!, 'user-candidate-1');
       prisma._attempts[0].status = AttemptStatus.GRADED;
 
-      await service.getForEmployer('org-1', request.id);
+      await service.getForEmployer('org-1', created.requestId!);
       notifications.sendEmail.mockClear();
-      await service.getForEmployer('org-1', request.id);
+      await service.getForEmployer('org-1', created.requestId!);
 
       expect(notifications.sendEmail).not.toHaveBeenCalled();
     });
@@ -415,13 +325,12 @@ describe('AssessmentRequestsService', () => {
   describe('employer outcome — badge, pass/fail, score, and topic breakdown (the requesting employer only)', () => {
     it('a completed TEST-format request carries passed, badge (hash/level/expiry), scorePercent, and topicBreakdown — reusing AssessmentsService.getScoreAndTopicBreakdown, not reimplementing it', async () => {
       const { service, prisma, assessments } = makeService();
-      const signature = signaturePair('order-1', 'pay-1');
-      const request = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
-      await service.startFromRequest(request.id, 'user-candidate-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', SkillLevel.L2);
+      await service.startFromRequest(created.requestId!, 'user-candidate-1');
       prisma._attempts[0].status = AttemptStatus.GRADED;
       prisma._attempts[0].badge = { id: 'badge-earned-1' };
 
-      const result = await service.getForEmployer('org-1', request.id);
+      const result = await service.getForEmployer('org-1', created.requestId!);
 
       expect(result.passed).toBe(true);
       expect(result.badge).toEqual({ id: 'badge-earned-1', verifyHash: 'hash-badge-earned-1', level: 'L2', expiresAt: new Date('2027-01-01') });
@@ -432,13 +341,12 @@ describe('AssessmentRequestsService', () => {
 
     it('a completed request with no badge (failed) still gets passed:false and the score/breakdown — a fail is a paid-for result too', async () => {
       const { service, prisma } = makeService();
-      const signature = signaturePair('order-1', 'pay-1');
-      const request = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
-      await service.startFromRequest(request.id, 'user-candidate-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', SkillLevel.L2);
+      await service.startFromRequest(created.requestId!, 'user-candidate-1');
       prisma._attempts[0].status = AttemptStatus.GRADED;
       prisma._attempts[0].badge = null; // graded but didn't pass
 
-      const result = await service.getForEmployer('org-1', request.id);
+      const result = await service.getForEmployer('org-1', created.requestId!);
 
       expect(result.passed).toBe(false);
       expect(result.badge).toBeNull();
@@ -477,11 +385,10 @@ describe('AssessmentRequestsService', () => {
 
     it('a not-yet-completed request gets passed:null and no score/breakdown — nothing to report yet', async () => {
       const { service, assessments } = makeService();
-      const signature = signaturePair('order-1', 'pay-1');
-      const request = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
-      // Still PAID_PENDING_START — never started.
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', SkillLevel.L2);
+      // Still ACCRUED_PENDING_START — never started.
 
-      const result = await service.getForEmployer('org-1', request.id);
+      const result = await service.getForEmployer('org-1', created.requestId!);
 
       expect(result.passed).toBeNull();
       expect(result.scorePercent).toBeNull();
@@ -491,9 +398,8 @@ describe('AssessmentRequestsService', () => {
 
     it('listForEmployer enriches every completed request in the list, not just a single get', async () => {
       const { service, prisma } = makeService();
-      const signature = signaturePair('order-1', 'pay-1');
-      const request = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
-      await service.startFromRequest(request.id, 'user-candidate-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', SkillLevel.L2);
+      await service.startFromRequest(created.requestId!, 'user-candidate-1');
       prisma._attempts[0].status = AttemptStatus.GRADED;
       prisma._attempts[0].badge = { id: 'badge-earned-1' };
 
@@ -505,13 +411,12 @@ describe('AssessmentRequestsService', () => {
 
     it('never reaches an employer outside the owning org — the ownership check runs before any enrichment', async () => {
       const { service, prisma } = makeService();
-      const signature = signaturePair('order-1', 'pay-1');
-      const request = await service.verifyAndCreate('org-1', 'order-1', 'pay-1', signature);
-      await service.startFromRequest(request.id, 'user-candidate-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', SkillLevel.L2);
+      await service.startFromRequest(created.requestId!, 'user-candidate-1');
       prisma._attempts[0].status = AttemptStatus.GRADED;
       prisma._attempts[0].badge = { id: 'badge-earned-1' };
 
-      await expect(service.getForEmployer('some-other-org', request.id)).rejects.toThrow('Assessment request not found');
+      await expect(service.getForEmployer('some-other-org', created.requestId!)).rejects.toThrow('Assessment request not found');
     });
   });
 });

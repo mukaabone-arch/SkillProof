@@ -6,7 +6,7 @@ function baseInput(overrides: Partial<DocumentPdfInput> = {}): DocumentPdfInput 
     series: DocumentSeries.RECEIPT,
     documentNumber: 'RCT/2026-27/000001',
     issuedAt: new Date('2026-08-31T06:20:41.000Z'),
-    description: 'MyAmbii Premium subscription charge',
+    lineItems: [{ description: 'MyAmbii Premium subscription charge', basePaise: 29900 }],
     sellerLegalName: 'Mukaab Technologies Private Limited',
     sellerAddress: 'F/602, Mahavir Heritage, Sector 35 G, Kharghar, Navi Mumbai, 410210, Maharashtra',
     sellerGstin: '27AAUCM4131F1ZC',
@@ -49,6 +49,30 @@ describe('buildDocumentPdf', () => {
 
   it('renders with no buyer name on file at all (auto-created candidate BillingProfile, common case)', async () => {
     const buf = await buildDocumentPdf(baseInput({ buyerLegalName: null }));
+    expect(buf.length).toBeGreaterThan(0);
+  });
+
+  it('renders a monthly assessment-request TAX_INVOICE with multiple line items — one row per accrued request', async () => {
+    const buf = await buildDocumentPdf(
+      baseInput({
+        series: DocumentSeries.TAX_INVOICE,
+        documentNumber: 'INV/2026-27/000002',
+        buyerLegalName: 'Acme Corp',
+        buyerGstin: '29AAACT2727Q1ZM',
+        buyerAddress: '1st Floor, MG Road, Bengaluru, 560001, Karnataka',
+        placeOfSupplyStateCode: '29',
+        lineItems: [
+          { description: 'LLM Evaluation L2 assessment — Jordan Lee', basePaise: 15000 },
+          { description: 'RAG Systems L1 assessment — Alex Kim', basePaise: 15000 },
+          { description: 'Prompt Engineering L3 assessment — Sam Patel', basePaise: 15000 },
+        ],
+        basePaise: 45000,
+        cgstPaise: 0,
+        sgstPaise: 0,
+        igstPaise: 8100,
+        totalPaise: 53100,
+      }),
+    );
     expect(buf.length).toBeGreaterThan(0);
   });
 });

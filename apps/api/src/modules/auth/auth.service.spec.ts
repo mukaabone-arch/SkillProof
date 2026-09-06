@@ -1117,26 +1117,29 @@ describe('AuthService — add-identifier linking (phone/email onto one account)'
     const other: UserRow = { id: 'user-2', phone: '+919999900013', email: null, role: Role.CANDIDATE };
     const { service, smsProvider } = makeService([me, other]);
 
-    // The message must NOT confirm the number already has an account (no
-    // enumeration oracle) — it reads like a typo/ineligible-value hint instead.
+    // Reverted from a deliberately vague "double-check it" message to an
+    // explicit one — see PHONE_NOT_LINKABLE_MESSAGE's own doc comment: the
+    // vague copy was actively misread during testing as "your account
+    // already has one" (a different case entirely), so this now says
+    // exactly what's wrong instead of asserting it stays silent about it.
     await expect(service.requestLinkPhoneOtp('user-1', '+919999900013')).rejects.toThrow(
-      "This phone number can't be added to your account. Double-check it and try again.",
+      'This phone number is already in use by another account.',
     );
-    await expect(service.requestLinkPhoneOtp('user-1', '+919999900013')).rejects.not.toThrow(/another|in use|already/i);
     expect(smsProvider.sendOtp).not.toHaveBeenCalled(); // refused before any send
   });
 
-  it('rejects linking an email that already belongs to another account — with a non-leaky message', async () => {
+  it('rejects linking an email that already belongs to another account — with an explicit message', async () => {
     process.env.NODE_ENV = 'test';
     const me: UserRow = { id: 'user-1', phone: '+919999900021', email: null, role: Role.CANDIDATE };
     const other: UserRow = { id: 'user-2', phone: null, email: 'taken@candidate.com', role: Role.CANDIDATE };
     const { service } = makeService([me, other]);
 
-    // Case-insensitive match still hits (assertEmailLinkable), and the copy stays vague.
+    // Case-insensitive match still hits (assertEmailLinkable). Same
+    // deliberate reversal as the phone case above — see
+    // EMAIL_NOT_LINKABLE_MESSAGE's own doc comment.
     await expect(service.requestLinkEmailOtp('user-1', 'Taken@Candidate.com')).rejects.toThrow(
-      "This email address can't be added to your account. Double-check it and try again.",
+      'This email address is already in use by another account.',
     );
-    await expect(service.requestLinkEmailOtp('user-1', 'Taken@Candidate.com')).rejects.not.toThrow(/another|in use|already/i);
   });
 
   it('rejects linking a phone when the account already has one', async () => {

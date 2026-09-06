@@ -5,15 +5,16 @@ import { AssessmentsModule } from '../assessments/assessments.module';
 import { AssessmentSessionsModule } from '../assessment-sessions/assessment-sessions.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BillingModule } from '../billing/billing.module';
+import { DocumentsModule } from '../documents/documents.module';
 import { EmployerAssessmentRequestsController } from './employer-assessment-requests.controller';
 import { CandidateAssessmentRequestsController } from './candidate-assessment-requests.controller';
 import { AssessmentRequestsService } from './assessment-requests.service';
-import { AssessmentRequestsRefundJob } from './assessment-requests-refund.job';
+import { AssessmentRequestsExpiryJob } from './assessment-requests-expiry.job';
+import { AssessmentRequestInvoicingJob } from './assessment-request-invoicing.job';
 import { AssessmentRequestBillingProfileService } from './assessment-request-billing-profile.service';
-import { RAZORPAY_GATEWAY, RazorpaySdkGateway } from './razorpay-gateway';
 
 @Module({
-  imports: [AuthModule, BadgesModule, AssessmentsModule, AssessmentSessionsModule, NotificationsModule, BillingModule],
+  imports: [AuthModule, BadgesModule, AssessmentsModule, AssessmentSessionsModule, NotificationsModule, BillingModule, DocumentsModule],
   // CandidateAssessmentRequestsController MUST be registered before
   // EmployerAssessmentRequestsController — Nest/Express matches routes in
   // registration order, and the employer controller's `GET
@@ -26,15 +27,10 @@ import { RAZORPAY_GATEWAY, RazorpaySdkGateway } from './razorpay-gateway';
   // — that component's own `.catch(() => setInvitations([]))` was silently
   // swallowing this, so no candidate had ever actually seen an invitation.
   controllers: [CandidateAssessmentRequestsController, EmployerAssessmentRequestsController],
-  providers: [
-    AssessmentRequestsService,
-    AssessmentRequestsRefundJob,
-    AssessmentRequestBillingProfileService,
-    { provide: RAZORPAY_GATEWAY, useClass: RazorpaySdkGateway },
-  ],
-  // AssessmentRequestsRefundJob — so AccountService can reuse its refundOne
-  // (atomic claim, double-refund guard, retry-via-REFUND_FAILED) when a
-  // candidate deactivates or deletes, instead of duplicating that logic.
-  exports: [AssessmentRequestsRefundJob],
+  providers: [AssessmentRequestsService, AssessmentRequestsExpiryJob, AssessmentRequestInvoicingJob, AssessmentRequestBillingProfileService],
+  // AssessmentRequestsExpiryJob — so AccountService can reuse its excludeOne
+  // (atomic claim, start-vs-expiry race guard) when a candidate deactivates
+  // or deletes, instead of duplicating that logic.
+  exports: [AssessmentRequestsExpiryJob],
 })
 export class AssessmentRequestsModule {}
