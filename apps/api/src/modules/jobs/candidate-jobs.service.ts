@@ -23,15 +23,6 @@ import { formatLocation } from '../locations/location-format.util';
  */
 const REQUIRE_VERIFIED_BADGE_TO_APPLY = process.env.REQUIRE_VERIFIED_BADGE_TO_APPLY === 'true';
 
-/**
- * Same one-line-flip pattern as REQUIRE_VERIFIED_BADGE_TO_APPLY, for a
- * resume. Defaults to false — Q2 of the resume-visibility investigation
- * found no resume precondition on apply today, and this intentionally
- * keeps it that way until/unless product decides otherwise; the flag and
- * check exist so that flip needs no code change when it happens.
- */
-const REQUIRE_RESUME_TO_APPLY = process.env.REQUIRE_RESUME_TO_APPLY === 'true';
-
 /** Public fields only — no orgId, no status, nothing employer-internal. */
 const JOB_LIST_SELECT = {
   id: true,
@@ -239,9 +230,8 @@ export class CandidateJobsService {
 
     const profile = await this.ensureProfile(userId);
     this.assertProfileReadyToApply(profile);
-    if (REQUIRE_RESUME_TO_APPLY) {
-      this.assertHasResume(profile);
-    }
+    this.assertHasResume(profile);
+    this.assertHasAiExperience(profile);
     if (REQUIRE_VERIFIED_BADGE_TO_APPLY) {
       await this.assertHasVerifiedBadge(profile.id);
     }
@@ -303,16 +293,36 @@ export class CandidateJobsService {
   }
 
   /**
-   * Off by default (REQUIRE_RESUME_TO_APPLY) — see that constant's doc
-   * comment. `code` follows the same machine-readable pattern as
-   * PROFILE_INCOMPLETE/BADGE_REQUIRED so the frontend can show a targeted
-   * prompt if this is ever turned on.
+   * Unconditional since 2026-09 — previously gated behind
+   * REQUIRE_RESUME_TO_APPLY (default off, "until product decides
+   * otherwise"); product has now decided. `code` follows the same
+   * machine-readable pattern as PROFILE_INCOMPLETE/BADGE_REQUIRED so the
+   * frontend can show a targeted prompt (→ /profile).
    */
   private assertHasResume(profile: { resumeS3Key: string | null }): void {
     if (!profile.resumeS3Key) {
       throw new BadRequestException({
         code: 'RESUME_REQUIRED',
         message: 'Upload a resume before applying.',
+      });
+    }
+  }
+
+  /**
+   * Deliberately `== null`, not falsy — aiYearsOfExp is a Float? where 0 is
+   * a legitimate, meaningful value (a candidate genuinely new to AI). Only
+   * the field never having been set at all should block; `undefined` is
+   * included by `== null` for the same reason it's covered on the read
+   * side (a profile row created via ensureProfile before this field is
+   * ever touched has it as null, never undefined, but both must be caught
+   * identically here since this function's contract is "was this ever
+   * provided").
+   */
+  private assertHasAiExperience(profile: { aiYearsOfExp: number | null }): void {
+    if (profile.aiYearsOfExp == null) {
+      throw new BadRequestException({
+        code: 'AI_EXPERIENCE_REQUIRED',
+        message: 'Add your years of AI experience (0 if none) before applying.',
       });
     }
   }

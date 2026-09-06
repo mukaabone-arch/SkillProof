@@ -43,8 +43,21 @@ function formatSalaryRange(min: number, max: number): string {
 
 /** Machine-readable codes the backend returns when apply-time requirements aren't met. */
 interface ApplyIssueBody {
-  code?: 'PROFILE_INCOMPLETE' | 'BADGE_REQUIRED';
+  code?: 'PROFILE_INCOMPLETE' | 'RESUME_REQUIRED' | 'AI_EXPERIENCE_REQUIRED' | 'BADGE_REQUIRED';
   message?: string;
+}
+
+/**
+ * Proactive, pre-click readiness signal only — never the enforcement itself
+ * (see CandidateJobsService.apply, which re-checks server-side regardless of
+ * what this says). Fetched once on load so the candidate sees what's
+ * missing before their first click rather than discovering it only from a
+ * rejected POST. `aiExperienceMissing` must be a strict null check, not
+ * falsy — aiYearsOfExp: 0 is a genuine, complete answer.
+ */
+interface ApplyReadiness {
+  resumeMissing: boolean;
+  aiExperienceMissing: boolean;
 }
 
 interface SkillGap {
@@ -145,6 +158,7 @@ export default function JobDetailPage() {
   // detailed tier. Computed from the same /jobs/matched response below,
   // across every matched job, not just this one.
   const [skillFrequency, setSkillFrequency] = useState<Record<string, number>>({});
+  const [readiness, setReadiness] = useState<ApplyReadiness | null>(null);
   // Set post-mount, not read via getToken() directly in render — that
   // reads localStorage synchronously, which doesn't exist during server
   // rendering, so calling it in the render body disagrees between server
@@ -170,6 +184,11 @@ export default function JobDetailPage() {
         setSkillFrequency(freq);
       })
       .catch(() => undefined);
+    // Best-effort — a failed fetch here just means no pre-click hint renders; the
+    // real gate is still the server-side check in apply() below.
+    api<{ resumeS3Key: string | null; aiYearsOfExp: number | null }>('/profiles/me')
+      .then((p) => setReadiness({ resumeMissing: !p.resumeS3Key, aiExperienceMissing: p.aiYearsOfExp == null }))
+      .catch(() => undefined);
   }, [id]);
 
   useEffect(() => {
@@ -190,7 +209,12 @@ export default function JobDetailPage() {
       void refetch();
     } catch (e) {
       const body = (e as ApiError).body as ApplyIssueBody | undefined;
-      if (body?.code === 'PROFILE_INCOMPLETE' || body?.code === 'BADGE_REQUIRED') {
+      if (
+        body?.code === 'PROFILE_INCOMPLETE' ||
+        body?.code === 'RESUME_REQUIRED' ||
+        body?.code === 'AI_EXPERIENCE_REQUIRED' ||
+        body?.code === 'BADGE_REQUIRED'
+      ) {
         setApplyIssue(body);
       } else {
         setApplyError((e as Error).message);
@@ -263,6 +287,18 @@ export default function JobDetailPage() {
         />
       )}
 
+      {!job.alreadyApplied && !applyIssue && readiness && (readiness.resumeMissing || readiness.aiExperienceMissing) && (
+        <p className="meta">
+          Before you apply, you&apos;ll need to{' '}
+          {readiness.resumeMissing && readiness.aiExperienceMissing
+            ? 'upload a resume and add your AI experience'
+            : readiness.resumeMissing
+              ? 'upload a resume'
+              : 'add your AI experience (0 if none)'}
+          . <Link href={`/profile?returnTo=/jobs/${id}`}>Update your profile →</Link>
+        </p>
+      )}
+
       <div className="row" style={{ alignItems: 'center' }}>
         <button onClick={apply} disabled={applying || job.alreadyApplied}>
           {job.alreadyApplied ? 'Applied' : applying ? 'Applying…' : 'Apply'}
@@ -274,6 +310,18 @@ export default function JobDetailPage() {
         <p className="meta">
           Almost there — add your name and experience so this employer knows who&apos;s applying.{' '}
           <Link href={`/profile?returnTo=/jobs/${id}`}>Complete your profile →</Link>
+        </p>
+      )}
+      {applyIssue?.code === 'RESUME_REQUIRED' && (
+        <p className="meta">
+          Upload a resume before applying, so the employer has something to review.{' '}
+          <Link href={`/profile?returnTo=/jobs/${id}`}>Upload your resume →</Link>
+        </p>
+      )}
+      {applyIssue?.code === 'AI_EXPERIENCE_REQUIRED' && (
+        <p className="meta">
+          Add your years of AI experience before applying — enter 0 if you&apos;re new to AI.{' '}
+          <Link href={`/profile?returnTo=/jobs/${id}`}>Update your profile →</Link>
         </p>
       )}
       {applyIssue?.code === 'BADGE_REQUIRED' && (
