@@ -1,16 +1,22 @@
 /**
- * Animated five-stage journey strip — the dashboard's footer flourish.
- * Verify skills → Earn badges → Match roles → Interview → Get hired, as a
- * horizontal rail a highlight travels along on a continuous CSS loop (see
- * the "journey feature strip" section of globals.css for the keyframes and
- * the prefers-reduced-motion static fallback).
+ * Five-stage journey strip — the dashboard's footer flourish. Verify skills
+ * → Earn badges → Match roles → Interview → Get hired, as a horizontal rail.
  *
- * Purely decorative/presentational: no props, no state, no JS animation —
- * screen readers get the one visually-hidden summary sentence and the
- * animated rail is aria-hidden. Icons are inline single-color SVGs on
- * currentColor (no icon-font dependency), so the active/inactive color
- * states come entirely from the CSS around them.
+ * Decorative by default: no state, no JS animation, a highlight travels the
+ * rail on a continuous CSS loop (see the "journey feature strip" section of
+ * globals.css for the keyframes and the prefers-reduced-motion static
+ * fallback). Icons are inline single-color SVGs on currentColor (no
+ * icon-font dependency), so the active/inactive color states come entirely
+ * from the CSS around them.
+ *
+ * `activeStage`, when passed, switches the rail to a static "you are here"
+ * mode instead — the loop stops and only the matching stage is highlighted,
+ * reusing the loop's own active-frame colors rather than the decorative
+ * animation. Used by Dashboard while an employer-triggered assessment
+ * request is outstanding, to point at "Verify skills" specifically.
  */
+
+import { cx } from './ui/cx';
 
 interface Stage {
   label: string;
@@ -75,9 +81,10 @@ const STAGES: Stage[] = [
   },
 ];
 
-export default function FeatureStrip() {
+export default function FeatureStrip({ activeStage }: { activeStage?: string }) {
+  const isStatic = !!activeStage;
   return (
-    <section className="fstrip" aria-label="How MyAmbii works">
+    <section className={cx('fstrip', isStatic && 'fstrip-static')} aria-label="How MyAmbii works">
       <p className="visually-hidden">
         Your MyAmbii journey: verify your skills, earn badges, match with roles, interview, and get hired.
       </p>
@@ -85,12 +92,15 @@ export default function FeatureStrip() {
         <div className="fstrip-line">
           <i className="fstrip-line-fill" />
         </div>
-        {STAGES.map((stage) => (
-          <div key={stage.label} className="fstrip-stage">
-            <span className="fstrip-node">{stage.icon}</span>
-            <span className="fstrip-label">{stage.label}</span>
-          </div>
-        ))}
+        {STAGES.map((stage) => {
+          const active = isStatic && stage.label === activeStage;
+          return (
+            <div key={stage.label} className="fstrip-stage">
+              <span className={cx('fstrip-node', active && 'fstrip-node-active')}>{stage.icon}</span>
+              <span className={cx('fstrip-label', active && 'fstrip-label-active')}>{stage.label}</span>
+            </div>
+          );
+        })}
       </div>
     </section>
   );

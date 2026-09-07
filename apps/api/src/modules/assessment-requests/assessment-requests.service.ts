@@ -6,7 +6,7 @@ import { AssessmentsService } from '../assessments/assessments.service';
 import { TopicBreakdown } from '../assessments/topic-breakdown';
 import { AssessmentSessionsService } from '../assessment-sessions/assessment-sessions.service';
 import { BadgeResolverService } from '../badges/badge-resolver.service';
-import { SKILL_LEVEL as DISCUSSION_LEVEL, SKILL_NAME as DISCUSSION_SKILL_NAME } from '../assessment-sessions/rag-systems-l2.rubric';
+import { DISCUSSION_DURATION_MINS, SKILL_LEVEL as DISCUSSION_LEVEL, SKILL_NAME as DISCUSSION_SKILL_NAME } from '../assessment-sessions/rag-systems-l2.rubric';
 import { WEB_BASE_URL } from '../../config/web-base-url';
 import { TransactionsService } from '../billing/transactions.service';
 import { AssessmentRequestBillingProfileService } from './assessment-request-billing-profile.service';
@@ -344,7 +344,40 @@ export class AssessmentRequestsService {
       include: this.displayInclude,
       orderBy: { createdAt: 'desc' },
     });
-    return Promise.all(requests.map((r) => this.reconcile(r)));
+    const reconciled = await Promise.all(requests.map((r) => this.reconcile(r)));
+    return Promise.all(reconciled.map((r) => this.withCandidateProgress(r)));
+  }
+
+  /**
+   * Adds candidate-facing progress context that doesn't live on
+   * AssessmentRequest itself — how long the linked assessment is expected
+   * to take (`durationMins`, resolved via the same skillId+level ->
+   * format lookup `create()` validates against, so TEST and DISCUSSION
+   * both resolve without needing an assessmentId stored on the request),
+   * and whether a STARTED discussion-format request is actually sitting
+   * with a reviewer (`submitted`) rather than genuinely in progress —
+   * mirrors the AWAITING_SCORING/AWAITING_REVIEW check the candidate
+   * dashboard already does for the self-serve discussion flow. A
+   * TEST-format request has no such intermediate state (grading is
+   * synchronous), so `submitted` is always false when there's no
+   * sessionId.
+   */
+  private async withCandidateProgress(request: any) {
+    let durationMins: number | null = null;
+    try {
+      const format = await this.resolveFormat(request.skillId, request.level);
+      durationMins = format.type === 'TEST' ? (await this.prisma.assessment.findUnique({ where: { id: format.assessmentId } }))?.durationMins ?? null : DISCUSSION_DURATION_MINS;
+    } catch {
+      // Catalog moved on since this request was created (assessment delisted, etc.) — no duration to show, not an error.
+    }
+
+    let submitted = false;
+    if (request.sessionId) {
+      const session = await this.prisma.assessmentSession.findUnique({ where: { id: request.sessionId }, select: { status: true } });
+      submitted = session?.status === AssessmentSessionStatus.AWAITING_SCORING || session?.status === AssessmentSessionStatus.AWAITING_REVIEW;
+    }
+
+    return { ...request, durationMins, submitted };
   }
 
   /**

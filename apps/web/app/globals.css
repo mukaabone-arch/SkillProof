@@ -472,6 +472,10 @@ code { font-family: var(--font-body); }
    darken-for-white-bg hack (color-mix(...,black) to pass AA on a *light* badge) no longer applies. */
 .ui-badge-warning { color: var(--warning); background: color-mix(in srgb, var(--warning) 18%, var(--card)); }
 .ui-badge-neutral { color: var(--ink-60); background: var(--paper-2); }
+/* Single-line truncation for a badge whose text can run long (e.g. a skill
+   name) — min-width:0 is needed because .ui-badge is inline-flex and flex
+   items don't shrink below their content size by default. */
+.chip-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; display: inline-block; }
 
 .card.empty-state { text-align: left; color: var(--ink-60); flex-direction: column; align-items: flex-start; }
 .empty-state-action { margin-top: var(--space-3); }
@@ -1675,6 +1679,9 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
    element on the dark gradient card, same trick the mockup's own CTA uses. */
 .copilot-panel .btn-primary { background: var(--gray-900); color: var(--brand-900); }
 .copilot-panel .btn-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--gray-900) 85%, black); }
+/* Employer-invite variant extras: a small status/expiry line under the CTA, and a "N more requests" link beside it. */
+.copilot-meta { font-family: var(--font-body); font-size: var(--text-sm); color: var(--brand-50); margin: var(--space-3) 0 0; }
+.copilot-more { display: inline-block; margin: var(--space-3) 0 0 var(--space-4); font-size: var(--text-sm); font-weight: 600; color: var(--brand-50); }
 
 .status-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: var(--space-8); }
 .status-card {
@@ -1853,6 +1860,14 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
   .fstrip-node { background: var(--brand-50); border-color: var(--brand-50); color: var(--indigo); }
   .fstrip-label { opacity: 1; }
 }
+/* "You are here" mode (FeatureStrip's activeStage prop) — the loop stops
+   and only the matching stage lights up, in the loop's own active-frame
+   colors (see @keyframes fstrip-node-active/fstrip-label-active above).
+   Line stays unfilled: unlike the reduced-motion complete-state above,
+   this isn't "journey done," it's "pay attention to this one stage." */
+.fstrip-static .fstrip-node, .fstrip-static .fstrip-label, .fstrip-static .fstrip-line-fill { animation: none; }
+.fstrip-static .fstrip-node-active { background: var(--indigo); border-color: var(--indigo); color: #fff; }
+.fstrip-static .fstrip-label-active { color: var(--ink); opacity: 1; }
 
 /* ---- session review slice (admin/review) ---- */
 .review-claim-card { margin-bottom: 16px; }

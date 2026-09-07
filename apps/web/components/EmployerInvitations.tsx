@@ -20,11 +20,10 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 
 type RequestStatus =
-  | 'PAID_PENDING_START'
+  | 'ACCRUED_PENDING_START'
   | 'STARTED'
   | 'COMPLETED'
-  | 'EXPIRED_REFUNDED'
-  | 'REFUND_FAILED'
+  | 'EXPIRED_UNBILLED'
   | 'ALREADY_BADGED';
 
 interface InvitationView {
@@ -80,7 +79,7 @@ export default function EmployerInvitations() {
   }
 
   if (!invitations) return null;
-  const pending = invitations.filter((i) => i.status === 'PAID_PENDING_START');
+  const pending = invitations.filter((i) => i.status === 'ACCRUED_PENDING_START');
   if (pending.length === 0) return null;
 
   return (

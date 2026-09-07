@@ -87,7 +87,7 @@ interface CreateResponse {
 }
 
 const STATUS_LABELS: Record<RequestStatus, string> = {
-  ACCRUED_PENDING_START: 'Invited — awaiting start',
+  ACCRUED_PENDING_START: 'Awaiting start',
   STARTED: 'In progress',
   COMPLETED: 'Result ready',
   EXPIRED_UNBILLED: 'Expired — not billed',
@@ -213,8 +213,13 @@ export default function AssessCandidateAction({ candidateId }: { candidateId: st
                 )}
               </div>
             ) : (
-              <span key={r.id} className="ui-badge ui-badge-neutral" style={{ alignSelf: 'flex-start' }}>
-                {STATUS_LABELS[r.status]} · {r.level}
+              <span
+                key={r.id}
+                className="ui-badge ui-badge-neutral chip-truncate"
+                style={{ alignSelf: 'flex-start', maxWidth: '100%' }}
+                title={`${r.skill.name} (${r.level}) · ${STATUS_LABELS[r.status]}`}
+              >
+                {r.skill.name} ({r.level}) · {STATUS_LABELS[r.status]}
               </span>
             ),
           )}

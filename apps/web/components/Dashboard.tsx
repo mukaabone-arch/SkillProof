@@ -19,6 +19,7 @@
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { timeOfDayGreeting } from '@/lib/greeting';
 import CandidateNav from './CandidateNav';
@@ -179,6 +180,39 @@ interface MineAssessmentSession {
   status: string;
 }
 
+/**
+ * GET /assessment-requests/mine — an employer-triggered assessment request
+ * about this candidate. `durationMins` and `submitted` are derived
+ * server-side (AssessmentRequestsService.withCandidateProgress) rather than
+ * on the raw AssessmentRequest row: `durationMins` resolves the linked
+ * TEST/DISCUSSION assessment's expected length, and `submitted` is true
+ * only for a STARTED, discussion-format request whose session is sitting
+ * with a reviewer (AWAITING_SCORING/AWAITING_REVIEW) — a TEST-format
+ * request has no such intermediate state, since grading is synchronous.
+ * There is deliberately no job/role field: AssessmentRequest is
+ * shortlist-scoped, not job-scoped (a shortlist entry can be job-less), so
+ * "for {role}" isn't something this object can honestly carry.
+ */
+interface EmployerInvite {
+  id: string;
+  level: string;
+  status: 'ACCRUED_PENDING_START' | 'STARTED' | 'COMPLETED' | 'EXPIRED_UNBILLED' | 'ALREADY_BADGED';
+  expiresAt: string | null;
+  startedAt: string | null;
+  durationMins: number | null;
+  submitted: boolean;
+  skill: { name: string };
+  organization: { name: string };
+}
+
+function expiresInDays(expiresAt: string): number {
+  return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
+}
+
+function startedMinsAgo(startedAt: string): number {
+  return Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 60_000));
+}
+
 interface Props {
   onLoggedOut: () => void;
 }
@@ -242,8 +276,96 @@ function mostUrgentPipelineAlert(interviews: Interview[]): PipelineAlert | undef
 interface CopilotMessage {
   eyebrow: string;
   message: string;
-  ctaLabel: string;
-  ctaHref: string;
+  /** Status/expiry line under the message — used by the employer-invite variant. */
+  meta?: string;
+  /** Present for every branch except the employer-invite "submitted, awaiting scoring" one, which has no action for the candidate to take. */
+  ctaLabel?: string;
+  /** A plain navigation CTA — every branch except the two below. */
+  ctaHref?: string;
+  /**
+   * A CTA that must POST /assessment-requests/mine/:id/start (idempotent —
+   * safe to call again for an already-STARTED request) and navigate based
+   * on the response, rather than a static link — used by the employer-invite
+   * "invited"/"in progress" states. Mutually exclusive with ctaHref.
+   */
+  ctaAction?: { kind: 'start' | 'resume'; requestId: string };
+  /** "{n} more requests" — shown when more than one employer invite is pending. */
+  moreLink?: { label: string; href: string };
+}
+
+/** The single employer invite the co-pilot banner should surface, plus how many others are pending. */
+interface SelectedEmployerInvite {
+  invite: EmployerInvite;
+  moreCount: number;
+  expired: boolean;
+}
+
+/**
+ * Soonest-expiring active (ACCRUED_PENDING_START/STARTED) invite wins,
+ * since that's the one closest to lapsing unbilled; an EXPIRED_UNBILLED one
+ * only ever surfaces when there's no active invite left to show instead.
+ */
+function selectEmployerInvite(invites: EmployerInvite[]): SelectedEmployerInvite | undefined {
+  const active = invites.filter((i) => i.status === 'ACCRUED_PENDING_START' || i.status === 'STARTED');
+  if (active.length > 0) {
+    const soonest = [...active].sort((a, b) => {
+      if (!a.expiresAt) return 1;
+      if (!b.expiresAt) return -1;
+      return new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime();
+    })[0];
+    return { invite: soonest, moreCount: active.length - 1, expired: false };
+  }
+
+  // listForCandidate is already sorted most-recent-first, so the first
+  // EXPIRED_UNBILLED row here is the most recently expired one.
+  const expired = invites.find((i) => i.status === 'EXPIRED_UNBILLED');
+  return expired ? { invite: expired, moreCount: 0, expired: true } : undefined;
+}
+
+function employerInviteCopilotMessage(selection: SelectedEmployerInvite): CopilotMessage {
+  const { invite, moreCount, expired } = selection;
+  const moreLink =
+    moreCount > 0 ? { label: `${moreCount} more request${moreCount === 1 ? '' : 's'}`, href: '/assessments' } : undefined;
+
+  if (expired) {
+    return {
+      eyebrow: 'Assessment expired',
+      message: `${invite.organization.name}'s request to verify ${invite.skill.name} expired before you started it.`,
+      ctaLabel: 'Request a new invite',
+      ctaHref: '/assessments',
+    };
+  }
+
+  if (invite.status === 'STARTED' && invite.submitted) {
+    return {
+      eyebrow: 'Assessment submitted',
+      message: `${invite.organization.name}'s ${invite.skill.name} assessment is with a reviewer. We'll notify you when scoring completes.`,
+      moreLink,
+    };
+  }
+
+  if (invite.status === 'STARTED') {
+    return {
+      eyebrow: 'Assessment in progress',
+      message: `Pick up where you left off on ${invite.skill.name} for ${invite.organization.name}.`,
+      meta: invite.startedAt ? `Started ${startedMinsAgo(invite.startedAt)} min ago` : undefined,
+      ctaLabel: 'Resume assessment',
+      ctaAction: { kind: 'resume', requestId: invite.id },
+      moreLink,
+    };
+  }
+
+  const metaParts: string[] = [];
+  if (invite.durationMins) metaParts.push(`~${invite.durationMins} min`);
+  if (invite.expiresAt) metaParts.push(`expires in ${expiresInDays(invite.expiresAt)} days`);
+  return {
+    eyebrow: 'Assessment requested',
+    message: `${invite.organization.name} asked you to verify ${invite.skill.name}.`,
+    meta: metaParts.length > 0 ? metaParts.join(' · ') : undefined,
+    ctaLabel: 'Start assessment',
+    ctaAction: { kind: 'start', requestId: invite.id },
+    moreLink,
+  };
 }
 
 /**
@@ -258,6 +380,7 @@ function buildCopilotMessage(params: {
   liveAssessmentCount: number;
   pipelineAlert: PipelineAlert | undefined;
   awaitingReviewSession: MineAssessmentSession | undefined;
+  employerInvite: SelectedEmployerInvite | undefined;
   bestUnapplied: MatchedJob | undefined;
   recurringGap: { name: string; count: number } | undefined;
   hasApplied: boolean;
@@ -269,44 +392,23 @@ function buildCopilotMessage(params: {
     liveAssessmentCount,
     pipelineAlert,
     awaitingReviewSession,
+    employerInvite,
     bestUnapplied,
     recurringGap,
     hasApplied,
     applicationCount,
   } = params;
 
-  if (!hasProfile) {
-    return {
-      eyebrow: "Let's get started",
-      message: "Upload your resume and I'll build your profile — that's step one to matching you with roles.",
-      ctaLabel: 'Build your profile',
-      ctaHref: '/profile',
-    };
-  }
-
-  if (!hasBadge) {
-    return liveAssessmentCount > 0
-      ? {
-          eyebrow: 'Your next move',
-          message: "You're set up. Take a verified assessment and I'll start matching you to roles that need exactly those skills.",
-          ctaLabel: 'Take an assessment',
-          ctaHref: '/assessments',
-        }
-      : {
-          eyebrow: 'Your next move',
-          message: "Your profile is ready — I'll let you know the moment an assessment opens up to verify your skills.",
-          ctaLabel: 'Check assessments',
-          ctaHref: '/assessments',
-        };
-  }
-
   // Live interview-pipeline and pending-review states, most urgent first —
-  // all of these outrank match/gap suggestions below, since none of them
-  // are "worth a look," they're waiting on the candidate (or, for HIRED,
+  // all of these outrank everything below, including the employer-invite
+  // and !hasProfile/!hasBadge branches, since none of them are "worth a
+  // look" or "step one," they're waiting on the candidate (or, for HIRED,
   // worth a moment of celebration) right now. A candidate can only ever
   // reach any of these with a profile and a badge already in hand (both
-  // are apply-time gates — see candidate-jobs.service.ts), so this block
-  // structurally can't fire before the two checks above have passed.
+  // are apply-time gates — see candidate-jobs.service.ts), so in practice
+  // this block is simply inert (pipelineAlert/awaitingReviewSession both
+  // undefined) until hasProfile && hasBadge are true — evaluating it ahead
+  // of those two checks changes nothing for either.
   if (pipelineAlert?.kind === 'HIRED') {
     return {
       eyebrow: 'You got the job!',
@@ -363,6 +465,42 @@ function buildCopilotMessage(params: {
     };
   }
 
+  // An actual employer request outranks every suggestion below — including
+  // the !hasProfile/!hasBadge onboarding nudges, not just the match/gap
+  // ones further down. A brand-new, zero-badge account is exactly who
+  // employers most often invite (verifying a skill the candidate doesn't
+  // have yet), and starting the linked assessment has no profile gate of
+  // its own, so there's no reason to bury a live, expiring invite under a
+  // generic "build your profile" nudge.
+  if (employerInvite) {
+    return employerInviteCopilotMessage(employerInvite);
+  }
+
+  if (!hasProfile) {
+    return {
+      eyebrow: "Let's get started",
+      message: "Upload your resume and I'll build your profile — that's step one to matching you with roles.",
+      ctaLabel: 'Build your profile',
+      ctaHref: '/profile',
+    };
+  }
+
+  if (!hasBadge) {
+    return liveAssessmentCount > 0
+      ? {
+          eyebrow: 'Your next move',
+          message: "You're set up. Take a verified assessment and I'll start matching you to roles that need exactly those skills.",
+          ctaLabel: 'Take an assessment',
+          ctaHref: '/assessments',
+        }
+      : {
+          eyebrow: 'Your next move',
+          message: "Your profile is ready — I'll let you know the moment an assessment opens up to verify your skills.",
+          ctaLabel: 'Check assessments',
+          ctaHref: '/assessments',
+        };
+  }
+
   if (bestUnapplied && bestUnapplied.score >= MATCH_STRONG_THRESHOLD) {
     return {
       eyebrow: 'Strong match found',
@@ -408,6 +546,7 @@ function buildCopilotMessage(params: {
 }
 
 export default function Dashboard({ onLoggedOut }: Props) {
+  const router = useRouter();
   const [me, setMe] = useState<Me>();
   const [profile, setProfile] = useState<Profile>();
   const [assessments, setAssessments] = useState<Assessment[]>([]);
@@ -416,8 +555,39 @@ export default function Dashboard({ onLoggedOut }: Props) {
   const [credentials, setCredentials] = useState<ExternalCredential[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [assessmentSession, setAssessmentSession] = useState<MineAssessmentSession | null>(null);
+  const [employerInvites, setEmployerInvites] = useState<EmployerInvite[]>([]);
+  const [startingInviteId, setStartingInviteId] = useState<string | null>(null);
+  const [inviteActionError, setInviteActionError] = useState('');
   const [error, setError] = useState('');
   const [linkPromptDismissed, setLinkPromptDismissed] = useState(false);
+
+  // Start (ACCRUED_PENDING_START) or resume (STARTED) an employer-triggered
+  // request — same POST either way (idempotent server-side, see
+  // AssessmentRequestsService.startFromRequest) and same
+  // navigate-into-the-existing-take-flow response shape EmployerInvitations
+  // already uses on /assessments; duplicated here rather than shared since
+  // it's ten lines and the two components have no natural common module.
+  async function startOrResumeInvite(requestId: string) {
+    setInviteActionError('');
+    setStartingInviteId(requestId);
+    try {
+      const result = await api<{ attemptId: string | null; sessionId: string | null; assessmentId: string | null }>(
+        `/assessment-requests/mine/${requestId}/start`,
+        { method: 'POST' },
+      );
+      if (result.assessmentId) {
+        router.push(`/assessments/${result.assessmentId}`);
+      } else if (result.sessionId) {
+        router.push(`/assessments/discussion/session/${result.sessionId}`);
+      } else {
+        setInviteActionError('Could not start this assessment — please try again.');
+        setStartingInviteId(null);
+      }
+    } catch (e) {
+      setInviteActionError((e as Error).message);
+      setStartingInviteId(null);
+    }
+  }
 
   // Read once `me.id` is known — localStorage isn't available during server
   // rendering, same reasoning as EmployerDashboard's identical read for its
@@ -454,7 +624,8 @@ export default function Dashboard({ onLoggedOut }: Props) {
           // should never block the rest of the dashboard from rendering.
           api<Interview[]>('/interviews/mine').catch(() => []),
           api<MineAssessmentSession | null>('/assessment-sessions/mine').catch(() => null),
-        ]).then(([p, a, j, apps, creds, ivs, session]) => {
+          api<EmployerInvite[]>('/assessment-requests/mine').catch(() => []),
+        ]).then(([p, a, j, apps, creds, ivs, session, invites]) => {
           setProfile(p);
           setAssessments(a);
           setMatched(j);
@@ -462,6 +633,7 @@ export default function Dashboard({ onLoggedOut }: Props) {
           setCredentials(creds);
           setInterviews(ivs);
           setAssessmentSession(session);
+          setEmployerInvites(invites);
         });
       })
       .catch((e) => {
@@ -562,6 +734,12 @@ export default function Dashboard({ onLoggedOut }: Props) {
     assessmentSession && (assessmentSession.status === 'AWAITING_SCORING' || assessmentSession.status === 'AWAITING_REVIEW')
       ? assessmentSession
       : undefined;
+  const employerInvite = selectEmployerInvite(employerInvites);
+  // "Outstanding" for the stepper specifically means still-actionable
+  // (invited or in progress) — an EXPIRED_UNBILLED invite still surfaces in
+  // the banner (so the candidate knows what happened) but shouldn't claim
+  // "Verify skills" is where they're headed next.
+  const hasOutstandingEmployerInvite = !!employerInvite && !employerInvite.expired;
 
   const copilot = buildCopilotMessage({
     hasProfile,
@@ -569,6 +747,7 @@ export default function Dashboard({ onLoggedOut }: Props) {
     liveAssessmentCount,
     pipelineAlert,
     awaitingReviewSession,
+    employerInvite,
     bestUnapplied,
     recurringGap,
     hasApplied,
@@ -600,7 +779,7 @@ export default function Dashboard({ onLoggedOut }: Props) {
           </div>
         </div>
 
-        <FeatureStrip />
+        <FeatureStrip activeStage={hasOutstandingEmployerInvite ? 'Verify skills' : undefined} />
 
         {linkPrompt && !linkPromptDismissed && (
           <div
@@ -626,9 +805,30 @@ export default function Dashboard({ onLoggedOut }: Props) {
             {copilot.eyebrow}
           </span>
           <p className="copilot-message">{copilot.message}</p>
-          <Link href={copilot.ctaHref}>
-            <button className="btn btn-primary copilot-cta">{copilot.ctaLabel} →</button>
-          </Link>
+          {copilot.meta && <p className="copilot-meta">{copilot.meta}</p>}
+          {copilot.ctaAction ? (
+            <button
+              type="button"
+              className="btn btn-primary copilot-cta"
+              onClick={() => startOrResumeInvite(copilot.ctaAction!.requestId)}
+              disabled={startingInviteId === copilot.ctaAction.requestId}
+            >
+              {startingInviteId === copilot.ctaAction.requestId ? 'Starting…' : `${copilot.ctaLabel} →`}
+            </button>
+          ) : (
+            copilot.ctaHref &&
+            copilot.ctaLabel && (
+              <Link href={copilot.ctaHref}>
+                <button className="btn btn-primary copilot-cta">{copilot.ctaLabel} →</button>
+              </Link>
+            )
+          )}
+          {copilot.moreLink && (
+            <Link href={copilot.moreLink.href} className="copilot-more">
+              {copilot.moreLink.label} →
+            </Link>
+          )}
+          {inviteActionError && <p className="error">{inviteActionError}</p>}
         </section>
 
         <div className="status-grid">
