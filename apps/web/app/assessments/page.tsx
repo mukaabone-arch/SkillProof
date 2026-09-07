@@ -748,17 +748,6 @@ function AssessmentsPageInner() {
             <Link href={returnTo}>return to the job you were applying to →</Link>
           </p>
         )}
-        {skills.length > 0 && (
-          // The catalog endpoint always returns the complete set (no
-          // pagination) — whatever renders below is genuinely everything
-          // available, so say so explicitly rather than leaving a candidate
-          // to wonder whether a short list means the page is broken.
-          <p className="meta" style={{ marginTop: -8, marginBottom: 20 }}>
-            Showing the full assessment catalog — {skills.length} skill{skills.length === 1 ? '' : 's'} available
-            right now.
-          </p>
-        )}
-
         {categories.map((cat) => (
           <CategorySection
             key={cat.domainName}
