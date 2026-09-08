@@ -5,12 +5,13 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { OrgMemberGuard, OrgScopedRequest } from '../auth/org-member.guard';
 import { OrgSetupCompleteGuard } from '../auth/org-setup-complete.guard';
+import { OrgVerifiedGuard } from '../auth/org-verified.guard';
 import { JobsService } from './jobs.service';
 import { MatchingService } from './matching.service';
 import { CreateJobDto, ParseJobDescriptionDto, SetJobSkillsDto, UpdateJobDto } from './jobs.dto';
 
 @Controller('jobs')
-@UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard, OrgSetupCompleteGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard, OrgSetupCompleteGuard, OrgVerifiedGuard)
 @Roles(Role.EMPLOYER_ADMIN, Role.EMPLOYER_MEMBER)
 export class JobsController {
   constructor(

@@ -358,14 +358,16 @@ export class AdminService {
     const approved = status === OrgVerificationStatus.VERIFIED;
     const subject = approved ? 'Your organization is now verified' : 'Your organization verification was not approved';
     const bodyHtml = approved
-      ? `<p><strong>${escapeHtml(orgName)}</strong> has been verified. The verified badge is now visible to candidates.</p>`
+      ? `<p><strong>${escapeHtml(orgName)}</strong> has been verified. Your team now has full access to the employer portal — Job Postings, Find Candidates, Applicants, Shortlist, and Billing — and the verified badge is visible to candidates.</p>`
       : `<p><strong>${escapeHtml(orgName)}</strong>'s verification request was not approved.</p>` +
         `<p>Reason: ${escapeHtml(rejectionReason ?? '')}</p>` +
         `<p>You can update your organization details and resubmit at any time.</p>`;
-    const html = renderNotificationEmail(bodyHtml, {
-      label: 'View organization settings',
-      url: `${WEB_BASE_URL}/employer/settings`,
-    });
+    const html = renderNotificationEmail(
+      bodyHtml,
+      approved
+        ? { label: 'Go to employer portal', url: `${WEB_BASE_URL}/employer/dashboard` }
+        : { label: 'View organization settings', url: `${WEB_BASE_URL}/employer/settings` },
+    );
     await this.notifications.sendEmail(
       userId,
       approved ? NotificationType.ORG_VERIFICATION_APPROVED : NotificationType.ORG_VERIFICATION_REJECTED,

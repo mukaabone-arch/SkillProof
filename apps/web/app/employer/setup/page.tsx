@@ -11,6 +11,16 @@
  * this gate. No Dismiss button: unlike the old checklist card, there's
  * nothing to dismiss — the whole reason this screen exists is that these
  * three aren't optional.
+ *
+ * Completing these fields auto-submits the org for verification
+ * server-side (OrgsService.maybeAutoSubmitForVerification), so "setup
+ * complete" no longer means "free to use the rest of the portal" — it
+ * usually means "now PENDING". Redirect target below picks dashboard only
+ * for an org that's actually VERIFIED (e.g. one already verified before
+ * revisiting this page out of habit); everyone else goes to settings,
+ * which is the only other place reachable while unverified — sending them
+ * to dashboard would just bounce them straight back out via
+ * EmployerLayout's own verification check.
  */
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -21,7 +31,7 @@ import { isIndustryComplete, isOrgSetupComplete, OrgReadinessFields } from '@/li
 const { api } = employerApi;
 
 interface OrgMe {
-  organization: OrgReadinessFields;
+  organization: OrgReadinessFields & { verificationStatus: 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED' };
 }
 
 type SetupField = 'logo' | 'industry' | 'website';
@@ -49,7 +59,7 @@ export default function EmployerSetupPage() {
       // Complete already (e.g. finished in another tab, or reached this
       // page directly out of habit) — no reason to sit here.
       if (isOrgSetupComplete(data.organization)) {
-        router.replace('/employer/dashboard');
+        router.replace(data.organization.verificationStatus === 'VERIFIED' ? '/employer/dashboard' : '/employer/settings');
       }
     } catch (e) {
       setError((e as Error).message);

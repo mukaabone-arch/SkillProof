@@ -5,6 +5,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
 import { OrgMemberGuard } from './org-member.guard';
 import { OrgSetupCompleteGuard } from './org-setup-complete.guard';
+import { OrgVerifiedGuard } from './org-verified.guard';
 import { PrismaModule } from '../../prisma/prisma.module';
 
 /**
@@ -30,7 +31,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
  * missing @Module({ exports: [...] }) entry breaks, with no DB needed.
  */
 @Controller('probe')
-@UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard, OrgSetupCompleteGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard, OrgSetupCompleteGuard, OrgVerifiedGuard)
 class ProbeController {
   @Get()
   ping() {

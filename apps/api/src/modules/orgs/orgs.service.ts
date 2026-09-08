@@ -9,6 +9,7 @@ import { renderNotificationEmail } from '../notifications/notification-email.tem
 import { WEB_BASE_URL } from '../../config/web-base-url';
 import { DeactivateOrgDto, UpdateOrgDto } from './orgs.dto';
 import { notifyOrgMembers } from './notify-org-members';
+import { isOrgSetupComplete } from './org-readiness';
 
 /** Same convention as ProfilesController's PHOTO_EXTENSION_BY_MIME, inverted for read-back — every key OrgsController's fileFilter accepts has an entry here. */
 const LOGO_CONTENT_TYPE_BY_EXTENSION: Record<string, string> = {
@@ -32,16 +33,18 @@ export class OrgsService {
     @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
   ) {}
 
-  async update(orgId: string, dto: UpdateOrgDto) {
+  async update(orgId: string, userId: string, dto: UpdateOrgDto) {
     const updated = await this.prisma.organization.update({ where: { id: orgId }, data: dto });
+    await this.maybeAutoSubmitForVerification(updated, userId);
     return withHasLogo(updated);
   }
 
   /** Replaces the stored logo, deleting the previous file first — same "don't accumulate unreferenced files" rule as ProfilesService.savePhoto. */
-  async saveLogo(orgId: string, key: string) {
+  async saveLogo(orgId: string, userId: string, key: string) {
     const org = await this.prisma.organization.findUniqueOrThrow({ where: { id: orgId } });
     if (org.logoKey) await this.deleteStoredFile(org.logoKey);
     const updated = await this.prisma.organization.update({ where: { id: orgId }, data: { logoKey: key } });
+    await this.maybeAutoSubmitForVerification(updated, userId);
     return withHasLogo(updated);
   }
 
@@ -52,6 +55,13 @@ export class OrgsService {
    * the prior decision fields are cleared here so a stale rejectionReason
    * never sits alongside a fresh PENDING review (see Organization's own
    * doc comment on those fields).
+   *
+   * The client no longer surfaces a button for this (update/saveLogo now
+   * auto-submit — see maybeAutoSubmitForVerification below) but the
+   * endpoint stays: it's the only manual recovery path if an org ever ends
+   * up UNVERIFIED/REJECTED without a save event to trigger the automatic
+   * transition — deliberately kept as an escape hatch rather than deleted
+   * as "dead" code.
    */
   async submitForVerification(orgId: string, userId: string) {
     const org = await this.prisma.organization.findUniqueOrThrow({ where: { id: orgId } });
@@ -61,8 +71,38 @@ export class OrgsService {
     if (org.verificationStatus === OrgVerificationStatus.VERIFIED) {
       throw new ConflictException('This organization is already verified.');
     }
+    return withHasLogo(await this.movePendingForVerification(orgId, userId));
+  }
 
-    const updated = await this.prisma.organization.update({
+  /**
+   * Fires after every org-form save (update/saveLogo) that could complete
+   * or restate the org's profile — UNVERIFIED -> PENDING the first time
+   * the gate fields (see org-readiness.ts) become complete, or REJECTED ->
+   * PENDING on ANY save that leaves them complete. Deliberately not
+   * diffing which field actually changed for the REJECTED case: an admin's
+   * rejectionReason is free text and can point at something outside the
+   * three tracked fields (e.g. the organization's name, which isn't even
+   * editable here) — gating resubmission on a diff of only logo/industry/
+   * website would leave that org stuck in REJECTED forever after the
+   * employer "fixes" it. An occasional no-op review for the admin is cheap;
+   * a REJECTED org nobody re-reviews is the exact stranded state this
+   * whole gate exists to avoid. Silent no-op when ineligible (still
+   * incomplete, or already PENDING/VERIFIED) — this is a side effect of a
+   * save, not a user-facing action of its own.
+   */
+  private async maybeAutoSubmitForVerification(
+    org: { id: string; verificationStatus: OrgVerificationStatus } & Parameters<typeof isOrgSetupComplete>[0],
+    userId: string,
+  ): Promise<void> {
+    const eligible =
+      org.verificationStatus === OrgVerificationStatus.UNVERIFIED ||
+      org.verificationStatus === OrgVerificationStatus.REJECTED;
+    if (!eligible || !isOrgSetupComplete(org)) return;
+    await this.movePendingForVerification(org.id, userId);
+  }
+
+  private movePendingForVerification(orgId: string, userId: string) {
+    return this.prisma.organization.update({
       where: { id: orgId },
       data: {
         verificationStatus: OrgVerificationStatus.PENDING,
@@ -73,7 +113,6 @@ export class OrgsService {
         rejectionReason: null,
       },
     });
-    return withHasLogo(updated);
   }
 
   /**

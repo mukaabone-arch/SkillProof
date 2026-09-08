@@ -9,16 +9,28 @@
  * for anonymous visitors, so it manages its own status and is rendered
  * bare here, with no sidebar.
  *
- * Also gates on organisation-setup completeness (logo/industry/website) —
- * UX convenience only, mirroring but not replacing OrgSetupCompleteGuard's
- * real, server-side enforcement (see apps/api's org-readiness.ts). Every
- * employer-portal page depends on this same check, so it belongs here
- * rather than duplicated per-page, same reasoning as the auth check above.
- * SETUP_EXEMPT_PATHS must stay in sync with which controllers
- * OrgSetupCompleteGuard is (and isn't) attached to on the API side: the
- * setup screen itself (nowhere else to send an incomplete org) and
- * settings (the org-info/logo edit form and team management both live
- * there — OrgsController and OrgMembersController are both ungated).
+ * Also gates on organisation-setup completeness (logo/industry/website) and,
+ * separately, on platform-admin verification (verificationStatus ===
+ * VERIFIED) — both UX convenience only, mirroring but not replacing
+ * OrgSetupCompleteGuard/OrgVerifiedGuard's real, server-side enforcement
+ * (see apps/api's org-readiness.ts and org-verified.guard.ts). Every
+ * employer-portal page depends on both checks, so they belong here rather
+ * than duplicated per-page, same reasoning as the auth check above.
+ * SETUP_EXEMPT_PATHS doubles as the verification-exempt list too — both
+ * gates carve out the exact same two paths, for the same reason: setup
+ * (nowhere else to send an incomplete org) and settings (where an org
+ * fixes itself, checks its verification status, and where team management
+ * lives — OrgsController and OrgMembersController are both ungated by
+ * either guard). Must stay in sync with which controllers
+ * OrgSetupCompleteGuard/OrgVerifiedGuard are (and aren't) attached to on
+ * the API side.
+ *
+ * The verification check runs only once the setup check has already
+ * passed (or the path is exempt) — an org that isn't setup-complete is
+ * still sent to /employer/setup first, same as before this gate existed;
+ * completing setup auto-submits for verification server-side (see
+ * OrgsService.maybeAutoSubmitForVerification), so by the time an org would
+ * otherwise clear the setup check it's already PENDING, not UNVERIFIED.
  *
  * Deactivation is checked in the same GET /orgs/me fetch, ahead of the
  * setup check — an org can be both incomplete AND deactivated (unlikely
@@ -44,8 +56,11 @@ const { getToken, api } = employerApi;
 const SETUP_EXEMPT_PATHS = ['/employer/setup', '/employer/settings'];
 const DEACTIVATED_EXEMPT_PATHS = ['/employer/deactivated'];
 
+type VerificationStatus = 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+
 interface OrgMeOrganization extends OrgReadinessFields {
   deactivatedAt: string | null;
+  verificationStatus: VerificationStatus;
 }
 
 export default function EmployerLayout({ children }: { children: React.ReactNode }) {
@@ -71,6 +86,10 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
   // it just doesn't blank out perfectly good, already-rendered content to
   // do it.
   const [ready, setReady] = useState(false);
+  // Passed down to EmployerSidebarShell so it can hide the gated sections
+  // from the nav — the client-side courtesy half of the gate; see this
+  // file's own doc comment on the real, server-side half.
+  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus | null>(null);
 
   useEffect(() => {
     if (pathname === '/employer') {
@@ -90,6 +109,7 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
     api<{ organization: OrgMeOrganization }>('/orgs/me')
       .then(({ organization }) => {
         if (cancelled) return;
+        setVerificationStatus(organization.verificationStatus);
         if (organization.deactivatedAt) {
           router.replace('/employer/deactivated');
           return;
@@ -100,6 +120,10 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
         }
         if (!isOrgSetupComplete(organization)) {
           router.replace('/employer/setup');
+          return;
+        }
+        if (organization.verificationStatus !== 'VERIFIED') {
+          router.replace('/employer/settings');
           return;
         }
         setReady(true);
@@ -129,7 +153,7 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
   if (DEACTIVATED_EXEMPT_PATHS.includes(pathname)) return <>{children}</>;
 
   return (
-    <EmployerSidebarShell onLoggedOut={() => router.replace('/employer')}>
+    <EmployerSidebarShell verified={verificationStatus === 'VERIFIED'} onLoggedOut={() => router.replace('/employer')}>
       {children}
     </EmployerSidebarShell>
   );

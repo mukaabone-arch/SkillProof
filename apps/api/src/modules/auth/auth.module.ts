@@ -7,6 +7,7 @@ import { RolesGuard } from './roles.guard';
 import { OrgMemberGuard } from './org-member.guard';
 import { OrgSetupCompleteGuard } from './org-setup-complete.guard';
 import { OrgActiveGuard } from './org-active.guard';
+import { OrgVerifiedGuard } from './org-verified.guard';
 import { CandidateVerificationGuard } from './candidate-verification.guard';
 import { GoogleOAuthProvider } from './oauth/google-oauth.provider';
 import { GithubOAuthProvider } from './oauth/github-oauth.provider';
@@ -31,6 +32,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     OrgMemberGuard,
     OrgSetupCompleteGuard,
     OrgActiveGuard,
+    OrgVerifiedGuard,
     CandidateVerificationGuard,
     GoogleOAuthProvider,
     GithubOAuthProvider,
@@ -53,6 +55,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     OrgMemberGuard,
     OrgSetupCompleteGuard,
     OrgActiveGuard,
+    OrgVerifiedGuard,
     CandidateVerificationGuard,
     JwtModule,
   ],

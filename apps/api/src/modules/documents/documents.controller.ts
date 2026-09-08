@@ -2,6 +2,7 @@ import { Controller, Get, Param, Req, UseGuards } from '@nestjs/common';
 import { AuthenticatedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OrgMemberGuard, OrgScopedRequest } from '../auth/org-member.guard';
 import { OrgSetupCompleteGuard } from '../auth/org-setup-complete.guard';
+import { OrgVerifiedGuard } from '../auth/org-verified.guard';
 import { DocumentsService } from './documents.service';
 
 /**
@@ -32,15 +33,18 @@ export class CandidateDocumentsController {
 /**
  * Organisation-facing GST documents — covers assessment-request charges
  * (org-owned BillingProfile) the same way CandidateDocumentsController
- * covers subscription charges. OrgSetupCompleteGuard matches the dominant
- * guard shape on every other employer-portal controller (see
+ * covers subscription charges. OrgSetupCompleteGuard/OrgVerifiedGuard match
+ * the dominant guard shape on every other employer-portal controller (see
  * EmployerAssessmentRequestsController) — see app/employer/layout.tsx's
  * own doc comment on SETUP_EXEMPT_PATHS for why that pairing matters: an
- * incomplete org shouldn't be able to reach this via direct API call any
- * more than through the UI.
+ * incomplete or unverified org shouldn't be able to reach this via direct
+ * API call any more than through the UI. Billing is part of the
+ * verification gate — a brand-new org has no billing history yet, so this
+ * only actually blocks a not-yet-verified org, never an existing one (see
+ * the backfill migration).
  */
 @Controller('documents/org')
-@UseGuards(JwtAuthGuard, OrgMemberGuard, OrgSetupCompleteGuard)
+@UseGuards(JwtAuthGuard, OrgMemberGuard, OrgSetupCompleteGuard, OrgVerifiedGuard)
 export class OrgDocumentsController {
   constructor(private readonly documents: DocumentsService) {}
 

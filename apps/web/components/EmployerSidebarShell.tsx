@@ -14,6 +14,13 @@
  * light theme — see the "employer portal: light theme" block in
  * globals.css. Every page rendered as `children` inherits it; nothing
  * outside this shell (candidate/public/admin) is affected.
+ *
+ * `verified` (2026-09) hides every section but Settings while the org's
+ * platform-admin verification is anything but VERIFIED — the client-side
+ * courtesy half of the verification gate; OrgVerifiedGuard is the real,
+ * server-side enforcement (see app/employer/layout.tsx's own doc comment).
+ * Settings always stays — it's the one place a non-verified org can check
+ * status, fix its details, or wait.
  */
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -32,14 +39,16 @@ const SECTIONS = [
 ];
 
 interface Props {
+  verified: boolean;
   onLoggedOut: () => void;
   children: React.ReactNode;
 }
 
-export default function EmployerSidebarShell({ onLoggedOut, children }: Props) {
+export default function EmployerSidebarShell({ verified, onLoggedOut, children }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const sections = verified ? SECTIONS : SECTIONS.filter((s) => s.href === '/employer/settings');
 
   async function handleLogout() {
     await employerApi.logout();
@@ -66,7 +75,7 @@ export default function EmployerSidebarShell({ onLoggedOut, children }: Props) {
       </header>
       <div className="employer-body">
         <nav className={mobileOpen ? 'employer-sidebar is-open' : 'employer-sidebar'}>
-          {SECTIONS.map((s) => {
+          {sections.map((s) => {
             const active = pathname === s.href || pathname.startsWith(`${s.href}/`);
             return (
               <Link

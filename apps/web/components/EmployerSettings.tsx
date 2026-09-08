@@ -97,9 +97,6 @@ export default function EmployerSettings() {
   const [orgInfoError, setOrgInfoError] = useState('');
   const [orgInfoSuccess, setOrgInfoSuccess] = useState('');
 
-  const [submittingVerification, setSubmittingVerification] = useState(false);
-  const [verificationError, setVerificationError] = useState('');
-
   // Deactivation — two-step, same "reveal a confirmation panel, don't just
   // confirm() a raw dialog" shape as /profile/account's delete flow. The
   // preview (concrete counts) is fetched only once the panel opens, not
@@ -190,19 +187,6 @@ export default function EmployerSettings() {
       setOrgInfoError((e as Error).message);
     } finally {
       setSavingOrgInfo(false);
-    }
-  }
-
-  async function submitVerification() {
-    setSubmittingVerification(true);
-    setVerificationError('');
-    try {
-      const updated = await api<OrgMe['organization']>('/orgs/me/verification/submit', { method: 'POST' });
-      setOrg((prev) => (prev ? { ...prev, organization: updated } : prev));
-    } catch (e) {
-      setVerificationError((e as Error).message);
-    } finally {
-      setSubmittingVerification(false);
     }
   }
 
@@ -310,6 +294,54 @@ export default function EmployerSettings() {
       {error && <p className="error">{error}</p>}
       {!error && !org && <p className="meta">Loading…</p>}
 
+      {org && org.organization.verificationStatus !== 'VERIFIED' && (
+        <div
+          className="card"
+          style={{
+            flexDirection: 'column',
+            alignItems: 'stretch',
+            gap: 8,
+            marginBottom: 24,
+            borderColor: org.organization.verificationStatus === 'REJECTED' ? 'var(--error)' : undefined,
+          }}
+        >
+          <div className="row" style={{ margin: 0, alignItems: 'center', gap: 12 }}>
+            <Badge variant={VERIFICATION_BADGE[org.organization.verificationStatus].variant}>
+              {VERIFICATION_BADGE[org.organization.verificationStatus].label}
+            </Badge>
+          </div>
+          {org.organization.verificationStatus === 'UNVERIFIED' && (
+            <p style={{ margin: 0 }}>
+              Your organisation profile isn&apos;t complete yet. Finish it below — verification is submitted
+              automatically once it is.
+            </p>
+          )}
+          {org.organization.verificationStatus === 'PENDING' && (
+            <p style={{ margin: 0 }}>
+              Your organisation has been submitted for review. Jobs, Find Candidates, Applicants, Shortlist, and
+              Billing unlock as soon as it&apos;s approved — you don&apos;t need to do anything else while you wait.
+            </p>
+          )}
+          {org.organization.verificationStatus === 'REJECTED' && (
+            <>
+              <p style={{ margin: 0 }}>
+                <strong>Reason:</strong> {org.organization.rejectionReason}
+              </p>
+              {isAdmin ? (
+                <p style={{ margin: 0 }}>
+                  Update your organisation details below to address this — saving automatically resubmits your
+                  organisation for review.
+                </p>
+              ) : (
+                <p className="meta" style={{ margin: 0 }}>
+                  An admin on your team needs to update the organisation&apos;s details to resubmit it for review.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {org && (
         <div id="organisation" className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 16, marginBottom: 24 }}>
           <div>
@@ -324,24 +356,11 @@ export default function EmployerSettings() {
 
           <div>
             <div className="meta" style={{ margin: 0 }}>Verification</div>
-            <div className="row" style={{ margin: '4px 0 0', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div className="row" style={{ margin: '4px 0 0', alignItems: 'center', gap: 12 }}>
               <Badge variant={VERIFICATION_BADGE[org.organization.verificationStatus].variant}>
                 {VERIFICATION_BADGE[org.organization.verificationStatus].label}
               </Badge>
-              {isAdmin && (org.organization.verificationStatus === 'UNVERIFIED' || org.organization.verificationStatus === 'REJECTED') && (
-                <button onClick={submitVerification} disabled={submittingVerification}>
-                  {submittingVerification
-                    ? 'Submitting…'
-                    : org.organization.verificationStatus === 'REJECTED'
-                      ? 'Resubmit for verification'
-                      : 'Submit for verification'}
-                </button>
-              )}
             </div>
-            {org.organization.verificationStatus === 'REJECTED' && org.organization.rejectionReason && (
-              <p className="error" style={{ margin: '6px 0 0' }}>Reason: {org.organization.rejectionReason}</p>
-            )}
-            {verificationError && <p className="error" style={{ margin: '6px 0 0' }}>{verificationError}</p>}
           </div>
 
           <div className="row" style={{ margin: 0, alignItems: 'center', gap: 16 }}>
@@ -431,10 +450,12 @@ export default function EmployerSettings() {
             </p>
           )}
 
-          <p className="meta" style={{ marginTop: 4 }}>
-            GST invoices and receipts are generated automatically for each charge.{' '}
-            <Link href="/employer/billing">View billing documents →</Link>
-          </p>
+          {org.organization.verificationStatus === 'VERIFIED' && (
+            <p className="meta" style={{ marginTop: 4 }}>
+              GST invoices and receipts are generated automatically for each charge.{' '}
+              <Link href="/employer/billing">View billing documents →</Link>
+            </p>
+          )}
         </div>
       )}
 

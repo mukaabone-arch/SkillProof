@@ -71,7 +71,7 @@ export class OrgsController {
   @UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard)
   @Roles(Role.EMPLOYER_ADMIN)
   updateMe(@Req() req: OrgScopedRequest, @Body() dto: UpdateOrgDto) {
-    return this.svc.update(req.orgId, dto);
+    return this.svc.update(req.orgId, req.user.sub, dto);
   }
 
   /**
@@ -126,7 +126,7 @@ export class OrgsController {
     // resolved against the configured backend wherever it's read back.
     const key = `${randomUUID()}${LOGO_EXTENSION_BY_MIME[file.mimetype]}`;
     await this.storage.write(key, file.buffer, file.mimetype);
-    return this.svc.saveLogo(req.orgId, key);
+    return this.svc.saveLogo(req.orgId, req.user.sub, key);
   }
 
   @Delete('me/logo')
