@@ -9,6 +9,11 @@
  * never inherits or fights their responsive rules (notably the
  * globals.css rule that hides .appnav-links below 720px, which would
  * otherwise leave employers with no nav at all on mobile).
+ *
+ * data-theme="light" on the root div (2026-09) scopes the employer-portal
+ * light theme — see the "employer portal: light theme" block in
+ * globals.css. Every page rendered as `children` inherits it; nothing
+ * outside this shell (candidate/public/admin) is affected.
  */
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -43,7 +48,7 @@ export default function EmployerSidebarShell({ onLoggedOut, children }: Props) {
   }
 
   return (
-    <div className="employer-shell">
+    <div className="employer-shell" data-theme="light">
       <header className="employer-topbar">
         <button
           type="button"

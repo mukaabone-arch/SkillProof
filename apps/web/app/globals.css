@@ -163,6 +163,42 @@
 
   --card: #232532; /* cards/surfaces: Nocturne --color-surface — dark-theme fix, was white */
 
+  /* ---- Employer-portal light theme (2026-09) ----
+     .employer-shell (EmployerSidebarShell's root) gets data-theme="light",
+     scoping a token override to [data-theme="light"] below — every rule
+     app-wide keeps reading these same names, and outside that scope
+     they're untouched, so candidate/public/admin stay on the dark theme
+     above exactly as today. --surface-sidebar is new because the sidebar
+     has no token of its own today (it already just reads --card, aliased
+     here, so this line changes nothing); the topbar's equivalent is
+     --header-bg below, not scoped here at all — see that block's own
+     comment for why. */
+  --surface-sidebar: var(--card);
+
+  /* ---- Shared dark "header" theme (2026-09) ----
+     The header is the one deliberate exception to each portal's own page
+     theme: candidate's .appnav and the employer's .employer-topbar both
+     stay on this dark look, always, regardless of what the gray/brand
+     tokens resolve to in the page underneath. Both read these tokens directly
+     rather than each hardcoding their own copy of the same colors, so the
+     employer header *inherits* the candidate header's theme in the literal
+     CSS-cascade sense, not just "happens to currently match it" — restyle
+     the header once, here, and both portals follow. Declared once, at
+     :root, and never overridden anywhere (specifically: NOT inside
+     .employer-shell[data-theme="light"] below) — that's what keeps them
+     correct even for a header nested inside a light-themed subtree; a
+     header that DID need to flip with the page theme would instead read
+     --card/--ink/etc. directly, the way everything else in this file
+     does. --header-text/-text-secondary/-border are plain aliases of the
+     gray steps already used for text/text/borders everywhere else,
+     exactly as dark as they've always been (see --ink/--ink-60/--ink-12
+     below) — only --header-bg is a new value, lifted verbatim out of the
+     raw rgba() .appnav used to hardcode. */
+  --header-bg: rgba(22, 24, 38, 0.85);
+  --header-text: var(--gray-900);
+  --header-text-secondary: var(--gray-600);
+  --header-border: var(--gray-100);
+
   /* ---- Spacing scale (4px base) ---- */
   --space-1: 4px;
   --space-2: 8px;
@@ -1262,11 +1298,11 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ---- dashboard hub ---- */
 /* Rendered as a sibling before <main>, full-bleed and sticky, independent of any page's max-width. */
-/* Dark-theme fix: was rgba(247, 247, 249, 0.85), the old --paper as a translucent literal — now the
-   page's own dark bg (#161826) at the same alpha/blur treatment. */
+/* Dark-theme fix: was rgba(247, 247, 249, 0.85), the old --paper as a translucent literal — now
+   --header-bg (see its own :root comment), the header's own always-dark background. */
 .appnav {
-  position: sticky; top: 0; z-index: 50; background: rgba(22, 24, 38, 0.85);
-  backdrop-filter: blur(10px); border-bottom: 1px solid var(--ink-12);
+  position: sticky; top: 0; z-index: 50; background: var(--header-bg);
+  backdrop-filter: blur(10px); border-bottom: 1px solid var(--header-border);
 }
 /* `gap` is a floor, independent of justify-content: space-between's
    distributed space — without it, the brand group and the links group
@@ -1347,11 +1383,40 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
    must stay untouched. Only .appnav-logo/.appnav-logout are shared, since
    the brand lockup and Log out button ARE meant to look identical to every
    other app section. */
-.employer-shell { display: flex; flex-direction: column; min-height: 100vh; }
+/* background AND color here (not just inherited from <body>) are what let
+   the light override below actually apply: .employer-shell is a
+   descendant of <body>, and body's own `color: var(--ink)` / `background:
+   var(--paper)` already computed to the dark values using body's own
+   (unscoped) environment before this element ever inherits from it —
+   redeclaring --ink/--paper's *values* in the override below doesn't
+   retroactively change what body already resolved and handed down as a
+   plain inherited color/background. Setting both again here, so they
+   resolve against *this* element's (correctly light-scoped) environment
+   instead, is what makes every heading/paragraph beneath this element
+   actually inherit dark, readable text instead of body's near-white. */
+.employer-shell { display: flex; flex-direction: column; min-height: 100vh; background: var(--paper); color: var(--ink); }
+/* Deliberately dark, on every employer page, regardless of the light
+   theme around it — the fixed brand element .employer-shell[data-theme=
+   "light"] doesn't touch. Inherits candidate's .appnav header theme
+   rather than hardcoding its own copy: --header-bg/-text/-text-secondary/
+   -border (see their :root comment) are declared once and never
+   redefined anywhere, including inside .employer-shell's light override,
+   so they reach this element exactly as dark as they reach .appnav —
+   restyle the header once, at :root, and both portals move together.
+   Locally reassigning --ink/--ink-60/--ink-12 to them (rather than
+   switching every rule below from --ink to --header-text directly) is
+   what makes every descendant that already reads --ink/etc — BrandLockup's
+   wordmark, the hamburger bars, .appnav-logout's shared rule — pick up
+   the header theme with no override of its own; custom properties
+   inherit normally from whichever element last declared them. */
 .employer-topbar {
+  --ink: var(--header-text);
+  --ink-60: var(--header-text-secondary);
+  --ink-12: var(--header-border);
   position: sticky; top: 0; z-index: 50; height: 76px; flex-shrink: 0;
   display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-5);
-  background: rgba(22, 24, 38, 0.85); backdrop-filter: blur(10px); border-bottom: 1px solid var(--ink-12);
+  background: var(--header-bg); color: var(--ink);
+  backdrop-filter: blur(10px); border-bottom: 1px solid var(--ink-12);
 }
 .employer-topbar .appnav-logout { margin-left: auto; }
 .employer-nav-toggle {
@@ -1363,7 +1428,7 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
 .employer-sidebar {
   flex-shrink: 0; width: 220px; padding: var(--space-5) var(--space-3);
   display: flex; flex-direction: column; gap: 2px;
-  border-right: 1px solid var(--ink-12); background: var(--card);
+  border-right: 1px solid var(--ink-12); background: var(--surface-sidebar);
 }
 .employer-sidebar a {
   display: block; padding: 10px 14px; border-radius: var(--radius-md);
@@ -1421,6 +1486,75 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
     cursor: pointer;
   }
   .employer-sidebar-logout:hover { color: var(--ink); background: color-mix(in srgb, var(--brand-600) 12%, var(--card)); }
+}
+
+/* ---- employer portal: light theme ----
+   Overrides the shared tokens above, scoped to .employer-shell — nothing
+   outside it (candidate, public, admin) reads these, so they keep the dark
+   theme exactly as it renders today. Every employer-visible rule (.card,
+   .status-card*, .ui-badge*, button/.btn-*, input/select/textarea, .field,
+   .meta, .eyebrow, a, etc.) already reads these same token names, so they
+   re-theme automatically — nothing below needs a rule of its own, only the
+   values change. color-mix()-based tints (badge backgrounds, sidebar-link
+   hover, .eyebrow.verified, etc.) recompute correctly too, since they're
+   already parameterized on --card/--brand-600/--success/etc. rather than a
+   literal.
+
+   Values: role-matched against a proposed employer-light-theme spec —
+   --gray-900/-600/-300 keep their existing roles (primary/secondary/muted
+   text, the latter doing double duty as an emphasis-border color exactly
+   as it does in dark mode today); --brand-600 (=--indigo, the one token
+   every primary button/link/active-nav-state/stat-numeral reads) is a
+   *darker* purple than dark mode's, per that spec's own note that the
+   current accent fails AA(4.5:1) as text on white — --brand-800, used as
+   text too (.match-confidence.strong, .hint-toggle[open] summary), is
+   darker than --brand-600 here for the same reason, inverting dark mode's
+   direction (there, "brighter than primary" means lighter, since lighter
+   pops against a dark page; here it has to mean *more* contrast against a
+   light one instead). --shadow-sm/-md/-lg drop dark mode's hairline-border-
+   as-shadow trick (hardcoded hex, never themed via these tokens even in
+   dark mode — see their own :root comment) for real, soft shadows, since a
+   light page can actually show elevation instead of needing a border
+   standing in for one. */
+.employer-shell[data-theme="light"] {
+  color-scheme: light;
+  --gray-50: #f6f7fb;
+  --gray-100: #dde0ea;
+  --gray-300: #6b7285;
+  --gray-600: #565c6e;
+  --gray-900: #171a26;
+  --card: #ffffff;
+  --surface-sidebar: #eef0f6;
+  --brand-50: #efedfd;
+  --brand-100: #efedfd;
+  --brand-200: #e6e2fb;
+  --brand-400: #6d5bd0;
+  --brand-600: #5b4bc4;
+  --brand-800: #4a3bb0;
+  --brand-900: #3f3199;
+  --success: #0b6b48;
+  --warning: #8a5a00;
+  --error: #c62828;
+  --shadow-sm: 0 1px 2px rgba(23, 26, 38, 0.04);
+  --shadow-md: 0 4px 12px rgba(23, 26, 38, 0.08), 0 1px 3px rgba(23, 26, 38, 0.06);
+  --shadow-lg: 0 8px 24px rgba(23, 26, 38, 0.1), 0 2px 6px rgba(23, 26, 38, 0.06);
+
+  /* Legacy-bridge aliases (see :root's own "Legacy bridge" comment) need
+     re-declaring here too, verbatim — a custom property's var() reference
+     resolves against the element it's declared ON, then that resolved
+     value is what inherits. --ink etc. are declared only at :root, so
+     without redeclaring them here they'd inherit :root's already-resolved
+     (dark) value rather than re-resolving against the --gray-N and
+     --brand-N overrides above, even though those overrides are very much
+     in scope. */
+  --indigo:       var(--brand-600);
+  --indigo-soft:  var(--brand-400);
+  --paper:        var(--gray-50);
+  --paper-2:      var(--gray-100);
+  --ink:          var(--gray-900);
+  --ink-60:       var(--gray-600);
+  --ink-30:       var(--gray-300);
+  --ink-12:       var(--gray-100);
 }
 
 /* ---- admin console: sidebar shell ----
