@@ -51,11 +51,28 @@ interface OrgMeOrganization extends OrgReadinessFields {
 export default function EmployerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  // Deliberately does NOT reset to false at the top of the effect below on
+  // every pathname change (2026-09 fix — see git history for the one-line
+  // diff this replaced). This check re-runs on every navigation regardless
+  // — see the effect body — but it's re-verifying an org-level fact that's
+  // essentially never going to have flipped between two clicks in the same
+  // session; forcing `ready` back to false first, before that re-check
+  // resolves, means this component renders null and tears down
+  // EmployerSidebarShell (and, with it, the page content already correctly
+  // mounted for the new route) purely to redraw the *identical* tree a
+  // moment later. That's a genuine unmount+remount every single tab
+  // switch, not a cosmetic flicker: it's what was surfacing as the visible
+  // blink in the content area, and it's *why* every page's own mount-time
+  // fetch (taxonomy, shortlist, ...) was firing twice — the page component
+  // was genuinely mounting twice, once discarded a moment after. Now
+  // `ready` only ever goes false->true once per session; the re-check
+  // still runs and still redirects (to /employer/setup, /employer/deactivated,
+  // or /employer on a missing token) if it finds something actually wrong,
+  // it just doesn't blank out perfectly good, already-rendered content to
+  // do it.
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    setReady(false);
-
     if (pathname === '/employer') {
       setReady(true);
       return;
