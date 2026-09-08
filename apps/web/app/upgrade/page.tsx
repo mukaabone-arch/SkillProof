@@ -1,12 +1,23 @@
 'use client';
 
 /**
- * Free vs Premium comparison — every row is generated from live data (GET
- * /plans, both tiers' PlanLimits verbatim) rather than hand-written copy,
- * so this page can never drift from what's actually enforced server-side.
- * Pricing is a placeholder only (no payment provider integration in this
- * pass) — the CTA is a no-op "notify me" flag stored locally, not a real
- * signup.
+ * Free vs Premium comparison, and the real Razorpay checkout/account-
+ * management flow, for a candidate who's already reached this page. Every
+ * comparison row is generated from live data (GET /plans, both tiers'
+ * PlanLimits verbatim) so it can never drift from what's actually enforced
+ * server-side.
+ *
+ * Pre-launch (plans.premiumEnabled false), a candidate who isn't already
+ * Premium sees the "coming in November" notice instead of any of that —
+ * see renderComingSoonNotice below. Already-Premium candidates (internal
+ * test accounts, ahead of launch) keep seeing the real comparison/checkout/
+ * account-management page regardless of the flag, since that's the whole
+ * point of having them — see SubscriptionsService.initiateCheckout's own
+ * doc comment for exactly what the flag does and doesn't gate. Reads
+ * plans.premiumEnabled (not useEntitlements()'s copy of the same flag)
+ * because GET /plans is unauthenticated — this page has to make the same
+ * decision for a logged-out visitor, who has no entitlements context at
+ * all.
  */
 import { useEffect, useState } from 'react';
 import Script from 'next/script';
@@ -46,6 +57,8 @@ interface PlansResponse {
     MONTHLY: PricingBreakdown;
     ANNUAL: PricingBreakdown;
   };
+  /** Mirrors isCandidatePremiumEnabled() server-side — see this page's own top comment. */
+  premiumEnabled: boolean;
 }
 
 /** ₹3,538.82-style formatting from an integer paise amount — en-IN locale for the thousands grouping (2,999.00, not 2999.00), matching the pricing table's own formatting exactly. */
@@ -57,12 +70,14 @@ const TIERS: SubscriptionTier[] = ['FREE', 'PREMIUM'];
 
 const TIER_LABEL: Record<SubscriptionTier, string> = { FREE: 'Free', PREMIUM: 'Premium' };
 
-/** Describes a PlanLimits field for display — the VALUE always comes from the live fetch below; only the label/formatting is hand-written. */
+/**
+ * Describes a PlanLimits field for display — the VALUE always comes from
+ * the live fetch below; only the label/formatting is hand-written.
+ * Deliberately excludes assessmentsPerMonth: unlimited on both tiers, not a
+ * premium differentiator, so it doesn't belong in a Free-vs-Premium
+ * comparison at all (see plans.config.ts's own comment on that field).
+ */
 const FEATURE_ROWS: { label: string; format: (l: PlanLimits) => string }[] = [
-  {
-    label: 'Assessment starts',
-    format: (l) => (l.assessmentsPerMonth === null ? 'Unlimited' : `${l.assessmentsPerMonth} per month`),
-  },
   {
     label: 'AI discussion sessions',
     format: (l) =>
@@ -258,10 +273,30 @@ export default function UpgradePage() {
     }
   }
 
+  // Pre-launch and not already Premium: the notice replaces this whole page
+  // (comparison table included) rather than just hiding the Subscribe
+  // buttons — showing a full marketing comparison for something that isn't
+  // purchasable yet, with a "we'll share pricing" line right below it,
+  // reads as a bait-and-switch. `plans` gates this rather than defaulting
+  // to "show the notice" while loading, so a slow /plans response doesn't
+  // flash the notice at an already-Premium candidate before their real tier
+  // is known.
+  const showComingSoonNotice = !!plans && !plans.premiumEnabled && currentTier !== 'PREMIUM';
+
   return (
     <>
       <Script src="https://checkout.razorpay.com/v1/checkout.js" onLoad={() => setScriptReady(true)} strategy="afterInteractive" />
       {loggedIn && <CandidateNav />}
+      {showComingSoonNotice ? (
+        <main className="container-reading">
+          <h1>Premium is coming in November</h1>
+          <p>
+            Premium adds full details on who viewed your profile, AI discussion sessions, and unlimited job
+            applications. The free plan keeps verified skills, badges, job matches, and 10 applications a month.
+            We&apos;ll share pricing before anything goes live.
+          </p>
+        </main>
+      ) : (
       <main className="container-wide">
         <h1>Free vs Premium</h1>
         <p>Everything below reflects your actual account — no fine print.</p>
@@ -376,6 +411,7 @@ export default function UpgradePage() {
           </div>
         )}
       </main>
+      )}
     </>
   );
 }

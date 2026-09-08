@@ -1,11 +1,17 @@
 # Entitlements
 
-Foundation work for subscription tiers (Free / Premium). No payment provider
-is integrated yet — tier is set manually via `POST
-/admin/candidates/:candidateProfileId/subscription` (see `AdminController`).
-All limits and feature flags live in `apps/api/src/config/plans.config.ts`
-(`PLANS`) — nothing in this module, or anywhere enforcing an entitlement,
-should ever hardcode a number instead of reading it from there.
+Subscription tiers (Free / Premium). Real payment provider integration
+(Razorpay, see `src/modules/subscriptions`) exists and is fully wired, but
+self-serve checkout is gated behind `candidatePremiumEnabled`
+(`config/feature-flags.config.ts`) until the public launch — see that
+function's own doc comment for exactly what it does and doesn't gate. Tier
+can also still be set manually via `POST
+/admin/candidates/:candidateProfileId/subscription` (see `AdminController`) —
+this is how internal/QA accounts get Premium ahead of launch, unaffected by
+the flag. All limits and feature flags live in
+`apps/api/src/config/plans.config.ts` (`PLANS`) — nothing in this module, or
+anywhere enforcing an entitlement, should ever hardcode a number instead of
+reading it from there.
 
 ## GET /me/entitlements
 
@@ -35,7 +41,12 @@ field is safe.
   // freeSkillLockId) — null before their first self-serve MCQ attempt, and
   // always null for a grandfathered/exempt candidate or on a tier without
   // the restriction. See EntitlementsService.checkSkillLockEligibility.
-  "freeSkillLock": { "skillId": "...", "skillName": "LLM Evaluation" } // or null
+  "freeSkillLock": { "skillId": "...", "skillName": "LLM Evaluation" }, // or null
+  // Mirrors isCandidatePremiumEnabled() — independent of `tier`. The
+  // /upgrade page's sole signal for whether to show live checkout or the
+  // "coming in November" notice; not itself an entitlement, just plumbing
+  // for that one page.
+  "premiumEnabled": false
 }
 ```
 

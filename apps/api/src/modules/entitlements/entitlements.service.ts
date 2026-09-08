@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { AttemptStatus, SkillLevel, Subscription, SubscriptionStatus, SubscriptionTier } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PLANS } from '../../config/plans.config';
+import { isCandidatePremiumEnabled } from '../../config/feature-flags.config';
 import { BooleanFeature, CountableMetric } from './requires-entitlement.decorator';
 import { EntitlementLimitException } from './entitlements.errors';
 
@@ -40,6 +41,17 @@ export interface EntitlementsResponse {
    * restriction doesn't apply).
    */
   freeSkillLock: { skillId: string; skillName: string } | null;
+  /**
+   * Mirrors isCandidatePremiumEnabled() — the /upgrade page's sole signal
+   * for whether to show the live pricing/checkout UI or the "coming in
+   * November" notice. Independent of `tier`: an internal test account
+   * still resolves to PREMIUM through the normal path above regardless of
+   * this flag (see SubscriptionsService.initiateCheckout, the only thing
+   * the flag actually gates) — this field exists so the *candidate-facing*
+   * checkout entry point can be hidden pre-launch without touching
+   * anything that already has a subscription.
+   */
+  premiumEnabled: boolean;
 }
 
 /** Start of date's UTC calendar month — the fixed boundary UsageCounter.periodStart buckets on. */
@@ -112,7 +124,13 @@ export class EntitlementsService {
         ? { skillId: profile.freeSkillLockId, skillName: profile.freeSkillLock.name }
         : null;
 
-    return { tier, limits, usage: { assessments, applications, discussionSessions }, freeSkillLock };
+    return {
+      tier,
+      limits,
+      usage: { assessments, applications, discussionSessions },
+      freeSkillLock,
+      premiumEnabled: isCandidatePremiumEnabled(),
+    };
   }
 
   /**

@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
 import { SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { isCandidatePremiumEnabled } from '../../config/feature-flags.config';
 import { RAZORPAY_SUBSCRIPTION_GATEWAY, RazorpaySubscriptionGateway } from './razorpay-subscription-gateway';
 import { BillingInterval } from './subscriptions.dto';
 
@@ -70,8 +71,25 @@ export class SubscriptionsService {
    * what lets RazorpayWebhookService attribute the eventual
    * subscription.activated/charged event to this candidate without
    * trusting anything the client resubmits.
+   *
+   * The one entry point candidatePremiumEnabled actually gates (see that
+   * flag's own doc comment for why nothing else in this service is gated)
+   * — checked first, before touching Razorpay or even resolving a
+   * candidateId, so a disabled launch never creates any side effect at
+   * all. The /upgrade page is expected to hide the checkout UI entirely
+   * while the flag is off (showing the "coming in November" notice
+   * instead), so reaching this in practice means either a stale client or
+   * someone calling the API directly — the 403 is the real enforcement
+   * either way, not the UI hiding it.
    */
   async initiateCheckout(userId: string, plan: BillingInterval): Promise<{ subscriptionId: string; keyId: string }> {
+    if (!isCandidatePremiumEnabled()) {
+      throw new BadRequestException({
+        code: 'PREMIUM_NOT_LAUNCHED',
+        message: 'Premium is not available yet.',
+      });
+    }
+
     const candidateId = await this.ensureProfileId(userId);
     const planId = resolvePlanId(plan);
     const keyId = process.env.RAZORPAY_KEY_ID;

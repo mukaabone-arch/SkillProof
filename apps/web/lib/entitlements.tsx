@@ -57,6 +57,8 @@ export interface EntitlementsResponse {
     discussionSessions: UsageEntry;
   };
   freeSkillLock: FreeSkillLock;
+  /** Mirrors the server's candidatePremiumEnabled flag — independent of `tier` (see apps/api's entitlements README). The /upgrade page's sole signal for live checkout vs. the "coming in November" notice. */
+  premiumEnabled: boolean;
 }
 
 interface EntitlementsState {
@@ -65,6 +67,8 @@ interface EntitlementsState {
   limits: PlanLimits | null;
   usage: EntitlementsResponse['usage'] | null;
   freeSkillLock: FreeSkillLock;
+  /** null in the same two cases as `tier` — callers must not assume `false` while this is still unresolved. */
+  premiumEnabled: boolean | null;
   loading: boolean;
   error: string | null;
 }
@@ -73,7 +77,15 @@ interface EntitlementsContextValue extends EntitlementsState {
   refetch: () => Promise<void>;
 }
 
-const EMPTY_STATE: EntitlementsState = { tier: null, limits: null, usage: null, freeSkillLock: null, loading: false, error: null };
+const EMPTY_STATE: EntitlementsState = {
+  tier: null,
+  limits: null,
+  usage: null,
+  freeSkillLock: null,
+  premiumEnabled: null,
+  loading: false,
+  error: null,
+};
 
 const EntitlementsContext = createContext<EntitlementsContextValue | null>(null);
 
@@ -89,7 +101,15 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
       const res = await api<EntitlementsResponse>('/me/entitlements');
-      setState({ tier: res.tier, limits: res.limits, usage: res.usage, freeSkillLock: res.freeSkillLock, loading: false, error: null });
+      setState({
+        tier: res.tier,
+        limits: res.limits,
+        usage: res.usage,
+        freeSkillLock: res.freeSkillLock,
+        premiumEnabled: res.premiumEnabled,
+        loading: false,
+        error: null,
+      });
     } catch (e) {
       // An unverified candidate 400s here (apps/api's CandidateVerificationGuard)
       // until they finish /verify — expected app state, not an entitlements

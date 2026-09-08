@@ -1,6 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { PLANS, defaultPricingFor } from '../../config/plans.config';
 import { GST_RATE } from '../../config/gst.config';
+import { isCandidatePremiumEnabled } from '../../config/feature-flags.config';
 
 /**
  * Public, unauthenticated, read-only — served straight from PLANS
@@ -33,6 +34,13 @@ export class PlansController {
         MONTHLY: defaultPricingFor('MONTHLY'),
         ANNUAL: defaultPricingFor('ANNUAL'),
       },
+      // Same flag GET /me/entitlements exposes (see that response's own
+      // field) — duplicated here, not derived from it, because this
+      // endpoint is unauthenticated and must work for a logged-out visitor
+      // too. The candidate /upgrade page is the only consumer: it decides
+      // whether to render live checkout or the "coming in November" notice
+      // off this one field, regardless of login state.
+      premiumEnabled: isCandidatePremiumEnabled(),
     };
   }
 }
