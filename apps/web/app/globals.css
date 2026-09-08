@@ -1409,10 +1409,25 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
    wordmark, the hamburger bars, .appnav-logout's shared rule — pick up
    the header theme with no override of its own; custom properties
    inherit normally from whichever element last declared them. */
+/* --header-bg is translucent (rgba(22,24,38,0.85)) with a backdrop-filter
+   blur — a "glass over dark content scrolling underneath" effect that's
+   invisible-by-design on .appnav's all-dark pages (dark blended with dark
+   is still dark). It actively breaks here: this sticky topbar always has
+   .employer-shell's own light --paper directly behind it, so the 15%
+   see-through actually blends in that light color — rgba(22,24,38,0.85)
+   over #f6f7fb composites to rgb(56,57,70), measured directly from a real
+   screenshot, not assumed. --header-border (#3F424D) is only ~7 units
+   from that per channel — no perceptible border at all, which is exactly
+   the "Log out doesn't look like a button" bug this was reported as.
+   Overriding --header-bg to fully opaque here (not touching the shared
+   token, so .appnav's actual glass effect is untouched) removes the
+   see-through entirely, so there's nothing left for backdrop-filter to
+   blend with regardless of what's scrolled underneath. */
 .employer-topbar {
   --ink: var(--header-text);
   --ink-60: var(--header-text-secondary);
   --ink-12: var(--header-border);
+  --header-bg: #161826;
   position: sticky; top: 0; z-index: 50; height: 76px; flex-shrink: 0;
   display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-5);
   background: var(--header-bg); color: var(--ink);
