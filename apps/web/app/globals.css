@@ -1572,6 +1572,26 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
   --ink-12:       var(--gray-100);
 }
 
+/* ---- employer portal: route-loading skeleton (app/employer/loading.tsx) ----
+   Static, no shimmer/pulse — a loading state that animates in and back out
+   inside ~70ms reads worse than one that just sits there (see the change
+   this shipped with). One shared shape across every employer page rather
+   than per-route: the pages genuinely differ (Dashboard's stat-card row vs.
+   Settings' single form card vs. Applicants/Shortlist's list-rows), but
+   this is occupying space with a neutral placeholder, not previewing the
+   real layout — a heading + a stat row + a couple of list-row blocks reads
+   fine as "content incoming" everywhere, without being wrong anywhere.
+   --gray-100 (this file's light-theme override, not a separate token) is
+   the same visible-but-subtle gray already used for card borders/dividers
+   throughout this scope — no new color introduced. */
+.employer-skeleton-bar { height: 1em; border-radius: var(--radius-sm); background: var(--gray-100); }
+.employer-skeleton-heading { width: 200px; height: 2rem; margin-bottom: var(--space-3); }
+.employer-skeleton-subhead { width: 340px; margin-bottom: var(--space-6); }
+.employer-skeleton-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; margin-bottom: var(--space-6); }
+.employer-skeleton-stat { height: 96px; border-radius: 12px; background: var(--card); border: 1px solid var(--gray-100); }
+.employer-skeleton-rows { display: flex; flex-direction: column; gap: 12px; }
+.employer-skeleton-row { height: 72px; border-radius: 12px; background: var(--card); border: 1px solid var(--gray-100); }
+
 /* ---- admin console: sidebar shell ----
    Same shape and same off-canvas-drawer behavior as the employer portal
    shell just above (deliberately mirrored, not reused directly — own
