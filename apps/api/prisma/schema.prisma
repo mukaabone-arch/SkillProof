@@ -759,6 +759,30 @@ model CandidateProfile {
    * old unlimited-skills rule.
    */
   freeSkillLockExempt Boolean  @default(false)
+  /**
+   * Internal/QA candidate account (team-created, not a real candidate) —
+   * settable independently of subscription state, not derived from
+   * Subscription.provider (null there just means "not paid via Razorpay
+   * yet," which is equally true of a legitimately comped real candidate;
+   * it says nothing about whether this profile should be hidden). Default
+   * false for every candidate; true only via this field being set
+   * explicitly — by the one-time backfill migration for the five accounts
+   * identified pre-launch (2026-09-08 investigation: test@myambii.com,
+   * myambii02@gmail.com, hurzukhome@gmail.com, abdul.hurzuk@gmail.com, and
+   * the phone-only +919136070166 signup — see that migration for the
+   * candidateProfile ids), or by whatever admin path grants/revokes it
+   * going forward.
+   *
+   * Consumed today by candidateVisibilityFilter (account.util.ts) — every
+   * employer-facing candidate view already built on that shared filter
+   * (CandidatesService.search, MatchingService.getMatches,
+   * MatchDigestService, AccountService) excludes a true row automatically,
+   * with no per-consumer change needed. Nothing yet reads it for
+   * candidate-visible aggregate counts or usage-analytics exclusion — no
+   * such counts or analytics exist in this codebase today — but the field
+   * is the intended marker for both once they do.
+   */
+  isInternalTestAccount Boolean @default(false)
 
   skillClaims           SkillClaim[]
   applications          Application[]

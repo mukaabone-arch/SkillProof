@@ -14,8 +14,8 @@ function fakePrisma(profile: { id: string; deletedAt: Date | null; deactivatedAt
 }
 
 describe('candidateVisibilityFilter', () => {
-  it('requires both deletedAt and deactivatedAt to be null', () => {
-    expect(candidateVisibilityFilter).toEqual({ deletedAt: null, deactivatedAt: null });
+  it('requires deletedAt/deactivatedAt to be null and excludes internal test accounts', () => {
+    expect(candidateVisibilityFilter).toEqual({ deletedAt: null, deactivatedAt: null, isInternalTestAccount: false });
   });
 });
 

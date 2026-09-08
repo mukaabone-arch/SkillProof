@@ -14,10 +14,17 @@ import { PrismaService } from '../../prisma/prisma.service';
  * it — every call site spreads this into its own `where`, rather than each
  * one re-deriving "deletedAt: null, deactivatedAt: null" independently and
  * risking one of them drifting to check only one of the two fields.
+ *
+ * isInternalTestAccount joins this same gate for the same reason (2026-09):
+ * a team-created candidate profile used to test premium gates pre-launch
+ * must never surface in a real employer's search/match results just
+ * because every other visibility condition happens to be met. See
+ * CandidateProfile.isInternalTestAccount's own doc comment.
  */
 export const candidateVisibilityFilter: Prisma.CandidateProfileWhereInput = {
   deletedAt: null,
   deactivatedAt: null,
+  isInternalTestAccount: false,
 };
 
 /**
