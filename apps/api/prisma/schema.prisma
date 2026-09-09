@@ -24,6 +24,16 @@ enum IdentityProvider {
   GITHUB
 }
 
+/**
+ * L4 is intentionally unused — headroom for a future top tier, not a gap to
+ * fill. Every skill's live assessment catalog stops at L3 today (15 live
+ * assessments each at L1/L2/L3, zero at L4, confirmed against production
+ * 2026-09) — no candidate can reach it. Help copy and the FAQ deliberately
+ * describe three levels (Foundational/Practitioner/Advanced), not four, for
+ * exactly this reason: documenting a level nobody can attempt generates
+ * support questions with no answer. Don't "fix" that copy to say four
+ * without shipping real L4 content first.
+ */
 enum SkillLevel {
   L1
   L2
