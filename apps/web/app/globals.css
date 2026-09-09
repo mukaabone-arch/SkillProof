@@ -2755,6 +2755,51 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   .lp-legal-body h2 { font-size: 1.15rem; }
 }
 
+/* Help (/help) — same standalone-page shell as Legal/FAQ/Contact
+   (min-height, not height: 100vh — see the auth-clipping fix this pattern
+   was already confirmed against), widened to match .lp-legal-wrap since the
+   body is the same dense prose. .lp-legal-body/.lp-legal-table* are reused
+   verbatim for each guide's content — no separate typography rules here. */
+.lp-help-page { min-height: 100vh; display: flex; }
+.lp-help-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 48px 0 96px; gap: 24px; width: min(100% - 48px, 720px);
+}
+.lp-help-header { text-align: center; }
+.lp-help-title { font-family: var(--font-display); font-weight: 700; font-size: clamp(1.6rem, 4vw, 2.1rem); color: var(--ink); letter-spacing: -0.01em; }
+
+/* Segmented control, not two separate buttons — a tab bar reads as one
+   control with a selected side, matching the .lp-faq-item accordion's own
+   "native-feeling control over a styled div" bar. Fits at 360px: two labels
+   plus padding stay well under a 328px content column (360 - 2×16 margin). */
+.lp-help-tabs {
+  display: inline-flex; gap: 4px; padding: 4px;
+  background: var(--gray-50); border: 1px solid var(--ink-12); border-radius: var(--radius-full);
+}
+.lp-help-tab {
+  padding: 10px 22px; border-radius: var(--radius-full); border: none; background: transparent;
+  color: var(--ink-60); font-family: var(--font-body); font-weight: 600; font-size: 0.95rem; cursor: pointer;
+}
+.lp-help-tab:hover { color: var(--ink); }
+.lp-help-tab.is-active { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(20, 27, 45, 0.12); }
+.lp-help-tab.is-active:hover { color: var(--ink); }
+
+/* Jump list — every top-level section anchor for whichever guide is active,
+   scoped per-tab (switching audience swaps this list, not just the body
+   below it). Plain <a href="#id"> anchors, same as Privacy's own §4 cookie-
+   policy jump — h2 already carries scroll-margin-top via .lp-legal-body. */
+.lp-help-toc { width: 100%; padding: 18px 20px; background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-md); }
+.lp-help-toc-title { font-family: var(--font-display); font-weight: 700; color: var(--ink); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 10px; }
+.lp-help-toc-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; margin: 0; padding: 0; list-style: none; }
+.lp-help-toc-list a { color: var(--brand-400); font-size: 0.92rem; line-height: 1.6; }
+.lp-help-toc-list a:hover { color: var(--brand-600); }
+
+@media (max-width: 480px) {
+  .lp-help-title { font-size: 1.5rem; }
+  .lp-help-tab { padding: 9px 16px; font-size: 0.88rem; }
+  .lp-help-toc-list { grid-template-columns: 1fr; }
+}
+
 .lp-form { display: flex; flex-direction: column; gap: 18px; }
 .lp-field { display: flex; flex-direction: column; gap: 7px; }
 .lp-field label { font-size: 0.85rem; font-weight: 600; color: var(--ink); }
