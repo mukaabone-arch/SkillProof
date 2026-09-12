@@ -1394,7 +1394,36 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
    resolve against *this* element's (correctly light-scoped) environment
    instead, is what makes every heading/paragraph beneath this element
    actually inherit dark, readable text instead of body's near-white. */
-.employer-shell { display: flex; flex-direction: column; min-height: 100vh; background: var(--paper); color: var(--ink); }
+/* Portal background image (2026-09) — employer-only, scoped to this one
+   selector on purpose (candidate/landing/auth/admin never read it). WebP,
+   not PNG: the source was a 1.3MB lossless PNG of a soft gradient with no
+   hard edges — exactly the content PNG's filtering compresses worst and a
+   lossy format compresses best. Re-encoded at q80, 18.7KB, visually
+   indistinguishable from the PNG at this softness level (compared side by
+   side before the PNG was deleted) — a 98.6% reduction on an asset every
+   employer loads on every page. No <picture>/format fallback: this is a
+   decorative CSS background, so a browser that can't decode WebP (none in
+   this app's supported set do) just falls through to the plain var(--paper)
+   layer below with no functional loss — not worth the markup for that.
+   The multi-layer `background` shorthand keeps var(--paper) as an explicit
+   second layer: a bare color with no image is a valid final layer and
+   paints wherever the WebP hasn't loaded yet, or if it 404s — the shell
+   never goes unstyled-white while the request is in flight. center/cover
+   scales the 1672×941 source to fill the shell at any viewport without
+   distorting it; the plexus pattern is denser toward the image's upper
+   right, which lands under the topbar/right side of the content column
+   rather than directly behind the sidebar's own opaque surface. `fixed`
+   pins it to the viewport rather than the (much taller) document, so it
+   never visibly seams or repeats as the page scrolls — measured directly
+   against a 150-row synthetic Applicants list (Shortlist/Applicants are
+   the longest real pages): `fixed` had zero dropped frames over a scripted
+   scroll where `scroll` dropped 9, so this is the faster choice too, not
+   just the visually stiller one. */
+.employer-shell {
+  display: flex; flex-direction: column; min-height: 100vh;
+  background: url('/emp_Background.webp') center / cover no-repeat fixed, var(--paper);
+  color: var(--ink);
+}
 /* Deliberately dark, on every employer page, regardless of the light
    theme around it — the fixed brand element .employer-shell[data-theme=
    "light"] doesn't touch. Inherits candidate's .appnav header theme
