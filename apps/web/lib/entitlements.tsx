@@ -74,7 +74,7 @@ export interface EntitlementsResponse {
     discussionSessions: UsageEntry;
   };
   freeSkillLock: FreeSkillLock;
-  /** Mirrors the server's candidatePremiumEnabled flag — independent of `tier` (see apps/api's entitlements README). The /upgrade page's sole signal for live checkout vs. the "coming in November" notice. */
+  /** Mirrors the server's candidatePremiumEnabled flag — independent of `tier` (see apps/api's entitlements README). The /upgrade page's sole signal for live checkout vs. the "coming this year" notice. */
   premiumEnabled: boolean;
   applyGate: ApplyGate;
 }

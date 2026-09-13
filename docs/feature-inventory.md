@@ -1,6 +1,6 @@
 # SkillProof Feature Inventory — Candidate & Employer Portals
 
-**Purpose:** research artifact for help-guide planning. Not user-facing copy. Compiled from a direct read of the route/component tree (`apps/web/app/**`) and backend services (`apps/api/src/modules/**`, `apps/api/prisma/schema.prisma`) as of 2026-09-08. Admin console and candidate Premium *feature content* are out of scope by request — Premium is feature-flagged off (`plans.premiumEnabled` in `apps/api/src/config/feature-flags.config.ts`), target launch **14 November 2026** (public copy says "November," never the exact date).
+**Purpose:** research artifact for help-guide planning. Not user-facing copy. Compiled from a direct read of the route/component tree (`apps/web/app/**`) and backend services (`apps/api/src/modules/**`, `apps/api/prisma/schema.prisma`) as of 2026-09-08. Admin console and candidate Premium *feature content* are out of scope by request — Premium is feature-flagged off (`plans.premiumEnabled` in `apps/api/src/config/feature-flags.config.ts`), target launch **14 November 2026** (public copy says "this year," as of 2026-09-13 — never a specific date).
 
 Confidence notes are inline. Where a researcher could not confirm something from code, it's marked **[unconfirmed]** rather than guessed.
 
@@ -411,10 +411,10 @@ Team seat usage (`{used} of {limit} seats`) is shown on **Settings**, not Billin
 
 ## Part 4 — Where Candidate Premium surfaces (content intentionally not described)
 
-Premium is feature-flagged off (`isCandidatePremiumEnabled()`), target launch **14 November 2026** (public copy: "November" only). The flag gates the *checkout entry point* only — it's independent of a candidate's actual `tier`, so an internal test account can already resolve to PREMIUM through the normal subscription path regardless of the flag.
+Premium is feature-flagged off (`isCandidatePremiumEnabled()`), target launch **14 November 2026** (public copy: "this year" only, as of 2026-09-13). The flag gates the *checkout entry point* only — it's independent of a candidate's actual `tier`, so an internal test account can already resolve to PREMIUM through the normal subscription path regardless of the flag.
 
 Surfaces to be aware of when writing help-guide copy (do not describe feature content behind these yet):
-- **`/upgrade`** — primary marketing/checkout page. While the flag is off, shows a "Premium is coming in November" notice in place of the comparison table, plus a "Notify me" button that writes to `localStorage`. A live-Premium account (pre-launch, internal test only) bypasses this and sees the real comparison table + Razorpay checkout + plan management.
+- **`/upgrade`** — primary marketing/checkout page. While the flag is off, shows a "Premium is coming this year" notice in place of the comparison table, plus a "Notify me" button that writes to `localStorage`. A live-Premium account (pre-launch, internal test only) bypasses this and sees the real comparison table + Razorpay checkout + plan management.
 - **`CandidateNav`** — "Upgrade" link shown whenever `tier === 'FREE'`, independent of the launch flag.
 - **Inline upsell hints**, all just pointing at `/upgrade`: Assessments catalog (skill lock, retake cooldown/cap, monthly quota), Job detail (application quota, coarse status, basic gap analysis), Profile (`ProfileViewersPanel`'s locked preview), Jobs "My applications" tab (coarsened status), `InterviewPrepPanel` (locked preview), Resume page (branding watermark).
 - **`GET /plans`** and **`GET /me/entitlements`** both expose `premiumEnabled` — the single source of truth every surface above reads from.

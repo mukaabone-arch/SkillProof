@@ -150,19 +150,24 @@ export class AssessmentRequestsExpiryJob {
       // complete without it"). The EXPIRED case is unrelated to that
       // policy — the candidate never became unavailable, they're simply
       // slow — so it keeps using fullName exactly as before.
+      //
+      // request.level is null for a whole-skill request (2026-09-14 rework)
+      // — describe the skill alone rather than interpolating a level that
+      // doesn't apply to the request as a whole.
+      const assessmentLabel = request.level ? `${request.skill.name} ${request.level}` : `${request.skill.name}`;
       const { subject, body } =
         reason === 'EXPIRED'
           ? {
               subject: `Assessment request expired unused — ${request.candidateProfile.fullName ?? 'candidate'}`,
               body:
                 `<p>Your request for <strong>${request.candidateProfile.fullName ?? 'the candidate'}</strong> to take the ` +
-                `${request.skill.name} ${request.level} assessment expired after 5 days — they never started it.</p>` +
+                `${assessmentLabel} assessment expired after 5 days — they never started it.</p>` +
                 `<p>It will not appear on your invoice.</p>`,
             }
           : {
               subject: `Assessment request excluded — candidate no longer available`,
               body:
-                `<p>The candidate you requested a ${request.skill.name} ${request.level} assessment for is no longer ` +
+                `<p>The candidate you requested a ${assessmentLabel} assessment for is no longer ` +
                 `available on MyAmbii, and never started it.</p>` +
                 `<p>It will not appear on your invoice.</p>`,
             };

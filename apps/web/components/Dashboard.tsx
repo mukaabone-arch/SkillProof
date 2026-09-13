@@ -193,15 +193,24 @@ interface MineAssessmentSession {
  * There is deliberately no job/role field: AssessmentRequest is
  * shortlist-scoped, not job-scoped (a shortlist entry can be job-less), so
  * "for {role}" isn't something this object can honestly carry.
+ *
+ * `level` is null for a whole-skill request (2026-09-14 rework) — this
+ * compact dashboard banner deliberately doesn't try to reproduce per-level
+ * picking/starting inline for that case (see employerInviteCopilotMessage
+ * below); `durationMins`/`submitted` are only ever present on a legacy
+ * (level set) row for the same reason — a whole-skill row's per-level
+ * detail lives in its own `levels` array, which this banner doesn't need
+ * since it only ever links out to /assessments (EmployerInvitations.tsx)
+ * rather than acting inline.
  */
 interface EmployerInvite {
   id: string;
-  level: string;
+  level: string | null;
   status: 'ACCRUED_PENDING_START' | 'STARTED' | 'COMPLETED' | 'EXPIRED_UNBILLED' | 'ALREADY_BADGED';
   expiresAt: string | null;
   startedAt: string | null;
-  durationMins: number | null;
-  submitted: boolean;
+  durationMins?: number | null;
+  submitted?: boolean;
   skill: { name: string };
   organization: { name: string };
 }
@@ -285,11 +294,14 @@ interface CopilotMessage {
   ctaHref?: string;
   /**
    * A CTA that must POST /assessment-requests/mine/:id/start (idempotent —
-   * safe to call again for an already-STARTED request) and navigate based
-   * on the response, rather than a static link — used by the employer-invite
-   * "invited"/"in progress" states. Mutually exclusive with ctaHref.
+   * safe to call again for an already-STARTED level) and navigate based on
+   * the response, rather than a static link — used only by a LEGACY
+   * (single-level) employer-invite's "invited"/"in progress" states. A
+   * whole-skill invite never uses this — see employerInviteCopilotMessage's
+   * own doc comment on why it links to /assessments instead. Mutually
+   * exclusive with ctaHref.
    */
-  ctaAction?: { kind: 'start' | 'resume'; requestId: string };
+  ctaAction?: { kind: 'start' | 'resume'; requestId: string; level: string };
   /** "{n} more requests" — shown when more than one employer invite is pending. */
   moreLink?: { label: string; href: string };
 }
@@ -323,6 +335,14 @@ function selectEmployerInvite(invites: EmployerInvite[]): SelectedEmployerInvite
   return expired ? { invite: expired, moreCount: 0, expired: true } : undefined;
 }
 
+/**
+ * Whole-skill invites (level: null, 2026-09-14 rework) deliberately never
+ * use ctaAction here — starting one means picking which of three levels to
+ * start, which this compact single-line banner has no room to do well.
+ * EmployerInvitations.tsx (rendered on /assessments) already has the full,
+ * correct per-level picker/actions, so a whole-skill invite just links
+ * there instead of trying to reproduce that inline.
+ */
 function employerInviteCopilotMessage(selection: SelectedEmployerInvite): CopilotMessage {
   const { invite, moreCount, expired } = selection;
   const moreLink =
@@ -334,6 +354,20 @@ function employerInviteCopilotMessage(selection: SelectedEmployerInvite): Copilo
       message: `${invite.organization.name}'s request to verify ${invite.skill.name} expired before you started it.`,
       ctaLabel: 'Request a new invite',
       ctaHref: '/assessments',
+    };
+  }
+
+  if (invite.level === null) {
+    const started = invite.status === 'STARTED';
+    return {
+      eyebrow: started ? 'Assessment in progress' : 'Assessment requested',
+      message: started
+        ? `Continue verifying ${invite.skill.name} for ${invite.organization.name} — pick up any level you haven't finished.`
+        : `${invite.organization.name} asked you to verify ${invite.skill.name} — three levels, any order.`,
+      meta: invite.expiresAt && !started ? `start one within ${expiresInDays(invite.expiresAt)} days` : undefined,
+      ctaLabel: started ? 'Continue assessment' : 'Start assessment',
+      ctaHref: '/assessments',
+      moreLink,
     };
   }
 
@@ -351,7 +385,7 @@ function employerInviteCopilotMessage(selection: SelectedEmployerInvite): Copilo
       message: `Pick up where you left off on ${invite.skill.name} for ${invite.organization.name}.`,
       meta: invite.startedAt ? `Started ${startedMinsAgo(invite.startedAt)} min ago` : undefined,
       ctaLabel: 'Resume assessment',
-      ctaAction: { kind: 'resume', requestId: invite.id },
+      ctaAction: { kind: 'resume', requestId: invite.id, level: invite.level },
       moreLink,
     };
   }
@@ -364,7 +398,7 @@ function employerInviteCopilotMessage(selection: SelectedEmployerInvite): Copilo
     message: `${invite.organization.name} asked you to verify ${invite.skill.name}.`,
     meta: metaParts.length > 0 ? metaParts.join(' · ') : undefined,
     ctaLabel: 'Start assessment',
-    ctaAction: { kind: 'start', requestId: invite.id },
+    ctaAction: { kind: 'start', requestId: invite.id, level: invite.level },
     moreLink,
   };
 }
@@ -588,13 +622,13 @@ export default function Dashboard({ onLoggedOut }: Props) {
   // navigate-into-the-existing-take-flow response shape EmployerInvitations
   // already uses on /assessments; duplicated here rather than shared since
   // it's ten lines and the two components have no natural common module.
-  async function startOrResumeInvite(requestId: string) {
+  async function startOrResumeInvite(requestId: string, level: string) {
     setInviteActionError('');
     setStartingInviteId(requestId);
     try {
       const result = await api<{ attemptId: string | null; sessionId: string | null; assessmentId: string | null }>(
         `/assessment-requests/mine/${requestId}/start`,
-        { method: 'POST' },
+        { method: 'POST', body: JSON.stringify({ level }) },
       );
       if (result.assessmentId) {
         router.push(`/assessments/${result.assessmentId}`);
@@ -839,7 +873,7 @@ export default function Dashboard({ onLoggedOut }: Props) {
             <button
               type="button"
               className="btn btn-primary copilot-cta"
-              onClick={() => startOrResumeInvite(copilot.ctaAction!.requestId)}
+              onClick={() => startOrResumeInvite(copilot.ctaAction!.requestId, copilot.ctaAction!.level)}
               disabled={startingInviteId === copilot.ctaAction.requestId}
             >
               {startingInviteId === copilot.ctaAction.requestId ? 'Starting…' : `${copilot.ctaLabel} →`}

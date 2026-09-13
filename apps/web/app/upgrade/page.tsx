@@ -8,7 +8,7 @@
  * server-side.
  *
  * Pre-launch (plans.premiumEnabled false), a candidate who isn't already
- * Premium sees the "coming in November" notice instead of any of that —
+ * Premium sees the "coming this year" notice instead of any of that —
  * see renderComingSoonNotice below. Already-Premium candidates (internal
  * test accounts, ahead of launch) keep seeing the real comparison/checkout/
  * account-management page regardless of the flag, since that's the whole
@@ -294,11 +294,11 @@ export default function UpgradePage() {
       {loggedIn && <CandidateNav />}
       {showComingSoonNotice ? (
         <main className="container-reading">
-          <h1>Premium is coming in November</h1>
+          <h1>Premium is coming this year</h1>
           <p>
             Premium adds full details on who viewed your profile, AI discussion sessions, and unlimited job
             applications. The free plan keeps verified skills, badges, job matches, and 10 applications a month.
-            We&apos;ll share pricing before anything goes live.
+            Pricing will be shown before you&apos;re asked to pay anything.
           </p>
         </main>
       ) : (

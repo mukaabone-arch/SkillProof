@@ -38,7 +38,7 @@ export class PlansController {
       // field) — duplicated here, not derived from it, because this
       // endpoint is unauthenticated and must work for a logged-out visitor
       // too. The candidate /upgrade page is the only consumer: it decides
-      // whether to render live checkout or the "coming in November" notice
+      // whether to render live checkout or the "coming this year" notice
       // off this one field, regardless of login state.
       premiumEnabled: isCandidatePremiumEnabled(),
     };

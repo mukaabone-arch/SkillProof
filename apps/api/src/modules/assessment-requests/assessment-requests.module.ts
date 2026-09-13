@@ -10,6 +10,7 @@ import { EmployerAssessmentRequestsController } from './employer-assessment-requ
 import { CandidateAssessmentRequestsController } from './candidate-assessment-requests.controller';
 import { AssessmentRequestsService } from './assessment-requests.service';
 import { AssessmentRequestsExpiryJob } from './assessment-requests-expiry.job';
+import { AssessmentRequestSettlementJob } from './assessment-request-settlement.job';
 import { AssessmentRequestInvoicingJob } from './assessment-request-invoicing.job';
 import { AssessmentRequestBillingProfileService } from './assessment-request-billing-profile.service';
 
@@ -27,7 +28,13 @@ import { AssessmentRequestBillingProfileService } from './assessment-request-bil
   // — that component's own `.catch(() => setInvitations([]))` was silently
   // swallowing this, so no candidate had ever actually seen an invitation.
   controllers: [CandidateAssessmentRequestsController, EmployerAssessmentRequestsController],
-  providers: [AssessmentRequestsService, AssessmentRequestsExpiryJob, AssessmentRequestInvoicingJob, AssessmentRequestBillingProfileService],
+  providers: [
+    AssessmentRequestsService,
+    AssessmentRequestsExpiryJob,
+    AssessmentRequestSettlementJob,
+    AssessmentRequestInvoicingJob,
+    AssessmentRequestBillingProfileService,
+  ],
   // AssessmentRequestsExpiryJob — so AccountService can reuse its excludeOne
   // (atomic claim, start-vs-expiry race guard) when a candidate deactivates
   // or deletes, instead of duplicating that logic.

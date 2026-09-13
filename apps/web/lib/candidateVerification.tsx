@@ -87,8 +87,17 @@ const CandidateVerificationContext = createContext<CandidateVerificationContextV
  * app/candidate/page.tsx behind its own generic placeholder mid-flight,
  * then unblock and let it remount and retry — churn with no benefit, since
  * /candidate already has its own complete, independently-verified handling.
+ *
+ * /help is exempt for a different reason (2026-09): it's a standalone
+ * document meant to open in its own tab and be reachable regardless of
+ * account state — including a signed-in candidate whose phone/email
+ * verification is genuinely incomplete (the OAuth-signup case this whole
+ * gate exists for). Redirecting that tab to /verify the moment it opens
+ * would be exactly the "invites navigation instead of standing alone"
+ * problem the help pages were built to avoid, just via this provider
+ * rather than a nav shell.
  */
-const GATE_EXEMPT_PATH_PREFIXES = ['/employer', '/admin', '/verify', '/candidate'];
+const GATE_EXEMPT_PATH_PREFIXES = ['/employer', '/admin', '/verify', '/candidate', '/help'];
 /** Single exact-match exemption: the account-settings escape hatch (deactivate/delete/export). */
 const GATE_EXEMPT_PATHS = ['/profile/account'];
 

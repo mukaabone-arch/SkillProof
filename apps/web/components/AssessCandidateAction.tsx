@@ -2,31 +2,40 @@
 
 /**
  * "Assess candidate" — per shortlisted candidate on EmployerShortlist. Skill
- * + level picker (sourced from GET /assessments, live MCQ assessments only —
- * the one fixed discussion skill+level, RAG Systems L2, isn't in that list
- * since it's synthesized separately in AssessmentsService.buildSkillBuckets;
+ * picker (sourced from GET /assessments, live MCQ assessments only — the one
+ * fixed discussion skill+level, RAG Systems L2, isn't in that list since
+ * it's synthesized separately in AssessmentsService.buildSkillBuckets;
  * requesting it here isn't offered as a known limitation, not a bug) →
- * confirm the accrual amount → POST /assessment-requests. Already-badged
- * short-circuits with no charge at all.
+ * confirm the outcome-dependent charge → POST /assessment-requests.
+ * Already-badged-at-every-level short-circuits with no charge at all.
  *
- * Postpaid (2026-09, replacing the original prepaid Razorpay flow): no
- * payment gateway anywhere in this component — the amount is fetched from
- * GET /plans-adjacent pricing (hardcoded here, matching the server's own
- * ₹150+18% GST default — see AssessmentRequestsService.chargeAmountPaise)
- * and shown explicitly before the employer confirms, since there's no
- * Checkout screen left to double as that disclosure. A surprise invoice
- * line item is not acceptable — see this component's own confirmation step
- * below.
+ * Whole-skill, outcome-priced (2026-09-14 rework, replacing the original
+ * one-skill-one-level-flat-₹177 model): the candidate works through all
+ * three levels the skill offers, in any order, and what it costs depends on
+ * how far they get — ₹0/₹150+GST/₹500+GST (see this component's own
+ * disclosure copy below). Nothing is known or charged at request time, so
+ * unlike the old flow there is no single "amount" to show after submitting
+ * — only the three possible outcomes, up front, before the employer
+ * confirms. See AssessmentRequestsService.settle on the API side for
+ * exactly when and how the real charge is decided.
  */
 import { useEffect, useState } from 'react';
 import { employerApi } from '@/lib/api';
 
 const { api } = employerApi;
 
-/** ₹150 base + 18% GST = ₹177 — mirrors AssessmentRequestsService's own DEFAULT_BASE_AMOUNT_PAISE/chargeAmountPaise exactly. Server-decided and server-enforced regardless of what this constant says; shown here purely so the employer sees the real number before confirming, not to compute anything sent to the API. */
-const DISPLAY_BASE_PAISE = 15000;
-const DISPLAY_GST_PAISE = 2700;
-const DISPLAY_TOTAL_PAISE = DISPLAY_BASE_PAISE + DISPLAY_GST_PAISE;
+/**
+ * Mirrors AssessmentRequestsService's own DEFAULT_BASE_AMOUNT_PAISE /
+ * COMPLETE_DEFAULT_BASE_AMOUNT_PAISE exactly. Server-decided and
+ * server-enforced regardless of what these constants say — shown here
+ * purely so the employer sees the real numbers before confirming, not to
+ * compute anything sent to the API (this request never sends an amount at
+ * all now — see submit() below).
+ */
+const DISPLAY_PARTIAL_BASE_PAISE = 15000; // ₹150 — started, not all three levels attempted
+const DISPLAY_PARTIAL_TOTAL_PAISE = 17700;
+const DISPLAY_COMPLETE_BASE_PAISE = 50000; // ₹500 — all three levels attempted
+const DISPLAY_COMPLETE_TOTAL_PAISE = 59000;
 
 function rupees(paise: number): string {
   return `₹${(paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -39,9 +48,8 @@ interface LiveAssessment {
   skill: { name: string; domain: { name: string } };
 }
 
-interface SkillLevelOption {
+interface SkillOption {
   skillId: string;
-  level: 'L1' | 'L2' | 'L3' | 'L4';
   label: string;
 }
 
@@ -58,32 +66,36 @@ interface TopicBreakdownView {
   excludedCount: number;
 }
 
-interface AssessmentRequestView {
-  id: string;
-  skillId: string;
-  skill: { name: string };
+/** One level's outcome within a whole-skill request — present only on a `level: null` (whole-skill) row, see AssessmentRequestView.levels. */
+interface LevelOutcomeView {
   level: string;
-  status: RequestStatus;
-  badgeId: string | null;
-  createdAt: string;
-  /** null until COMPLETED — not derivable from badgeId alone client-side, since a null badgeId means either "not done yet" or "done, didn't pass". */
+  attempted: boolean;
   passed: boolean | null;
-  badge: { verifyHash: string; level: string; expiresAt: string } | null;
-  /**
-   * Present only for a completed TEST-format (MCQ) request — null, not 0,
-   * for a DISCUSSION-format one (RAG Systems L2), which has no score/topic
-   * concept at all. Must render as "not applicable", never as a 0% result.
-   */
   scorePercent: number | null;
   topicBreakdown: TopicBreakdownView | null;
 }
 
+interface AssessmentRequestView {
+  id: string;
+  skillId: string;
+  skill: { name: string };
+  /** Null for a whole-skill request (2026-09-14 rework) — see `levels` below instead of the flat fields that follow. Set only on a legacy row that predates the rework. */
+  level: string | null;
+  status: RequestStatus;
+  createdAt: string;
+  /** Legacy (level set) only. */
+  badgeId: string | null;
+  passed: boolean | null;
+  badge: { verifyHash: string; level: string; expiresAt: string } | null;
+  scorePercent: number | null;
+  topicBreakdown: TopicBreakdownView | null;
+  /** Whole-skill (level: null) only — one entry per level the skill offers. */
+  levels?: LevelOutcomeView[];
+}
+
 interface CreateResponse {
   alreadyBadged: boolean;
-  badge?: { id: string; verifyHash: string };
   requestId?: string;
-  amount?: number;
-  currency?: string;
 }
 
 const STATUS_LABELS: Record<RequestStatus, string> = {
@@ -97,12 +109,12 @@ const STATUS_LABELS: Record<RequestStatus, string> = {
 export default function AssessCandidateAction({ candidateId }: { candidateId: string }) {
   const [open, setOpen] = useState(false);
   const [assessments, setAssessments] = useState<LiveAssessment[]>([]);
-  const [skillLevel, setSkillLevel] = useState('');
+  const [selectedSkillId, setSelectedSkillId] = useState('');
   // Gates the actual POST behind an explicit second confirmation once a
-  // skill+level is chosen — the disclosure step this component exists to
-  // guarantee (see this file's own doc comment). Reset whenever the
-  // picker is reopened or the selection changes, so a stale confirmation
-  // can never carry over to a different skill+level.
+  // skill is chosen — the disclosure step this component exists to
+  // guarantee (see this file's own doc comment). Reset whenever the picker
+  // is reopened or the selection changes, so a stale confirmation can
+  // never carry over to a different skill.
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -125,33 +137,32 @@ export default function AssessCandidateAction({ candidateId }: { candidateId: st
     }
   }
 
-  const options: SkillLevelOption[] = assessments
-    .map((a) => ({ skillId: a.skillId, level: a.targetLevel, label: `${a.skill.name} — Level ${a.targetLevel} (${a.skill.domain.name})` }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+  const options: SkillOption[] = Array.from(
+    new Map(assessments.map((a) => [a.skillId, { skillId: a.skillId, label: `${a.skill.name} (${a.skill.domain.name})` }])).values(),
+  ).sort((a, b) => a.label.localeCompare(b.label));
 
-  const selectedLabel = options.find((o) => `${o.skillId}|${o.level}` === skillLevel)?.label ?? '';
+  const selectedLabel = options.find((o) => o.skillId === selectedSkillId)?.label ?? '';
 
   async function submit() {
-    if (!skillLevel) return;
-    const [skillId, level] = skillLevel.split('|');
+    if (!selectedSkillId) return;
     setError('');
     setMessage('');
     setBusy(true);
     try {
       const result = await api<CreateResponse>('/assessment-requests', {
         method: 'POST',
-        body: JSON.stringify({ candidateId, skillId, level }),
+        body: JSON.stringify({ candidateId, skillId: selectedSkillId }),
       });
 
       if (result.alreadyBadged) {
-        setMessage('This candidate already holds a verified badge at this level — no charge, nothing added to your invoice.');
+        setMessage('This candidate already holds verified badges at every level of this skill — no charge, nothing added to your invoice.');
       } else {
         setMessage(
-          `Candidate invited. ${rupees(result.amount ?? DISPLAY_TOTAL_PAISE)} has been added to your organization's account and will appear on your monthly invoice.`,
+          `Candidate invited to verify ${selectedLabel} across all three levels. The charge — ₹0, ${rupees(DISPLAY_PARTIAL_TOTAL_PAISE)}, or ${rupees(DISPLAY_COMPLETE_TOTAL_PAISE)} — depends on how far they get, and will appear on a future invoice once it's known.`,
         );
       }
       setOpen(false);
-      setSkillLevel('');
+      setSelectedSkillId('');
       setConfirmed(false);
       await refreshRequests();
     } catch (e) {
@@ -173,56 +184,7 @@ export default function AssessCandidateAction({ candidateId }: { candidateId: st
     <div style={{ marginTop: 8 }}>
       {requests.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
-          {requests.map((r) =>
-            r.status === 'COMPLETED' ? (
-              <div key={r.id} className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4, padding: 10 }}>
-                <div className="row" style={{ margin: 0, alignItems: 'center', gap: 8 }}>
-                  <span className={`ui-badge ${r.passed ? 'ui-badge-verified' : 'ui-badge-danger'}`}>
-                    {r.passed ? 'Passed' : 'Not passed'}
-                  </span>
-                  <strong>
-                    {r.skill.name} — {r.level}
-                  </strong>
-                  {r.scorePercent !== null && <span className="meta" style={{ margin: 0 }}>Score: {r.scorePercent}%</span>}
-                </div>
-                {/*
-                  scorePercent/topicBreakdown are null (not 0 / not an empty
-                  list) for a DISCUSSION-format request — this section is
-                  entirely absent for that case rather than rendering a
-                  misleading "0% — no topics" block. Only ever the requesting
-                  employer sees this at all (GET /assessment-requests is
-                  orgId-scoped) — a browsing employer only ever sees the badge.
-                */}
-                {r.topicBreakdown && r.topicBreakdown.topics.length > 0 && (
-                  <details className="hint-toggle">
-                    <summary>Performance by topic</summary>
-                    {r.topicBreakdown.excludedCount > 0 && (
-                      <p className="meta" style={{ marginTop: 4 }}>
-                        {r.topicBreakdown.excludedCount} question{r.topicBreakdown.excludedCount === 1 ? '' : 's'} weren&apos;t
-                        part of a tracked topic and aren&apos;t included below.
-                      </p>
-                    )}
-                    <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-                      {r.topicBreakdown.topics.map((t) => (
-                        <li key={t.topic} className="meta">
-                          {t.topic}: {t.correct}/{t.asked} correct
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-              </div>
-            ) : (
-              <span
-                key={r.id}
-                className="ui-badge ui-badge-neutral chip-truncate"
-                style={{ alignSelf: 'flex-start', maxWidth: '100%' }}
-                title={`${r.skill.name} (${r.level}) · ${STATUS_LABELS[r.status]}`}
-              >
-                {r.skill.name} ({r.level}) · {STATUS_LABELS[r.status]}
-              </span>
-            ),
-          )}
+          {requests.map((r) => (r.level !== null ? <LegacyRequestRow key={r.id} r={r} /> : <WholeSkillRequestRow key={r.id} r={r} />))}
         </div>
       )}
 
@@ -234,39 +196,54 @@ export default function AssessCandidateAction({ candidateId }: { candidateId: st
 
       {open && (
         <div className="field" style={{ maxWidth: 420 }}>
-          <label htmlFor={`assess-skill-${candidateId}`}>Verify this candidate at</label>
+          <label htmlFor={`assess-skill-${candidateId}`}>Verify this candidate in</label>
           <select
             id={`assess-skill-${candidateId}`}
-            value={skillLevel}
+            value={selectedSkillId}
             onChange={(e) => {
-              setSkillLevel(e.target.value);
+              setSelectedSkillId(e.target.value);
               setConfirmed(false); // a new selection needs its own confirmation
             }}
           >
-            <option value="">Choose a skill and level…</option>
+            <option value="">Choose a skill…</option>
             {options.map((o) => (
-              <option key={`${o.skillId}|${o.level}`} value={`${o.skillId}|${o.level}`}>
+              <option key={o.skillId} value={o.skillId}>
                 {o.label}
               </option>
             ))}
           </select>
 
-          {skillLevel && (
+          {selectedSkillId && (
             <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, marginTop: 8 }}>
               <p style={{ margin: 0 }}>
-                This adds <strong>{rupees(DISPLAY_TOTAL_PAISE)}</strong> ({rupees(DISPLAY_BASE_PAISE)} + 18% GST) to your
-                organization&apos;s account for <strong>{selectedLabel}</strong>, invoiced monthly and settled by bank
-                transfer. Free if the candidate already holds this badge — you&apos;ll see that before anything is added.
+                This verifies the candidate in <strong>{selectedLabel}</strong> across all three levels (Foundational,
+                Practitioner, Advanced) — they can attempt them in any order. What it adds to your organization&apos;s
+                account depends on how far they get:
+              </p>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                <li>Doesn&apos;t start within 5 days — <strong>₹0</strong>, nothing added.</li>
+                <li>
+                  Starts but doesn&apos;t attempt all three levels within 14 days of starting —{' '}
+                  <strong>{rupees(DISPLAY_PARTIAL_TOTAL_PAISE)}</strong> ({rupees(DISPLAY_PARTIAL_BASE_PAISE)} + 18% GST).
+                </li>
+                <li>
+                  Attempts all three levels — <strong>{rupees(DISPLAY_COMPLETE_TOTAL_PAISE)}</strong> (
+                  {rupees(DISPLAY_COMPLETE_BASE_PAISE)} + 18% GST).
+                </li>
+              </ul>
+              <p className="meta" style={{ margin: 0 }}>
+                Free for any level the candidate already holds a verified badge for — you&apos;ll see that before
+                anything is added. Invoiced monthly, settled by bank transfer.
               </p>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />I understand this
-                will appear on my organization&apos;s next invoice.
+                <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />I understand
+                the charge depends on how far the candidate gets, and will appear on my organization&apos;s next invoice.
               </label>
             </div>
           )}
 
           <div className="row" style={{ marginTop: 8 }}>
-            <button type="button" onClick={submit} disabled={busy || !skillLevel || !confirmed}>
+            <button type="button" onClick={submit} disabled={busy || !selectedSkillId || !confirmed}>
               {busy ? 'Working…' : 'Invite candidate'}
             </button>
             <button type="button" className="btn-secondary" onClick={() => setOpen(false)} disabled={busy}>
@@ -278,6 +255,99 @@ export default function AssessCandidateAction({ candidateId }: { candidateId: st
 
       {message && <p className="ok">{message}</p>}
       {error && <p className="error">{error}</p>}
+    </div>
+  );
+}
+
+/** Unchanged rendering for a legacy (level set) request — frozen shape from before the 2026-09-14 rework. */
+function LegacyRequestRow({ r }: { r: AssessmentRequestView }) {
+  if (r.status !== 'COMPLETED') {
+    return (
+      <span
+        className="ui-badge ui-badge-neutral chip-truncate"
+        style={{ alignSelf: 'flex-start', maxWidth: '100%' }}
+        title={`${r.skill.name} (${r.level}) · ${STATUS_LABELS[r.status]}`}
+      >
+        {r.skill.name} ({r.level}) · {STATUS_LABELS[r.status]}
+      </span>
+    );
+  }
+  return (
+    <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4, padding: 10 }}>
+      <div className="row" style={{ margin: 0, alignItems: 'center', gap: 8 }}>
+        <span className={`ui-badge ${r.passed ? 'ui-badge-verified' : 'ui-badge-danger'}`}>{r.passed ? 'Passed' : 'Not passed'}</span>
+        <strong>
+          {r.skill.name} — {r.level}
+        </strong>
+        {r.scorePercent !== null && <span className="meta" style={{ margin: 0 }}>Score: {r.scorePercent}%</span>}
+      </div>
+      {/*
+        scorePercent/topicBreakdown are null (not 0 / not an empty list) for
+        a DISCUSSION-format request — this section is entirely absent for
+        that case rather than rendering a misleading "0% — no topics" block.
+      */}
+      {r.topicBreakdown && r.topicBreakdown.topics.length > 0 && (
+        <details className="hint-toggle">
+          <summary>Performance by topic</summary>
+          {r.topicBreakdown.excludedCount > 0 && (
+            <p className="meta" style={{ marginTop: 4 }}>
+              {r.topicBreakdown.excludedCount} question{r.topicBreakdown.excludedCount === 1 ? '' : 's'} weren&apos;t part of a
+              tracked topic and aren&apos;t included below.
+            </p>
+          )}
+          <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+            {r.topicBreakdown.topics.map((t) => (
+              <li key={t.topic} className="meta">
+                {t.topic}: {t.correct}/{t.asked} correct
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
+/** A whole-skill request — shows per-level pass/fail/score once any level has an outcome, regardless of whether the request as a whole has settled yet (an employer can see "Foundational: passed" while Practitioner/Advanced are still outstanding). */
+function WholeSkillRequestRow({ r }: { r: AssessmentRequestView }) {
+  const levels = r.levels ?? [];
+  const anyOutcome = levels.some((l) => l.attempted);
+
+  if (r.status !== 'COMPLETED' && !anyOutcome) {
+    return (
+      <span
+        className="ui-badge ui-badge-neutral chip-truncate"
+        style={{ alignSelf: 'flex-start', maxWidth: '100%' }}
+        title={`${r.skill.name} · ${STATUS_LABELS[r.status]}`}
+      >
+        {r.skill.name} · {STATUS_LABELS[r.status]}
+      </span>
+    );
+  }
+
+  return (
+    <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4, padding: 10 }}>
+      <div className="row" style={{ margin: 0, alignItems: 'center', gap: 8 }}>
+        <strong>{r.skill.name}</strong>
+        <span className="meta" style={{ margin: 0 }}>
+          {r.status === 'COMPLETED' ? 'Settled' : STATUS_LABELS[r.status]}
+        </span>
+      </div>
+      <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {levels.map((l) => (
+          <li key={l.level} className="meta">
+            {l.level}:{' '}
+            {l.attempted ? (
+              <span className={l.passed ? 'ok' : 'error'}>
+                {l.passed ? 'Passed' : 'Not passed'}
+                {l.scorePercent !== null ? ` (${l.scorePercent}%)` : ''}
+              </span>
+            ) : (
+              'Not attempted'
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

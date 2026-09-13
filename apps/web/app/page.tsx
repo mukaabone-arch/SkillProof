@@ -202,6 +202,7 @@ export default function LandingPage() {
             <a href="/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>
             <a href="/refunds" target="_blank" rel="noopener noreferrer">Refund Policy</a>
             <a href="/faq">FAQs</a>
+            <a href="/help" target="myambii-help" rel="noopener">Help</a>
           </nav>
         </div>
       </footer>

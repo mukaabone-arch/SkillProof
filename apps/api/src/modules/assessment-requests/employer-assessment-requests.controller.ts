@@ -25,16 +25,16 @@ export class EmployerAssessmentRequestsController {
   constructor(private readonly svc: AssessmentRequestsService) {}
 
   /**
-   * Admin-only — overrides the controller's default @Roles below. This is
-   * the ₹177-per-assessment trigger: it accrues a charge against the
-   * organization's account, so it sits on the admin side of this feature's
-   * dividing line (see OrgMembersController's own doc comment for the same
-   * rule stated once).
+   * Admin-only — overrides the controller's default @Roles below. This
+   * request can end up costing the organization's account (₹0/₹150+GST/
+   * ₹500+GST, decided at settlement — see AssessmentRequestsService.settle),
+   * so it sits on the admin side of this feature's dividing line (see
+   * OrgMembersController's own doc comment for the same rule stated once).
    */
   @Post()
   @Roles(Role.EMPLOYER_ADMIN)
   create(@Req() req: OrgScopedRequest, @Body() dto: InitiateAssessmentRequestDto) {
-    return this.svc.create(req.orgId, req.user.sub, dto.candidateId, dto.skillId, dto.level);
+    return this.svc.create(req.orgId, req.user.sub, dto.candidateId, dto.skillId);
   }
 
   @Get()

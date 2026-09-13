@@ -21,6 +21,14 @@
  * server-side enforcement (see app/employer/layout.tsx's own doc comment).
  * Settings always stays — it's the one place a non-verified org can check
  * status, fix its details, or wait.
+ *
+ * Help (2026-09) is rendered separately from SECTIONS, after the `verified`
+ * filter runs, and is never itself filtered — it's not part of the
+ * portal-proper gate at all (it's a public, no-sign-in-required route, see
+ * app/help/page.tsx), so an org stuck on Settings still needs a way to it.
+ * Opens in its own named tab (target="myambii-help") rather than
+ * navigating this shell away — the help pages are meant to stand alone,
+ * not be reached by leaving the portal.
  */
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -88,6 +96,13 @@ export default function EmployerSidebarShell({ verified, onLoggedOut, children }
               </Link>
             );
           })}
+          {/* Ungated — see this file's own doc comment on why Help sits
+              outside the `verified` filter above. Opens in its own named
+              tab (never this one) — see HelpTabs.tsx's own doc comment on
+              why the help pages carry no way back into the app. */}
+          <Link href="/help?audience=employers" target="myambii-help" rel="noopener" onClick={() => setMobileOpen(false)}>
+            Help
+          </Link>
           {/* Duplicate of the topbar's own Log out button — CSS shows exactly
               one of the two at any width (see .employer-sidebar-logout). */}
           <button type="button" className="employer-sidebar-logout" onClick={handleLogout}>

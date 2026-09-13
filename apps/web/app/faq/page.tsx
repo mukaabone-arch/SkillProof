@@ -36,7 +36,7 @@ const FAQS = [
   },
   {
     q: 'Is MyAmbii free for candidates?',
-    a: 'Yes. Creating a profile, browsing and applying to jobs, and taking assessments to earn verified badges are all free, within monthly limits. Premium removes those limits at ₹299/month or ₹2,999/year, both + GST as applicable.',
+    a: "Yes. Creating a profile, browsing and applying to jobs, and taking assessments to earn verified badges are all free, within monthly limits. Premium removes those limits and is coming this year — pricing will be shown before you're asked to pay anything.",
   },
   {
     q: 'How long does verification take?',
@@ -61,9 +61,13 @@ export default function FaqPage() {
 
         <div className="lp-faq-panel">
           <p className="lp-section-eyebrow">FAQ</p>
-          <h1 className="lp-section-title" style={{ marginBottom: 20 }}>
+          <h1 className="lp-section-title" style={{ marginBottom: 8 }}>
             Frequently asked questions
           </h1>
+          <p className="lp-prose-body" style={{ marginBottom: 20 }}>
+            Looking for a full walkthrough instead? See the{' '}
+            <Link href="/help" target="myambii-help" rel="noopener">Help guide</Link> for candidates and employers.
+          </p>
           <div className="lp-faq">
             {FAQS.map(({ q, a }) => (
               <details className="lp-faq-item" key={q}>

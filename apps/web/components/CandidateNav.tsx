@@ -13,6 +13,11 @@ const LINKS = [
   { href: '/assessments', label: 'Assessments' },
   { href: '/jobs', label: 'Jobs' },
   { href: '/interviews', label: 'Interviews' },
+  // Opens in its own named tab, never this one — see HelpTabs.tsx's own
+  // doc comment on why the help pages carry no way back into the app.
+  // Never the `active` link below as a result: pathname in this tab can
+  // never actually become /help.
+  { href: '/help?audience=candidates', label: 'Help', newTab: true },
 ];
 
 interface Props {
@@ -47,6 +52,8 @@ export default function CandidateNav({ onLoggedOut }: Props) {
             <Link
               key={l.href}
               href={l.href}
+              target={l.newTab ? 'myambii-help' : undefined}
+              rel={l.newTab ? 'noopener' : undefined}
               className={pathname === l.href ? 'active' : ''}
             >
               {l.label}

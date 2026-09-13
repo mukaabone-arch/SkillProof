@@ -77,7 +77,7 @@ export class SubscriptionsService {
    * — checked first, before touching Razorpay or even resolving a
    * candidateId, so a disabled launch never creates any side effect at
    * all. The /upgrade page is expected to hide the checkout UI entirely
-   * while the flag is off (showing the "coming in November" notice
+   * while the flag is off (showing the "coming this year" notice
    * instead), so reaching this in practice means either a stale client or
    * someone calling the API directly — the 403 is the real enforcement
    * either way, not the UI hiding it.

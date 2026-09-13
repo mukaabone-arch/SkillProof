@@ -1995,22 +1995,36 @@ model ShortlistEntry {
 enum AssessmentRequestStatus {
   /**
    * Renamed from PAID_PENDING_START (2026-09, prepaid -> postpaid switch —
-   * zero existing rows at rename time, so this cost nothing). Accrual
-   * recorded (see AssessmentRequest.transactionId), candidate invited,
-   * waiting for them to start within expiresAt. Deliberately not "PAID" —
-   * no money has moved; it's invoiced monthly and settled offline.
+   * zero existing rows at rename time, so this cost nothing). Legacy
+   * (level != null) rows: accrual already recorded (see
+   * AssessmentRequest.transactionId), candidate invited, waiting for them
+   * to start within expiresAt. Whole-skill (level == null, 2026-09-14
+   * outcome-priced rework) rows: no Transaction exists yet at all — nothing
+   * to accrue until settlement, since the charge depends on how far the
+   * candidate gets (see AssessmentRequestsService.settle). The name keeps
+   * its legacy meaning for legacy rows; for a whole-skill row "ACCRUED"
+   * just means "created, nothing started yet" — a minor naming compromise
+   * rather than adding a near-duplicate status.
    */
   ACCRUED_PENDING_START
   /**
-   * Candidate started within the window — attemptId/sessionId is now set.
-   * Terminal for billing-exclusion purposes: a STARTED request is always
-   * billable, even if it's later abandoned mid-attempt or expires from this
-   * point forward — see AssessmentRequestExpiryJob's own doc comment on why
-   * "started" is what earns the charge, not "finished."
+   * Candidate started within the window. Legacy rows: attemptId/sessionId
+   * is now set, and the request is billing-final regardless of what
+   * happens after (see AssessmentRequestExpiryJob's own doc comment).
+   * Whole-skill rows: at least one of the three AssessmentRequestLevel
+   * children has been started — billing-final in the sense that SOME
+   * charge (at least ₹150+GST) is now coming, but the exact amount is
+   * still unknown until settlement (all three attempted, or the 14-day
+   * deadline — see AssessmentRequestSettlementJob).
    */
   STARTED
   /**
-   * The linked attempt/session reached a terminal decision (pass or fail) — badgeId set if it passed.
+   * Legacy rows: the linked attempt/session reached a terminal decision
+   * (pass or fail) — badgeId set if it passed. Whole-skill rows: this
+   * doubles as "settled" — the outcome (partial vs. all three attempted)
+   * is now known, the Transaction has just been written (amount/
+   * transactionId are now set), and no further level can be started
+   * through this request.
    */
   COMPLETED
   /**
@@ -2024,18 +2038,36 @@ enum AssessmentRequestStatus {
    */
   EXPIRED_UNBILLED
   /**
-   * Candidate already held a verified badge at the requested skill+level — set at creation, no payment ever taken. Terminal from the start.
+   * Legacy rows: candidate already held a verified badge at the requested
+   * skill+level. Whole-skill rows: candidate already held verified badges
+   * at ALL THREE levels (see AssessmentRequestLevel.badgeId for the
+   * per-level pre-check — a candidate already holding one or two of the
+   * three still goes through the normal flow, just with those specific
+   * levels pre-resolved at zero additional cost). Either way: set at
+   * creation, no charge ever taken. Terminal from the start.
    */
   ALREADY_BADGED
 }
 
 /**
- * One employer's request to verify a specific candidate at a specific
- * skill+level, triggered from the shortlist/pipeline. Postpaid (2026-09):
- * accrues a Transaction the moment it's created, no payment gateway
- * involved — see AssessmentRequestsService for the full state machine.
- * This model is deliberately a thin data record — every transition lives
- * in the service, not here.
+ * One employer's request to verify a specific candidate, triggered from the
+ * shortlist/pipeline. Postpaid (2026-09), no payment gateway involved — see
+ * AssessmentRequestsService for the full state machine. This model is
+ * deliberately a thin data record — every transition lives in the service,
+ * not here.
+ *
+ * Two shapes coexist, discriminated by `level` (2026-09-14, outcome-priced
+ * rework):
+ * - Legacy (`level` set): one specific skill+level, accrues its flat
+ *   ₹150+GST Transaction the moment it's created (see `transactionId`'s own
+ *   doc comment) — the original shape, frozen forever for rows that predate
+ *   the rework. Never created by new code; only ever read.
+ * - Whole-skill (`level: null`): one whole skill across all three levels
+ *   (see `levels: AssessmentRequestLevel[]` below, one child per level,
+ *   all three created upfront and immediately attemptable in any order).
+ *   No Transaction exists until settlement — the charge (₹0/₹150+GST/
+ *   ₹500+GST) depends on how many levels the candidate ends up attempting,
+ *   which isn't known at creation. See AssessmentRequestsService.settle.
  */
 model AssessmentRequest {
   id String @id @default(uuid())
@@ -2051,46 +2083,71 @@ model AssessmentRequest {
   candidateProfile  CandidateProfile @relation(fields: [candidateId], references: [id])
   skillId           String
   skill             Skill            @relation(fields: [skillId], references: [id])
-  level             SkillLevel
+  /**
+   * Set = legacy single-level request. Null = whole-skill request (see this
+   * model's own doc comment) — the discriminator between the two coexisting
+   * shapes. Never set by new code.
+   */
+  level             SkillLevel?
 
   status AssessmentRequestStatus @default(ACCRUED_PENDING_START)
 
   /**
-   * Paise. Server-decided at creation time — never trust a client-supplied amount. Null only for ALREADY_BADGED, which never charges.
+   * Paise. Server-decided, never trust a client-supplied amount. Null for
+   * ALREADY_BADGED (never charges). Also null for a whole-skill request
+   * (`level: null`) until settlement — see `transactionId` below.
    */
   amount Int?
 
   /**
-   * The ASSESSMENT_REQUEST_ACCRUAL ledger row for this request's charge —
-   * set inside create(), in the same write as this row's own creation, so
-   * an accruing AssessmentRequest is never left without one (2026-09,
-   * prepaid -> postpaid switch: previously set inside verifyAndCreate,
-   * only once Razorpay had actually confirmed payment — now written
-   * immediately, since the tax point is the supply being requested, not a
-   * payment that no longer happens here at all). Null only for
-   * ALREADY_BADGED (never charged, same condition as `amount` above) and
-   * for any row created before this column existed. A 1:1 FK (not just
-   * "look it up via BillingProfile.transactions") because excluding a
-   * request from invoicing and a GST document both need "the one
-   * Transaction for this specific charge," not a query over every charge
-   * this org has ever made.
+   * The ASSESSMENT_REQUEST_ACCRUAL ledger row for this request's charge. A
+   * 1:1 FK (not just "look it up via BillingProfile.transactions") because
+   * excluding a request from invoicing and a GST document both need "the
+   * one Transaction for this specific charge," not a query over every
+   * charge this org has ever made.
+   *
+   * Legacy rows: set inside create(), in the same write as this row's own
+   * creation (2026-09, prepaid -> postpaid switch: previously set inside
+   * verifyAndCreate, only once Razorpay had actually confirmed payment —
+   * now written immediately, since the tax point is the supply being
+   * requested, not a payment that no longer happens here at all). Null
+   * only for ALREADY_BADGED and for any row created before this column
+   * existed.
+   *
+   * Whole-skill rows: null from creation through the entire 5-day-start and
+   * 14-day-settlement window — there is nothing to accrue until the charge
+   * amount is actually known (see this model's own doc comment on why).
+   * Set only by AssessmentRequestsService.settle, in the same write as the
+   * COMPLETED transition.
    */
   transactionId String?      @unique
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
 
   /**
-   * createdAt + 5 days. Null for ALREADY_BADGED (never accrues, nothing to
-   * expire).
+   * createdAt + 5 days — the deadline to start ANY level (whole-skill) or
+   * the one level (legacy). Null for ALREADY_BADGED (never accrues, nothing
+   * to expire).
    */
   expiresAt DateTime?
+  /**
+   * Set once, the first time the candidate starts anything under this
+   * request — the one level (legacy) or the first of the three they choose
+   * to start (whole-skill). For a whole-skill request this is also what the
+   * 14-day settlement deadline counts from (see
+   * AssessmentRequestSettlementJob).
+   */
   startedAt DateTime?
 
+  /** Legacy rows only — the one attempt/session/badge for the one level. Null (and unused) on a whole-skill row; see `levels` below instead. */
   attemptId String?            @unique
   attempt   Attempt?           @relation(fields: [attemptId], references: [id])
   sessionId String?            @unique
   session   AssessmentSession? @relation(fields: [sessionId], references: [id])
   badgeId   String?            @unique
   badge     Badge?             @relation(fields: [badgeId], references: [id])
+
+  /** Whole-skill rows only — exactly three children (one per SkillLevel), created upfront at request time. Empty on a legacy row. */
+  levels AssessmentRequestLevel[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2099,6 +2156,52 @@ model AssessmentRequest {
   @@index([candidateId])
   // The expiry job's own query shape: ACCRUED_PENDING_START rows whose window has passed.
   @@index([status, expiresAt])
+  // The settlement job's own query shape: whole-skill STARTED rows whose 14-day deadline has passed.
+  @@index([level, status, startedAt])
+}
+
+/**
+ * One of the three levels under a whole-skill AssessmentRequest (see that
+ * model's own doc comment) — Foundational/Practitioner/Advanced. Created,
+ * all three at once, the moment the parent request is created, so every
+ * level is immediately attemptable in any order (employer-triggered
+ * attempts already bypass sequential leveling via skipLevelAndRetakeChecks
+ * — see BadgeResolverService.assertLevelAvailable's own callers — so this
+ * doesn't add a restriction, it just doesn't impose the self-serve ordering
+ * either). Deliberately thin, same philosophy as AssessmentRequest's own
+ * doc comment — "started"/"terminal"/"pass-fail" are always derived live
+ * from the linked Attempt/AssessmentSession/Badge, never cached here as a
+ * separate status column that could drift out of sync.
+ */
+model AssessmentRequestLevel {
+  id String @id @default(uuid())
+
+  assessmentRequestId String
+  assessmentRequest   AssessmentRequest @relation(fields: [assessmentRequestId], references: [id])
+  level               SkillLevel
+
+  /**
+   * Null until the candidate starts this specific level. Set via the same
+   * launchLinkedAssessment path the legacy single-level flow already uses,
+   * just parameterized by level instead of assumed singular.
+   */
+  attemptId String?  @unique
+  attempt   Attempt? @relation(fields: [attemptId], references: [id])
+  sessionId String?             @unique
+  session   AssessmentSession? @relation(fields: [sessionId], references: [id])
+  /**
+   * Set directly at creation (no attempt/session at all) when the
+   * candidate already held a verified badge at this level — see
+   * AssessmentRequest's own doc comment on the per-level ALREADY_BADGED
+   * pre-check. Otherwise set once this level's attempt/session resolves.
+   */
+  badgeId String? @unique
+  badge   Badge?  @relation(fields: [badgeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([assessmentRequestId, level])
 }
 
 /**
@@ -2479,11 +2582,12 @@ model Attempt {
   reviewedByUserId String?
   reviewedByUser   User?          @relation("AttemptReviewedBy", fields: [reviewedByUserId], references: [id])
 
-  answers           AttemptAnswer[]
-  badge             Badge?
-  integrityEvents   IntegrityEvent[]
-  questionsServed   QuestionServedAt[]
-  assessmentRequest AssessmentRequest?
+  answers                AttemptAnswer[]
+  badge                  Badge?
+  integrityEvents        IntegrityEvent[]
+  questionsServed        QuestionServedAt[]
+  assessmentRequest      AssessmentRequest?
+  assessmentRequestLevel AssessmentRequestLevel?
 }
 
 /**
@@ -2581,8 +2685,9 @@ model Badge {
    */
   attemptNumber Int?
 
-  skillClaim        SkillClaim?
-  assessmentRequest AssessmentRequest?
+  skillClaim             SkillClaim?
+  assessmentRequest      AssessmentRequest?
+  assessmentRequestLevel AssessmentRequestLevel?
 
   @@index([userId, skillId, level])
 }
@@ -2697,9 +2802,10 @@ model AssessmentSession {
   interruptions     SessionInterruption[]
   claimVerdicts     ClaimVerdict[]
   disputes          ClaimDispute[]
-  liveClaimFeedback LiveClaimFeedback[]
-  badge             Badge?
-  assessmentRequest AssessmentRequest?
+  liveClaimFeedback      LiveClaimFeedback[]
+  badge                  Badge?
+  assessmentRequest      AssessmentRequest?
+  assessmentRequestLevel AssessmentRequestLevel?
 
   @@index([userId])
 }
