@@ -285,4 +285,90 @@ export class BadgeResolverService {
       },
     });
   }
+
+  /**
+   * The apply-gate primitive: does this candidate currently hold a
+   * non-revoked, non-expired badge at every one of `levels`, all for the
+   * same skill? Searches across every skill the candidate has touched —
+   * unlike resolveLevelMap/resolveCurrentClaim above, which are scoped to
+   * one skill, because this gate is satisfied by *any* single qualifying
+   * skill, not a particular one. Backs both server-side enforcement
+   * (CandidateJobsService.apply) and candidate-facing progress display
+   * (EntitlementsService.getEntitlements) from the one query, so the two
+   * can never disagree — same reasoning as this file's own doc comment on
+   * why resolveLevelMap is the single source of truth for "which badge
+   * counts."
+   *
+   * Free-skill-lock exemption: a FREE candidate's self-serve MCQ activity
+   * is locked for life to one skill (CandidateProfile.freeSkillLockId —
+   * see plans.config.ts's singleSkillRestriction doc comment). If that
+   * skill's own live-offered levels don't cover every level in `levels`
+   * (e.g. a discussion-only skill offering just L2), the candidate can
+   * never satisfy this gate through any amount of retaking — there's no
+   * content to retake. Exempting them (met: true, no progress to show)
+   * here is checked against the live catalog on every call, so it
+   * self-corrects if the catalog changes, rather than resting on an
+   * assumption about what the catalog looks like today.
+   */
+  async resolveApplyGateProgress(
+    userId: string,
+    levels: SkillLevel[],
+  ): Promise<{
+    met: boolean;
+    progress: { skillId: string; skillName: string; levelsHeld: SkillLevel[]; levelsRemaining: SkillLevel[] } | null;
+  }> {
+    const profile = await this.prisma.candidateProfile.findUnique({
+      where: { userId },
+      select: { freeSkillLockId: true },
+    });
+    if (profile?.freeSkillLockId) {
+      const { offeredLevels } = await this.getOfferedLevelsAndName(profile.freeSkillLockId);
+      if (!levels.every((l) => offeredLevels.includes(l))) {
+        return { met: true, progress: null };
+      }
+    }
+
+    const badges = await this.prisma.badge.findMany({
+      where: { userId, level: { in: levels }, revokedAt: null, expiresAt: { gt: new Date() } },
+      select: { skillId: true, level: true, issuedAt: true, skill: { select: { name: true } } },
+    });
+
+    const bySkill = new Map<string, { skillName: string; levels: Set<SkillLevel>; earliestIssuedAt: Date }>();
+    for (const b of badges) {
+      const entry = bySkill.get(b.skillId);
+      if (entry) {
+        entry.levels.add(b.level);
+        if (b.issuedAt < entry.earliestIssuedAt) entry.earliestIssuedAt = b.issuedAt;
+      } else {
+        bySkill.set(b.skillId, { skillName: b.skill.name, levels: new Set([b.level]), earliestIssuedAt: b.issuedAt });
+      }
+    }
+
+    let met = false;
+    let best:
+      | { skillId: string; skillName: string; levelsHeld: SkillLevel[]; levelsRemaining: SkillLevel[]; earliestIssuedAt: Date }
+      | null = null;
+    for (const [skillId, entry] of bySkill) {
+      const levelsHeld = levels.filter((l) => entry.levels.has(l));
+      const levelsRemaining = levels.filter((l) => !entry.levels.has(l));
+      if (levelsRemaining.length === 0) met = true;
+      // Most levels held wins; ties broken by whichever skill the candidate
+      // started earliest, so the progress shown is stable call to call
+      // rather than depending on Map iteration order.
+      if (
+        !best ||
+        levelsHeld.length > best.levelsHeld.length ||
+        (levelsHeld.length === best.levelsHeld.length && entry.earliestIssuedAt < best.earliestIssuedAt)
+      ) {
+        best = { skillId, skillName: entry.skillName, levelsHeld, levelsRemaining, earliestIssuedAt: entry.earliestIssuedAt };
+      }
+    }
+
+    return {
+      met,
+      progress: best
+        ? { skillId: best.skillId, skillName: best.skillName, levelsHeld: best.levelsHeld, levelsRemaining: best.levelsRemaining }
+        : null,
+    };
+  }
 }

@@ -15,13 +15,34 @@ import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scor
 import { BrowseJobsDto } from './candidate-jobs.dto';
 import { isProfileReadyToApply } from '../profiles/profile-readiness';
 import { formatLocation } from '../locations/location-format.util';
+import { BadgeResolverService } from '../badges/badge-resolver.service';
+import { APPLY_GATE_REQUIRED_LEVELS } from '../../config/apply-gate.config';
 
 /**
  * One-line flip once assessment coverage across the taxonomy is sufficient
  * to fairly require it — defaults to false (env var absent or anything other
  * than the literal string 'true'), so applying doesn't yet require a badge.
+ * Superseded in practice by REQUIRE_SKILL_LEVEL_GATE_TO_APPLY below (a much
+ * stricter, always-on-by-default gate) — kept as-is rather than deleted, so
+ * there's still a path back to "any one verified credential" if the L1-L3
+ * gate ever needs to be turned off independently of falling back to no gate
+ * at all.
  */
 const REQUIRE_VERIFIED_BADGE_TO_APPLY = process.env.REQUIRE_VERIFIED_BADGE_TO_APPLY === 'true';
+
+/**
+ * Kill switch for the L1-L3-of-one-skill apply gate — defaults ON (unset,
+ * or anything other than the literal string 'false', is ON). This is a
+ * much stricter replacement for REQUIRE_VERIFIED_BADGE_TO_APPLY above (that
+ * one is satisfied by any single badge at any level; this one requires
+ * three specific levels of the same skill, all currently valid at once),
+ * shipped as its own separate flag rather than by flipping the old one on,
+ * so a single env var can fall back to no skill-level gate at all without a
+ * code deploy if the new bar turns out to be too strict against live
+ * content/candidate data. See docs/feature-inventory.md §3.1/§3.5 for the
+ * apply-gate history this extends.
+ */
+const REQUIRE_SKILL_LEVEL_GATE_TO_APPLY = process.env.REQUIRE_SKILL_LEVEL_GATE_TO_APPLY !== 'false';
 
 /** Public fields only — no orgId, no status, nothing employer-internal. */
 const JOB_LIST_SELECT = {
@@ -64,6 +85,7 @@ export class CandidateJobsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly badgeResolver: BadgeResolverService,
   ) {}
 
   async browse(userId: string, dto: BrowseJobsDto) {
@@ -235,6 +257,9 @@ export class CandidateJobsService {
     if (REQUIRE_VERIFIED_BADGE_TO_APPLY) {
       await this.assertHasVerifiedBadge(profile.id);
     }
+    if (REQUIRE_SKILL_LEVEL_GATE_TO_APPLY) {
+      await this.assertMeetsSkillLevelGate(userId);
+    }
 
     let application;
     try {
@@ -361,6 +386,26 @@ export class CandidateJobsService {
       throw new BadRequestException({
         code: 'BADGE_REQUIRED',
         message: 'Earn at least one verified skill badge before applying — take an assessment to get started.',
+      });
+    }
+  }
+
+  /**
+   * The new, much stricter apply gate: currently-valid badges at L1, L2,
+   * AND L3 of the same skill — any one qualifying skill is enough, they
+   * don't need it across multiple. Distinct error code from BADGE_REQUIRED
+   * above since the meaning has genuinely changed (any one badge, any
+   * level -> three specific levels of one skill, all at once). See
+   * BadgeResolverService.resolveApplyGateProgress for the shared primitive
+   * that also backs the candidate-facing progress display on
+   * GET /me/entitlements, so enforcement and display can't disagree.
+   */
+  private async assertMeetsSkillLevelGate(userId: string): Promise<void> {
+    const gate = await this.badgeResolver.resolveApplyGateProgress(userId, APPLY_GATE_REQUIRED_LEVELS);
+    if (!gate.met) {
+      throw new BadRequestException({
+        code: 'SKILL_LEVELS_REQUIRED',
+        message: 'You need verified badges at L1, L2, and L3 of the same skill before applying — take an assessment to get started.',
       });
     }
   }

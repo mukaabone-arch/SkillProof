@@ -3,6 +3,8 @@ import { AttemptStatus, SkillLevel, Subscription, SubscriptionStatus, Subscripti
 import { PrismaService } from '../../prisma/prisma.service';
 import { PLANS } from '../../config/plans.config';
 import { isCandidatePremiumEnabled } from '../../config/feature-flags.config';
+import { APPLY_GATE_REQUIRED_LEVELS } from '../../config/apply-gate.config';
+import { BadgeResolverService } from '../badges/badge-resolver.service';
 import { BooleanFeature, CountableMetric } from './requires-entitlement.decorator';
 import { EntitlementLimitException } from './entitlements.errors';
 
@@ -52,6 +54,22 @@ export interface EntitlementsResponse {
    * anything that already has a subscription.
    */
   premiumEnabled: boolean;
+  /**
+   * Same primitive that enforces the apply gate server-side
+   * (CandidateJobsService.assertMeetsSkillLevelGate) — this field exists so
+   * the job-detail page and dashboard can show a candidate exactly where
+   * they stand (e.g. "L1 earned — L2 and L3 to go") before they ever click
+   * Apply, rather than only discovering it from a rejected POST. `progress`
+   * is null only when the candidate holds none of `requiredLevels` for any
+   * skill yet; it's still populated (with an empty levelsRemaining) for a
+   * candidate who already meets the gate, so `met` is the only field that
+   * needs checking to decide whether to render anything at all.
+   */
+  applyGate: {
+    requiredLevels: SkillLevel[];
+    met: boolean;
+    progress: { skillId: string; skillName: string; levelsHeld: SkillLevel[]; levelsRemaining: SkillLevel[] } | null;
+  };
 }
 
 /** Start of date's UTC calendar month — the fixed boundary UsageCounter.periodStart buckets on. */
@@ -101,7 +119,10 @@ export function resolveEffectiveTier(subscription: Subscription | null, now: Dat
 
 @Injectable()
 export class EntitlementsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly badgeResolver: BadgeResolverService,
+  ) {}
 
   /** GET /me/entitlements — see this module's README for the response-shape stability contract. */
   async getEntitlements(userId: string): Promise<EntitlementsResponse> {
@@ -109,7 +130,7 @@ export class EntitlementsService {
     const tier = await this.resolveEffectiveTierForProfile(candidateId);
     const limits = PLANS[tier];
 
-    const [assessments, applications, discussionSessions, profile] = await Promise.all([
+    const [assessments, applications, discussionSessions, profile, applyGate] = await Promise.all([
       this.readUsage(candidateId, 'assessments', limits.assessmentsPerMonth),
       this.readUsage(candidateId, 'applications', limits.applicationsPerMonth),
       this.readUsage(candidateId, 'discussionSessions', limits.discussionSessionsPerMonth),
@@ -117,6 +138,7 @@ export class EntitlementsService {
         where: { id: candidateId },
         select: { freeSkillLockId: true, freeSkillLock: { select: { name: true } } },
       }),
+      this.badgeResolver.resolveApplyGateProgress(userId, APPLY_GATE_REQUIRED_LEVELS),
     ]);
 
     const freeSkillLock =
@@ -130,6 +152,7 @@ export class EntitlementsService {
       usage: { assessments, applications, discussionSessions },
       freeSkillLock,
       premiumEnabled: isCandidatePremiumEnabled(),
+      applyGate: { requiredLevels: APPLY_GATE_REQUIRED_LEVELS, ...applyGate },
     };
   }
 
@@ -286,18 +309,25 @@ export class EntitlementsService {
     const attemptNumber = priorCount + 1;
     if (priorCount === 0) return { attemptNumber };
 
-    const mostRecentLapse = await this.prisma.badge.findFirst({
-      where: { userId, skillId, level, revokedAt: null, expiresAt: { lte: new Date() } },
-      orderBy: { expiresAt: 'desc' },
-      select: { expiresAt: true },
-    });
-    const attemptsSinceLapse = mostRecentLapse
-      ? priorAttempts.filter((a) => a.createdAt > mostRecentLapse.expiresAt).length
-      : priorCount;
+    // null = unlimited (see PlanLimits.retakesPerSkillLifetime's own doc
+    // comment) — currently FREE and PREMIUM both temporarily, until 14 Nov
+    // 2026. Skip the cap query/check entirely rather than doing arithmetic
+    // against a null limit; cooldown (below) is an orthogonal concept and
+    // still applies independently of whether the lifetime cap is active.
+    if (retakesPerSkillLifetime != null) {
+      const mostRecentLapse = await this.prisma.badge.findFirst({
+        where: { userId, skillId, level, revokedAt: null, expiresAt: { lte: new Date() } },
+        orderBy: { expiresAt: 'desc' },
+        select: { expiresAt: true },
+      });
+      const attemptsSinceLapse = mostRecentLapse
+        ? priorAttempts.filter((a) => a.createdAt > mostRecentLapse.expiresAt).length
+        : priorCount;
 
-    const totalAllowedAttempts = 1 + retakesPerSkillLifetime;
-    if (attemptsSinceLapse >= totalAllowedAttempts) {
-      throw new EntitlementLimitException('retakesPerSkillLifetime', retakesPerSkillLifetime, null);
+      const totalAllowedAttempts = 1 + retakesPerSkillLifetime;
+      if (attemptsSinceLapse >= totalAllowedAttempts) {
+        throw new EntitlementLimitException('retakesPerSkillLifetime', retakesPerSkillLifetime, null);
+      }
     }
 
     if (retakeCooldownDays > 0) {

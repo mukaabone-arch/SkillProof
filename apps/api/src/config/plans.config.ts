@@ -36,10 +36,14 @@ export interface PlanLimits {
   retakeCooldownDays: number;
   /**
    * Hard lifetime cap on retakes per skill (not counting the first attempt)
-   * — this survives even on PREMIUM, which only removes the cooldown, so a
-   * badge can never be inflated by unlimited retries regardless of tier.
+   * — this normally survives even on PREMIUM, which only removes the
+   * cooldown, so a badge can never be inflated by unlimited retries
+   * regardless of tier. `null` (this file's usual "unlimited" convention —
+   * see the header comment above) is a *temporary* exception: see both
+   * PLANS values below for the interim-unlimited window and its exact
+   * revert date/values, kept together in one place on purpose.
    */
-  retakesPerSkillLifetime: number;
+  retakesPerSkillLifetime: number | null;
   /**
    * When true, a candidate's self-serve MCQ attempts (any level) are
    * restricted to a single skill for life — the first skill they start an
@@ -129,6 +133,19 @@ export function isAiDiscussionPromoActive(now: Date = new Date()): boolean {
   return now >= AI_DISCUSSION_PROMO_LAUNCH_DATE && now < promoEndsAt;
 }
 
+/**
+ * BOTH tiers' retakesPerSkillLifetime are temporarily `null` (unlimited)
+ * below — a single, deliberate exception to the field's normal per-tier cap
+ * (see PlanLimits.retakesPerSkillLifetime's own doc comment). Rationale:
+ * the L1-L3-of-one-skill apply gate (CandidateJobsService, apply-gate.config.ts)
+ * ships before the ₹500 skill-purchase escape hatch does (target 14 Nov
+ * 2026) — without this, a candidate (or an internal/test Premium account,
+ * used for demos) who exhausts their normal retake cap mid-skill would have
+ * no way to ever finish the gate and apply to anything, for up to 8 weeks,
+ * with genuinely no path forward. Revert BOTH values together on 14 Nov
+ * 2026 — FREE back to 1, PREMIUM back to 3 — in the same edit, so one can't
+ * get restored while the other is forgotten.
+ */
 export const PLANS: Record<SubscriptionTier, PlanLimits> = {
   [SubscriptionTier.FREE]: {
     // Unlimited on both tiers as of the discussion-sessions metering
@@ -147,7 +164,7 @@ export const PLANS: Record<SubscriptionTier, PlanLimits> = {
       return isAiDiscussionPromoActive() ? 1 : 0;
     },
     retakeCooldownDays: 0,
-    retakesPerSkillLifetime: 1,
+    retakesPerSkillLifetime: null, // TEMPORARY until 14 Nov 2026 — see the shared comment above PLANS. Revert to 1.
     singleSkillRestriction: true,
     applicationsPerMonth: 10,
     profileViewers: 'count_only',
@@ -165,7 +182,7 @@ export const PLANS: Record<SubscriptionTier, PlanLimits> = {
     // window, it's the plain ongoing entitlement.
     discussionSessionsPerMonth: 2,
     retakeCooldownDays: 0,
-    retakesPerSkillLifetime: 3,
+    retakesPerSkillLifetime: null, // TEMPORARY until 14 Nov 2026 — see the shared comment above PLANS. Revert to 3.
     singleSkillRestriction: false,
     applicationsPerMonth: null,
     profileViewers: 'full',
