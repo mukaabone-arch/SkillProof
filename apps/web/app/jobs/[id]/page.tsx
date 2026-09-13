@@ -41,9 +41,16 @@ function formatSalaryRange(min: number, max: number): string {
   return min === max ? `${format(min)} / year` : `${format(min)}–${format(max)} / year`;
 }
 
+/** "L2" / "L2 and L3" / "L1, L2, and L3" — used by the apply-gate progress message below. */
+function formatLevelList(levels: string[]): string {
+  if (levels.length <= 1) return levels.join('');
+  if (levels.length === 2) return `${levels[0]} and ${levels[1]}`;
+  return `${levels.slice(0, -1).join(', ')}, and ${levels[levels.length - 1]}`;
+}
+
 /** Machine-readable codes the backend returns when apply-time requirements aren't met. */
 interface ApplyIssueBody {
-  code?: 'PROFILE_INCOMPLETE' | 'RESUME_REQUIRED' | 'AI_EXPERIENCE_REQUIRED' | 'BADGE_REQUIRED';
+  code?: 'PROFILE_INCOMPLETE' | 'RESUME_REQUIRED' | 'AI_EXPERIENCE_REQUIRED' | 'BADGE_REQUIRED' | 'SKILL_LEVELS_REQUIRED';
   message?: string;
 }
 
@@ -165,7 +172,7 @@ export default function JobDetailPage() {
   // and client and triggers a real hydration-mismatch error (pre-existing;
   // fixed here alongside the rest of this file's entitlements work).
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
-  const { limits, usage, refetch } = useEntitlements();
+  const { limits, usage, applyGate, refetch } = useEntitlements();
 
   const load = useCallback(async () => {
     try {
@@ -213,7 +220,8 @@ export default function JobDetailPage() {
         body?.code === 'PROFILE_INCOMPLETE' ||
         body?.code === 'RESUME_REQUIRED' ||
         body?.code === 'AI_EXPERIENCE_REQUIRED' ||
-        body?.code === 'BADGE_REQUIRED'
+        body?.code === 'BADGE_REQUIRED' ||
+        body?.code === 'SKILL_LEVELS_REQUIRED'
       ) {
         setApplyIssue(body);
       } else {
@@ -299,6 +307,30 @@ export default function JobDetailPage() {
         </p>
       )}
 
+      {/*
+        Proactive — shown on page load from the already-fetched entitlements
+        state, before any click, so a partly-progressed candidate sees where
+        they stand rather than only discovering the gate at a disabled Apply
+        button. The reactive applyIssue?.code === 'SKILL_LEVELS_REQUIRED'
+        block further down still exists too, as defense in depth for the
+        server-authoritative rejection (race conditions, a stale fetch) —
+        this block is intentionally suppressed once that's showing, so the
+        two never stack.
+      */}
+      {!job.alreadyApplied && !applyIssue && applyGate && !applyGate.met && (
+        <p className="meta">
+          {applyGate.progress ? (
+            <>
+              {applyGate.progress.skillName}: {formatLevelList(applyGate.progress.levelsHeld)} earned —{' '}
+              {formatLevelList(applyGate.progress.levelsRemaining)} to go before you can apply to jobs.{' '}
+            </>
+          ) : (
+            <>You need verified badges at L1, L2, and L3 of the same skill before you can apply to jobs. </>
+          )}
+          <Link href={`/assessments?returnTo=/jobs/${id}`}>Continue assessments →</Link>
+        </p>
+      )}
+
       <div className="row" style={{ alignItems: 'center' }}>
         <button onClick={apply} disabled={applying || job.alreadyApplied}>
           {job.alreadyApplied ? 'Applied' : applying ? 'Applying…' : 'Apply'}
@@ -328,6 +360,12 @@ export default function JobDetailPage() {
         <p className="meta">
           {applyIssue.message}{' '}
           <Link href={`/assessments?returnTo=/jobs/${id}`}>Take an assessment →</Link>
+        </p>
+      )}
+      {applyIssue?.code === 'SKILL_LEVELS_REQUIRED' && (
+        <p className="meta">
+          {applyIssue.message}{' '}
+          <Link href={`/assessments?returnTo=/jobs/${id}`}>Continue assessments →</Link>
         </p>
       )}
       {applyError && <ErrorState message={applyError} />}

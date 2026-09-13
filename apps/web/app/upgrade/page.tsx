@@ -93,7 +93,12 @@ const FEATURE_ROWS: { label: string; format: (l: PlanLimits) => string }[] = [
   },
   {
     label: 'Retakes per level',
-    format: (l) => `${l.retakesPerSkillLifetime} retake${l.retakesPerSkillLifetime === 1 ? '' : 's'}, lifetime`,
+    // null = temporarily unlimited (interim window ahead of the 14 Nov
+    // skill-purchase launch — see plans.config.ts) on both tiers today.
+    format: (l) =>
+      l.retakesPerSkillLifetime === null
+        ? 'Unlimited (temporary)'
+        : `${l.retakesPerSkillLifetime} retake${l.retakesPerSkillLifetime === 1 ? '' : 's'}, lifetime`,
   },
   {
     label: 'Job applications',

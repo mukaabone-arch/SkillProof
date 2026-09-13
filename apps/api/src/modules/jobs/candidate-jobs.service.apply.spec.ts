@@ -57,7 +57,10 @@ function readyProfile(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
-function makeService(profileOverrides: Partial<Record<string, unknown>> = {}) {
+function makeService(
+  profileOverrides: Partial<Record<string, unknown>> = {},
+  applyGate: { met: boolean; progress?: unknown } = { met: true, progress: null },
+) {
   const prisma = fakePrisma();
   prisma._jobs.push({
     id: 'job-1',
@@ -67,8 +70,11 @@ function makeService(profileOverrides: Partial<Record<string, unknown>> = {}) {
   });
   prisma._profiles.push(readyProfile(profileOverrides));
   const notifications = { sendEmail: jest.fn(async () => undefined) };
-  const service = new CandidateJobsService(prisma as any, notifications as any);
-  return { service, prisma };
+  const badgeResolver = {
+    resolveApplyGateProgress: jest.fn(async () => ({ met: applyGate.met, progress: applyGate.progress ?? null })),
+  };
+  const service = new CandidateJobsService(prisma as any, notifications as any, badgeResolver as any);
+  return { service, prisma, badgeResolver };
 }
 
 async function applyAndCaptureCode(service: CandidateJobsService): Promise<string | undefined> {
@@ -107,5 +113,27 @@ describe('CandidateJobsService.apply — resume and AI-experience gate', () => {
   it('still enforces the pre-existing PROFILE_INCOMPLETE check ahead of the new checks', async () => {
     const { service } = makeService({ fullName: null, headline: null, yearsOfExp: null });
     await expect(applyAndCaptureCode(service)).resolves.toBe('PROFILE_INCOMPLETE');
+  });
+});
+
+describe('CandidateJobsService.apply — L1-L3-of-one-skill gate (REQUIRE_SKILL_LEVEL_GATE_TO_APPLY, defaults on)', () => {
+  it('rejects with SKILL_LEVELS_REQUIRED when the gate is not met', async () => {
+    const { service } = makeService({}, { met: false, progress: null });
+    await expect(applyAndCaptureCode(service)).resolves.toBe('SKILL_LEVELS_REQUIRED');
+  });
+
+  it('succeeds when the gate is met, and never reaches the (still-off-by-default) BADGE_REQUIRED check', async () => {
+    const { service, prisma } = makeService({}, { met: true, progress: null });
+    const app = await service.apply('user-1', 'job-1');
+    expect(app.id).toBeDefined();
+    // BADGE_REQUIRED lives behind REQUIRE_VERIFIED_BADGE_TO_APPLY, unset/false
+    // in this test environment — its checks must not even run.
+    expect(prisma.skillClaim.count).not.toHaveBeenCalled();
+  });
+
+  it('is checked with the candidate\'s userId, not the profile id, since Badge rows key off userId', async () => {
+    const { service, badgeResolver } = makeService({ userId: 'user-1' }, { met: true, progress: null });
+    await service.apply('user-1', 'job-1');
+    expect(badgeResolver.resolveApplyGateProgress).toHaveBeenCalledWith('user-1', expect.any(Array));
   });
 });

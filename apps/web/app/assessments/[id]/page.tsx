@@ -46,15 +46,20 @@ interface StartIssueBody {
  * checkAndIncrement):
  *  - retakeCooldownDays: real resetsAt (when the wait is over — Premium
  *    removes it outright).
- *  - retakesPerSkillLifetime: resetsAt is always null — that cap is
- *    permanent regardless of tier, only its size changes (1 on Free, 3 on
- *    Premium), so "upgrade" only ever helps if there's still headroom
- *    under the higher cap. Despite the metric's name, the cap itself is
- *    scoped per skill+LEVEL, not the whole skill — each level is its own
- *    assessment with its own budget (see apps/api's
- *    EntitlementsService.checkRetakeEligibility), so this only ever blocks
- *    a retry of the level this page is currently on; other levels of the
- *    same skill are unaffected.
+ *  - retakesPerSkillLifetime: resetsAt is always null (there's no fixed
+ *    date to give — see the next point). Its size normally only changes by
+ *    tier (1 on Free, 3 on Premium), so "upgrade" helps if there's headroom
+ *    under the higher cap — except right now, when it's temporarily null
+ *    (unlimited) on both tiers until 14 Nov 2026, so this branch can't even
+ *    be reached today (see plans.config.ts's own comment on why). The cap
+ *    isn't permanent even once restored: it resets, but only when a badge
+ *    the candidate held at this exact level later expires — not by waiting
+ *    or attempting again (see EntitlementsService.checkRetakeEligibility's
+ *    own doc comment). Despite the metric's name, the cap itself is scoped
+ *    per skill+LEVEL, not the whole skill — each level is its own
+ *    assessment with its own budget, so this only ever blocks a retry of
+ *    the level this page is currently on; other levels of the same skill
+ *    are unaffected.
  *  - singleSkillRestriction: resetsAt is always null — a FREE candidate
  *    tried to start a skill other than the one they're locked to (see
  *    freeSkillLock in lib/entitlements.tsx). The "before you begin" gate
@@ -624,8 +629,9 @@ export default function TakeAssessmentPage() {
               <p style={{ margin: 0 }}>
                 You&apos;ve used all {limitIssue.limit} retake{limitIssue.limit === 1 ? '' : 's'} allowed for{' '}
                 {assessmentInfo ? `${assessmentInfo.skillName} (${assessmentInfo.targetLevel})` : 'this level'} —
-                this cap doesn&apos;t reset. Other levels of {assessmentInfo?.skillName ?? 'this skill'} aren&apos;t
-                affected.
+                this cap resets only if a badge you&apos;ve earned at this level later expires; it doesn&apos;t reset
+                just by waiting or attempting again. Other levels of {assessmentInfo?.skillName ?? 'this skill'}{' '}
+                aren&apos;t affected.
               </p>
               {tier !== 'PREMIUM' && (
                 <p className="meta" style={{ margin: 0 }}>

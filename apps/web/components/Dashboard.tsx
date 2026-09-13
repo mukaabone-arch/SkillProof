@@ -21,6 +21,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { useEntitlements, type ApplyGate } from '@/lib/entitlements';
 import { timeOfDayGreeting } from '@/lib/greeting';
 import CandidateNav from './CandidateNav';
 import AdminNav from './AdminNav';
@@ -377,6 +378,9 @@ function employerInviteCopilotMessage(selection: SelectedEmployerInvite): Copilo
 function buildCopilotMessage(params: {
   hasProfile: boolean;
   hasBadge: boolean;
+  /** From useEntitlements().applyGate?.met — the L1-L3-of-one-skill apply gate, not "has any badge at all." Falls back to hasBadge while entitlements are still loading (see call site). */
+  applyGateMet: boolean;
+  applyGateProgress: ApplyGate['progress'];
   liveAssessmentCount: number;
   pipelineAlert: PipelineAlert | undefined;
   awaitingReviewSession: MineAssessmentSession | undefined;
@@ -389,6 +393,8 @@ function buildCopilotMessage(params: {
   const {
     hasProfile,
     hasBadge,
+    applyGateMet,
+    applyGateProgress,
     liveAssessmentCount,
     pipelineAlert,
     awaitingReviewSession,
@@ -401,14 +407,15 @@ function buildCopilotMessage(params: {
 
   // Live interview-pipeline and pending-review states, most urgent first —
   // all of these outrank everything below, including the employer-invite
-  // and !hasProfile/!hasBadge branches, since none of them are "worth a
+  // and !hasProfile/!applyGateMet branches, since none of them are "worth a
   // look" or "step one," they're waiting on the candidate (or, for HIRED,
   // worth a moment of celebration) right now. A candidate can only ever
-  // reach any of these with a profile and a badge already in hand (both
-  // are apply-time gates — see candidate-jobs.service.ts), so in practice
+  // reach any of these with a profile and the apply gate satisfied already
+  // (both are apply-time gates — see candidate-jobs.service.ts's
+  // assertProfileReadyToApply/assertMeetsSkillLevelGate), so in practice
   // this block is simply inert (pipelineAlert/awaitingReviewSession both
-  // undefined) until hasProfile && hasBadge are true — evaluating it ahead
-  // of those two checks changes nothing for either.
+  // undefined) until hasProfile && applyGateMet are true — evaluating it
+  // ahead of those two checks changes nothing for either.
   if (pipelineAlert?.kind === 'HIRED') {
     return {
       eyebrow: 'You got the job!',
@@ -485,7 +492,20 @@ function buildCopilotMessage(params: {
     };
   }
 
-  if (!hasBadge) {
+  if (!applyGateMet) {
+    // Partial progress toward the gate (e.g. L1 earned, L2/L3 still to go)
+    // gets its own specific message, distinct from "nothing yet" — a
+    // candidate who's already invested in a skill shouldn't be told to
+    // "take an assessment" as if starting from zero.
+    if (applyGateProgress) {
+      const remaining = applyGateProgress.levelsRemaining.join(' and ');
+      return {
+        eyebrow: 'Your next move',
+        message: `${applyGateProgress.skillName}: ${applyGateProgress.levelsHeld.join(', ')} earned — ${remaining} to go before you can apply to jobs.`,
+        ctaLabel: 'Continue assessments',
+        ctaHref: '/assessments',
+      };
+    }
     return liveAssessmentCount > 0
       ? {
           eyebrow: 'Your next move',
@@ -547,6 +567,7 @@ function buildCopilotMessage(params: {
 
 export default function Dashboard({ onLoggedOut }: Props) {
   const router = useRouter();
+  const { applyGate } = useEntitlements();
   const [me, setMe] = useState<Me>();
   const [profile, setProfile] = useState<Profile>();
   const [assessments, setAssessments] = useState<Assessment[]>([]);
@@ -694,6 +715,12 @@ export default function Dashboard({ onLoggedOut }: Props) {
 
   const hasProfile = profile.completeness > 0;
   const hasBadge = badges.length > 0;
+  // Falls back to the coarser hasBadge signal while entitlements are still
+  // loading (applyGate null) so the co-pilot ladder doesn't flash a "no
+  // progress" message for a candidate who actually has some — refines to
+  // the real L1-L3-of-one-skill gate the moment the fetch resolves.
+  const applyGateMet = applyGate?.met ?? hasBadge;
+  const applyGateProgress = applyGate?.progress ?? null;
   const hasApplied = applications.length > 0;
   // No new field: "first session" is derived entirely from existing signals —
   // nothing built a profile, earned a badge, or applied to anything yet.
@@ -744,6 +771,8 @@ export default function Dashboard({ onLoggedOut }: Props) {
   const copilot = buildCopilotMessage({
     hasProfile,
     hasBadge,
+    applyGateMet,
+    applyGateProgress,
     liveAssessmentCount,
     pipelineAlert,
     awaitingReviewSession,

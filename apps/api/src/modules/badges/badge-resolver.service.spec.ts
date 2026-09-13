@@ -1,5 +1,5 @@
 import { Badge, SkillLevel } from '@prisma/client';
-import { badgeExpiresAt, BADGE_VALIDITY_YEARS, deriveLevelStates } from './badge-resolver.service';
+import { badgeExpiresAt, BADGE_VALIDITY_YEARS, BadgeResolverService, deriveLevelStates } from './badge-resolver.service';
 
 /** Only truthiness of a levelMap entry matters to deriveLevelStates — a minimal stub is enough. */
 function fakeBadge(): Badge {
@@ -75,5 +75,147 @@ describe('badgeExpiresAt', () => {
     const expiry = badgeExpiresAt(leapDay);
     expect(Number.isNaN(expiry.getTime())).toBe(false);
     expect(expiry.getFullYear()).toBe(2029);
+  });
+});
+
+const GATE_LEVELS = [L1, L2, L3];
+const FUTURE = new Date('2099-01-01T00:00:00.000Z');
+const PAST = new Date('2020-01-01T00:00:00.000Z');
+
+/** Minimal fake Prisma — just enough surface for resolveApplyGateProgress's own logic. */
+function fakeGatePrisma(opts: {
+  freeSkillLockId?: string | null;
+  badges?: Array<{ skillId: string; skillName: string; level: SkillLevel; revokedAt?: Date | null; expiresAt?: Date; issuedAt?: Date }>;
+  offeredLevelsBySkill?: Record<string, SkillLevel[]>;
+}) {
+  const badges = opts.badges ?? [];
+  const offeredLevelsBySkill = opts.offeredLevelsBySkill ?? {};
+  return {
+    candidateProfile: {
+      findUnique: jest.fn(async () => ('freeSkillLockId' in opts ? { freeSkillLockId: opts.freeSkillLockId } : null)),
+    },
+    skill: {
+      findUniqueOrThrow: jest.fn(async ({ where }: any) => ({ id: where.id, name: `skill-${where.id}` })),
+    },
+    assessment: {
+      findMany: jest.fn(async ({ where }: any) =>
+        (offeredLevelsBySkill[where.skillId] ?? []).map((targetLevel) => ({ targetLevel })),
+      ),
+    },
+    badge: {
+      // Mirrors the real query's WHERE clause server-side filtering
+      // (level IN levels, revokedAt: null, expiresAt: { gt: now }) —
+      // rows that wouldn't survive that clause never reach the fake either.
+      findMany: jest.fn(async ({ where }: any) => {
+        const now = new Date();
+        return badges
+          .filter((b) => where.level.in.includes(b.level))
+          .filter((b) => (b.revokedAt ?? null) === null)
+          .filter((b) => (b.expiresAt ?? FUTURE) > now)
+          .map((b) => ({ skillId: b.skillId, level: b.level, issuedAt: b.issuedAt ?? PAST, skill: { name: b.skillName } }));
+      }),
+    },
+  };
+}
+
+describe('BadgeResolverService.resolveApplyGateProgress', () => {
+  it('met: false, progress: null for a candidate with no relevant badges at all', async () => {
+    const svc = new BadgeResolverService(fakeGatePrisma({ badges: [] }) as any);
+    const result = await svc.resolveApplyGateProgress('user-1', GATE_LEVELS);
+    expect(result).toEqual({ met: false, progress: null });
+  });
+
+  it('met: true when one skill currently holds valid badges at all three required levels', async () => {
+    const svc = new BadgeResolverService(
+      fakeGatePrisma({
+        badges: [
+          { skillId: 'skill-a', skillName: 'LLM Evaluation', level: L1, expiresAt: FUTURE },
+          { skillId: 'skill-a', skillName: 'LLM Evaluation', level: L2, expiresAt: FUTURE },
+          { skillId: 'skill-a', skillName: 'LLM Evaluation', level: L3, expiresAt: FUTURE },
+        ],
+      }) as any,
+    );
+    const result = await svc.resolveApplyGateProgress('user-1', GATE_LEVELS);
+    expect(result.met).toBe(true);
+    expect(result.progress).toEqual({
+      skillId: 'skill-a',
+      skillName: 'LLM Evaluation',
+      levelsHeld: [L1, L2, L3],
+      levelsRemaining: [],
+    });
+  });
+
+  it('met: false with partial progress for the skill closest to complete, when no single skill has all three', async () => {
+    const svc = new BadgeResolverService(
+      fakeGatePrisma({
+        badges: [
+          { skillId: 'skill-a', skillName: 'LLM Evaluation', level: L1, expiresAt: FUTURE },
+          { skillId: 'skill-b', skillName: 'RAG Systems', level: L1, expiresAt: FUTURE },
+          { skillId: 'skill-b', skillName: 'RAG Systems', level: L2, expiresAt: FUTURE },
+        ],
+      }) as any,
+    );
+    const result = await svc.resolveApplyGateProgress('user-1', GATE_LEVELS);
+    expect(result.met).toBe(false);
+    // skill-b holds 2 of 3 levels, more than skill-a's 1 — that's the one surfaced.
+    expect(result.progress).toEqual({
+      skillId: 'skill-b',
+      skillName: 'RAG Systems',
+      levelsHeld: [L1, L2],
+      levelsRemaining: [L3],
+    });
+  });
+
+  it('excludes an expired badge — a lapsed level does not count as currently held', async () => {
+    const svc = new BadgeResolverService(
+      fakeGatePrisma({
+        badges: [
+          { skillId: 'skill-a', skillName: 'LLM Evaluation', level: L1, expiresAt: PAST },
+          { skillId: 'skill-a', skillName: 'LLM Evaluation', level: L2, expiresAt: FUTURE },
+          { skillId: 'skill-a', skillName: 'LLM Evaluation', level: L3, expiresAt: FUTURE },
+        ],
+      }) as any,
+    );
+    const result = await svc.resolveApplyGateProgress('user-1', GATE_LEVELS);
+    expect(result.met).toBe(false);
+    expect(result.progress?.levelsHeld).toEqual([L2, L3]);
+  });
+
+  it('excludes a revoked badge even if not yet expired', async () => {
+    const svc = new BadgeResolverService(
+      fakeGatePrisma({
+        badges: [
+          { skillId: 'skill-a', skillName: 'LLM Evaluation', level: L1, expiresAt: FUTURE, revokedAt: new Date() },
+          { skillId: 'skill-a', skillName: 'LLM Evaluation', level: L2, expiresAt: FUTURE },
+          { skillId: 'skill-a', skillName: 'LLM Evaluation', level: L3, expiresAt: FUTURE },
+        ],
+      }) as any,
+    );
+    const result = await svc.resolveApplyGateProgress('user-1', GATE_LEVELS);
+    expect(result.met).toBe(false);
+  });
+
+  it('exempts a free-skill-locked candidate whose locked skill cannot offer all required levels (e.g. discussion-only L2)', async () => {
+    const svc = new BadgeResolverService(
+      fakeGatePrisma({
+        freeSkillLockId: 'rag-systems',
+        offeredLevelsBySkill: { 'rag-systems': [L2] },
+        badges: [],
+      }) as any,
+    );
+    const result = await svc.resolveApplyGateProgress('user-1', GATE_LEVELS);
+    expect(result).toEqual({ met: true, progress: null });
+  });
+
+  it('does not exempt a free-skill-locked candidate whose locked skill actually offers all required levels', async () => {
+    const svc = new BadgeResolverService(
+      fakeGatePrisma({
+        freeSkillLockId: 'skill-a',
+        offeredLevelsBySkill: { 'skill-a': [L1, L2, L3] },
+        badges: [],
+      }) as any,
+    );
+    const result = await svc.resolveApplyGateProgress('user-1', GATE_LEVELS);
+    expect(result).toEqual({ met: false, progress: null });
   });
 });

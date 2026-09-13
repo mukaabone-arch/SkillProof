@@ -25,7 +25,8 @@ export interface PlanLimits {
   /** AI discussion-session (conversational assessor) starts allowed per month — separate metric/quota from assessmentsPerMonth (MCQ). See plans.config.ts. */
   discussionSessionsPerMonth: number | null;
   retakeCooldownDays: number;
-  retakesPerSkillLifetime: number;
+  /** null = unlimited — temporarily true on both tiers until 14 Nov 2026. See plans.config.ts's own comment. */
+  retakesPerSkillLifetime: number | null;
   /** When true (FREE today), self-serve MCQ attempts are locked to a single skill for life — see freeSkillLock below. */
   singleSkillRestriction: boolean;
   applicationsPerMonth: number | null;
@@ -48,6 +49,22 @@ export interface UsageEntry {
 /** Null before the candidate's first self-serve MCQ attempt, or when limits.singleSkillRestriction is false — see apps/api's EntitlementsResponse.freeSkillLock doc comment. */
 export type FreeSkillLock = { skillId: string; skillName: string } | null;
 
+export type ApplyGateLevel = 'L1' | 'L2' | 'L3';
+
+/**
+ * Mirrors apps/api's EntitlementsResponse.applyGate exactly — the same
+ * primitive that enforces the apply gate server-side, so a candidate sees
+ * their real standing (e.g. "L1 earned — L2 and L3 to go") before ever
+ * clicking Apply, not just after a rejected POST. `progress` is non-null
+ * even once `met` is true (levelsRemaining just comes back empty) — check
+ * `met` to decide whether there's anything to warn about, not `progress`.
+ */
+export interface ApplyGate {
+  requiredLevels: ApplyGateLevel[];
+  met: boolean;
+  progress: { skillId: string; skillName: string; levelsHeld: ApplyGateLevel[]; levelsRemaining: ApplyGateLevel[] } | null;
+}
+
 export interface EntitlementsResponse {
   tier: SubscriptionTier;
   limits: PlanLimits;
@@ -59,6 +76,7 @@ export interface EntitlementsResponse {
   freeSkillLock: FreeSkillLock;
   /** Mirrors the server's candidatePremiumEnabled flag — independent of `tier` (see apps/api's entitlements README). The /upgrade page's sole signal for live checkout vs. the "coming in November" notice. */
   premiumEnabled: boolean;
+  applyGate: ApplyGate;
 }
 
 interface EntitlementsState {
@@ -69,6 +87,8 @@ interface EntitlementsState {
   freeSkillLock: FreeSkillLock;
   /** null in the same two cases as `tier` — callers must not assume `false` while this is still unresolved. */
   premiumEnabled: boolean | null;
+  /** null in the same two cases as `tier` — callers must not assume "met" or "unmet" while this is still unresolved. */
+  applyGate: ApplyGate | null;
   loading: boolean;
   error: string | null;
 }
@@ -83,6 +103,7 @@ const EMPTY_STATE: EntitlementsState = {
   usage: null,
   freeSkillLock: null,
   premiumEnabled: null,
+  applyGate: null,
   loading: false,
   error: null,
 };
@@ -107,6 +128,7 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
         usage: res.usage,
         freeSkillLock: res.freeSkillLock,
         premiumEnabled: res.premiumEnabled,
+        applyGate: res.applyGate,
         loading: false,
         error: null,
       });

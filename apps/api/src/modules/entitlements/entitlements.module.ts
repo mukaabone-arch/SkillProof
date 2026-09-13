@@ -1,13 +1,14 @@
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AuthModule } from '../auth/auth.module';
+import { BadgesModule } from '../badges/badges.module';
 import { EntitlementsController } from './entitlements.controller';
 import { EntitlementsService } from './entitlements.service';
 import { EntitlementGuard } from './entitlement.guard';
 import { EntitlementRefundInterceptor } from './entitlement-refund.interceptor';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, BadgesModule],
   controllers: [EntitlementsController],
   providers: [
     EntitlementsService,

@@ -1,9 +1,14 @@
 import { AttemptStatus, SkillLevel, Subscription, SubscriptionStatus, SubscriptionTier } from '@prisma/client';
 import { EntitlementsService, periodStartOf, nextPeriodStartOf, resolveEffectiveTier } from './entitlements.service';
 import { EntitlementLimitException } from './entitlements.errors';
-import { AI_DISCUSSION_PROMO_LAUNCH_DATE, isAiDiscussionPromoActive } from '../../config/plans.config';
+import { AI_DISCUSSION_PROMO_LAUNCH_DATE, isAiDiscussionPromoActive, PLANS } from '../../config/plans.config';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Unrelated to the tests that don't care about the apply gate — default to "met" so nothing extra is asserted by accident. */
+function fakeBadgeResolver(overrides: Partial<{ met: boolean; progress: unknown }> = {}) {
+  return { resolveApplyGateProgress: jest.fn(async () => ({ met: true, progress: null, ...overrides })) };
+}
 
 function fakeSubscription(overrides: Partial<Subscription>): Subscription {
   return {
@@ -263,7 +268,7 @@ describe('EntitlementsService.checkAndIncrement', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     const first = await svc.checkAndIncrement('user-1', 'applications');
     expect(first.used).toBe(1);
@@ -278,7 +283,7 @@ describe('EntitlementsService.checkAndIncrement', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     for (let i = 0; i < 10; i++) await svc.checkAndIncrement('user-1', 'applications'); // now at limit=10
 
@@ -301,7 +306,7 @@ describe('EntitlementsService.checkAndIncrement', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.PREMIUM, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     for (let i = 1; i <= 10; i++) {
       const result = await svc.checkAndIncrement('user-1', 'assessments');
@@ -315,7 +320,7 @@ describe('EntitlementsService.checkAndIncrement', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     for (let i = 1; i <= 5; i++) {
       const result = await svc.checkAndIncrement('user-1', 'assessments');
@@ -330,7 +335,7 @@ describe('EntitlementsService.checkAndIncrement', () => {
     // way tier can vary is through what Subscription.findUnique returns.
     const { prisma } = fakePrisma();
     prisma.subscription.findUnique.mockResolvedValue(null); // no row → FREE
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     const result = await svc.checkAndIncrement('user-1', 'applications');
     expect(result.limit).toBe(10); // FREE's limit, even though nothing told it to be FREE explicitly
@@ -344,7 +349,7 @@ describe('EntitlementsService.checkAndIncrement', () => {
       prisma.subscription.findUnique.mockResolvedValue(
         fakeSubscription({ tier: SubscriptionTier.PREMIUM, status: SubscriptionStatus.ACTIVE }),
       );
-      const svc = new EntitlementsService(prisma as any);
+      const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
       const first = await svc.checkAndIncrement('user-1', 'discussionSessions');
       expect(first).toMatchObject({ used: 1, limit: 2 });
@@ -362,7 +367,7 @@ describe('EntitlementsService.checkAndIncrement', () => {
       prisma.subscription.findUnique.mockResolvedValue(
         fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
       );
-      const svc = new EntitlementsService(prisma as any);
+      const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
       const first = await svc.checkAndIncrement('user-1', 'discussionSessions');
       expect(first).toMatchObject({ used: 1, limit: 1 });
@@ -386,7 +391,7 @@ describe('EntitlementsService.checkAndIncrement', () => {
       prisma.subscription.findUnique.mockResolvedValue(
         fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
       );
-      const svc = new EntitlementsService(prisma as any);
+      const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
       await expect(svc.checkAndIncrement('user-1', 'discussionSessions')).rejects.toMatchObject({
         response: { code: 'LIMIT_REACHED', metric: 'discussionSessions', limit: 0 },
@@ -399,7 +404,7 @@ describe('EntitlementsService.checkAndIncrement', () => {
       prisma.subscription.findUnique.mockResolvedValue(
         fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
       );
-      const svc = new EntitlementsService(prisma as any);
+      const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
       await expect(svc.checkAndIncrement('user-1', 'discussionSessions')).rejects.toThrow(EntitlementLimitException);
       expect(usageCounterRows.size).toBe(0);
@@ -417,7 +422,7 @@ describe('EntitlementsService.getEntitlements', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     const result = await svc.getEntitlements('user-1');
     expect(result.limits.assessmentsPerMonth).toBeNull(); // unlimited on both tiers now
@@ -433,15 +438,51 @@ describe('EntitlementsService.getEntitlements', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     const result = await svc.getEntitlements('user-1');
     expect(result.limits.discussionSessionsPerMonth).toBe(0);
     expect(result.usage.discussionSessions.limit).toBe(0);
   });
+
+  it("includes applyGate, read straight from BadgeResolverService.resolveApplyGateProgress with no reinterpretation", async () => {
+    const { prisma } = fakePrisma();
+    prisma.subscription.findUnique.mockResolvedValue(
+      fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+    );
+    const progress = { skillId: 'skill-a', skillName: 'LLM Evaluation', levelsHeld: [SkillLevel.L1], levelsRemaining: [SkillLevel.L2, SkillLevel.L3] };
+    const badgeResolver = fakeBadgeResolver({ met: false, progress });
+    const svc = new EntitlementsService(prisma as any, badgeResolver as any);
+
+    const result = await svc.getEntitlements('user-1');
+    expect(result.applyGate).toEqual({
+      requiredLevels: [SkillLevel.L1, SkillLevel.L2, SkillLevel.L3],
+      met: false,
+      progress,
+    });
+    expect(badgeResolver.resolveApplyGateProgress).toHaveBeenCalledWith('user-1', [SkillLevel.L1, SkillLevel.L2, SkillLevel.L3]);
+  });
 });
 
 describe('EntitlementsService.checkRetakeEligibility', () => {
+  // retakesPerSkillLifetime is temporarily null (unlimited) on both tiers in
+  // the real PLANS config — see plans.config.ts's own comment on why (the
+  // interim window ahead of the 14 Nov skill-purchase launch). These tests
+  // exercise the cap-ENFORCEMENT mechanism itself, which still matters once
+  // that window ends, so they pin the pre-interim values (FREE 1, PREMIUM 3)
+  // for their own duration rather than depending on today's temporary
+  // config — restored after each test so it can't leak into others.
+  const originalFreeCap = PLANS.FREE.retakesPerSkillLifetime;
+  const originalPremiumCap = PLANS.PREMIUM.retakesPerSkillLifetime;
+  beforeEach(() => {
+    PLANS.FREE.retakesPerSkillLifetime = 1;
+    PLANS.PREMIUM.retakesPerSkillLifetime = 3;
+  });
+  afterEach(() => {
+    PLANS.FREE.retakesPerSkillLifetime = originalFreeCap;
+    PLANS.PREMIUM.retakesPerSkillLifetime = originalPremiumCap;
+  });
+
   function withAttempts(
     attempts: ReturnType<typeof fakePrisma>['attempts'],
     userId: string,
@@ -461,7 +502,7 @@ describe('EntitlementsService.checkRetakeEligibility', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     const result = await svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1);
     expect(result.attemptNumber).toBe(1);
@@ -473,7 +514,7 @@ describe('EntitlementsService.checkRetakeEligibility', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     const result = await svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1);
     expect(result.attemptNumber).toBe(2);
@@ -485,7 +526,7 @@ describe('EntitlementsService.checkRetakeEligibility', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     await expect(svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1)).rejects.toMatchObject({
       response: { code: 'LIMIT_REACHED', metric: 'retakesPerSkillLifetime', limit: 1, resetsAt: null },
@@ -508,7 +549,7 @@ describe('EntitlementsService.checkRetakeEligibility', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     // L3 has zero prior attempts of its own — never gated, regardless of
     // how many attempts L1/L2 separately hold.
@@ -522,7 +563,7 @@ describe('EntitlementsService.checkRetakeEligibility', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.PREMIUM, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     const result = await svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1);
     expect(result.attemptNumber).toBe(4); // 1 original + 3 retakes = 4th attempt, still within cap
@@ -534,7 +575,7 @@ describe('EntitlementsService.checkRetakeEligibility', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.PREMIUM, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     await expect(svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1)).rejects.toMatchObject({
       response: { code: 'LIMIT_REACHED', metric: 'retakesPerSkillLifetime', limit: 3, resetsAt: null },
@@ -569,7 +610,7 @@ describe('EntitlementsService.checkRetakeEligibility', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     // Without the lapse reset this would throw the lifetime cap; instead the
     // window reopens and the renewal attempt is allowed as attempt #3.
@@ -586,7 +627,7 @@ describe('EntitlementsService.checkRetakeEligibility', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     await expect(svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1)).rejects.toMatchObject({
       response: { code: 'LIMIT_REACHED', metric: 'retakesPerSkillLifetime', limit: 1, resetsAt: null },
@@ -600,7 +641,7 @@ describe('EntitlementsService.checkRetakeEligibility', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     await expect(svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1)).rejects.toMatchObject({
       response: { code: 'LIMIT_REACHED', metric: 'retakesPerSkillLifetime', limit: 1, resetsAt: null },
@@ -614,7 +655,7 @@ describe('EntitlementsService.checkRetakeEligibility', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     await expect(svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1)).rejects.toMatchObject({
       response: { code: 'LIMIT_REACHED', metric: 'retakesPerSkillLifetime', limit: 1, resetsAt: null },
@@ -628,10 +669,59 @@ describe('EntitlementsService.checkRetakeEligibility', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     await expect(svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L2)).rejects.toMatchObject({
       response: { code: 'LIMIT_REACHED', metric: 'retakesPerSkillLifetime', limit: 1, resetsAt: null },
+    });
+  });
+
+  describe('retakesPerSkillLifetime: null (unlimited) — the temporary interim window', () => {
+    it('never throws the lifetime cap no matter how many prior attempts exist, on FREE', async () => {
+      const { prisma, attempts } = fakePrisma();
+      PLANS.FREE.retakesPerSkillLifetime = null;
+      withAttempts(attempts, 'user-1', 'skill-1', SkillLevel.L1, [
+        { daysAgo: 40 }, { daysAgo: 30 }, { daysAgo: 20 }, { daysAgo: 10 }, { daysAgo: 5 },
+      ]);
+      prisma.subscription.findUnique.mockResolvedValue(
+        fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+      );
+      const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
+
+      const result = await svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1);
+      expect(result.attemptNumber).toBe(6);
+    });
+
+    it('never throws on PREMIUM either, and skips the badge-lapse lookup entirely (nothing to reset when there is no cap)', async () => {
+      const { prisma, attempts } = fakePrisma();
+      PLANS.PREMIUM.retakesPerSkillLifetime = null;
+      withAttempts(attempts, 'user-1', 'skill-1', SkillLevel.L1, [
+        { daysAgo: 40 }, { daysAgo: 30 }, { daysAgo: 20 }, { daysAgo: 10 }, { daysAgo: 5 },
+      ]);
+      prisma.subscription.findUnique.mockResolvedValue(
+        fakeSubscription({ tier: SubscriptionTier.PREMIUM, status: SubscriptionStatus.ACTIVE }),
+      );
+      const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
+
+      const result = await svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1);
+      expect(result.attemptNumber).toBe(6);
+      expect(prisma.badge.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('still enforces retakeCooldownDays independently — unlimited retakes is not the same as no cooldown', async () => {
+      const { prisma, attempts } = fakePrisma();
+      PLANS.FREE.retakesPerSkillLifetime = null;
+      PLANS.FREE.retakeCooldownDays = 2;
+      withAttempts(attempts, 'user-1', 'skill-1', SkillLevel.L1, [{ daysAgo: 0 }]); // today — cooldown not yet cleared
+      prisma.subscription.findUnique.mockResolvedValue(
+        fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
+      );
+      const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
+
+      await expect(svc.checkRetakeEligibility('user-1', 'skill-1', SkillLevel.L1)).rejects.toMatchObject({
+        response: { code: 'LIMIT_REACHED', metric: 'retakeCooldownDays' },
+      });
+      PLANS.FREE.retakeCooldownDays = 0; // restore — this field isn't covered by the describe-level afterEach above
     });
   });
 });
@@ -642,7 +732,7 @@ describe('EntitlementsService.refund', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.PREMIUM, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     await svc.checkAndIncrement('user-1', 'assessments'); // used=1
     await svc.checkAndIncrement('user-1', 'assessments'); // used=2
@@ -659,7 +749,7 @@ describe('EntitlementsService.refund', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     await svc.checkAndIncrement('user-1', 'assessments'); // used=1
     await svc.refund('user-1', 'assessments'); // used=0
@@ -675,7 +765,7 @@ describe('EntitlementsService.refund', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     await expect(svc.refund('user-1', 'assessments')).resolves.toBeUndefined();
     const entitlements = await svc.getEntitlements('user-1');
@@ -687,7 +777,7 @@ describe('EntitlementsService.refund', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     await svc.checkAndIncrement('user-1', 'assessments'); // used=1
     await svc.checkAndIncrement('user-1', 'assessments'); // used=2 (at FREE's limit)
@@ -733,7 +823,7 @@ describe('EntitlementsService.checkSkillLockEligibility', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.PREMIUM, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     await expect(svc.checkSkillLockEligibility('user-1', 'skill-a')).resolves.toBeUndefined();
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
@@ -744,7 +834,7 @@ describe('EntitlementsService.checkSkillLockEligibility', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     await expect(svc.checkSkillLockEligibility('user-1', 'skill-a')).resolves.toBeUndefined();
     expect(state.freeSkillLockId).toBe('skill-a');
@@ -755,7 +845,7 @@ describe('EntitlementsService.checkSkillLockEligibility', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     await expect(svc.checkSkillLockEligibility('user-1', 'skill-a')).resolves.toBeUndefined();
   });
@@ -765,7 +855,7 @@ describe('EntitlementsService.checkSkillLockEligibility', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     await expect(svc.checkSkillLockEligibility('user-1', 'skill-b')).rejects.toMatchObject({
       response: { code: 'LIMIT_REACHED', metric: 'singleSkillRestriction', limit: null, resetsAt: null },
@@ -777,7 +867,7 @@ describe('EntitlementsService.checkSkillLockEligibility', () => {
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
     );
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     await expect(svc.checkSkillLockEligibility('user-1', 'skill-a')).resolves.toBeUndefined();
     await expect(svc.checkSkillLockEligibility('user-1', 'skill-b')).resolves.toBeUndefined();
@@ -796,7 +886,7 @@ describe('EntitlementsService.checkSkillLockEligibility', () => {
       state.freeSkillLockId = 'skill-a';
       return [];
     });
-    const svc = new EntitlementsService(prisma as any);
+    const svc = new EntitlementsService(prisma as any, fakeBadgeResolver() as any);
 
     await expect(svc.checkSkillLockEligibility('user-1', 'skill-b')).rejects.toMatchObject({
       response: { code: 'LIMIT_REACHED', metric: 'singleSkillRestriction' },
