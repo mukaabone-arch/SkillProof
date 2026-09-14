@@ -3007,3 +3007,24 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   .lp-section { padding: 64px 0; }
   .lp-footer-inner { flex-direction: column; gap: 24px; }
 }
+
+/* ---- Cookie consent banner (AnalyticsGate/ConsentBanner) ---- */
+.consent-banner {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 200;
+  max-width: 520px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--ink-12);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-md);
+}
+.consent-banner-text { margin: 0; color: var(--ink); font-size: 0.92rem; line-height: 1.5; }
+.consent-banner-actions { display: flex; gap: 8px; }

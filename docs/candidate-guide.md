@@ -120,7 +120,7 @@ Sometimes a session is marked as not having given you a fair chance to show what
 
 There's no waiting period between attempts.
 
-On the free plan you get **two attempts at each skill and level** — your first, plus one retake. The count is per level, so passing L1 and moving to L2 starts fresh. If a badge expires, the counter effectively resets and only attempts after that expiry count.
+On the free plan the standing limit is **two attempts at each skill and level** — your first, plus one retake — but that's temporarily lifted to unlimited attempts until skill purchases launch later this year. The count is per level, so passing L1 and moving to L2 starts fresh. If a badge expires, the counter effectively resets and only attempts after that expiry count.
 
 ### Before you take your first test {#free-skill-lock}
 

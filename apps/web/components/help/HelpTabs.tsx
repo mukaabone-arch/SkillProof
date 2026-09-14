@@ -34,16 +34,31 @@
  * No sign-in check anywhere in this file or its parent page — both guides
  * must be reachable by a prospective candidate or employer before they have
  * an account.
+ *
+ * Content (2026-09-14 rework): both guides render live from
+ * docs/*.md via MarkdownGuide, not a hand-transcribed component — see
+ * helpGuideSource.ts's own doc comment for why. This component receives
+ * each guide's raw markdown + parsed table-of-contents as props from its
+ * Server Component parent (app/help/page.tsx, which reads the files off
+ * disk) rather than reading them itself, since this component needs
+ * client-side state (useSearchParams) for tab switching.
  */
 import { useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import BrandLockup from '../BrandLockup';
-import CandidateHelpGuide, { CANDIDATE_HELP_SECTIONS } from './CandidateHelpGuide';
-import EmployerHelpGuide, { EMPLOYER_HELP_SECTIONS } from './EmployerHelpGuide';
+import MarkdownGuide from './MarkdownGuide';
+import type { HelpSection } from '@/lib/helpGuideSource';
 
 type Audience = 'candidates' | 'employers';
 
-export default function HelpTabs() {
+interface Props {
+  candidateMarkdown: string;
+  candidateSections: HelpSection[];
+  employerMarkdown: string;
+  employerSections: HelpSection[];
+}
+
+export default function HelpTabs({ candidateMarkdown, candidateSections, employerMarkdown, employerSections }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const audience: Audience = searchParams.get('audience') === 'employers' ? 'employers' : 'candidates';
@@ -56,7 +71,8 @@ export default function HelpTabs() {
     [audience, router],
   );
 
-  const sections = audience === 'candidates' ? CANDIDATE_HELP_SECTIONS : EMPLOYER_HELP_SECTIONS;
+  const sections = audience === 'candidates' ? candidateSections : employerSections;
+  const markdown = audience === 'candidates' ? candidateMarkdown : employerMarkdown;
 
   return (
     <main className="lp-page lp-help-page">
@@ -107,7 +123,7 @@ export default function HelpTabs() {
           aria-labelledby={audience === 'candidates' ? 'help-tab-candidates' : 'help-tab-employers'}
           className="lp-legal-body"
         >
-          {audience === 'candidates' ? <CandidateHelpGuide /> : <EmployerHelpGuide />}
+          <MarkdownGuide markdown={markdown} />
         </article>
 
         <p className="lp-legal-footer">Mukaab Technologies Private Ltd.</p>

@@ -19,17 +19,26 @@
  * EntitlementsProvider (a true app-wide singleton — see its own doc
  * comment) nor the always-mounted LimitReachedModal should ever be
  * unmounted by that.
+ *
+ * AnalyticsGate is the same shape as LimitReachedModal — an always-mounted,
+ * app-wide singleton sitting outside the candidate-verification gate, so
+ * the consent banner (or the tag itself, once accepted) is reachable from
+ * every page regardless of sign-in/verification state. See its own doc
+ * comment for the environment + consent gating it does before anything
+ * actually loads.
  */
 import { ReactNode } from 'react';
 import { EntitlementsProvider } from '@/lib/entitlements';
 import { CandidateVerificationProvider } from '@/lib/candidateVerification';
 import LimitReachedModal from './LimitReachedModal';
+import AnalyticsGate from './AnalyticsGate';
 
 export default function Providers({ children }: { children: ReactNode }) {
   return (
     <EntitlementsProvider>
       <CandidateVerificationProvider>{children}</CandidateVerificationProvider>
       <LimitReachedModal />
+      <AnalyticsGate />
     </EntitlementsProvider>
   );
 }

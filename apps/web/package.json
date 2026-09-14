@@ -9,9 +9,13 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "^14.2.3",
+    "@next/third-parties": "^14.2.35",
+    "next": "^14.2.35",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "unist-util-visit": "^5.1.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

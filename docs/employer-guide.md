@@ -149,17 +149,7 @@ Marking someone hired, or closing without a hire, is final and asks you to confi
 
 On any shortlist card, "Assess candidate" asks that candidate to verify a whole skill — all three levels (Foundational, Practitioner, Advanced), attempted in any order. It's how you confirm a skill they haven't verified yet.
 
-**Cost depends on how far they get:**
-
-| Outcome | Charge |
-|---|---|
-| Doesn't start within 5 days | ₹0 — nothing added |
-| Starts but doesn't attempt all three levels within 14 days of starting | ₹177 (₹150 + GST) |
-| Attempts all three levels | ₹590 (₹500 + GST) |
-
-"Attempted" means a level produced a result — pass or fail — not that they passed it. There's no payment at the time either way: the eventual charge is added to your organisation's next monthly invoice once it's known. You'll confirm you understand this before the request goes out.
-
-**If they already hold a badge for a level,** that level is free — it still counts toward "all three attempted."
+**Cost depends on how far the candidate gets.** You'll see the exact amount and confirm it before the request goes out.
 
 **What you see per level, as each one finishes:**
 
@@ -174,7 +164,7 @@ You'll never see the questions, their individual answers, or the conversation.
 |---|---|
 | Awaiting start | Sent. Five days to start any level. |
 | In progress | At least one level started. |
-| Result ready | Settled — every level attempted, or the 14-day window closed. Results are on the card. |
+| Result ready | Settled — every level has a result (pass or fail), or the 14-day window closed. Results are on the card. |
 | Expired — not billed | Didn't start any level in time. No charge. |
 | Already verified | Held badges at every level already. No charge. |
 
