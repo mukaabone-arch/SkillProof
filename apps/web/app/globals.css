@@ -2424,6 +2424,13 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   width: min(100% - 48px, 1200px); margin: 0 auto; height: 72px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
 }
+/* .brand-lockup-hero carries hero-card spacing (bottom margin, top-aligned
+   text) that a fixed-height bar can't absorb — recentre and drop the margin
+   here instead of touching the shared rule. */
+.lp-header-inner .brand-lockup-hero {
+  align-items: center;
+  margin-bottom: 0;
+}
 .lp-nav { display: flex; align-items: center; gap: 28px; }
 .lp-nav-link {
   color: var(--ink); text-decoration: none;
