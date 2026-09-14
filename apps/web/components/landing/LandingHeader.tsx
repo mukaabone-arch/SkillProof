@@ -17,7 +17,7 @@
  * shrinking the lockup.
  */
 import { useEffect, useState } from 'react';
-import Image from 'next/image';
+import BrandLockup from '@/components/BrandLockup';
 
 interface Props {
   /** Candidate sign-in target (see the landing page's own constant + report). */
@@ -40,10 +40,7 @@ export default function LandingHeader({ candidateHref, employerHref }: Props) {
   return (
     <header className={`lp-header${scrolled ? ' is-scrolled' : ''}`}>
       <div className="lp-header-inner">
-        <a href="#top" className="lp-brand" aria-label="MyAmbii home" onClick={() => setMenuOpen(false)}>
-          <Image src="/Myambii-Logo-64px.png" alt="" width={64} height={64} className="brand-logo-hero" priority />
-          <span className="brand-product-name">MyAmbii</span>
-        </a>
+        <BrandLockup variant="hero" href="/" ariaLabel="MyAmbii home" onClick={() => setMenuOpen(false)} />
 
         <button
           type="button"

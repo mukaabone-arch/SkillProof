@@ -614,7 +614,7 @@ code { font-family: var(--font-body); }
    mark+wordmark tokens down to compensate (40px/1.15rem, vs. the 64px/2rem
    default) has been removed: auth cards now render the same full size as
    every other .brand-lockup-hero consumer (footer, LegalStub,
-   LandingHeader's own .lp-brand). */
+   LandingHeader). */
 .brand-lockup-hero-text { display: flex; flex-direction: column; justify-content: flex-start; }
 .brand-lockup-hero-suffix {
   /* var(--text-lg), not the old bare 0.9rem literal — reads as a proper
@@ -2424,9 +2424,6 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   width: min(100% - 48px, 1200px); margin: 0 auto; height: 72px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
 }
-.lp-brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; }
-.lp-brand:hover { text-decoration: none; }
-.lp-brand .brand-product-name { color: var(--ink); }
 .lp-nav { display: flex; align-items: center; gap: 28px; }
 .lp-nav-link {
   color: var(--ink); text-decoration: none;
@@ -2439,15 +2436,6 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   align-items: center; justify-content: center; cursor: pointer;
 }
 .lp-menu-icon { font-size: 1.1rem; line-height: 1; }
-/* Same fix the app navs use (.appnav-logo .brand-product-name at 640px), but
-   .lp-brand is its own class so it can't reuse that nav/topbar-scoped rule —
-   it needs its own. Below 640px the ~278px lockup + wordmark + menu button
-   overflowed the viewport (worst at 320px) and clipped the button off the
-   right edge; dropping the wordmark frees the horizontal space while the logo
-   stays at its fixed hero size (never compressed). The menu button already
-   shows at ≤860px, so this is strictly below where the row still fits. */
-@media (max-width: 640px) {
-}
 
 /* ---- Hero ---- */
 .lp-hero {

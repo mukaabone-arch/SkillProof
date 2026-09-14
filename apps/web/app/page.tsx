@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import LandingHeader from '@/components/landing/LandingHeader';
 import NewsStrip from '@/components/landing/NewsStrip';
 import ConsentSettingsLink from '@/components/ConsentSettingsLink';
+import BrandLockup from '@/components/BrandLockup';
 
 /**
  * Marketing landing page — served at the domain root ("/"). The candidate
@@ -190,8 +190,7 @@ export default function LandingPage() {
         <div className="lp-container lp-footer-inner">
           <div className="lp-footer-brand">
             <div className="lp-footer-lockup">
-              <Image src="/Myambii-Logo-64px.png" alt="" width={64} height={64} className="brand-logo-hero" />
-              <span className="brand-product-name">MyAmbii</span>
+              <BrandLockup variant="hero" />
             </div>
             <p className="lp-footer-company">Mukaab Technologies Private Limited</p>
             <p className="lp-footer-copy">© {new Date().getFullYear()} Mukaab Technologies Private Limited</p>

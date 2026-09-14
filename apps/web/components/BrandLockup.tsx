@@ -26,6 +26,11 @@ import Link from 'next/link';
  * transient mid-auth screen). ariaLabel is only passed where the link
  * target is genuinely "home" (`/`) — nav links to a dashboard/admin route
  * never carry one, matching every consumer surveyed.
+ *
+ * onClick is optional and only meaningful with href set (LandingHeader's
+ * mobile-menu-closing lockup — see that component — is the one consumer
+ * that needs it; every other href'd consumer is a plain navigation with
+ * nothing else to run on click).
  */
 interface Props {
   variant: 'nav' | 'hero';
@@ -34,11 +39,12 @@ interface Props {
   /** nav: "MyAmbii Admin" inline. hero: "MyAmbii" / "Employers" stacked.
    *  Omitted renders plain "MyAmbii". */
   suffix?: 'Admin' | 'Employers';
+  onClick?: () => void;
 }
 
 const MARK_SRC = '/Myambii-Logo-64px.png';
 
-export default function BrandLockup({ variant, href, ariaLabel, suffix }: Props) {
+export default function BrandLockup({ variant, href, ariaLabel, suffix, onClick }: Props) {
   const wrapperClassName =
     variant === 'nav' ? 'appnav-logo' : `brand-lockup-hero${href ? ' brand-lockup-link' : ''}`;
   const markClassName = variant === 'nav' ? 'brand-logo' : 'brand-logo-hero';
@@ -75,7 +81,7 @@ export default function BrandLockup({ variant, href, ariaLabel, suffix }: Props)
   }
 
   return (
-    <Link href={href} className={wrapperClassName} aria-label={ariaLabel}>
+    <Link href={href} className={wrapperClassName} aria-label={ariaLabel} onClick={onClick}>
       {content}
     </Link>
   );
