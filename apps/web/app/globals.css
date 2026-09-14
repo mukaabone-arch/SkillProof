@@ -2691,8 +2691,30 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .lp-footer-company { color: var(--ink); font-weight: 600; margin-top: 8px; }
 .lp-footer-copy { color: var(--ink-30); font-size: 0.8rem; margin-top: 4px; }
 .lp-footer-links { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
-.lp-footer-links a { color: var(--ink-60); text-decoration: none; font-size: 0.9rem; }
-.lp-footer-links a:hover { color: var(--ink); text-decoration: underline; }
+/* ConsentSettingsLink renders a <button> (it triggers withdrawal + reload,
+   not navigation) in among the footer's <a> links. Reset first — declared
+   ahead of the shared .lp-footer-links a rule below on purpose, so that
+   rule's actual colour/size values win the cascade tie on this selector
+   instead of the `inherit` placeholders here. */
+.lp-footer-consent-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+/* Shared with the button above rather than duplicating these values on a
+   second selector — this is the one place they're declared for either
+   element type. font-weight is explicit here, not left to `font: inherit`
+   above, because it isn't actually equivalent for the two element types:
+   the <a>'s 600 comes from this app's global `a { font-weight: 600 }` base
+   rule (globals.css:403), which a <button> never matches — without this,
+   the button's `font: inherit` pulls 400 from its <nav> ancestor instead,
+   the exact mismatch this rule exists to close. Verified via
+   getComputedStyle, not assumed. */
+.lp-footer-links a, .lp-footer-consent-link { color: var(--ink-60); text-decoration: none; font-size: 0.9rem; font-weight: 600; }
+.lp-footer-links a:hover, .lp-footer-consent-link:hover { color: var(--ink); text-decoration: underline; }
 
 /* ---- Contact form (/contact) ----
    Its own route, styled in the .lp-* namespace so it reads as part of the

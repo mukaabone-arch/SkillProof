@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import LandingHeader from '@/components/landing/LandingHeader';
 import NewsStrip from '@/components/landing/NewsStrip';
+import ConsentSettingsLink from '@/components/ConsentSettingsLink';
 
 /**
  * Marketing landing page — served at the domain root ("/"). The candidate
@@ -203,6 +204,7 @@ export default function LandingPage() {
             <a href="/refunds" target="_blank" rel="noopener noreferrer">Refund Policy</a>
             <a href="/faq">FAQs</a>
             <a href="/help" target="myambii-help" rel="noopener">Help</a>
+            <ConsentSettingsLink />
           </nav>
         </div>
       </footer>

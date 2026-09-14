@@ -6,7 +6,10 @@ export default function ConsentBanner({ onAccept, onDecline }: { onAccept: () =>
     <div className="consent-banner" role="dialog" aria-label="Cookie consent">
       <p className="consent-banner-text">
         We&apos;d like to use Google Analytics to understand how MyAmbii is used. Nothing is tracked unless you
-        accept.
+        accept, and you can change your mind at any time.{' '}
+        <a href="/privacy" target="_blank" rel="noopener noreferrer" className="consent-banner-link">
+          Privacy Policy
+        </a>
       </p>
       <div className="consent-banner-actions">
         <button type="button" onClick={onAccept}>Accept</button>
