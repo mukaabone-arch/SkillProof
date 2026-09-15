@@ -31,6 +31,7 @@ import { ReactNode } from 'react';
 import { EntitlementsProvider } from '@/lib/entitlements';
 import { CandidateVerificationProvider } from '@/lib/candidateVerification';
 import LimitReachedModal from './LimitReachedModal';
+import AssessmentBlockedModal from './AssessmentBlockedModal';
 import AnalyticsGate from './AnalyticsGate';
 
 export default function Providers({ children }: { children: ReactNode }) {
@@ -38,6 +39,7 @@ export default function Providers({ children }: { children: ReactNode }) {
     <EntitlementsProvider>
       <CandidateVerificationProvider>{children}</CandidateVerificationProvider>
       <LimitReachedModal />
+      <AssessmentBlockedModal />
       <AnalyticsGate />
     </EntitlementsProvider>
   );

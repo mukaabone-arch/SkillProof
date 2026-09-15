@@ -199,6 +199,14 @@ export class ReviewAttemptDto {
   note?: string;
 }
 
+/** The only way an AssessmentBlock's bar is lifted early — see AdminService.liftAssessmentBlock. */
+export class LiftAssessmentBlockDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  note?: string;
+}
+
 /**
  * Manual tier assignment — foundation work for testing entitlements before
  * any payment provider exists. See EntitlementsService.setTierManually.

@@ -13,6 +13,7 @@ import {
   CreateAssessmentDto,
   CreateQuestionDto,
   DecideOrgVerificationDto,
+  LiftAssessmentBlockDto,
   ListAttemptsQueryDto,
   ListOrgsQueryDto,
   ReviewAttemptDto,
@@ -387,6 +388,75 @@ export class AdminService {
    * re-opening one is a separate, deliberate employer action once they're
    * back in, not an automatic side effect of this.
    */
+  /**
+   * All AssessmentBlock rows, most recent first — the audit history is
+   * never deleted (see that model's own doc comment), so this always
+   * includes lifted and expired blocks too, not just currently-active
+   * ones, which is what lets an admin see both the raw counts (how many
+   * ever raised) and how many were lifted on appeal. No pagination, same
+   * convention as listAttemptsForReview/listOrgs.
+   */
+  async listAssessmentBlocks() {
+    const blocks = await this.prisma.assessmentBlock.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: { select: { id: true, phone: true, email: true, profile: { select: { fullName: true } } } },
+        skill: { select: { name: true } },
+        liftedByUser: { select: { id: true, email: true, phone: true } },
+      },
+    });
+
+    const attemptIds = [...new Set(blocks.flatMap((b) => b.triggerAttemptIds))];
+    const attempts = attemptIds.length
+      ? await this.prisma.attempt.findMany({
+          where: { id: { in: attemptIds } },
+          select: { id: true, createdAt: true, integrityFlagCount: true, assessment: { select: { title: true } } },
+        })
+      : [];
+    const attemptsById = new Map(attempts.map((a) => [a.id, a]));
+
+    return {
+      summary: {
+        totalRaised: blocks.length,
+        totalLifted: blocks.filter((b) => b.liftedAt).length,
+        currentlyActive: blocks.filter((b) => !b.liftedAt && b.expiresAt > new Date()).length,
+      },
+      blocks: blocks.map((b) => ({
+        ...b,
+        triggerAttempts: b.triggerAttemptIds.map((id) => attemptsById.get(id) ?? null),
+      })),
+    };
+  }
+
+  /**
+   * The only way an AssessmentBlock's bar is lifted early — same
+   * "set/null the pair, never delete the row" convention as
+   * Organization.deactivatedAt/deactivatedByUserId below (reactivateOrg).
+   * Unlike reactivateOrg this doesn't null the "raised" side back out —
+   * startedAt/reason/triggerAttemptIds are permanent history; only
+   * liftedAt/liftedByUserId/liftedNote are ever written after creation.
+   */
+  async liftAssessmentBlock(blockId: string, adminUserId: string, dto: LiftAssessmentBlockDto) {
+    const block = await this.prisma.assessmentBlock.findUnique({ where: { id: blockId } });
+    if (!block) throw new NotFoundException('Assessment block not found');
+    if (block.liftedAt) throw new BadRequestException('This block has already been lifted.');
+
+    const updated = await this.prisma.assessmentBlock.update({
+      where: { id: blockId },
+      data: { liftedAt: new Date(), liftedByUserId: adminUserId, liftedNote: dto.note ?? null },
+    });
+
+    try {
+      await this.prisma.adminAccessLog.create({
+        data: { adminUserId, action: 'ASSESSMENT_BLOCK_LIFTED', targetType: 'AssessmentBlock', targetId: blockId },
+      });
+    } catch (err) {
+      this.logger.error(`Failed to write AdminAccessLog for ASSESSMENT_BLOCK_LIFTED: ${(err as Error).message}`);
+    }
+
+    return updated;
+  }
+
   async reactivateOrg(orgId: string, adminUserId: string) {
     const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
     if (!org) throw new NotFoundException('Organization not found');

@@ -18,6 +18,7 @@ import {
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RecordIntegrityEventDto } from './assessments.dto';
+import { AssessmentBlockedException } from './assessment-blocked.exception';
 import { badgeExpiresAt, BadgeResolverService, deriveLevelStates, LEVEL_ORDER } from '../badges/badge-resolver.service';
 import { AssessmentSessionsService } from '../assessment-sessions/assessment-sessions.service';
 import { DISCUSSION_DURATION_MINS, DISCUSSION_SLUG, SKILL_LEVEL as DISCUSSION_LEVEL, SKILL_NAME as DISCUSSION_SKILL_NAME } from '../assessment-sessions/rag-systems-l2.rubric';
@@ -37,6 +38,28 @@ const RELEVANCE_TOP_JOBS = 5;
  */
 const INTEGRITY_FLAG_THRESHOLD = Number(process.env.INTEGRITY_FLAG_THRESHOLD) || 5;
 const NON_FLAGGING_EVENT_TYPES = new Set<IntegrityEventType>([IntegrityEventType.TAB_FOCUS]);
+
+/**
+ * Event types that count toward an AssessmentBlock (2026-09) — deliberately
+ * a much smaller set than "flag-worthy" above. Pasting and copying are
+ * intentional; TAB_BLUR, RAPID_ANSWER, FULLSCREEN_EXIT and RIGHT_CLICK are
+ * ambiguous and routinely innocent (a notification, checking the time, a
+ * candidate who reads ahead — see checkRapidAnswer's own doc comment).
+ * PRINT_SCREEN is excluded too: it's an explicitly partial signal (misses
+ * every OS-level screenshot tool — see IntegrityEventType's own doc
+ * comment), so including it would punish the least sophisticated attempt at
+ * cheating while missing every competent one. A block has a real cost to a
+ * job applicant that FLAGGED does not, so its trigger needs a higher
+ * evidential bar than "more than 5 events of almost any kind."
+ */
+const BLOCKING_EVENT_TYPES = new Set<IntegrityEventType>([IntegrityEventType.PASTE_ATTEMPT, IntegrityEventType.COPY_ATTEMPT]);
+
+/** How many BLOCKING_EVENT_TYPES events one attempt must accumulate to count as a "failing" attempt for AssessmentBlock purposes. Separate from and higher than INTEGRITY_FLAG_THRESHOLD — see BLOCKING_EVENT_TYPES's own doc comment on why. */
+const INTEGRITY_BLOCK_EVENT_THRESHOLD = Number(process.env.INTEGRITY_BLOCK_EVENT_THRESHOLD) || 3;
+/** How long a raised AssessmentBlock bars new MCQ attempts. */
+const INTEGRITY_BLOCK_DURATION_MS = Number(process.env.INTEGRITY_BLOCK_DURATION_MS) || 24 * 60 * 60 * 1000;
+/** DECIDE 2 (2026-09): "twice" means two failing attempts for the same skill, across any level, within this rolling window — matches how Attempt.attemptNumber is already scoped ("across every level of that skill"). A lifetime scope would mean one bad day follows a candidate forever. */
+const INTEGRITY_BLOCK_SCOPE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Below this many milliseconds since the questions were served, an answer is
@@ -454,6 +477,16 @@ export class AssessmentsService {
       await this.entitlements.refund(userId, 'assessments');
       return active;
     }
+
+    // AssessmentBlock gate (2026-09) — checked only for genuinely new
+    // attempts (after the idempotent active-attempt return above), so a
+    // block raised mid-attempt never terminates one already in progress;
+    // it only bars starting the next one. Applies regardless of
+    // skipLevelAndRetakeChecks — an employer-triggered MCQ attempt is still
+    // an MCQ attempt, and the block is about the candidate, not the
+    // request. Conversational (AssessmentSession) attempts are never
+    // touched — see AssessmentBlock's own schema doc comment.
+    await this.assertNotBlocked(userId);
 
     // Profile-readiness gate — "profile is step one." Same rule as
     // CandidateJobsService.apply's PROFILE_INCOMPLETE check (name + a
@@ -907,15 +940,29 @@ export class AssessmentsService {
    * Always writes the audit row; only "flag-worthy" types advance the counter
    * or can flip integrityStatus. The client never sets either directly.
    *
-   * This only ever moves CLEAN → FLAGGED. An attempt is never auto-failed or
-   * auto-blocked here — FLAGGED just means "needs admin review" (see
-   * AdminService.listAttemptsForReview / reviewAttempt); grading, badge
-   * issuance, and the certificate page all proceed normally regardless.
+   * This only ever moves CLEAN → FLAGGED. This attempt itself is never
+   * auto-failed or auto-invalidated here — FLAGGED just means "needs admin
+   * review" (see AdminService.listAttemptsForReview / reviewAttempt);
+   * grading, badge issuance, and the certificate page all proceed normally
+   * regardless. (2026-09: a BLOCKING_EVENT_TYPES event can, separately,
+   * eventually bar the *candidate* from starting a future attempt — see
+   * maybeRaiseIntegrityBlock below — but that is a much higher bar than
+   * FLAGGED and never touches this attempt's own status/grading.)
    */
   private async addIntegrityEvent(attemptId: string, type: IntegrityEventType, metadata?: unknown): Promise<void> {
     await this.prisma.integrityEvent.create({
       data: { attemptId, type, metadata: metadata as Prisma.InputJsonValue },
     });
+
+    if (BLOCKING_EVENT_TYPES.has(type)) {
+      try {
+        await this.maybeRaiseIntegrityBlock(attemptId);
+      } catch (err) {
+        // Integrity bookkeeping must never fail the candidate's answer/event
+        // submission — same contract as checkRapidAnswer's own try/catch.
+        this.logger.warn(`AssessmentBlock check failed for attempt ${attemptId}: ${(err as Error).message}`);
+      }
+    }
 
     if (NON_FLAGGING_EVENT_TYPES.has(type)) return;
 
@@ -930,6 +977,84 @@ export class AssessmentsService {
         data: { integrityStatus: IntegrityStatus.FLAGGED },
       });
     }
+  }
+
+  /**
+   * Bars starting a genuinely new MCQ attempt while an active,
+   * not-yet-lifted AssessmentBlock exists (see startAttempt's own call
+   * site for why this is skipped on the idempotent "resume" branch).
+   * Global, not skill-scoped — deliberate acts on one skill are evidence
+   * about the candidate, not the skill (see AssessmentBlock's own schema
+   * doc comment).
+   */
+  private async assertNotBlocked(userId: string): Promise<void> {
+    const active = await this.prisma.assessmentBlock.findFirst({
+      where: { userId, liftedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { expiresAt: 'desc' },
+    });
+    if (active) throw new AssessmentBlockedException(active.expiresAt);
+  }
+
+  /**
+   * Raises a time-boxed AssessmentBlock once a candidate has TWO attempts —
+   * this one plus an earlier one, for the same skill, within the rolling
+   * INTEGRITY_BLOCK_SCOPE_WINDOW_MS window (DECIDE 2) — that each
+   * independently reach INTEGRITY_BLOCK_EVENT_THRESHOLD BLOCKING_EVENT_TYPES
+   * events. A single failing attempt never blocks; see BLOCKING_EVENT_TYPES'
+   * own doc comment for why the bar sits above INTEGRITY_FLAG_THRESHOLD.
+   *
+   * Idempotent against every subsequent blocking event on the same or a
+   * later attempt: if the candidate already has an active, not-yet-lifted
+   * block, this is a no-op rather than raising a redundant second one.
+   */
+  private async maybeRaiseIntegrityBlock(attemptId: string): Promise<void> {
+    const blockingCount = await this.prisma.integrityEvent.count({
+      where: { attemptId, type: { in: [...BLOCKING_EVENT_TYPES] } },
+    });
+    if (blockingCount < INTEGRITY_BLOCK_EVENT_THRESHOLD) return;
+
+    const attempt = await this.prisma.attempt.findUnique({
+      where: { id: attemptId },
+      select: { userId: true, assessment: { select: { skillId: true } } },
+    });
+    if (!attempt) return;
+
+    const alreadyBlocked = await this.prisma.assessmentBlock.findFirst({
+      where: { userId: attempt.userId, liftedAt: null, expiresAt: { gt: new Date() } },
+    });
+    if (alreadyBlocked) return;
+
+    const windowStart = new Date(Date.now() - INTEGRITY_BLOCK_SCOPE_WINDOW_MS);
+    const otherAttempts = await this.prisma.attempt.findMany({
+      where: {
+        userId: attempt.userId,
+        id: { not: attemptId },
+        createdAt: { gte: windowStart },
+        assessment: { skillId: attempt.assessment.skillId },
+      },
+      select: { id: true },
+    });
+    if (otherAttempts.length === 0) return;
+
+    const counts = await this.prisma.integrityEvent.groupBy({
+      by: ['attemptId'],
+      where: { attemptId: { in: otherAttempts.map((a) => a.id) }, type: { in: [...BLOCKING_EVENT_TYPES] } },
+      _count: { _all: true },
+    });
+    const secondFailing = counts.find((c) => c._count._all >= INTEGRITY_BLOCK_EVENT_THRESHOLD);
+    if (!secondFailing) return;
+
+    await this.prisma.assessmentBlock.create({
+      data: {
+        userId: attempt.userId,
+        skillId: attempt.assessment.skillId,
+        expiresAt: new Date(Date.now() + INTEGRITY_BLOCK_DURATION_MS),
+        triggerAttemptIds: [secondFailing.attemptId, attemptId],
+        reason:
+          `Two attempts within ${Math.round(INTEGRITY_BLOCK_SCOPE_WINDOW_MS / (24 * 60 * 60 * 1000))} days each reached ` +
+          `${INTEGRITY_BLOCK_EVENT_THRESHOLD}+ deliberate (paste/copy) integrity signals.`,
+      },
+    });
   }
 
   private async issueBadge(userId: string, attemptId: string, skillId: string, level: any, attemptNumber: number) {

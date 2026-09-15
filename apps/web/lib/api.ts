@@ -16,6 +16,7 @@
  * route handler proxy, to remove them from JS-readable storage (XSS defense).
  */
 import { emitLimitReached, LimitReachedPayload } from './limitReachedBus';
+import { emitAssessmentBlocked } from './assessmentBlockedBus';
 import { emitCandidateVerificationIncomplete } from './candidateVerificationBus';
 import { emitCandidateTokenChange } from './tokenChangeBus';
 
@@ -42,6 +43,11 @@ export interface ApiError extends Error {
  * is what keeps this specific error from ever surfacing as a raw message
  * in some page's generic error state: by the time any .catch() downstream
  * of this function would render it, the provider has already reacted.
+ *
+ * And for 403 { code: 'ASSESSMENT_BLOCKED' } (2026-09,
+ * AssessmentsService.assertNotBlocked) — publishes to
+ * assessmentBlockedBus, which the app-wide AssessmentBlockedModal is the
+ * sole subscriber of, same architecture as LIMIT_REACHED above.
  */
 function buildApiError(status: number, body: any): ApiError {
   const err = new Error(body?.message ?? `Request failed: ${status}`) as ApiError;
@@ -57,6 +63,9 @@ function buildApiError(status: number, body: any): ApiError {
   }
   if (status === 400 && body?.code === 'CANDIDATE_VERIFICATION_INCOMPLETE') {
     emitCandidateVerificationIncomplete();
+  }
+  if (status === 403 && body?.code === 'ASSESSMENT_BLOCKED') {
+    emitAssessmentBlocked({ expiresAt: body.expiresAt });
   }
   return err;
 }

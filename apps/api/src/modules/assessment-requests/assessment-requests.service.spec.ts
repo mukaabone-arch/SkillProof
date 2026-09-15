@@ -14,6 +14,7 @@ function fakePrisma() {
     { id: 'attempt-l3', assessmentId: 'assessment-l3', status: AttemptStatus.IN_PROGRESS, badge: null },
   ];
   const sessions: any[] = [{ id: 'session-1', status: AssessmentSessionStatus.IN_PROGRESS, badge: null }];
+  const assessmentBlocks: any[] = [];
   let nextId = 1;
 
   return {
@@ -120,6 +121,12 @@ function fakePrisma() {
     },
     billingProfile: {
       findUnique: jest.fn(async ({ where }: any) => ({ id: where.id, gstStateCode: null })),
+    },
+    _assessmentBlocks: assessmentBlocks,
+    assessmentBlock: {
+      findMany: jest.fn(async ({ where }: any) =>
+        assessmentBlocks.filter((b) => b.userId === where.userId && b.startedAt < new Date() && b.expiresAt > where.expiresAt.gt),
+      ),
     },
   };
 
@@ -508,6 +515,59 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
         expect.objectContaining({ level: L2, attemptId: null, alreadyBadged: false }),
         expect.objectContaining({ level: L3, alreadyBadged: true }),
       ]);
+    });
+  });
+
+  describe('DECIDE 4(b) — integrity blocks do not pause timers, but are surfaced on the employer-facing record', () => {
+    it('reports no overlap when the candidate has never been blocked', async () => {
+      const { service } = makeService();
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+
+      const result = await service.getForEmployer('org-1', created.requestId);
+
+      expect(result.integrityBlockOverlap).toEqual([]);
+    });
+
+    it('surfaces an AssessmentBlock whose window overlaps the request, with dates only — never reason/triggerAttemptIds', async () => {
+      const { service, prisma } = makeService();
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const startedAt = new Date(Date.now() - 60 * 60 * 1000);
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+      prisma._assessmentBlocks.push({
+        userId: 'user-candidate-1',
+        startedAt,
+        expiresAt,
+        liftedAt: null,
+        reason: 'two failing attempts',
+        triggerAttemptIds: ['attempt-x', 'attempt-y'],
+      });
+
+      const result = await service.getForEmployer('org-1', created.requestId);
+
+      expect(result.integrityBlockOverlap).toEqual([{ startedAt, expiresAt, lifted: false }]);
+    });
+
+    it("does not change the settlement job's PARTIAL/COMPLETE base amounts — a block is visible, never silently priced in", async () => {
+      const { service, prisma, transactions } = makeService();
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      prisma._assessmentBlocks.push({
+        userId: 'user-candidate-1',
+        startedAt: new Date(Date.now() - 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        liftedAt: null,
+        reason: 'test',
+        triggerAttemptIds: [],
+      });
+      await service.startFromRequest(created.requestId, L1, 'user-candidate-1');
+      const request = prisma._requests.find((r: any) => r.id === created.requestId);
+      request.startedAt = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000); // past the 14-day settlement deadline
+
+      await service.getForEmployer('org-1', created.requestId); // triggers reconcile -> settle('PARTIAL')
+
+      expect(transactions.recordSystemTransaction).toHaveBeenCalledWith(
+        'billing-profile-1',
+        expect.objectContaining({ amountPaise: 17700 }), // ₹150 + 18% GST, unaffected by the overlapping block
+      );
     });
   });
 });

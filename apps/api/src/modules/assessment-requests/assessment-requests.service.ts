@@ -327,6 +327,8 @@ export class AssessmentRequestsService {
    * keeps "only the requesting employer sees score and breakdown" true.
    */
   private async withEmployerOutcome(request: any) {
+    const integrityBlockOverlap = await this.findOverlappingBlocks(request.candidateId, request.createdAt);
+
     if (request.level !== null) {
       const passed = request.status === AssessmentRequestStatus.COMPLETED ? !!request.badgeId : null;
       let scorePercent: number | null = null;
@@ -336,7 +338,7 @@ export class AssessmentRequestsService {
         scorePercent = scored.scorePercent;
         topicBreakdown = scored.topicBreakdown;
       }
-      return { ...request, passed, scorePercent, topicBreakdown };
+      return { ...request, passed, scorePercent, topicBreakdown, integrityBlockOverlap };
     }
 
     const children = await this.prisma.assessmentRequestLevel.findMany({
@@ -362,7 +364,41 @@ export class AssessmentRequestsService {
         };
       }),
     );
-    return { ...request, levels };
+    return { ...request, levels, integrityBlockOverlap };
+  }
+
+  /**
+   * Whether any AssessmentBlock for this candidate overlapped the window
+   * from this request's creation through now — DECIDE 4(b) (2026-09-15):
+   * a raised block does NOT pause AssessmentRequest.expiresAt/startedAt
+   * (deliberately deferred until the settlement path has live production
+   * history — revisit once real Razorpay-era settlement data exists, or
+   * sooner if false-positive blocks turn out to be common), so a wrongly-
+   * blocked candidate can still move what an employer is charged. This is
+   * what surfaces that possibility on the request record itself, rather
+   * than leaving an admin to separately discover it when a charge is
+   * disputed — see AssessmentBlock's own schema doc comment.
+   *
+   * Global, not skill-scoped, matching AssessmentBlock's own enforcement
+   * scope: a block raised by an unrelated skill's attempts still ate into
+   * this request's clock exactly the same as one from this skill would
+   * have. Dates only, deliberately — never `reason`/`triggerAttemptIds`,
+   * which stay admin-only (see AssessmentBlockedException's own doc
+   * comment on why detected behaviours never leak to a third party either).
+   */
+  private async findOverlappingBlocks(
+    candidateId: string,
+    windowStart: Date,
+  ): Promise<{ startedAt: Date; expiresAt: Date; lifted: boolean }[]> {
+    const profile = await this.prisma.candidateProfile.findUnique({ where: { id: candidateId }, select: { userId: true } });
+    if (!profile) return [];
+
+    const blocks = await this.prisma.assessmentBlock.findMany({
+      where: { userId: profile.userId, startedAt: { lt: new Date() }, expiresAt: { gt: windowStart } },
+      select: { startedAt: true, expiresAt: true, liftedAt: true },
+      orderBy: { startedAt: 'asc' },
+    });
+    return blocks.map((b) => ({ startedAt: b.startedAt, expiresAt: b.expiresAt, lifted: !!b.liftedAt }));
   }
 
   /** Candidate-facing: every request made about them, most recent first — pending invitations and history both, so the client can filter/section as it likes. */

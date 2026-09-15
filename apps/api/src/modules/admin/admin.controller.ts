@@ -22,6 +22,7 @@ import {
   CreateAssessmentDto,
   CreateQuestionDto,
   DecideOrgVerificationDto,
+  LiftAssessmentBlockDto,
   ListAccountActionsQueryDto,
   ListAttemptsQueryDto,
   ListOrgsQueryDto,
@@ -100,6 +101,18 @@ export class AdminController {
     @Body() dto: ReviewAttemptDto,
   ) {
     return this.svc.reviewAttempt(id, req.user.sub, dto);
+  }
+
+  /** AssessmentBlock rows, most recent first, with trigger attempts and a raised/lifted/active summary. */
+  @Get('assessment-blocks')
+  listAssessmentBlocks() {
+    return this.svc.listAssessmentBlocks();
+  }
+
+  /** The only way an AssessmentBlock's bar is lifted early — no self-service path exists. */
+  @Patch('assessment-blocks/:id/lift')
+  liftAssessmentBlock(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: LiftAssessmentBlockDto) {
+    return this.svc.liftAssessmentBlock(id, req.user.sub, dto);
   }
 
   /** Foundation work for testing entitlements before any payment provider exists — see EntitlementsModule's README. */

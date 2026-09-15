@@ -359,6 +359,8 @@ model User {
   orgVerificationsSubmitted Organization[]      @relation("OrgVerificationSubmittedBy")
   orgVerificationsDecided   Organization[]      @relation("OrgVerificationDecidedBy")
   orgsDeactivated           Organization[]      @relation("OrgDeactivatedBy")
+  assessmentBlocks          AssessmentBlock[]   @relation("AssessmentBlockUser")
+  assessmentBlocksLifted    AssessmentBlock[]   @relation("AssessmentBlockLiftedBy")
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
@@ -756,9 +758,9 @@ model CandidateProfile {
    * employer already paid for that specific skill, so it must not consume
    * or be gated by the candidate's own free skill.
    */
-  freeSkillLockId    String?
-  freeSkillLock      Skill?    @relation("FreeSkillLock", fields: [freeSkillLockId], references: [id])
-  freeSkillLockedAt  DateTime?
+  freeSkillLockId       String?
+  freeSkillLock         Skill?    @relation("FreeSkillLock", fields: [freeSkillLockId], references: [id])
+  freeSkillLockedAt     DateTime?
   /**
    * One-time grandfather flag for candidates who, at the moment this
    * restriction shipped, already had MCQ attempts across more than one
@@ -768,7 +770,7 @@ model CandidateProfile {
    * stripping access to ones they'd already legitimately used under the
    * old unlimited-skills rule.
    */
-  freeSkillLockExempt Boolean  @default(false)
+  freeSkillLockExempt   Boolean   @default(false)
   /**
    * Internal/QA candidate account (team-created, not a real candidate) —
    * settable independently of subscription state, not derived from
@@ -782,7 +784,6 @@ model CandidateProfile {
    * the phone-only +919136070166 signup — see that migration for the
    * candidateProfile ids), or by whatever admin path grants/revokes it
    * going forward.
-   *
    * Consumed today by candidateVisibilityFilter (account.util.ts) — every
    * employer-facing candidate view already built on that shared filter
    * (CandidatesService.search, MatchingService.getMatches,
@@ -792,7 +793,7 @@ model CandidateProfile {
    * such counts or analytics exist in this codebase today — but the field
    * is the intended marker for both once they do.
    */
-  isInternalTestAccount Boolean @default(false)
+  isInternalTestAccount Boolean   @default(false)
 
   skillClaims           SkillClaim[]
   applications          Application[]
@@ -1212,7 +1213,6 @@ model Transaction {
  * DocumentsService.reserveAndCreate) — never a manual choice, and never
  * revisited after generation even if the profile is later updated (see
  * Document's own snapshot fields).
- *
  * An org's monthly ASSESSMENT_REQUEST_ACCRUAL invoice is always
  * TAX_INVOICE, unconditionally — NOT the same gstin-presence branch (see
  * DocumentsService.reserveAndCreateForOrgPeriod). Two independent reasons,
@@ -1225,7 +1225,6 @@ model Transaction {
  * entering the org's GSTIN yet (AssessmentRequestBillingProfileService
  * auto-creates the BillingProfile with gstin left null — that's an
  * intake gap to fill in later, not a signal this is a B2C sale).
- *
  * Kept as two numbering series rather than one (see DocumentSequence) —
  * Rule 46 permits either; separate series keeps a B2B invoice register
  * trivially separable from B2C receipts for GSTR-1 purposes.
@@ -1303,7 +1302,6 @@ model DocumentSequence {
  * to. This mirrors Transaction.placeOfSupplyStateCode's own doc comment
  * ("a later admin correction... must never retroactively change what an
  * already-recorded transaction says it used").
- *
  * One-to-many with Transaction (see that model's own documentId doc
  * comment for why the FK moved there in the 2026-09 prepaid -> postpaid
  * change): a SUBSCRIPTION_CHARGE Document still covers exactly one
@@ -1313,7 +1311,6 @@ model DocumentSequence {
  * reserveAndCreateForOrgPeriod) — basePaise/gstPaise/etc. below are the SUM
  * across whichever set this is, and the rendered PDF's line-item table
  * (see document-pdf.builder.ts) has one row per covered Transaction.
- *
  * Generation is two-phase, deliberately split across two different
  * atomicity domains — see DocumentsGenerationJob:
  * 1. Number + row creation (reserveAndCreate /
@@ -1425,12 +1422,13 @@ model Skill {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  claims             SkillClaim[]
-  assessments        Assessment[]
-  jobSkills          JobSkill[]
-  badges             Badge[]
-  assessmentRequests AssessmentRequest[]
-  freeLockedByProfiles CandidateProfile[] @relation("FreeSkillLock")
+  claims               SkillClaim[]
+  assessments          Assessment[]
+  jobSkills            JobSkill[]
+  badges               Badge[]
+  assessmentRequests   AssessmentRequest[]
+  assessmentBlocks     AssessmentBlock[]
+  freeLockedByProfiles CandidateProfile[]  @relation("FreeSkillLock")
 
   @@unique([domainId, name])
 }
@@ -2055,19 +2053,18 @@ enum AssessmentRequestStatus {
  * AssessmentRequestsService for the full state machine. This model is
  * deliberately a thin data record — every transition lives in the service,
  * not here.
- *
  * Two shapes coexist, discriminated by `level` (2026-09-14, outcome-priced
  * rework):
  * - Legacy (`level` set): one specific skill+level, accrues its flat
- *   ₹150+GST Transaction the moment it's created (see `transactionId`'s own
- *   doc comment) — the original shape, frozen forever for rows that predate
- *   the rework. Never created by new code; only ever read.
+ * ₹150+GST Transaction the moment it's created (see `transactionId`'s own
+ * doc comment) — the original shape, frozen forever for rows that predate
+ * the rework. Never created by new code; only ever read.
  * - Whole-skill (`level: null`): one whole skill across all three levels
- *   (see `levels: AssessmentRequestLevel[]` below, one child per level,
- *   all three created upfront and immediately attemptable in any order).
- *   No Transaction exists until settlement — the charge (₹0/₹150+GST/
- *   ₹500+GST) depends on how many levels the candidate ends up attempting,
- *   which isn't known at creation. See AssessmentRequestsService.settle.
+ * (see `levels: AssessmentRequestLevel[]` below, one child per level,
+ * all three created upfront and immediately attemptable in any order).
+ * No Transaction exists until settlement — the charge (₹0/₹150+GST/
+ * ₹500+GST) depends on how many levels the candidate ends up attempting,
+ * which isn't known at creation. See AssessmentRequestsService.settle.
  */
 model AssessmentRequest {
   id String @id @default(uuid())
@@ -2105,7 +2102,6 @@ model AssessmentRequest {
    * excluding a request from invoicing and a GST document both need "the
    * one Transaction for this specific charge," not a query over every
    * charge this org has ever made.
-   *
    * Legacy rows: set inside create(), in the same write as this row's own
    * creation (2026-09, prepaid -> postpaid switch: previously set inside
    * verifyAndCreate, only once Razorpay had actually confirmed payment —
@@ -2113,7 +2109,6 @@ model AssessmentRequest {
    * requested, not a payment that no longer happens here at all). Null
    * only for ALREADY_BADGED and for any row created before this column
    * existed.
-   *
    * Whole-skill rows: null from creation through the entire 5-day-start and
    * 14-day-settlement window — there is nothing to accrue until the charge
    * amount is actually known (see this model's own doc comment on why).
@@ -2138,7 +2133,9 @@ model AssessmentRequest {
    */
   startedAt DateTime?
 
-  /** Legacy rows only — the one attempt/session/badge for the one level. Null (and unused) on a whole-skill row; see `levels` below instead. */
+  /**
+   * Legacy rows only — the one attempt/session/badge for the one level. Null (and unused) on a whole-skill row; see `levels` below instead.
+   */
   attemptId String?            @unique
   attempt   Attempt?           @relation(fields: [attemptId], references: [id])
   sessionId String?            @unique
@@ -2146,7 +2143,9 @@ model AssessmentRequest {
   badgeId   String?            @unique
   badge     Badge?             @relation(fields: [badgeId], references: [id])
 
-  /** Whole-skill rows only — exactly three children (one per SkillLevel), created upfront at request time. Empty on a legacy row. */
+  /**
+   * Whole-skill rows only — exactly three children (one per SkillLevel), created upfront at request time. Empty on a legacy row.
+   */
   levels AssessmentRequestLevel[]
 
   createdAt DateTime @default(now())
@@ -2185,9 +2184,9 @@ model AssessmentRequestLevel {
    * launchLinkedAssessment path the legacy single-level flow already uses,
    * just parameterized by level instead of assumed singular.
    */
-  attemptId String?  @unique
-  attempt   Attempt? @relation(fields: [attemptId], references: [id])
-  sessionId String?             @unique
+  attemptId String?            @unique
+  attempt   Attempt?           @relation(fields: [attemptId], references: [id])
+  sessionId String?            @unique
   session   AssessmentSession? @relation(fields: [sessionId], references: [id])
   /**
    * Set directly at creation (no attempt/session at all) when the
@@ -2195,8 +2194,8 @@ model AssessmentRequestLevel {
    * AssessmentRequest's own doc comment on the per-level ALREADY_BADGED
    * pre-check. Otherwise set once this level's attempt/session resolves.
    */
-  badgeId String? @unique
-  badge   Badge?  @relation(fields: [badgeId], references: [id])
+  badgeId   String?            @unique
+  badge     Badge?             @relation(fields: [badgeId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2609,6 +2608,60 @@ model IntegrityEvent {
   @@index([attemptId])
 }
 
+/// A time-boxed bar on starting MCQ attempts, raised automatically when a
+/// candidate accumulates deliberate integrity signals (BLOCKING_EVENT_TYPES
+/// in AssessmentsService — currently PASTE_ATTEMPT/COPY_ATTEMPT only, never
+/// TAB_BLUR/RAPID_ANSWER/FULLSCREEN_EXIT/RIGHT_CLICK/PRINT_SCREEN, which are
+/// routinely innocent) across two attempts for the same skill within a
+/// rolling 7-day window. Unlike IntegrityEvent (an audit trail) this IS a
+/// verdict — its trigger threshold (INTEGRITY_BLOCK_EVENT_THRESHOLD) is
+/// deliberately separate from and higher than INTEGRITY_FLAG_THRESHOLD,
+/// because a block has a real cost to a job applicant that FLAGGED (a human
+/// looks at it) does not.
+///
+/// Enforcement is global, not skill-scoped (skillId below records only what
+/// triggered it): a raised block bars starting any new MCQ attempt for any
+/// skill, but never terminates an attempt already in progress, and never
+/// touches signing in, browsing/applying to jobs, viewing existing badges,
+/// or conversational (AssessmentSession) attempts — see
+/// AssessmentsService.assertNotBlocked.
+///
+/// Does NOT pause AssessmentRequest.expiresAt/startedAt (2026-09 DECIDE 4:
+/// deliberately left unpaused — see assessment-requests.service.ts's own
+/// note on why touching that arithmetic was deferred until the settlement
+/// path has live production history). A block's overlap with a request's
+/// window is instead computed live at read time, so the employer/admin-
+/// facing charge is never silently unexplained.
+///
+/// Never deleted; an admin lifting a block sets liftedAt/liftedByUserId so
+/// the history survives — see AdminService.liftAssessmentBlock, same
+/// "set/null the pair, never delete the row" convention as
+/// Organization.deactivatedAt/deactivatedByUserId.
+model AssessmentBlock {
+  id      String  @id @default(uuid())
+  userId  String
+  user    User    @relation("AssessmentBlockUser", fields: [userId], references: [id])
+  /// The skill whose two failing attempts triggered this block — informational only, never an enforcement filter (see this model's own doc comment).
+  skillId String?
+  skill   Skill?  @relation(fields: [skillId], references: [id])
+
+  startedAt DateTime @default(now())
+  expiresAt DateTime
+
+  /// The two attempts whose BLOCKING_EVENT_TYPES counts triggered this, for admin review and appeal.
+  triggerAttemptIds String[]
+  reason            String
+
+  liftedAt       DateTime?
+  liftedByUserId String?
+  liftedByUser   User?     @relation("AssessmentBlockLiftedBy", fields: [liftedByUserId], references: [id])
+  liftedNote     String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
+}
+
 /**
  * Server-recorded "this question was served to the candidate at this time"
  * — one row per (attempt, question), created when the question set is first
@@ -2798,10 +2851,10 @@ model AssessmentSession {
   createdAt        DateTime                 @default(now())
   updatedAt        DateTime                 @updatedAt
 
-  turns             SessionTurn[]
-  interruptions     SessionInterruption[]
-  claimVerdicts     ClaimVerdict[]
-  disputes          ClaimDispute[]
+  turns                  SessionTurn[]
+  interruptions          SessionInterruption[]
+  claimVerdicts          ClaimVerdict[]
+  disputes               ClaimDispute[]
   liveClaimFeedback      LiveClaimFeedback[]
   badge                  Badge?
   assessmentRequest      AssessmentRequest?
