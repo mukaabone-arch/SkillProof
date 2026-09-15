@@ -13,11 +13,11 @@ const LINKS = [
   { href: '/assessments', label: 'Assessments' },
   { href: '/jobs', label: 'Jobs' },
   { href: '/interviews', label: 'Interviews' },
-  // Opens in its own named tab, never this one — see HelpTabs.tsx's own
-  // doc comment on why the help pages carry no way back into the app.
+  // Opens in its own named tab, never this one — see HelpGuidePage.tsx's
+  // own doc comment on why the help pages carry no way back into the app.
   // Never the `active` link below as a result: pathname in this tab can
-  // never actually become /help.
-  { href: '/help?audience=candidates', label: 'Help', newTab: true },
+  // never actually become /help/candidate.
+  { href: '/help/candidate', label: 'Help', newTab: true },
 ];
 
 interface Props {

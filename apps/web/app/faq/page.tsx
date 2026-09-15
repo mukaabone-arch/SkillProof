@@ -66,7 +66,8 @@ export default function FaqPage() {
           </h1>
           <p className="lp-prose-body" style={{ marginBottom: 20 }}>
             Looking for a full walkthrough instead? See the{' '}
-            <Link href="/help" target="myambii-help" rel="noopener">Help guide</Link> for candidates and employers.
+            <Link href="/help/candidate" target="myambii-help" rel="noopener">candidate</Link> or{' '}
+            <Link href="/help/employer" target="myambii-help" rel="noopener">employer</Link> help guide.
           </p>
           <div className="lp-faq">
             {FAQS.map(({ q, a }) => (

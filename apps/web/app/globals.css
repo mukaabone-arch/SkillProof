@@ -404,6 +404,20 @@ a { color: var(--indigo); font-weight: 600; text-decoration: none; }
 a:hover { text-decoration: underline; }
 nav { font-size: 0.95rem; }
 .row { display: flex; gap: 10px; margin-bottom: 16px; }
+/* A flex child defaults to min-width: auto, i.e. "never shrink below my
+   content" — so capping the input alone isn't enough while its row still
+   sizes to the unshrunk width. */
+.row > * {
+  min-width: 0;
+}
+/* Native file inputs have a browser-default intrinsic width (~377px in
+   Chromium) that ignores their container and won't shrink. Unclamped, one
+   forces horizontal overflow on any viewport narrower than that — which is
+   every phone. Global rather than per-class: every file input in the app
+   has the same latent problem, including resume upload. */
+input[type='file'] {
+  max-width: 100%;
+}
 .error { color: var(--error); font-size: 0.9rem; }
 .ok { color: var(--success); font-weight: 600; }
 pre {

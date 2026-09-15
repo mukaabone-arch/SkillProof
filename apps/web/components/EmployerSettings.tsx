@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { employerApi } from '@/lib/api';
+import ConsentSettingsLink from '@/components/ConsentSettingsLink';
 import { Badge } from '@/components/ui';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { formatOrgIndustry, OrgIndustry, ORG_INDUSTRY_OPTIONS } from '@/lib/orgIndustry';
@@ -290,6 +291,23 @@ export default function EmployerSettings() {
   return (
     <main className="container-standard">
       <h1>Settings</h1>
+
+      {/* Personal, not org-wide — every member gets this, not just admins,
+          and it doesn't wait on org/team data to load. The consent banner
+          (Providers -> AnalyticsGate, root layout) is what first records a
+          decision, but it's a one-time prompt — this is the only place to
+          revisit it afterward. It used to exist only in the landing page's
+          own footer (app/page.tsx), unreachable without leaving the portal;
+          DPDP expects withdrawal to be at least as easy as giving consent,
+          so it belongs wherever a signed-in user would actually look for a
+          privacy control. */}
+      <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, marginBottom: 24 }}>
+        <strong>Privacy</strong>
+        <p className="meta" style={{ margin: 0 }}>
+          See our <Link href="/privacy">Privacy Policy</Link> for what analytics we collect and why.
+        </p>
+        <ConsentSettingsLink />
+      </div>
 
       {error && <p className="error">{error}</p>}
       {!error && !org && <p className="meta">Loading…</p>}

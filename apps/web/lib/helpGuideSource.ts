@@ -27,15 +27,15 @@ function parseSections(markdown: string): HelpSection[] {
 
 /**
  * Loads one of docs/*.md (candidate-guide.md, employer-guide.md) as the
- * live source for /help — see CandidateHelpGuide.tsx's git history for the
- * hand-transcription this replaced (2026-09), which drifted from its own
- * source twice. `sections` is parsed straight from the file's own h2
- * `{#id}` anchors rather than a second, separately-maintained array, so
- * the table of contents can never list a section the body doesn't have (or
- * vice versa) again.
+ * live source for /help/candidate and /help/employer — see
+ * CandidateHelpGuide.tsx's git history for the hand-transcription this
+ * replaced (2026-09), which drifted from its own source twice. `sections`
+ * is parsed straight from the file's own h2 `{#id}` anchors rather than a
+ * second, separately-maintained array, so the table of contents can never
+ * list a section the body doesn't have (or vice versa) again.
  *
- * The file's own leading `# Title` and intro paragraph are dropped — the
- * /help page already renders its own "Help" heading and audience tabs
+ * The file's own leading `# Title` and intro paragraph are dropped — each
+ * route already renders its own heading (HelpGuidePage's `title` prop)
  * immediately above this content, so the doc's own title would be a
  * visible duplicate. Everything from the first `##` onward is kept as-is.
  *

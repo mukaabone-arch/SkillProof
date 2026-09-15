@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, logout, type ApiError } from '@/lib/api';
 import CandidateNav from '@/components/CandidateNav';
+import ConsentSettingsLink from '@/components/ConsentSettingsLink';
 import { Badge, Card, ErrorState, LoadingState } from '@/components/ui';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 
@@ -523,6 +524,21 @@ export default function AccountSettingsPage() {
         {!status && !loadError && <LoadingState />}
 
         <LoginMethodsCard />
+
+        {/* The consent banner (Providers -> AnalyticsGate, root layout) is
+            what first records a decision, but it's a one-time prompt — this
+            is the only place to revisit it afterward. It used to exist only
+            in the landing page's own footer (app/page.tsx), unreachable
+            without leaving the portal; DPDP expects withdrawal to be at
+            least as easy as giving consent, so it belongs wherever a
+            signed-in candidate would actually look for a privacy control. */}
+        <Card style={{ marginBottom: 32 }}>
+          <h2 style={{ marginTop: 0 }}>Privacy</h2>
+          <p>
+            See our <Link href="/privacy">Privacy Policy</Link> for what analytics we collect and why.
+          </p>
+          <ConsentSettingsLink />
+        </Card>
 
         {status && SHOW_DATA_EXPORT_UI && <ExportsCard />}
 
