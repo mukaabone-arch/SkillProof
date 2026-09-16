@@ -25,6 +25,7 @@ import {
   LiftAssessmentBlockDto,
   ListAccountActionsQueryDto,
   ListAttemptsQueryDto,
+  ListCandidatesQueryDto,
   ListOrgsQueryDto,
   ReviewAttemptDto,
   SetSubscriptionDto,
@@ -113,6 +114,12 @@ export class AdminController {
   @Patch('assessment-blocks/:id/lift')
   liftAssessmentBlock(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: LiftAssessmentBlockDto) {
     return this.svc.liftAssessmentBlock(id, req.user.sub, dto);
+  }
+
+  /** Candidate Management — list view (2026-09). Returns bulk candidate PII, so every access is logged (see AdminService.listCandidates' own doc comment). */
+  @Get('candidates')
+  listCandidates(@Req() req: AuthenticatedRequest, @Query() query: ListCandidatesQueryDto) {
+    return this.svc.listCandidates(req.user.sub, query);
   }
 
   /** Foundation work for testing entitlements before any payment provider exists — see EntitlementsModule's README. */

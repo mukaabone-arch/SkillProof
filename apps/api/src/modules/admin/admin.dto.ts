@@ -7,6 +7,7 @@ import {
   SubscriptionStatus,
   SubscriptionTier,
 } from '@prisma/client';
+import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -250,4 +251,35 @@ export class DecideOrgVerificationDto {
   @IsString()
   @MaxLength(1000)
   rejectionReason?: string;
+}
+
+/** GET /admin/candidates — see AdminService.listCandidates. Same @Transform-driven numeric-query-param pattern as BrowseJobsDto. */
+export class ListCandidatesQueryDto {
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined ? 1 : Number(value)))
+  @IsInt()
+  @Min(1)
+  page: number = 1;
+
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined ? 25 : Number(value)))
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  pageSize: number = 25;
+
+  /** Matches email, phone, and name — case-insensitive, partial, trimmed. */
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MaxLength(200)
+  search?: string;
+
+  @IsOptional()
+  @IsEnum(['createdAt', 'lastActivityAt'])
+  sort: 'createdAt' | 'lastActivityAt' = 'createdAt';
+
+  @IsOptional()
+  @IsEnum(['asc', 'desc'])
+  order: 'asc' | 'desc' = 'desc';
 }

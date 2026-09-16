@@ -2587,6 +2587,13 @@ model Attempt {
   questionsServed        QuestionServedAt[]
   assessmentRequest      AssessmentRequest?
   assessmentRequestLevel AssessmentRequestLevel?
+
+  // Postgres doesn't auto-index FK columns the way MySQL does — added
+  // 2026-09 alongside the admin Candidate Management list, whose
+  // lastActivityAt/attemptCount queries are userId-scoped lookups against
+  // this table on every page load. checkRetakeEligibility's own
+  // userId-scoped findMany benefits from this too.
+  @@index([userId])
 }
 
 /**

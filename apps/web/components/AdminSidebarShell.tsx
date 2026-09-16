@@ -55,6 +55,10 @@ const GROUPS: NavGroup[] = [
     items: [{ kind: 'link', href: '/admin/orgs', label: 'Verification Requests' }],
   },
   {
+    label: 'Candidates',
+    items: [{ kind: 'link', href: '/admin/candidates', label: 'Candidate Management' }],
+  },
+  {
     label: 'Billing',
     items: [
       { kind: 'link', href: '/admin/billing', label: 'Billing Profiles' },
@@ -66,7 +70,6 @@ const GROUPS: NavGroup[] = [
     items: [
       { kind: 'disabled', label: 'User Management' },
       { kind: 'disabled', label: 'Organization Management' },
-      { kind: 'disabled', label: 'Candidate Management' },
       { kind: 'disabled', label: 'Recruitment Management' },
       { kind: 'disabled', label: 'AI Governance' },
       { kind: 'disabled', label: 'Security Center' },

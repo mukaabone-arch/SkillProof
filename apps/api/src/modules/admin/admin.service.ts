@@ -8,6 +8,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { renderNotificationEmail } from '../notifications/notification-email.template';
 import { WEB_BASE_URL } from '../../config/web-base-url';
 import { notifyOrgMembers } from '../orgs/notify-org-members';
+import { isCandidateVerified, missingVerificationFields } from '../auth/candidate-verification-readiness';
 import {
   BulkQuestionItemDto,
   CreateAssessmentDto,
@@ -15,6 +16,7 @@ import {
   DecideOrgVerificationDto,
   LiftAssessmentBlockDto,
   ListAttemptsQueryDto,
+  ListCandidatesQueryDto,
   ListOrgsQueryDto,
   ReviewAttemptDto,
   SetSubscriptionDto,
@@ -388,6 +390,144 @@ export class AdminService {
    * re-opening one is a separate, deliberate employer action once they're
    * back in, not an automatic side effect of this.
    */
+  // ---------- Candidate Management ----------
+
+  /**
+   * GET /admin/candidates — list view only (2026-09); payment details,
+   * access-control and assessment-issue panels are deliberately out of
+   * scope for this slice, but every row links to /admin/candidates/:id so
+   * those can land on a detail page later without retrofitting navigation.
+   *
+   * Every signed-up candidate, at every verification stage, including
+   * incomplete (DECIDE 2) — someone who never verified a phone is exactly
+   * who this list exists to surface, not someone to filter out by default.
+   * `verified`/`missingVerification` are derived the same way
+   * CandidateVerificationGuard itself does (isCandidateVerified /
+   * missingVerificationFields — presence-implies-verified, see that
+   * file's own doc comment), not a second, parallel check that could drift.
+   *
+   * `lastActivityAt` (DECIDE 1a) is derived, not tracked: the max of
+   * Attempt.createdAt, AttemptAnswer.createdAt and Badge.issuedAt (Badge
+   * has no createdAt of its own — issuedAt is its creation timestamp) for
+   * that candidate, computed here rather than stored — works retroactively
+   * for every existing candidate, at the cost of never reflecting a visit
+   * where nothing was attempted. Named for exactly what it measures — see
+   * this DTO's own field, and the frontend's "—" rendering for null,
+   * never a fallback to signup date (a candidate who never attempted
+   * anything must never read as "last active on signup day").
+   *
+   * `authMethod` is derived from Identity rows, not guessed from which of
+   * phone/email happen to be set (those can both end up populated
+   * regardless of how the account started, via /auth/link/*). Identity
+   * rows are only ever written by OAuth login (loginWithIdentity) —
+   * IdentityProvider.PHONE is declared in the enum but never used anywhere
+   * in this codebase, so "no Identity row" reliably means "phone or email
+   * OTP," never "phone OTP specifically" without also checking which of
+   * the two is actually set.
+   *
+   * One raw $queryRaw for the page (search + the three-way lastActivityAt
+   * max + counts + block flag in a single query, avoiding an N+1 across
+   * the page's rows) plus one cheap COUNT(*) for the total — see this
+   * method's own doc comment on why a plain Prisma query was awkward here.
+   * Tagged template throughout, exactly like entitlements.service.ts's own
+   * $queryRaw usage — `search` is always a parameterized value, never
+   * concatenated; the only interpolated *fragment* (sort column/direction)
+   * comes from an already class-validator-@IsEnum-checked DTO field, never
+   * from the raw query string.
+   */
+  async listCandidates(adminUserId: string, dto: ListCandidatesQueryDto) {
+    const offset = (dto.page - 1) * dto.pageSize;
+    const searchTerm = dto.search?.trim();
+    const searchPattern = searchTerm ? `%${escapeLikePattern(searchTerm)}%` : null;
+
+    const searchClause = searchPattern
+      ? Prisma.sql`AND (u.email ILIKE ${searchPattern} ESCAPE '\' OR u.phone ILIKE ${searchPattern} ESCAPE '\' OR cp."fullName" ILIKE ${searchPattern} ESCAPE '\')`
+      : Prisma.empty;
+
+    const orderClause =
+      dto.sort === 'lastActivityAt'
+        ? Prisma.sql`"lastActivityAt" ${dto.order === 'asc' ? Prisma.raw('ASC') : Prisma.raw('DESC')} NULLS LAST`
+        : Prisma.sql`u."createdAt" ${dto.order === 'asc' ? Prisma.raw('ASC') : Prisma.raw('DESC')}`;
+
+    const [rows, totalRows] = await Promise.all([
+      this.prisma.$queryRaw<CandidateRow[]>(Prisma.sql`
+        SELECT
+          u.id AS "userId",
+          u.phone,
+          u.email,
+          u."createdAt",
+          cp."fullName",
+          (
+            SELECT MAX(t."at") FROM (
+              SELECT "createdAt" AS "at" FROM "Attempt" WHERE "userId" = u.id
+              UNION ALL
+              SELECT aa."createdAt" AS "at" FROM "AttemptAnswer" aa JOIN "Attempt" a ON a.id = aa."attemptId" WHERE a."userId" = u.id
+              UNION ALL
+              SELECT "issuedAt" AS "at" FROM "Badge" WHERE "userId" = u.id
+            ) t
+          ) AS "lastActivityAt",
+          (SELECT COUNT(*)::int FROM "Attempt" WHERE "userId" = u.id) AS "attemptCount",
+          (SELECT COUNT(*)::int FROM "Badge" WHERE "userId" = u.id) AS "badgeCount",
+          EXISTS (
+            SELECT 1 FROM "AssessmentBlock" ab WHERE ab."userId" = u.id AND ab."liftedAt" IS NULL AND ab."expiresAt" > now()
+          ) AS "blocked",
+          COALESCE(
+            (SELECT array_agg(DISTINCT i.provider) FROM "Identity" i WHERE i."userId" = u.id),
+            ARRAY[]::"IdentityProvider"[]
+          ) AS "identityProviders"
+        FROM "User" u
+        LEFT JOIN "CandidateProfile" cp ON cp."userId" = u.id
+        WHERE u.role = 'CANDIDATE'
+        ${searchClause}
+        ORDER BY ${orderClause}
+        LIMIT ${dto.pageSize} OFFSET ${offset}
+      `),
+      this.prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`
+        SELECT COUNT(*) AS count
+        FROM "User" u
+        LEFT JOIN "CandidateProfile" cp ON cp."userId" = u.id
+        WHERE u.role = 'CANDIDATE'
+        ${searchClause}
+      `),
+    ]);
+
+    try {
+      await this.prisma.adminAccessLog.create({
+        data: {
+          adminUserId,
+          action: 'CANDIDATE_LIST_VIEWED',
+          targetType: 'CandidateList',
+          targetId: searchTerm ? `search:${searchTerm}` : `page:${dto.page}`,
+        },
+      });
+    } catch (err) {
+      this.logger.error(`Failed to write AdminAccessLog for CANDIDATE_LIST_VIEWED: ${(err as Error).message}`);
+    }
+
+    return {
+      total: Number(totalRows[0]?.count ?? 0),
+      page: dto.page,
+      pageSize: dto.pageSize,
+      candidates: rows.map((r) => {
+        const missing = missingVerificationFields({ phone: r.phone, email: r.email });
+        return {
+          id: r.userId,
+          name: r.fullName,
+          email: r.email,
+          phone: r.phone,
+          createdAt: r.createdAt,
+          verified: isCandidateVerified({ phone: r.phone, email: r.email }),
+          missingVerification: missing,
+          authMethod: resolveAuthMethod(r.identityProviders, r.phone, r.email),
+          lastActivityAt: r.lastActivityAt,
+          attemptCount: r.attemptCount,
+          badgeCount: r.badgeCount,
+          blocked: r.blocked,
+        };
+      }),
+    };
+  }
+
   /**
    * All AssessmentBlock rows, most recent first — the audit history is
    * never deleted (see that model's own doc comment), so this always
@@ -502,4 +642,38 @@ export class AdminService {
 /** Employer-authored free text (org name, rejection reason) landing in an HTML email body — same local escape as JobsService's own, not shared, since neither module exports one today. */
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** listCandidates' raw query row shape — snake-free, matches the SQL's own column aliases exactly. */
+interface CandidateRow {
+  userId: string;
+  phone: string | null;
+  email: string | null;
+  createdAt: Date;
+  fullName: string | null;
+  lastActivityAt: Date | null;
+  attemptCount: number;
+  badgeCount: number;
+  blocked: boolean;
+  identityProviders: string[];
+}
+
+/** Escapes ILIKE's own wildcard characters (and the escape character itself) in a user-supplied search term, so a literal "%" or "_" in a search box searches for that literal character rather than being treated as a wildcard. Paired with `ESCAPE '\'` in the query. Unrelated to SQL-injection safety, which the tagged template already guarantees on its own. */
+function escapeLikePattern(s: string): string {
+  return s.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+/**
+ * See listCandidates' own doc comment on why this reads Identity rows
+ * rather than guessing from phone/email presence. GOOGLE/GITHUB take
+ * priority over phone/email OTP even if the candidate later linked a
+ * phone or email to that OAuth account — this reports how the account
+ * itself authenticates, not merely which identifiers happen to exist.
+ */
+function resolveAuthMethod(identityProviders: string[], phone: string | null, email: string | null): string {
+  if (identityProviders.includes('GOOGLE')) return 'Google';
+  if (identityProviders.includes('GITHUB')) return 'GitHub';
+  if (phone) return 'Phone OTP';
+  if (email) return 'Email OTP';
+  return 'Unknown';
 }
