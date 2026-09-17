@@ -26,6 +26,16 @@
  * every page regardless of sign-in/verification state. See its own doc
  * comment for the environment + consent gating it does before anything
  * actually loads.
+ *
+ * BetaPromoBar is mounted the same always-on way, but ahead of `children`
+ * rather than after — it's a normal-flow banner that has to sit visually
+ * above the rest of the page, not a fixed/floating overlay like the other
+ * three. Outside CandidateVerificationProvider so its own blocking
+ * redirect placeholder can never hide it either. See its own doc comment
+ * for the route/auth gating it does internally (it renders null on most
+ * pages) and why this single app-wide mount point exists — the footer's
+ * app/page.tsx-only placement is exactly the "reachable from one page
+ * only" mistake this is meant not to repeat.
  */
 import { ReactNode } from 'react';
 import { EntitlementsProvider } from '@/lib/entitlements';
@@ -33,10 +43,12 @@ import { CandidateVerificationProvider } from '@/lib/candidateVerification';
 import LimitReachedModal from './LimitReachedModal';
 import AssessmentBlockedModal from './AssessmentBlockedModal';
 import AnalyticsGate from './AnalyticsGate';
+import BetaPromoBar from './BetaPromoBar';
 
 export default function Providers({ children }: { children: ReactNode }) {
   return (
     <EntitlementsProvider>
+      <BetaPromoBar />
       <CandidateVerificationProvider>{children}</CandidateVerificationProvider>
       <LimitReachedModal />
       <AssessmentBlockedModal />

@@ -2418,6 +2418,41 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) { html:has(.lp-page) { scroll-behavior: auto; } }
 .lp-container { width: min(100% - 48px, 1200px); margin: 0 auto; }
 
+/* ---- Beta promo bar + glass header, stacked (landing page only) ----
+   .lp-header is position:fixed on its own (see below) everywhere except
+   here: when BetaPromoBar renders above it, the two share this single
+   fixed-position wrapper instead — the bar sits first in normal flow,
+   .lp-header right after it with its own position reset to `static` so it
+   simply follows in flow rather than fixing itself to the viewport a
+   second time. That means .lp-header always sits exactly at the bar's
+   real rendered height, however tall the bar turns out to be (one line or
+   two at a narrow width) — no guessed `top` pixel offset to keep in sync
+   with the bar's own font-size/padding. See BetaPromoBar.tsx's own doc
+   comment for why this page mounts the bar itself (via the `stacked`
+   prop) instead of relying on the generic app-wide mount every other page
+   uses. */
+.lp-header-stack {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+}
+.lp-header-stack .lp-header {
+  position: static;
+}
+/* .lp-hero's padding-top only ever had to clear .lp-header's own fixed
+   72px — now it has to clear the promo bar sitting above it too. Adds a
+   flat, deliberately generous 64px (covers the bar at two lines, the
+   worst case, even though it's sized to fit one — see .beta-promo-bar's
+   own comment) rather than measuring the bar's actual height, since a few
+   extra px of breathing room above the hero on the common one-line case is
+   harmless, while under-provisioning here is exactly the "header element
+   overflow" failure mode this app has hit before. Scoped to :has() so
+   pages/visits where the bar doesn't render (past the cutoff, or a
+   signed-in visitor) get the original spacing back, not permanent dead
+   space. */
+body:has(.beta-promo-bar) .lp-hero { padding-top: calc(148px + 64px); }
+@media (max-width: 640px) {
+  body:has(.beta-promo-bar) .lp-hero { padding-top: calc(116px + 64px); }
+}
+
 /* ---- Glass header (fixed over the hero) ---- */
 .lp-header {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
@@ -3081,3 +3116,33 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 }
 .consent-banner-text { margin: 0; color: var(--ink); font-size: 0.92rem; line-height: 1.5; }
 .consent-banner-actions { display: flex; gap: 8px; }
+
+/* ---- Beta acquisition banner (BetaPromoBar, 2026-09) ----
+   Full-width strip above the site chrome, never inside it — see
+   BetaPromoBar.tsx's own doc comment for why a promo in the header's own
+   row was rejected. Static (normal flow), not fixed/sticky: it sits above
+   whatever chrome a given page has (nothing, on most pages this appears
+   on) rather than pinning itself, so there is no vertical-space cost while
+   scrolling and no second sticky element stacked under .lp-header's own.
+   Its own background (brand indigo, not .lp-header's dark glass) so it
+   reads as a promotion rather than more navigation. Font-size is small but
+   deliberately NOT forced to one line (no white-space: nowrap) — it's
+   sized to fit "Candidates: free while we're in beta — until 30 November"
+   on one line down to a 360px viewport, but if a future copy change or an
+   unusually wide font ever doesn't fit, this should wrap to a second line
+   rather than force horizontal scroll (see .lp-header-stack below for how
+   the one page with a fixed header — the landing page — stays correct
+   either way, without measuring which one happened). */
+.beta-promo-bar {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 16px;
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+  background: var(--indigo);
+  color: #fff;
+}

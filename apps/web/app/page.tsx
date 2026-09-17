@@ -3,6 +3,7 @@ import LandingHeader from '@/components/landing/LandingHeader';
 import NewsStrip from '@/components/landing/NewsStrip';
 import ConsentSettingsLink from '@/components/ConsentSettingsLink';
 import BrandLockup from '@/components/BrandLockup';
+import BetaPromoBar from '@/components/BetaPromoBar';
 
 /**
  * Marketing landing page — served at the domain root ("/"). The candidate
@@ -66,7 +67,14 @@ const EMPLOYER_POINTS = [
 export default function LandingPage() {
   return (
     <>
-      <LandingHeader candidateHref={CANDIDATE_HREF} employerHref={EMPLOYER_HREF} />
+      {/* .lp-header is position:fixed, so the promo bar is wrapped together
+          with it here rather than mounted via the generic app-wide slot
+          (Providers.tsx) — see BetaPromoBar's own doc comment and
+          .lp-header-stack in globals.css for why. */}
+      <div className="lp-header-stack">
+        <BetaPromoBar stacked />
+        <LandingHeader candidateHref={CANDIDATE_HREF} employerHref={EMPLOYER_HREF} />
+      </div>
       <main className="lp-page" id="top">
       {/* ---------- Hero ---------- */}
       <section className="lp-hero" aria-labelledby="lp-hero-heading">
