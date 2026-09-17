@@ -157,7 +157,7 @@ export default function AdminCandidatesPage() {
 
   if (status === 'loading') {
     return (
-      <main className="hub">
+      <main className="hub hub-wide">
         <h1>Candidate Management</h1>
         <LoadingState />
       </main>
@@ -166,7 +166,7 @@ export default function AdminCandidatesPage() {
 
   if (status === 'forbidden') {
     return (
-      <main className="hub">
+      <main className="hub hub-wide">
         <h1>Candidate Management</h1>
         <p className="error">Admins only — log in with a PLATFORM_ADMIN account to view candidates.</p>
       </main>
@@ -176,7 +176,7 @@ export default function AdminCandidatesPage() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
   return (
-    <main className="hub">
+    <main className="hub hub-wide">
       <h1>Candidate Management</h1>
       <p className="hub-subhead">
         Every signed-up candidate, at every verification stage — someone who never verified a phone or email is

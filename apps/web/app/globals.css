@@ -1810,6 +1810,14 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .hub-section-head a { font-size: var(--text-sm); }
 .hub-resume-link { margin-top: -8px; }
 
+/* .hub caps at a reading width, right for the form-and-prose admin pages it
+   was built for. A wide data table wants the full content column instead —
+   otherwise it scrolls sideways on a desktop with space to spare. The
+   .admin-table-wrap overflow still handles genuinely narrow viewports. */
+.hub-wide {
+  max-width: none;
+}
+
 /* ---- dashboard hero band (candidate dashboard greeting only) ----
    Pure-CSS gradient behind the greeting — no image asset. Previously an
    Unsplash photo at 0.5 opacity blended under a vignette scrim; at that
