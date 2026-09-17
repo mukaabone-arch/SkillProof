@@ -10,8 +10,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import { EmptyState, ErrorState, LoadingState } from '@/components/ui';
+import { Badge, EmptyState, ErrorState, LoadingState } from '@/components/ui';
 import { useEntitlements } from '@/lib/entitlements';
+import { skillLevelName } from '@/lib/skillLevels';
+import { MATCH_BAND_LABELS, MATCH_BAND_VARIANTS, matchBand } from '@/lib/matchBand';
 
 interface Skill {
   id: string;
@@ -133,8 +135,29 @@ function JobSkills({ skills }: { skills: JobSkillView[] }) {
     <div className="meta">
       Skills:{' '}
       {skills
-        .map((s) => `${s.skillName} (${s.requiredLevel}${s.isRequired ? '' : ', optional'})`)
+        .map((s) => `${s.skillName} (${skillLevelName(s.requiredLevel)}${s.isRequired ? '' : ', optional'})`)
         .join(', ')}
+    </div>
+  );
+}
+
+/**
+ * Named band + fraction, never the raw number — see lib/matchBand.ts for why
+ * a coarse band replaced the exact score, and its own doc comment on why
+ * this is unrelated to apps/api's numeric scoreBand. No progress bar here:
+ * that would just reintroduce the precision the band exists to remove.
+ * "Verified" is deliberate, not "matched" — an unverified claim scores 0.4
+ * credit where a verified one scores 1.0, so it's specifically verification
+ * (taking an assessment), not a profile edit, that moves the fraction.
+ */
+function JobScoreBand({ score, matchedCount, totalSkills }: { score: number; matchedCount: number; totalSkills: number }) {
+  const band = matchBand(score);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Badge variant={MATCH_BAND_VARIANTS[band]}>{MATCH_BAND_LABELS[band]}</Badge>
+      <span className="meta" style={{ margin: 0 }}>
+        {matchedCount} of {totalSkills} skills verified
+      </span>
     </div>
   );
 }
@@ -169,6 +192,12 @@ export default function CandidateJobs() {
   // it), rather than a bare "no jobs" message that gives no context.
   const [hasVerifiedSkills, setHasVerifiedSkills] = useState<boolean | null>(null);
 
+  // Browse-tab lookup: /jobs/matched scores every LIVE job with skills,
+  // regardless of which tab triggered the fetch (see the tab-load effect
+  // below), so a Browse card finds its own score by id here instead of
+  // /jobs/browse needing to return one itself.
+  const scoredByJobId = new Map(matched.map((j) => [j.id, j]));
+
   useEffect(() => {
     api<Domain[]>('/taxonomy').then(setDomains).catch(() => undefined);
     api<Me>('/users/me')
@@ -180,7 +209,13 @@ export default function CandidateJobs() {
   }, []);
 
   useEffect(() => {
-    if (tab === 'matched' && matched.length === 0 && !loadingMatched) loadMatched();
+    // Browse also needs this: it's the only source of a per-job score (see
+    // JobScoreBand below) — browse() itself never scores anything (a
+    // deliberate split; browsing doesn't require a candidate profile at
+    // all). No backend change: /jobs/matched already scores every LIVE job
+    // with skills, not just a subset, so a Browse-tab job simply looks
+    // itself up by id in whatever this returns.
+    if ((tab === 'matched' || tab === 'browse') && matched.length === 0 && !loadingMatched) loadMatched();
     if (tab === 'applications' && applications.length === 0 && !loadingApplications) loadApplications();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
@@ -262,13 +297,8 @@ export default function CandidateJobs() {
           {matched.map((j) => (
             <Link key={j.id} href={`/jobs/${j.id}`} style={{ textDecoration: 'none' }}>
               <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
-                <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
-                  <strong style={{ color: 'var(--ink)' }}>{j.title}</strong>
-                  <span className="ok">{j.score}</span>
-                </div>
-                <div className="progress-track">
-                  <div className="progress-fill" style={{ width: `${j.score}%` }} />
-                </div>
+                <strong style={{ color: 'var(--ink)' }}>{j.title}</strong>
+                <JobScoreBand score={j.score} matchedCount={j.matched.length} totalSkills={j.skills.length} />
                 <JobMeta job={j} />
                 <JobSkills skills={j.skills} />
                 {j.alreadyApplied && <span className="ok">✓ Applied</span>}
@@ -335,18 +365,32 @@ export default function CandidateJobs() {
             </p>
           )}
 
-          {browsed.map((j) => (
-            <Link key={j.id} href={`/jobs/${j.id}`} style={{ textDecoration: 'none' }}>
-              <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
-                <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
-                  <strong style={{ color: 'var(--ink)' }}>{j.title}</strong>
-                  {j.alreadyApplied && <span className="ok">✓ Applied</span>}
+          {browsed.map((j) => {
+            // /jobs/browse itself never scores anything (browsing a job
+            // doesn't require the candidate to have any claims at all) — the
+            // score comes from the same /jobs/matched fetch the Matched tab
+            // uses, joined here by job id. A job that isn't in that list
+            // (the candidate has no verified claim anywhere yet, or this
+            // particular job has no skill requirements to score against)
+            // simply shows no band, same as before: nothing in that slot,
+            // never a fabricated "0%".
+            const scored = scoredByJobId.get(j.id);
+            return (
+              <Link key={j.id} href={`/jobs/${j.id}`} style={{ textDecoration: 'none' }}>
+                <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+                  <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
+                    <strong style={{ color: 'var(--ink)' }}>{j.title}</strong>
+                    {j.alreadyApplied && <span className="ok">✓ Applied</span>}
+                  </div>
+                  {scored && (
+                    <JobScoreBand score={scored.score} matchedCount={scored.matched.length} totalSkills={j.skills.length} />
+                  )}
+                  <JobMeta job={j} />
+                  <JobSkills skills={j.skills} />
                 </div>
-                <JobMeta job={j} />
-                <JobSkills skills={j.skills} />
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </>
       )}
 

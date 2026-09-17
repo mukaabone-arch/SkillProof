@@ -8,6 +8,7 @@ import { api, getToken, type ApiError } from '@/lib/api';
 import { Card, ErrorState, JobDescription, LoadingState } from '@/components/ui';
 import { useEntitlements } from '@/lib/entitlements';
 import { UsageMeter } from '@/components/UsageMeter';
+import { skillLevelName } from '@/lib/skillLevels';
 
 interface JobSkillView {
   skillId: string;
@@ -41,11 +42,12 @@ function formatSalaryRange(min: number, max: number): string {
   return min === max ? `${format(min)} / year` : `${format(min)}–${format(max)} / year`;
 }
 
-/** "L2" / "L2 and L3" / "L1, L2, and L3" — used by the apply-gate progress message below. */
+/** "Practitioner" / "Practitioner and Advanced" / "Foundational, Practitioner, and Advanced" — used by the apply-gate progress message below. */
 function formatLevelList(levels: string[]): string {
-  if (levels.length <= 1) return levels.join('');
-  if (levels.length === 2) return `${levels[0]} and ${levels[1]}`;
-  return `${levels.slice(0, -1).join(', ')}, and ${levels[levels.length - 1]}`;
+  const names = levels.map(skillLevelName);
+  if (names.length <= 1) return names.join('');
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
 }
 
 /** Machine-readable codes the backend returns when apply-time requirements aren't met. */
@@ -123,7 +125,7 @@ function GapAnalysis({
       <Card className="field">
         <label>Skill gap for this role</label>
         <p style={{ margin: 0 }}>
-          Missing: {missing.map((m) => `${m.skillName} (${m.requiredLevel})`).join(', ')}
+          Missing: {missing.map((m) => `${m.skillName} (${skillLevelName(m.requiredLevel)})`).join(', ')}
         </p>
         <p className="meta" style={{ marginTop: 6 }}>
           <Link href="/upgrade">Upgrade</Link> to see which of these gaps matter most across your matches.
@@ -142,7 +144,7 @@ function GapAnalysis({
           const count = skillFrequency[m.skillId] ?? 1;
           return (
             <li key={m.skillId}>
-              {m.skillName} ({m.requiredLevel})
+              {m.skillName} ({skillLevelName(m.requiredLevel)})
               {count > 1 && <span className="meta"> — needed by {count} of your matched roles</span>}
             </li>
           );
@@ -273,7 +275,7 @@ export default function JobDetailPage() {
           <label>Required skills</label>
           <p style={{ margin: 0 }}>
             {job.skills
-              .map((s) => `${s.skillName} (${s.requiredLevel}${s.isRequired ? '' : ', optional'})`)
+              .map((s) => `${s.skillName} (${skillLevelName(s.requiredLevel)}${s.isRequired ? '' : ', optional'})`)
               .join(', ')}
           </p>
         </div>
@@ -325,7 +327,7 @@ export default function JobDetailPage() {
               {formatLevelList(applyGate.progress.levelsRemaining)} to go before you can apply to jobs.{' '}
             </>
           ) : (
-            <>You need verified badges at L1, L2, and L3 of the same skill before you can apply to jobs. </>
+            <>You need verified badges at Foundational, Practitioner, and Advanced level of the same skill before you can apply to jobs. </>
           )}
           <Link href={`/assessments?returnTo=/jobs/${id}`}>Continue assessments →</Link>
         </p>
