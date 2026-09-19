@@ -1881,6 +1881,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .copilot-panel {
   background: linear-gradient(135deg, var(--brand-600) 0%, var(--brand-900) 100%);
   border: 1px solid var(--brand-400);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
   padding: var(--space-6); margin-bottom: var(--space-7);
 }
