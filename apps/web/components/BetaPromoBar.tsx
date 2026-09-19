@@ -83,7 +83,8 @@ export default function BetaPromoBar({ stacked = false }: Props) {
 
   return (
     <div className="beta-promo-bar" role="note">
-      Candidates: free while we&apos;re in beta — until {formatBetaPromoDate(BETA_FREE_UNTIL)}
+      <span>Candidates: free while we&apos;re in beta</span>{' '}
+      <span className="beta-promo-date">— until {formatBetaPromoDate(BETA_FREE_UNTIL)}</span>
     </div>
   );
 }

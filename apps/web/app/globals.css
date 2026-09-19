@@ -3147,3 +3147,10 @@ body:has(.beta-promo-bar) .lp-hero { padding-top: calc(148px + 64px); }
   background: var(--indigo);
   color: #fff;
 }
+
+/* The date itself must never split across lines (see doc comment above:
+   sized to fit on one line down to 360px, but if it ever doesn't, the
+   wrap should happen at the em dash, not inside "30 November"). */
+.beta-promo-date {
+  white-space: nowrap;
+}
