@@ -463,22 +463,21 @@ export default function EmployerShortlist() {
             {' · '}Added {new Date(e.createdAt).toLocaleDateString()}
           </div>
 
-          {(e.githubUrl || e.linkedinUrl || (e.hasResume && e.job)) && (
-            <div className="row" style={{ margin: 0, alignItems: 'center' }}>
-              {e.githubUrl && <a href={e.githubUrl} target="_blank" rel="noopener noreferrer">GitHub</a>}
-              {e.linkedinUrl && <a href={e.linkedinUrl} target="_blank" rel="noopener noreferrer">LinkedIn</a>}
-              {e.hasResume && e.job && (
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => viewResume(e.job!.id, e.candidateId)}
-                  disabled={resumeDownloadingId === e.candidateId}
-                >
-                  {resumeDownloadingId === e.candidateId ? 'Downloading…' : 'View resume'}
-                </button>
-              )}
-            </div>
-          )}
+          <div className="row" style={{ margin: 0, alignItems: 'center' }}>
+            {e.githubUrl && <a href={e.githubUrl} target="_blank" rel="noopener noreferrer">GitHub</a>}
+            {e.linkedinUrl && <a href={e.linkedinUrl} target="_blank" rel="noopener noreferrer">LinkedIn</a>}
+            <Link href={`/employer/candidates/${e.candidateId}/portfolio`}>View portfolio</Link>
+            {e.hasResume && e.job && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => viewResume(e.job!.id, e.candidateId)}
+                disabled={resumeDownloadingId === e.candidateId}
+              >
+                {resumeDownloadingId === e.candidateId ? 'Downloading…' : 'View resume'}
+              </button>
+            )}
+          </div>
 
           {e.verifiedSkills.length > 0 && (
             <div className="row" style={{ flexWrap: 'wrap', margin: 0, marginTop: 4 }}>

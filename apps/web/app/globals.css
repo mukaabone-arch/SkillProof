@@ -3154,3 +3154,36 @@ body:has(.beta-promo-bar) .lp-hero { padding-top: calc(148px + 64px); }
 .beta-promo-date {
   white-space: nowrap;
 }
+
+/* ---- candidate portfolio (PortfolioSections.tsx) ----
+   Structure only borrowed from docs/design/portfolio-reference/ — every
+   color/spacing value here is an existing token (--indigo, --card,
+   --font-display, --space-*), reusing .ui-card/.chip/.ui-badge/.status-grid
+   wherever those already say what's needed, rather than a parallel set of
+   one-off portfolio-specific primitives. */
+/* overflow-wrap: anywhere is inherited, so setting it once here covers
+   every descendant — a long unbroken string (name, headline, summary,
+   bullet, chip) can land in any text node here, parsed verbatim from a
+   resume with no wordwrap-friendly guarantees. */
+.portfolio-view { display: flex; flex-direction: column; gap: var(--space-6); max-width: 640px; margin: 0 auto; overflow-wrap: anywhere; }
+.portfolio-hero-title { font-size: var(--text-lg); color: var(--indigo); font-weight: 600; margin: var(--space-2) 0 0; }
+.portfolio-hero-summary { color: var(--ink-60); margin: var(--space-3) 0 0; max-width: 60ch; }
+.portfolio-stats { margin-bottom: 0; }
+.portfolio-contact-item { overflow-wrap: anywhere; }
+.portfolio-section-header { display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-4); }
+.portfolio-section-header h2 { margin: 0; }
+.portfolio-entry-card { margin-bottom: var(--space-4); overflow-wrap: anywhere; }
+.portfolio-entry-card:last-child { margin-bottom: 0; }
+.portfolio-entry-org { color: var(--indigo); font-weight: 600; margin: 0 0 var(--space-2); }
+.portfolio-entry-description { color: var(--ink-60); margin: var(--space-2) 0; }
+.portfolio-date-pill { margin-bottom: var(--space-3); }
+.portfolio-bullets { margin: var(--space-3) 0 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; }
+.portfolio-bullets li { color: var(--ink-60); }
+.portfolio-subsection-title { font-size: var(--text-sm); text-transform: uppercase; letter-spacing: 0.04em; color: var(--gray-600); margin: 0 0 var(--space-3); }
+.portfolio-skill-group { margin-bottom: var(--space-4); }
+.portfolio-skill-group:last-child { margin-bottom: 0; }
+.portfolio-skill-category { font-weight: 600; margin: 0 0 var(--space-2); }
+/* Long unbroken strings (project names, technology names, emails) are this
+   page's usual overflow offenders at 390px — see this app's documented
+   history of horizontal overflow bugs. */
+.portfolio-view .chip, .portfolio-view .ui-badge { overflow-wrap: anywhere; max-width: 100%; }

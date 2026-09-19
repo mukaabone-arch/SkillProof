@@ -808,6 +808,46 @@ model CandidateProfile {
   exportRequests        ExportRequest[]
   adminAccessLogEntries AdminAccessLog[]
   billingProfile        BillingProfile?
+  portfolio             CandidatePortfolio?
+}
+
+/**
+ * Structured content parsed from a candidate's uploaded resume, for the
+ * portfolio view (GET /portfolio/me, GET /portfolio/candidates/:id).
+ * UNVERIFIED BY DEFINITION — see scoring.ts's header comment. This must
+ * never reach scoreCandidate, become a SkillClaim, or create a
+ * Certification row, and must never influence MatchingService.getMatches.
+ * It is display text that a human wrote about themselves and a model
+ * (LlmService.extractPortfolio) reshaped — held to the exact same bar as
+ * CandidateProfile.roleTitle and a SELF_REPORTED Certification.
+ * Keyed by profileId (not userId) so it joins the same way SkillClaim/
+ * Certification/Application already do — every employer-facing candidate
+ * lookup in this codebase is keyed by CandidateProfile.id.
+ */
+model CandidatePortfolio {
+  id                 String           @id @default(uuid())
+  profileId          String           @unique
+  profile            CandidateProfile @relation(fields: [profileId], references: [id])
+  /**
+   * Parsed sections: headline, summary, experience[], projects[], education[], skills[] — see PortfolioContent in portfolio.service.ts. Display text only, never queried/joined on.
+   */
+  content            Json
+  /**
+   * Set when the candidate has reviewed the parse and approved publication.
+   * Null means parsed but not published — never returned by the
+   * employer-facing endpoint, regardless of visibleToEmployers.
+   */
+  approvedAt         DateTime?
+  /**
+   * Candidate's explicit choice to expose the approved portfolio to employers at all.
+   */
+  visibleToEmployers Boolean          @default(false)
+  /**
+   * Bare storage key (StorageService), same convention as CandidateProfile.resumeS3Key — the resume this content was parsed from.
+   */
+  sourceResumeKey    String?
+  parsedAt           DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 }
 
 // ---------- Account lifecycle (deactivation, reactivation, deletion) ----------

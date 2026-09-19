@@ -25,4 +25,33 @@ export class EmployerCandidateAccessService {
     });
     return application !== null;
   }
+
+  /**
+   * The broader "has this org engaged with this candidate at all" check —
+   * used only for PortfolioService's employer-facing view, never for
+   * resume/photo/contact (those stay on employerCanViewCandidate above,
+   * deliberately). A candidate's portfolio is display content they've
+   * chosen to publish (CandidatePortfolio.visibleToEmployers), not a raw
+   * private artifact, so the bar for "this org may open it" is wider: an
+   * Application, OR a ShortlistEntry, OR an AssessmentRequest naming them.
+   * PortfolioService still gates contact details specifically behind the
+   * narrower employerCanViewCandidate check — see its own doc comment.
+   */
+  async employerCanViewPortfolio(orgId: string, candidateId: string): Promise<boolean> {
+    const [application, shortlistEntry, assessmentRequest] = await Promise.all([
+      this.prisma.application.findFirst({
+        where: { candidateProfileId: candidateId, job: { orgId } },
+        select: { id: true },
+      }),
+      this.prisma.shortlistEntry.findFirst({
+        where: { candidateId, orgId },
+        select: { id: true },
+      }),
+      this.prisma.assessmentRequest.findFirst({
+        where: { candidateId, orgId },
+        select: { id: true },
+      }),
+    ]);
+    return application !== null || shortlistEntry !== null || assessmentRequest !== null;
+  }
 }

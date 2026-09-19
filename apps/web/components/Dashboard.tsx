@@ -939,6 +939,9 @@ export default function Dashboard({ onLoggedOut }: Props) {
         <p className="hub-resume-link">
           <Link href="/resume">Build a resume PDF from your profile & badges →</Link>
         </p>
+        <p className="hub-resume-link">
+          <Link href="/portfolio">View your portfolio →</Link>
+        </p>
 
         <p className="app-footer-credit">by flair future Intelligence</p>
       </main>

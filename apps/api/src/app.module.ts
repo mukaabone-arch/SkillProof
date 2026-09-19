@@ -32,6 +32,7 @@ import { ContactModule } from './modules/contact/contact.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { NewsModule } from './modules/news/news.module';
+import { PortfolioModule } from './modules/portfolio/portfolio.module';
 import { StorageModule } from './storage/storage.module';
 
 @Module({
@@ -70,6 +71,7 @@ import { StorageModule } from './storage/storage.module';
     SubscriptionsModule,
     DocumentsModule,
     NewsModule,
+    PortfolioModule,
   ],
 })
 export class AppModule {}

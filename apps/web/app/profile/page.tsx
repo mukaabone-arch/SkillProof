@@ -806,6 +806,18 @@ function ProfilePageInner() {
             </Link>
           </section>
 
+          <section className="ui-card profile-panel">
+            <h2>Your portfolio</h2>
+            <p>
+              A richer, shareable page — experience, skills, projects, education — built from
+              your uploaded resume. Verified badges and self-reported resume content are kept
+              clearly separate.
+            </p>
+            <Link href="/portfolio">
+              <button>Review your portfolio →</button>
+            </Link>
+          </section>
+
           <CertificationsPanel />
           <ProfileViewersPanel />
           </div>

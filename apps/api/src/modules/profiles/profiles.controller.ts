@@ -22,6 +22,7 @@ import { JwtAuthGuard, AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { ProfilesService } from './profiles.service';
 import { GenerateResumeDto, UpdateProfileDto } from './profiles.dto';
 import { STORAGE_SERVICE, StorageService } from '../../storage/storage.interface';
+import { PortfolioService } from '../portfolio/portfolio.service';
 
 const MAX_RESUME_BYTES = 5 * 1024 * 1024;
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
@@ -41,6 +42,7 @@ const PHOTO_EXTENSION_BY_MIME: Record<string, string> = {
 export class ProfilesController {
   constructor(
     private readonly svc: ProfilesService,
+    private readonly portfolio: PortfolioService,
     @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
   ) {}
 
@@ -74,7 +76,13 @@ export class ProfilesController {
     // fragment baked around any one backend's layout.
     const key = `${randomUUID()}.pdf`;
     await this.storage.write(key, file.buffer, file.mimetype);
-    return this.svc.saveResume(req.user.sub, key);
+    const result = await this.svc.saveResume(req.user.sub, key);
+    // Parse-on-upload, per PortfolioService.parseFromResume's own doc
+    // comment: this is the one and only place a resume's bytes ever reach
+    // the portfolio parser. A parse failure is swallowed there, not here —
+    // it must never fail the resume upload itself.
+    await this.portfolio.parseFromResume(req.user.sub, file.buffer, key);
+    return result;
   }
 
   @Post('me/resume/parse')
