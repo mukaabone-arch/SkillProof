@@ -416,6 +416,13 @@ export class AdminService {
    * never a fallback to signup date (a candidate who never attempted
    * anything must never read as "last active on signup day").
    *
+   * `lastLoginAt` sits beside it, not instead of it — a genuinely tracked
+   * column (User.lastLoginAt, written by AuthService.issueTokens), answering
+   * a different question ("when did they last authenticate" vs. "when did
+   * they last do something"). Null for anyone who hasn't signed in since
+   * this shipped — same "—", never signup-date, rendering rule as
+   * lastActivityAt, and for the same reason.
+   *
    * `authMethod` is derived from Identity rows, not guessed from which of
    * phone/email happen to be set (those can both end up populated
    * regardless of how the account started, via /auth/link/*). Identity
@@ -456,6 +463,7 @@ export class AdminService {
           u.phone,
           u.email,
           u."createdAt",
+          u."lastLoginAt",
           cp."fullName",
           (
             SELECT MAX(t."at") FROM (
@@ -519,6 +527,7 @@ export class AdminService {
           verified: isCandidateVerified({ phone: r.phone, email: r.email }),
           missingVerification: missing,
           authMethod: resolveAuthMethod(r.identityProviders, r.phone, r.email),
+          lastLoginAt: r.lastLoginAt,
           lastActivityAt: r.lastActivityAt,
           attemptCount: r.attemptCount,
           badgeCount: r.badgeCount,
@@ -650,6 +659,7 @@ interface CandidateRow {
   phone: string | null;
   email: string | null;
   createdAt: Date;
+  lastLoginAt: Date | null;
   fullName: string | null;
   lastActivityAt: Date | null;
   attemptCount: number;

@@ -1238,6 +1238,17 @@ export class AuthService {
       },
     });
 
+    // Every login path (OTP, OAuth) and /auth/refresh funnel through here —
+    // see User.lastLoginAt's own doc comment on why refresh counts as a
+    // login. Best-effort, same "swallow, log, move on" contract as
+    // AdminService's AdminAccessLog writes: this is a logging field, not a
+    // security control, and must never be able to fail the login.
+    try {
+      await this.prisma.user.update({ where: { id: userId }, data: { lastLoginAt: new Date() } });
+    } catch (err) {
+      this.logger.error(`Failed to write lastLoginAt for user ${userId}: ${(err as Error).message}`);
+    }
+
     return { accessToken, refreshToken: rawRefreshToken, ...(user ? { user } : {}) };
   }
 

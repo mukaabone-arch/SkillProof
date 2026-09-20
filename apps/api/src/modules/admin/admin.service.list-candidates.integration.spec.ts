@@ -122,6 +122,26 @@ describeIfDb('AdminService.listCandidates — real Postgres', () => {
     expect(result.candidates[0].lastActivityAt).toBeNull();
   });
 
+  it('a candidate who has never logged in has lastLoginAt null', async () => {
+    await makeCandidate({ phone: `${marker}-neverloggedin`, fullName: `${marker} NeverLoggedIn` });
+
+    const result = await svc.listCandidates('admin-1', defaultQuery({ search: `${marker} NeverLoggedIn` }));
+
+    expect(result.candidates[0].lastLoginAt).toBeNull();
+  });
+
+  it('lastLoginAt reflects User.lastLoginAt directly, independent of (and even without) any lastActivityAt', async () => {
+    const user = await makeCandidate({ phone: `${marker}-loggedinonly`, fullName: `${marker} LoggedInOnly` });
+    const loginAt = new Date('2026-06-15T09:30:00Z');
+    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: loginAt } });
+
+    const result = await svc.listCandidates('admin-1', defaultQuery({ search: `${marker} LoggedInOnly` }));
+
+    expect(result.candidates[0].lastLoginAt?.toISOString()).toBe(loginAt.toISOString());
+    // Logging in alone must never move the derived activity column — the whole point of keeping both.
+    expect(result.candidates[0].lastActivityAt).toBeNull();
+  });
+
   it('lastActivityAt picks the true maximum across Attempt, AttemptAnswer, and Badge', async () => {
     const domain = await prisma.domain.create({ data: { name: `${marker}-domain` } });
     createdDomainIds.push(domain.id);

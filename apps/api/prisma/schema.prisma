@@ -336,6 +336,17 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
+  /// When this user last authenticated — a login, not activity. Null until
+  /// their next sign-in; this field starts empty for every pre-existing user
+  /// and there is no way to backfill it, which is why the derived
+  /// lastActivityAt in the admin candidate list is kept alongside rather than
+  /// replaced. The two measure different things: someone can log in daily and
+  /// never attempt an assessment. Written from AuthService.issueTokens — the
+  /// single choke point every login path (OTP, OAuth) and /auth/refresh all
+  /// funnel through — so token refresh counts as a login on purpose: without
+  /// it, a daily-active user with a long-lived refresh token would read as
+  /// dormant for weeks between fresh OTP/OAuth sign-ins.
+  lastLoginAt  DateTime?
 
   profile                   CandidateProfile?
   attempts                  Attempt[]

@@ -21,7 +21,19 @@
  *
  * lastActivityAt renders "—" for null, never a fallback to signup date —
  * see the backend field's own doc comment on why conflating the two would
- * mislead an admin about which candidates are actually live.
+ * mislead an admin about which candidates are actually live. lastLoginAt
+ * (added alongside it, not replacing it — the two answer different
+ * questions, see AdminService.listCandidates) follows the exact same
+ * null-rendering rule, for the same reason.
+ *
+ * Known limitation: this table already exceeds .admin-content's width and
+ * scrolls horizontally below roughly a 1410px viewport; an eighth-turned-
+ * ninth column (lastLoginAt) makes that slightly worse. Noted, not fixed,
+ * here — the two changes that would actually claw back width (relative
+ * time instead of full date/time on the two activity columns, ~95px; or
+ * letting the Candidate cell wrap instead of truncating, ~140px) are both
+ * bigger than this column addition warrants on their own. Do not "fix"
+ * this by dropping a column instead.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -40,6 +52,7 @@ interface CandidateRow {
   verified: boolean;
   missingVerification: string[];
   authMethod: string;
+  lastLoginAt: string | null;
   lastActivityAt: string | null;
   attemptCount: number;
   badgeCount: number;
@@ -211,6 +224,7 @@ export default function AdminCandidatesPage() {
                   <SortHeader label="Signed up" field="createdAt" activeSort={sort} order={order} onSort={handleSort} />
                   <th>Verification</th>
                   <th>Auth method</th>
+                  <th>Last login</th>
                   <SortHeader label="Last activity" field="lastActivityAt" activeSort={sort} order={order} onSort={handleSort} />
                   <th>Attempts</th>
                   <th>Badges</th>
@@ -235,6 +249,7 @@ export default function AdminCandidatesPage() {
                       )}
                     </td>
                     <td>{c.authMethod}</td>
+                    <td>{fmtDateTime(c.lastLoginAt)}</td>
                     <td>{fmtDateTime(c.lastActivityAt)}</td>
                     <td>{c.attemptCount}</td>
                     <td>{c.badgeCount}</td>

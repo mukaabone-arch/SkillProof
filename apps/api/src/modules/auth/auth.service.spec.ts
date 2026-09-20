@@ -1,9 +1,10 @@
 import { HttpException } from '@nestjs/common';
 import { OrgInvitationStatus, Role } from '@prisma/client';
+import { createHash } from 'crypto';
 import { AuthService } from './auth.service';
 import { PRIVACY_VERSION, TERMS_VERSION } from './legal-terms';
 
-type UserRow = { id: string; phone: string | null; email: string | null; role: Role };
+type UserRow = { id: string; phone: string | null; email: string | null; role: Role; lastLoginAt?: Date | null };
 type TermsAcceptanceRow = {
   userId: string;
   termsVersion: string;
@@ -1531,5 +1532,80 @@ describe('AuthService — Google/GitHub sign-in survives an email change', () =>
     const after = (await service.loginWithGoogle({ code: 'auth-code', redirectUri: 'https://app/cb' })) as unknown as { user: { id: string } };
     expect(after.user.id).toBe('user-1'); // same account, still resolves correctly
     expect(prisma.identity.findUnique).toHaveBeenCalled();
+  });
+});
+
+describe('AuthService — lastLoginAt (written from issueTokens, the one choke point every login path shares)', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  it('is set on phone OTP verification', async () => {
+    process.env.NODE_ENV = 'test';
+    const { service, users } = makeService();
+
+    expect(users[0]).toBeUndefined();
+    await service.requestOtp('+919999900001');
+    await service.verifyOtp('+919999900001', DEV_OTP);
+
+    expect(users[0].lastLoginAt).toBeInstanceOf(Date);
+  });
+
+  it('is set on candidate email OTP verification', async () => {
+    process.env.NODE_ENV = 'test';
+    const { service, users } = makeService();
+
+    await service.requestCandidateEmailOtp('new@candidate.com');
+    await service.verifyCandidateEmailOtp('new@candidate.com', DEV_OTP);
+
+    expect(users[0].lastLoginAt).toBeInstanceOf(Date);
+  });
+
+  it('is updated again on /auth/refresh — refresh counts as a login (see User.lastLoginAt doc comment)', async () => {
+    process.env.NODE_ENV = 'test';
+    const { service, users, prisma } = makeService();
+
+    await service.requestOtp('+919999900002');
+    const loginResult = (await service.verifyOtp('+919999900002', DEV_OTP)) as unknown as {
+      refreshToken: string;
+    };
+    const firstLoginAt = users[0].lastLoginAt;
+    expect(firstLoginAt).toBeInstanceOf(Date);
+
+    // refreshToken.create in fakePrisma just echoes `data` back (see its own
+    // comment) rather than persisting it into a queryable table, so refresh()
+    // can't look the token back up through that stub. Wire a minimal
+    // findUnique/update pair here, scoped to this one test, that's enough for
+    // AuthService.refresh's own lookup/rotate/reissue path.
+    const rawToken = loginResult.refreshToken;
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+    const stored = { id: 'rt-1', tokenHash, userId: users[0].id, revokedAt: null as Date | null, expiresAt: new Date(Date.now() + 1000 * 60), user: users[0] };
+    const refreshTokenTable = prisma.refreshToken as unknown as { findUnique: unknown; update: unknown };
+    refreshTokenTable.findUnique = jest.fn(async () => stored);
+    refreshTokenTable.update = jest.fn(async ({ data }: { data: Partial<typeof stored> }) => {
+      Object.assign(stored, data);
+      return stored;
+    });
+
+    await new Promise((r) => setTimeout(r, 5)); // ensure a distinguishable later timestamp
+    await service.refresh(rawToken);
+
+    expect(users[0].lastLoginAt).toBeInstanceOf(Date);
+    expect((users[0].lastLoginAt as Date).getTime()).toBeGreaterThanOrEqual((firstLoginAt as Date).getTime());
+  });
+
+  it('a failure writing lastLoginAt does not fail the login', async () => {
+    process.env.NODE_ENV = 'test';
+    const { service, prisma } = makeService();
+    prisma.user.update = jest.fn(async () => {
+      throw new Error('simulated DB write failure');
+    }) as never;
+
+    await service.requestOtp('+919999900003');
+    const result = await service.verifyOtp('+919999900003', DEV_OTP);
+
+    // The login itself must still succeed and return real tokens.
+    expect(result).toMatchObject({ accessToken: 'signed.jwt.token' });
   });
 });
