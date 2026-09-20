@@ -387,6 +387,17 @@ function employerInviteCopilotMessage(selection: SelectedEmployerInvite): Copilo
   }
 
   if (invite.status === 'STARTED') {
+    // Deliberately no deadline/countdown in this meta line — unlike the
+    // not-yet-started branch above (which counts down invite.expiresAt, the
+    // 5-day start window), a LEGACY (level != null) request has no
+    // completion deadline once STARTED: per AssessmentRequestsService's own
+    // state-machine doc comment, it reaches COMPLETED whenever the linked
+    // attempt/session gets a terminal decision, with no time limit. The
+    // 14-day SETTLEMENT_WINDOW_MS backstop is a WHOLE-SKILL-only concept
+    // (assessment-request-settlement.job.ts's sweep explicitly excludes
+    // `level != null` rows) and invite.expiresAt here is still just the
+    // original 5-day start-window value, frozen at creation — reusing
+    // either for a countdown would show a deadline that doesn't exist.
     return {
       eyebrow: 'Assessment in progress',
       message: `Pick up where you left off on ${invite.skill.name} for ${invite.organization.name}.`,
