@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { ClaimStatus, IntegrityStatus, NotificationType, OrgVerificationStatus, Prisma, ReviewOutcome, SubscriptionStatus } from '@prisma/client';
+import { AccountActionType, ClaimStatus, IntegrityStatus, NotificationType, OrgVerificationStatus, Prisma, ReviewOutcome, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -423,6 +423,26 @@ export class AdminService {
    * this shipped — same "—", never signup-date, rendering rule as
    * lastActivityAt, and for the same reason.
    *
+   * `accountState` ('ACTIVE' | 'DEACTIVATED' | 'DELETED') exists because a
+   * deleted candidate is otherwise indistinguishable from a broken signup:
+   * AccountService.delete anonymises phone/email/Identity in place — there
+   * is no `deletedAt` on User — so a deleted row would render as a raw-ID
+   * name, "Missing phone, email", and authMethod "Unknown", which reads as
+   * corrupt data rather than working-as-intended anonymisation. Checked in
+   * this priority order deliberately: DELETED first, then deactivatedAt,
+   * because a deleted profile can still carry a deactivatedAt from an
+   * earlier deactivation and DELETED is the stronger, terminal statement.
+   * Deactivation is NOT tested via "has a DEACTIVATED AccountAction row" —
+   * that row survives a later reactivation (a REACTIVATED row gets added
+   * alongside it, neither is ever removed), so that test would wrongly
+   * mark a reactivated candidate as deactivated forever.
+   * CandidateProfile.deactivatedAt is the only correct, current-state test.
+   * Deletion has no reversal path, so "a DELETED AccountAction exists" is
+   * safe to test directly. Deleted accounts stay in the default listing,
+   * marked rather than hidden — same "don't filter out by default"
+   * reasoning as the verification-stage note above; an admin looking for a
+   * candidate who no longer appears needs to be able to find them.
+   *
    * `authMethod` is derived from Identity rows, not guessed from which of
    * phone/email happen to be set (those can both end up populated
    * regardless of how the account started, via /auth/link/*). Identity
@@ -482,7 +502,15 @@ export class AdminService {
           COALESCE(
             (SELECT array_agg(DISTINCT i.provider) FROM "Identity" i WHERE i."userId" = u.id),
             ARRAY[]::"IdentityProvider"[]
-          ) AS "identityProviders"
+          ) AS "identityProviders",
+          CASE
+            WHEN EXISTS (
+              SELECT 1 FROM "AccountAction" aa
+              WHERE aa."candidateProfileId" = cp.id AND aa.type = ${AccountActionType.DELETED}::"AccountActionType"
+            ) THEN 'DELETED'
+            WHEN cp."deactivatedAt" IS NOT NULL THEN 'DEACTIVATED'
+            ELSE 'ACTIVE'
+          END AS "accountState"
         FROM "User" u
         LEFT JOIN "CandidateProfile" cp ON cp."userId" = u.id
         WHERE u.role = 'CANDIDATE'
@@ -532,6 +560,7 @@ export class AdminService {
           attemptCount: r.attemptCount,
           badgeCount: r.badgeCount,
           blocked: r.blocked,
+          accountState: r.accountState,
         };
       }),
     };
@@ -666,6 +695,7 @@ interface CandidateRow {
   badgeCount: number;
   blocked: boolean;
   identityProviders: string[];
+  accountState: 'ACTIVE' | 'DEACTIVATED' | 'DELETED';
 }
 
 /** Escapes ILIKE's own wildcard characters (and the escape character itself) in a user-supplied search term, so a literal "%" or "_" in a search box searches for that literal character rather than being treated as a wildcard. Paired with `ESCAPE '\'` in the query. Unrelated to SQL-injection safety, which the tagged template already guarantees on its own. */

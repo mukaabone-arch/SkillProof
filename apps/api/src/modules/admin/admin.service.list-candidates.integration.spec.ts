@@ -3,7 +3,7 @@ import { config as loadDotenv } from 'dotenv';
 
 loadDotenv({ path: path.resolve(__dirname, '../../../.env') });
 
-import { PrismaClient, Role } from '@prisma/client';
+import { AccountActionType, PrismaClient, Role } from '@prisma/client';
 import { AdminService } from './admin.service';
 import { ListCandidatesQueryDto } from './admin.dto';
 
@@ -41,6 +41,7 @@ describeIfDb('AdminService.listCandidates — real Postgres', () => {
 
   afterAll(async () => {
     // Children first — FK order matters, real deletes, not soft.
+    await prisma.accountAction.deleteMany({ where: { candidateProfile: { userId: { in: createdUserIds } } } });
     await prisma.badge.deleteMany({ where: { userId: { in: createdUserIds } } });
     await prisma.attemptAnswer.deleteMany({ where: { attempt: { userId: { in: createdUserIds } } } });
     await prisma.attempt.deleteMany({ where: { userId: { in: createdUserIds } } });
@@ -64,6 +65,11 @@ describeIfDb('AdminService.listCandidates — real Postgres', () => {
       await prisma.candidateProfile.create({ data: { userId: user.id, fullName: opts.fullName } });
     }
     return user;
+  }
+
+  async function profileIdFor(userId: string): Promise<string> {
+    const profile = await prisma.candidateProfile.findUniqueOrThrow({ where: { userId } });
+    return profile.id;
   }
 
   it('returns candidates at every verification stage — an unverified candidate (no email) still appears', async () => {
@@ -176,6 +182,74 @@ describeIfDb('AdminService.listCandidates — real Postgres', () => {
     const result = await svc.listCandidates('admin-1', defaultQuery({ search: `${marker} MaxTest` }));
 
     expect(result.candidates[0].lastActivityAt?.toISOString()).toBe(newest.toISOString());
+  });
+
+  describe('accountState', () => {
+    it('an ordinary candidate renders as ACTIVE', async () => {
+      await makeCandidate({ phone: `${marker}-state-active`, fullName: `${marker} StateActive` });
+
+      const result = await svc.listCandidates('admin-1', defaultQuery({ search: `${marker} StateActive` }));
+
+      expect(result.candidates[0].accountState).toBe('ACTIVE');
+    });
+
+    it('a candidate with a DELETED AccountAction renders as DELETED', async () => {
+      const user = await makeCandidate({ fullName: `${marker} StateDeleted` });
+      const profileId = await profileIdFor(user.id);
+      await prisma.accountAction.create({ data: { candidateProfileId: profileId, type: AccountActionType.DELETED } });
+
+      const result = await svc.listCandidates('admin-1', defaultQuery({ search: `${marker} StateDeleted` }));
+
+      expect(result.candidates[0].accountState).toBe('DELETED');
+    });
+
+    it('a candidate with deactivatedAt set and no DELETED action renders as DEACTIVATED', async () => {
+      const user = await makeCandidate({ phone: `${marker}-state-deactivated`, fullName: `${marker} StateDeactivated` });
+      await prisma.candidateProfile.update({ where: { userId: user.id }, data: { deactivatedAt: new Date() } });
+
+      const result = await svc.listCandidates('admin-1', defaultQuery({ search: `${marker} StateDeactivated` }));
+
+      expect(result.candidates[0].accountState).toBe('DEACTIVATED');
+    });
+
+    it('a candidate with a DEACTIVATED action that was later reactivated (deactivatedAt null) renders as ACTIVE, not DEACTIVATED — the case a naive "has a DEACTIVATED row" test gets wrong', async () => {
+      const user = await makeCandidate({ phone: `${marker}-state-reactivated`, fullName: `${marker} StateReactivated` });
+      const profileId = await profileIdFor(user.id);
+      await prisma.accountAction.create({ data: { candidateProfileId: profileId, type: AccountActionType.DEACTIVATED } });
+      await prisma.accountAction.create({ data: { candidateProfileId: profileId, type: AccountActionType.REACTIVATED } });
+      // deactivatedAt is back to null, as AccountService.reactivate leaves it — the DEACTIVATED row above never goes away.
+      await prisma.candidateProfile.update({ where: { userId: user.id }, data: { deactivatedAt: null } });
+
+      const result = await svc.listCandidates('admin-1', defaultQuery({ search: `${marker} StateReactivated` }));
+
+      expect(result.candidates[0].accountState).toBe('ACTIVE');
+    });
+
+    it('a candidate with both a DELETED action and a deactivatedAt renders as DELETED — the stronger statement wins', async () => {
+      const user = await makeCandidate({ fullName: `${marker} StateBoth` });
+      const profileId = await profileIdFor(user.id);
+      await prisma.candidateProfile.update({ where: { userId: user.id }, data: { deactivatedAt: new Date() } });
+      await prisma.accountAction.create({ data: { candidateProfileId: profileId, type: AccountActionType.DELETED } });
+
+      const result = await svc.listCandidates('admin-1', defaultQuery({ search: `${marker} StateBoth` }));
+
+      expect(result.candidates[0].accountState).toBe('DELETED');
+    });
+
+    it('deleted accounts appear in the default listing, and counts/pagination totals include them', async () => {
+      const before = await svc.listCandidates('admin-1', defaultQuery({ search: `${marker} StateCountCheck`, pageSize: 10 }));
+      expect(before.total).toBe(0);
+
+      const user = await makeCandidate({ fullName: `${marker} StateCountCheck` });
+      const profileId = await profileIdFor(user.id);
+      await prisma.accountAction.create({ data: { candidateProfileId: profileId, type: AccountActionType.DELETED } });
+
+      const after = await svc.listCandidates('admin-1', defaultQuery({ search: `${marker} StateCountCheck`, pageSize: 10 }));
+
+      expect(after.total).toBe(1);
+      expect(after.candidates).toHaveLength(1);
+      expect(after.candidates[0].accountState).toBe('DELETED');
+    });
   });
 
   it('pagination: page size is respected, the hard max is enforced by the DTO, and page 2 returns different rows', async () => {

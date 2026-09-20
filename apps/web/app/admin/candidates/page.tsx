@@ -26,14 +26,25 @@
  * questions, see AdminService.listCandidates) follows the exact same
  * null-rendering rule, for the same reason.
  *
+ * accountState ('ACTIVE' | 'DEACTIVATED' | 'DELETED') exists because a
+ * deleted candidate — AccountService.delete anonymises phone/email/Identity
+ * in place, there is no deletedAt on User — is otherwise indistinguishable
+ * from a broken signup: raw-ID name, "Missing phone, email", authMethod
+ * "Unknown". Deleted accounts stay in the default listing, marked rather
+ * than hidden (same reasoning as showing incomplete signups above); a
+ * DELETED row therefore suppresses the verification and auth-method badges
+ * entirely (rendered as "—") rather than showing what would otherwise read
+ * as a data problem — see AdminService.listCandidates' own doc comment for
+ * why this is a genuinely different state from "never verified."
+ *
  * Known limitation: this table already exceeds .admin-content's width and
- * scrolls horizontally below roughly a 1410px viewport; an eighth-turned-
- * ninth column (lastLoginAt) makes that slightly worse. Noted, not fixed,
- * here — the two changes that would actually claw back width (relative
- * time instead of full date/time on the two activity columns, ~95px; or
- * letting the Candidate cell wrap instead of truncating, ~140px) are both
- * bigger than this column addition warrants on their own. Do not "fix"
- * this by dropping a column instead.
+ * scrolls horizontally below roughly a 1410px viewport; lastLoginAt and now
+ * accountState (ninth and tenth columns) make that slightly worse. Noted,
+ * not fixed, here — the two changes that would actually claw back width
+ * (relative time instead of full date/time on the two activity columns,
+ * ~95px; or letting the Candidate cell wrap instead of truncating, ~140px)
+ * are both bigger than either column addition warrants on their own. Do
+ * not "fix" this by dropping a column instead.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -57,6 +68,7 @@ interface CandidateRow {
   attemptCount: number;
   badgeCount: number;
   blocked: boolean;
+  accountState: 'ACTIVE' | 'DEACTIVATED' | 'DELETED';
 }
 
 interface ListResponse {
@@ -222,6 +234,7 @@ export default function AdminCandidatesPage() {
                 <tr>
                   <th>Candidate</th>
                   <SortHeader label="Signed up" field="createdAt" activeSort={sort} order={order} onSort={handleSort} />
+                  <th>Account state</th>
                   <th>Verification</th>
                   <th>Auth method</th>
                   <th>Last login</th>
@@ -242,13 +255,19 @@ export default function AdminCandidatesPage() {
                     </td>
                     <td>{fmtDate(c.createdAt)}</td>
                     <td>
-                      {c.verified ? (
+                      {c.accountState === 'DELETED' && <Badge variant="danger">Deleted</Badge>}
+                      {c.accountState === 'DEACTIVATED' && <Badge variant="warning">Deactivated</Badge>}
+                    </td>
+                    <td>
+                      {c.accountState === 'DELETED' ? (
+                        <span className="meta" style={{ margin: 0 }}>—</span>
+                      ) : c.verified ? (
                         <Badge variant="verified">Verified</Badge>
                       ) : (
                         <Badge variant="warning">Missing {c.missingVerification.join(', ')}</Badge>
                       )}
                     </td>
-                    <td>{c.authMethod}</td>
+                    <td>{c.accountState === 'DELETED' ? '—' : c.authMethod}</td>
                     <td>{fmtDateTime(c.lastLoginAt)}</td>
                     <td>{fmtDateTime(c.lastActivityAt)}</td>
                     <td>{c.attemptCount}</td>
