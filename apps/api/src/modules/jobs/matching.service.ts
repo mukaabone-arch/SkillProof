@@ -11,6 +11,35 @@ import { CandidateSkillClaim, JobSkillRequirement, compareByMatchRank, scoreCand
 /** LLM explanations are the expensive part — only ever generated for the top N. */
 const TOP_N_MATCHES = 10;
 
+/**
+ * Job-to-Talent Match funnel tiers — bands over scoreCandidate's own 0-100
+ * output, not a second scorer. Mirrors apps/web/lib/matchBand.ts's
+ * thresholds (strong>=75, good>=50, partial>=25) exactly; kept as a second
+ * literal copy rather than an import because apps/api and apps/web are
+ * separate TS projects with no shared package — if matchBand.ts's
+ * thresholds ever change, update these too.
+ *
+ * VERIFIED_MATCH_MIN is a mathematical property of scoreCandidate, not an
+ * extra filter: the richest an all-unverified candidate can score is
+ * UNVERIFIED_AT_OR_ABOVE_LEVEL_CREDIT (0.4) per skill, capping skillPercent
+ * at 40, plus at most +5 from experienceAdjustment — 45, still short of 50.
+ * No candidate crosses this line without >=1 verified claim or
+ * certification, so "Verified match" is an honest label, not a marketing
+ * one.
+ */
+const RELEVANT_MIN = 25;
+const VERIFIED_MATCH_MIN = 50;
+const STRONG_MATCH_MIN = 75;
+
+export interface MatchFunnel {
+  considered: number;
+  relevant: number;
+  verifiedMatch: number;
+  strongMatch: number;
+}
+
+const EMPTY_FUNNEL: MatchFunnel = { considered: 0, relevant: 0, verifiedMatch: 0, strongMatch: 0 };
+
 @Injectable()
 export class MatchingService {
   constructor(
@@ -28,7 +57,14 @@ export class MatchingService {
     if (job.orgId !== orgId) throw new ForbiddenException();
 
     if (job.skills.length === 0) {
-      return { jobId: job.id, jobTitle: job.title, candidates: [] };
+      return {
+        jobId: job.id,
+        jobTitle: job.title,
+        funnel: EMPTY_FUNNEL,
+        unmatchedRequiredSkills: [],
+        candidates: [],
+        allCandidates: [],
+      };
     }
 
     const jobSkills: JobSkillRequirement[] = job.skills.map((js) => ({
@@ -165,6 +201,77 @@ export class MatchingService {
       })),
     );
 
-    return { jobId: job.id, jobTitle: job.title, candidates: withExplanations };
+    // Every number below is a count of rows in `ranked` — the exact pool
+    // that cleared the privacy gate above — never padded, estimated, or
+    // rounded. Naturally nested (strongMatch <= verifiedMatch <= relevant
+    // <= considered) because each is just a higher score threshold over the
+    // same pool, not a separate query.
+    const funnel: MatchFunnel = {
+      considered: ranked.filter((c) => c.score > 0).length,
+      relevant: ranked.filter((c) => c.score >= RELEVANT_MIN).length,
+      verifiedMatch: ranked.filter((c) => c.score >= VERIFIED_MATCH_MIN).length,
+      strongMatch: ranked.filter((c) => c.score >= STRONG_MATCH_MIN).length,
+    };
+
+    // Only computed for the zero-considered state (see the Job-to-Talent
+    // Match page's small-number states) — telling an employer *which*
+    // required skill has no verified supply at all, platform-wide, is
+    // actionable in a way "0 candidates" alone isn't.
+    const unmatchedRequiredSkills =
+      funnel.considered === 0 ? await this.findRequiredSkillsWithNoVerifiedHolder(jobSkills) : [];
+
+    // Lightweight, unranked-by-LLM-cost view of the FULL scored pool (not
+    // just the top N) for the Job-to-Talent Match table — no aiExplanation
+    // (that's the expensive part TOP_N_MATCHES exists to limit), no missing-
+    // skill detail, no contact fields (those were never fetched into
+    // `profiles` above, so there's nothing here to gate). verifiedSkillCount
+    // reuses the same matched list (already filtered to entries with an
+    // issued badge) that drives `matched` above, never re-derived.
+    const allCandidates = ranked.map((c) => ({
+      profileId: c.profileId,
+      fullName: c.fullName,
+      score: c.score,
+      verifiedSkillCount: c.matched.length,
+      yearsOfExp: c.yearsOfExp,
+    }));
+
+    return {
+      jobId: job.id,
+      jobTitle: job.title,
+      funnel,
+      unmatchedRequiredSkills,
+      candidates: withExplanations,
+      allCandidates,
+    };
+  }
+
+  /**
+   * For each of this job's required skills: does any visible, active
+   * candidate anywhere on the platform hold a VERIFIED claim on it? Ignores
+   * yearsOfExp and every other job requirement — this isn't "who matches
+   * this job," it's "does this skill have any verified supply at all,"
+   * which is what an employer can actually act on by editing the job.
+   * Deliberately skillClaims-only, not certifiedSkillIds — see getMatches'
+   * own comment on why a certification alone never seeds the scored pool
+   * either; this stays consistent with that gate rather than inventing a
+   * second, looser one.
+   */
+  private async findRequiredSkillsWithNoVerifiedHolder(
+    jobSkills: JobSkillRequirement[],
+  ): Promise<{ skillId: string; skillName: string }[]> {
+    const requiredSkills = jobSkills.filter((s) => s.isRequired);
+    if (requiredSkills.length === 0) return [];
+
+    const holders = await this.prisma.skillClaim.findMany({
+      where: {
+        skillId: { in: requiredSkills.map((s) => s.skillId) },
+        status: ClaimStatus.VERIFIED,
+        profile: candidateVisibilityFilter,
+      },
+      select: { skillId: true },
+      distinct: ['skillId'],
+    });
+    const withHolderIds = new Set(holders.map((h) => h.skillId));
+    return requiredSkills.filter((s) => !withHolderIds.has(s.skillId)).map((s) => ({ skillId: s.skillId, skillName: s.skillName }));
   }
 }

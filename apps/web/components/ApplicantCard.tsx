@@ -13,6 +13,7 @@
  */
 import Link from 'next/link';
 import { Badge } from '@/components/ui';
+import { matchBand, MATCH_BAND_LABELS, MATCH_BAND_VARIANTS } from '@/lib/matchBand';
 import CandidateAvatar from './CandidateAvatar';
 
 export type CredentialIssuer = 'CREDLY' | 'AWS' | 'GOOGLE' | 'AZURE' | 'NVIDIA' | 'DATABRICKS' | 'IBM' | 'OTHER';
@@ -146,18 +147,15 @@ export default function ApplicantCard({ applicant: a, headerActions, resumeActio
           </div>
         </div>
         <div className="row" style={{ margin: 0 }}>
-          {a.score !== null && <span className="ok">{a.score}</span>}
+          {a.score !== null && (
+            <Badge variant={MATCH_BAND_VARIANTS[matchBand(a.score)]}>{MATCH_BAND_LABELS[matchBand(a.score)]}</Badge>
+          )}
           {headerActions}
         </div>
       </div>
 
       {!compact && a.profileIncomplete && (
         <Badge variant="warning" style={{ alignSelf: 'flex-start' }}>Profile incomplete</Badge>
-      )}
-      {a.score !== null && (
-        <div className="progress-track">
-          <div className="progress-fill" style={{ width: `${a.score}%` }} />
-        </div>
       )}
       {a.headline && <div className="meta">{a.headline}</div>}
 

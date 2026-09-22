@@ -8,9 +8,10 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { employerApi, downloadBlob } from '@/lib/api';
 import { Badge, Card, EmptyState } from '@/components/ui';
+import { matchBand, MATCH_BAND_LABELS, MATCH_BAND_VARIANTS } from '@/lib/matchBand';
 import ShortlistButton from './ShortlistButton';
 import ApplicantCard, { type ApplicantCardData } from './ApplicantCard';
 import { LocationAutocomplete, LocationSuggestion } from './LocationAutocomplete';
@@ -192,6 +193,7 @@ const emptyForm: JobForm = {
 };
 
 export default function EmployerJobs() {
+  const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [skillIdByName, setSkillIdByName] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
@@ -307,8 +309,17 @@ export default function EmployerJobs() {
     setStatusUpdatingJobId(jobId);
     setError('');
     try {
+      const wasDraft = jobs.find((j) => j.id === jobId)?.status === 'DRAFT';
       await api(`/jobs/${jobId}`, { method: 'PATCH', body: JSON.stringify({ status }) });
       setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, status } : j)));
+      // "Posting" a job (DRAFT -> LIVE) is the moment its matches become
+      // real — route straight to the Job-to-Talent Match page instead of
+      // leaving the employer to go find it. Reopening a CLOSED job isn't
+      // "posting," so that transition stays in the list.
+      if (status === 'LIVE' && wasDraft) {
+        router.push(`/employer/jobs/${jobId}/matches`);
+        return;
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -536,7 +547,16 @@ export default function EmployerJobs() {
       }
 
       setShowForm(false);
+      const wasCreate = !editingJobId;
       setEditingJobId(null);
+
+      // Immediately after posting a brand-new LIVE job — not a draft, and
+      // not an edit of an existing job — route to its Job-to-Talent Match
+      // page rather than the job list, same as the Post-job button below.
+      if (wasCreate && form.status === 'LIVE') {
+        router.push(`/employer/jobs/${jobId}/matches`);
+        return;
+      }
       await refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -815,13 +835,15 @@ export default function EmployerJobs() {
               </button>
             )}
 
-            <button onClick={() => viewMatches(j.id)}>
-              {matchesForJob === j.id
-                ? 'Hide matches'
-                : j.status === 'DRAFT'
-                  ? 'Preview candidate pool'
-                  : 'View matches'}
-            </button>
+            {j.status === 'DRAFT' ? (
+              <button onClick={() => viewMatches(j.id)}>
+                {matchesForJob === j.id ? 'Hide candidate pool preview' : 'Preview candidate pool'}
+              </button>
+            ) : (
+              <Link href={`/employer/jobs/${j.id}/matches`} className="btn-secondary">
+                View talent match
+              </Link>
+            )}
 
             {j.status !== 'DRAFT' && (
               <button onClick={() => viewApplicants(j.id)}>
@@ -859,7 +881,7 @@ export default function EmployerJobs() {
                   <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
                     <strong>{c.fullName || 'Candidate'}</strong>
                     <div className="row" style={{ margin: 0 }}>
-                      <span className="ok">{c.score}</span>
+                      <Badge variant={MATCH_BAND_VARIANTS[matchBand(c.score)]}>{MATCH_BAND_LABELS[matchBand(c.score)]}</Badge>
                       <ShortlistButton
                         candidateId={c.profileId}
                         jobId={j.id}
@@ -873,9 +895,6 @@ export default function EmployerJobs() {
                         onError={setMatchesError}
                       />
                     </div>
-                  </div>
-                  <div className="progress-track">
-                    <div className="progress-fill" style={{ width: `${c.score}%` }} />
                   </div>
                   {c.headline && <div className="meta">{c.headline}</div>}
                   <div className="meta">
