@@ -12,6 +12,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { employerApi, downloadBlob } from '@/lib/api';
 import { Badge, Card, EmptyState } from '@/components/ui';
 import { matchBand, MATCH_BAND_LABELS, MATCH_BAND_VARIANTS } from '@/lib/matchBand';
+import { skillLevelName } from '@/lib/skillLevels';
 import ShortlistButton from './ShortlistButton';
 import ApplicantCard, { type ApplicantCardData } from './ApplicantCard';
 import { LocationAutocomplete, LocationSuggestion } from './LocationAutocomplete';
@@ -747,7 +748,7 @@ export default function EmployerJobs() {
                     value={s.requiredLevel}
                     onChange={(e) => updateSuggested(i, { requiredLevel: e.target.value })}
                   >
-                    {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+                    {LEVELS.map((l) => <option key={l} value={l}>{skillLevelName(l)}</option>)}
                   </select>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <input
@@ -794,7 +795,7 @@ export default function EmployerJobs() {
             <div className="meta">
               Skills:{' '}
               {j.skills
-                .map((s) => `${s.skill.name} (${s.requiredLevel}${s.isRequired ? '' : ', optional'})`)
+                .map((s) => `${s.skill.name} (${skillLevelName(s.requiredLevel)}${s.isRequired ? '' : ', optional'})`)
                 .join(', ')}
             </div>
           )}
@@ -840,7 +841,7 @@ export default function EmployerJobs() {
                 {matchesForJob === j.id ? 'Hide candidate pool preview' : 'Preview candidate pool'}
               </button>
             ) : (
-              <Link href={`/employer/jobs/${j.id}/matches`} className="btn-secondary">
+              <Link href={`/employer/jobs/${j.id}/matches`} className="btn btn-secondary">
                 View talent match
               </Link>
             )}
@@ -907,7 +908,7 @@ export default function EmployerJobs() {
                       {c.matched.map((m) => (
                         <Link key={m.skillId} href={`/badges/${m.verifyHash}`}>
                           <button title={m.verifiedBy === 'DISCUSSION' ? 'Verified by discussion' : 'Verified by test'}>
-                            {m.skillName} ({m.level}) {m.verifiedBy === 'DISCUSSION' ? '💬' : ''}
+                            {m.skillName} ({skillLevelName(m.level)}) {m.verifiedBy === 'DISCUSSION' ? '💬' : ''}
                           </button>
                         </Link>
                       ))}
@@ -920,9 +921,9 @@ export default function EmployerJobs() {
                         {c.missing
                           .map((m) => {
                             const has = m.candidateLevel
-                              ? `has ${m.verified ? 'verified' : 'unverified'} ${m.candidateLevel}`
+                              ? `has ${m.verified ? 'verified' : 'unverified'} ${skillLevelName(m.candidateLevel)}`
                               : 'no claim';
-                            return `${m.skillName} (needs ${m.requiredLevel}, ${has})`;
+                            return `${m.skillName} (needs ${skillLevelName(m.requiredLevel)}, ${has})`;
                           })
                           .join(', ')}
                       </p>

@@ -110,7 +110,7 @@ export default function EmployerJobMatches({ jobId }: Props) {
           <h1 style={{ marginBottom: 4 }}>Talent match</h1>
           <p className="meta" style={{ margin: 0 }}>{data.jobTitle}</p>
         </div>
-        <Link href="/employer/jobs" className="btn-secondary">Back to Job Postings</Link>
+        <Link href="/employer/jobs" className="btn btn-secondary">Back to Job Postings</Link>
       </div>
 
       <div

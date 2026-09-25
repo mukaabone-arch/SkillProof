@@ -484,6 +484,8 @@ code { font-family: var(--font-body); }
    Darkened for this one filled-with-white-text state only; --error itself stays bright everywhere
    it's used as text/border (the large majority of its call sites). */
 .btn-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--error) 70%, black); color: #fff; }
+a.btn { text-decoration: none; }
+a.btn:hover { text-decoration: none; }
 
 .ui-card { background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-lg); padding: var(--space-6); }
 .ui-card-elevated { box-shadow: var(--shadow-md); }
