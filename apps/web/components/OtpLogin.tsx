@@ -22,6 +22,7 @@
 import { useEffect, useState } from 'react';
 import { api, setTokens } from '@/lib/api';
 import { startOAuthLogin } from '@/lib/oauth';
+import { trackLogin, trackSignUp } from '@/lib/analyticsEvents';
 import BrandLockup from './BrandLockup';
 import { GoogleIcon, GithubIcon } from './OAuthIcons';
 import AuthMessageRotator from './AuthMessageRotator';
@@ -101,11 +102,18 @@ export default function OtpLogin({ onLoggedIn }: Props) {
     setBusy(true);
     try {
       const ep = endpoints();
-      const res = await api<{ accessToken: string; refreshToken: string }>(ep.verify, {
+      const res = await api<{ accessToken: string; refreshToken: string; isNewUser: boolean }>(ep.verify, {
         method: 'POST',
         body: JSON.stringify(ep.payload({ otp })),
       });
       setTokens(res.accessToken, res.refreshToken);
+      // Fired once, from this handler — never from an effect — right after
+      // the auth response confirms which case this was (see
+      // AuthService.issueTokens' own doc comment on why isNewUser has to
+      // come from the server).
+      const method = isEmail ? 'email_otp' : 'phone_otp';
+      if (res.isNewUser) trackSignUp(method, 'candidate');
+      else trackLogin(method, 'candidate');
       onLoggedIn();
     } catch (e) {
       setError((e as Error).message);

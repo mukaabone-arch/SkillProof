@@ -20,6 +20,7 @@ import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scor
 import { CreateJobDto, JobSkillItemDto, UpdateJobDto } from './jobs.dto';
 import { isProfileReadyToApply } from '../profiles/profile-readiness';
 import { formatLocation } from '../locations/location-format.util';
+import { hasVisiblePortfolio } from '../portfolio/portfolio.util';
 
 @Injectable()
 export class JobsService {
@@ -223,6 +224,25 @@ export class JobsService {
    * already an applicant to the employer's own job, by construction of the
    * `where: { jobId }` query below (and getOwnedJob's org check on jobId).
    *
+   * hasPortfolio uses the exact same visibility gate as
+   * PortfolioService.getForEmployer (hasVisiblePortfolio: approvedAt set AND
+   * visibleToEmployers true) so the "View portfolio" link this feeds can
+   * never point at a candidate the endpoint would 404 on. Computed from the
+   * `portfolio` relation already batched into this one query below — no
+   * per-row lookup, no probing GET /portfolio/candidates/:id just to find
+   * out.
+   *
+   * Deliberately NOT also checking employerCanViewPortfolio's relationship
+   * condition (Application OR ShortlistEntry OR AssessmentRequest) per row
+   * here — every row in this list already has an Application by
+   * construction (`where: { jobId }` / `job: { orgId }` above), so it would
+   * always pass anyway. hasVisiblePortfolio alone is only safe to reuse this
+   * way *because* the surrounding query already guarantees the relationship;
+   * a future surface that lists candidates without that guarantee (e.g. an
+   * open candidate-search result) must not copy this pattern without also
+   * checking access, or the link (not the page — that's still gated) could
+   * appear for a candidate the employer has no relationship with at all.
+   *
    * externalCredentials are surfaced alongside but kept out of scoring
    * entirely (per scoring.ts's separation from the external-credentials
    * system) — only VERIFIED ones are returned, so the employer judges
@@ -293,6 +313,8 @@ export class JobsService {
           include: {
             skillClaims: { include: { skill: true, badge: true } },
             externalCredentials: { where: { verificationState: CredentialVerificationState.VERIFIED } },
+            // Select-only — see this method's own comment above on hasPortfolio.
+            portfolio: { select: { approvedAt: true, visibleToEmployers: true } },
             // Score-only (job-scoped path) — see this method's doc comment. Same VERIFIED/
             // non-expired/relevant-tags filter as MatchingService. Org-wide path passes an
             // empty skillIdsToScore, so `hasSome` never matches anything and this list is
@@ -345,6 +367,7 @@ export class JobsService {
         linkedinUrl: profile.linkedinUrl,
         hasPhoto: profile.photoKey != null,
         hasResume: profile.resumeS3Key != null,
+        hasPortfolio: hasVisiblePortfolio(profile.portfolio),
         // Older applications predate the apply-time profile requirement —
         // flag those explicitly rather than showing the employer a blank card.
         profileIncomplete: !isProfileReadyToApply(profile),

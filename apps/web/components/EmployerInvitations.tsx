@@ -25,6 +25,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { trackAssessmentStarted } from '@/lib/analyticsEvents';
 
 type RequestStatus =
   | 'ACCRUED_PENDING_START'
@@ -77,7 +78,19 @@ export default function EmployerInvitations() {
       .catch(() => setInvitations([]));
   }, []);
 
-  async function start(id: string, level: string) {
+  /**
+   * alreadyInProgress: whether this (id, level) already had an attemptId/
+   * sessionId — i.e. this call is a resume, not the moment
+   * AssessmentRequestsService.launchLinkedAssessment actually creates the
+   * Attempt/AssessmentSession row. assessment_started fires only on a
+   * genuine creation, matching apps/api's own idempotent-resume framing of
+   * this endpoint (see this file's own top comment) — never on a resume, or
+   * the funnel would double-count one candidate starting the same level
+   * twice (once here, once more if the take-flow page's own mount-time POST
+   * were ever wired to fire this too, which it deliberately isn't — see
+   * app/assessments/[id]/page.tsx's own comment).
+   */
+  async function start(id: string, level: string, alreadyInProgress: boolean) {
     const key = `${id}|${level}`;
     setError('');
     setStartingKey(key);
@@ -87,8 +100,10 @@ export default function EmployerInvitations() {
         body: JSON.stringify({ level }),
       });
       if (result.assessmentId) {
-        router.push(`/assessments/${result.assessmentId}`);
+        if (!alreadyInProgress) trackAssessmentStarted('employer_request');
+        router.push(`/assessments/${result.assessmentId}?source=employer_request`);
       } else if (result.sessionId) {
+        if (!alreadyInProgress) trackAssessmentStarted('employer_request');
         router.push(`/assessments/discussion/session/${result.sessionId}`);
       } else {
         setError('Could not start this assessment — please try again.');
@@ -146,7 +161,10 @@ export default function EmployerInvitations() {
                 {inv.expiresAt ? ` · ${daysLeft(inv.expiresAt)}` : ''}
               </div>
             </div>
-            <button onClick={() => start(inv.id, inv.level!)} disabled={startingKey === `${inv.id}|${inv.level}`}>
+            <button
+              onClick={() => start(inv.id, inv.level!, inv.status === 'STARTED')}
+              disabled={startingKey === `${inv.id}|${inv.level}`}
+            >
               {startingKey === `${inv.id}|${inv.level}` ? 'Starting…' : 'Start now'}
             </button>
           </div>
@@ -166,7 +184,7 @@ export default function EmployerInvitations() {
                   {lvl.alreadyBadged ? (
                     <span className="ui-badge ui-badge-verified">Already verified</span>
                   ) : (
-                    <button onClick={() => start(inv.id, lvl.level)} disabled={startingKey === key}>
+                    <button onClick={() => start(inv.id, lvl.level, inProgress)} disabled={startingKey === key}>
                       {startingKey === key ? 'Starting…' : inProgress ? 'Resume' : 'Start now'}
                     </button>
                   )}

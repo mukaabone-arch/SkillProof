@@ -24,6 +24,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 /** Thrown by api() on a non-ok response — `body` is the parsed JSON error payload, if any. */
 export interface ApiError extends Error {
+  /** The response's actual HTTP status — read this to branch on "not found" vs. "forbidden" vs. a genuine failure, rather than string-matching `message` or reaching into `body`'s Nest-default shape. */
+  status: number;
   body?: unknown;
   /** Present only when this was a 402 { code: 'LIMIT_REACHED' } response — see limitReachedBus.ts. Callers rarely need this directly; LimitReachedModal already reacts to the same event. */
   limitReached?: LimitReachedPayload;
@@ -51,6 +53,7 @@ export interface ApiError extends Error {
  */
 function buildApiError(status: number, body: any): ApiError {
   const err = new Error(body?.message ?? `Request failed: ${status}`) as ApiError;
+  err.status = status;
   err.body = body;
   if (status === 402 && body?.code === 'LIMIT_REACHED') {
     const payload: LimitReachedPayload = {

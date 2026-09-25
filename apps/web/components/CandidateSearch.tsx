@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { employerApi } from '@/lib/api';
+import { skillLevelName } from '@/lib/skillLevels';
 import ShortlistButton from './ShortlistButton';
 
 const { api } = employerApi;
@@ -154,7 +155,7 @@ export default function CandidateSearch() {
           <select id="minLevel" value={minLevel} onChange={(e) => setMinLevel(e.target.value)}>
             <option value="">Any level</option>
             {LEVELS.map((l) => (
-              <option key={l} value={l}>{l}</option>
+              <option key={l} value={l}>{skillLevelName(l)}</option>
             ))}
           </select>
         </div>
@@ -226,7 +227,7 @@ export default function CandidateSearch() {
               {c.verifiedSkills.map((s) => (
                 <Link key={s.skillId} href={`/badges/${s.verifyHash}`}>
                   <button title={s.verifiedBy === 'DISCUSSION' ? 'Verified by discussion' : 'Verified by test'}>
-                    {s.skillName} ({s.level}) {s.verifiedBy === 'DISCUSSION' ? '💬' : ''}
+                    {s.skillName} ({skillLevelName(s.level)}) {s.verifiedBy === 'DISCUSSION' ? '💬' : ''}
                   </button>
                 </Link>
               ))}

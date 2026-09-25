@@ -146,9 +146,11 @@ export default function EmployerApplicants() {
                 footer={
                   <>
                     <p className="meta" style={{ margin: 0 }}>Applied for {a.jobTitle} ({a.jobCode})</p>
-                    <Link href={`/employer/candidates/${a.profileId}/portfolio`} className="meta" style={{ margin: 0 }}>
-                      View portfolio →
-                    </Link>
+                    {a.hasPortfolio && (
+                      <Link href={`/employer/candidates/${a.profileId}/portfolio`} className="meta" style={{ margin: 0 }}>
+                        View portfolio →
+                      </Link>
+                    )}
                     <div className="row" style={{ alignItems: 'center', margin: 0, flexWrap: 'wrap' }}>
                       <span className="meta" style={{ margin: 0 }}>Status: {a.status}</span>
                       {STATUS_ACTIONS.map((s) => (

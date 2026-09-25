@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { employerApi, downloadBlob } from '@/lib/api';
 import { Badge, EmptyState } from '@/components/ui';
+import { skillLevelName } from '@/lib/skillLevels';
 import CandidateAvatar from './CandidateAvatar';
 import AssessCandidateAction from './AssessCandidateAction';
 
@@ -84,6 +85,8 @@ interface ShortlistEntry {
   /** Bytes only ever fetched through the authenticated proxy endpoints — see CandidateAvatar and viewResume. */
   hasPhoto: boolean;
   hasResume: boolean;
+  /** Same gate as the portfolio endpoint's own 404 — decide whether to render "View portfolio" from this, never link unconditionally. */
+  hasPortfolio: boolean;
   verifiedSkills: ShortlistSkill[];
   job: { id: string; title: string } | null;
   stage: Stage;
@@ -466,7 +469,7 @@ export default function EmployerShortlist() {
           <div className="row" style={{ margin: 0, alignItems: 'center' }}>
             {e.githubUrl && <a href={e.githubUrl} target="_blank" rel="noopener noreferrer">GitHub</a>}
             {e.linkedinUrl && <a href={e.linkedinUrl} target="_blank" rel="noopener noreferrer">LinkedIn</a>}
-            <Link href={`/employer/candidates/${e.candidateId}/portfolio`}>View portfolio</Link>
+            {e.hasPortfolio && <Link href={`/employer/candidates/${e.candidateId}/portfolio`}>View portfolio</Link>}
             {e.hasResume && e.job && (
               <button
                 type="button"
@@ -484,7 +487,7 @@ export default function EmployerShortlist() {
               {e.verifiedSkills.map((s) => (
                 <Link key={s.skillId} href={`/badges/${s.verifyHash}`}>
                   <Badge variant="verified" title={s.verifiedBy === 'DISCUSSION' ? 'Verified by discussion' : 'Verified by test'}>
-                    {s.skillName} ({s.level}) {s.verifiedBy === 'DISCUSSION' ? '💬' : ''}
+                    {s.skillName} ({skillLevelName(s.level)}) {s.verifiedBy === 'DISCUSSION' ? '💬' : ''}
                   </Badge>
                 </Link>
               ))}

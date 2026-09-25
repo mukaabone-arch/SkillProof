@@ -23,6 +23,7 @@ import { isProfileReadyForAssessment, missingReadinessFields, readinessGateMessa
 import { useEntitlements } from '@/lib/entitlements';
 import { UsageMeter } from '@/components/UsageMeter';
 import EmployerInvitations from '@/components/EmployerInvitations';
+import { trackAssessmentStarted } from '@/lib/analyticsEvents';
 
 type SkillLevelName = 'L1' | 'L2' | 'L3' | 'L4';
 type VerificationMethod = 'TEST' | 'DISCUSSION';
@@ -174,6 +175,7 @@ function DiscussionAction({
     setError(null);
     try {
       const created = await api<{ session: { id: string } }>('/assessment-sessions', { method: 'POST' });
+      trackAssessmentStarted('self_serve');
       router.push(`/assessments/discussion/session/${created.session.id}`);
     } catch (e) {
       // Disabling the button below is the UX courtesy; this catch is the

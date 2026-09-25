@@ -6,6 +6,7 @@ import { EmployerCandidateAccessService } from '../access/employer-candidate-acc
 import { candidateVisibilityFilter } from '../account/account.util';
 import { formatLocation } from '../locations/location-format.util';
 import { UpdatePortfolioContentDto } from './portfolio.dto';
+import { hasVisiblePortfolio } from './portfolio.util';
 
 const skillClaimsInclude = { skillClaims: { where: { status: ClaimStatus.VERIFIED }, include: { skill: true, badge: true } } } as const;
 const certificationsWhere: Prisma.CertificationWhereInput = {
@@ -169,7 +170,7 @@ export class PortfolioService {
         user: { select: { email: true, phone: true } },
       },
     });
-    if (!profile || !profile.portfolio || !profile.portfolio.approvedAt || !profile.portfolio.visibleToEmployers) {
+    if (!profile || !hasVisiblePortfolio(profile.portfolio)) {
       throw new NotFoundException();
     }
 

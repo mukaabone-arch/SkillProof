@@ -350,7 +350,7 @@ export class AuthService {
         );
       }
 
-      return this.issueTokens(existing.id, existing.role, {
+      return this.issueTokens(existing.id, existing.role, false, {
         id: existing.id,
         phone: existing.phone,
         role: existing.role,
@@ -363,7 +363,7 @@ export class AuthService {
           data: { phone, profile: { create: {} }, termsAcceptances: this.termsAcceptanceWrite() },
         });
 
-    return this.issueTokens(user.id, user.role, {
+    return this.issueTokens(user.id, user.role, true, {
       id: user.id,
       phone: user.phone,
       role: user.role,
@@ -401,7 +401,7 @@ export class AuthService {
           'This email is already registered as a candidate. Log in from the candidate app.',
         );
       }
-      return this.issueTokens(existing.id, existing.role, this.publicUser(existing));
+      return this.issueTokens(existing.id, existing.role, false, this.publicUser(existing));
     }
 
     assertCompanyEmail(email);
@@ -419,7 +419,7 @@ export class AuthService {
       );
     }
     const user = await this.createEmployer(orgName, { email });
-    return this.issueTokens(user.id, user.role, this.publicUser(user));
+    return this.issueTokens(user.id, user.role, true, this.publicUser(user));
   }
 
   /**
@@ -446,13 +446,13 @@ export class AuthService {
           'This email is already registered as an employer. Log in from the employer portal.',
         );
       }
-      return this.issueTokens(existing.id, existing.role, this.publicUser(existing));
+      return this.issueTokens(existing.id, existing.role, false, this.publicUser(existing));
     }
 
     const user = await this.prisma.user.create({
       data: { email, profile: { create: {} }, termsAcceptances: this.termsAcceptanceWrite() },
     });
-    return this.issueTokens(user.id, user.role, this.publicUser(user));
+    return this.issueTokens(user.id, user.role, true, this.publicUser(user));
   }
 
   /**
@@ -482,6 +482,7 @@ export class AuthService {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     let userId: string;
     let role: Role;
+    const isNewUser = !existing;
 
     if (existing) {
       if (!EMPLOYER_ROLES.includes(existing.role)) {
@@ -520,7 +521,7 @@ export class AuthService {
     });
 
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
-    return this.issueTokens(userId, role, this.publicUser(user));
+    return this.issueTokens(userId, role, isNewUser, this.publicUser(user));
   }
 
   /** Namespaced apart from requestEmailOtp's plain-email key — see requestInviteOtp's doc comment. */
@@ -621,10 +622,10 @@ export class AuthService {
    */
   private async loginWithIdentity(provider: IdentityProvider, profile: ExternalProfile) {
     const user = await this.resolveIdentityUser(provider, profile);
-    if (user) return this.issueTokens(user.id, user.role, this.publicUser(user));
+    if (user) return this.issueTokens(user.id, user.role, false, this.publicUser(user));
 
     const created = await this.createUserWithIdentity(provider, profile);
-    return this.issueTokens(created.id, created.role, this.publicUser(created));
+    return this.issueTokens(created.id, created.role, true, this.publicUser(created));
   }
 
   async loginEmployerWithGithub(exchange: OAuthCodeExchange) {
@@ -654,7 +655,10 @@ export class AuthService {
       throw new ForbiddenException(NOT_AN_EMPLOYER_MESSAGE);
     }
 
-    return this.issueTokens(user.id, user.role, this.publicUser(user));
+    // loginEmployerWithIdentity never creates a User (see this method's own
+    // doc comment — branch 3 of the shared policy never runs here), so this
+    // is always a returning-user login, never a signup.
+    return this.issueTokens(user.id, user.role, false, this.publicUser(user));
   }
 
   /** Steps 1-2 of the loginWithIdentity policy above, shared with the employer flow: resolves an existing User by Identity or verified-email auto-link. Returns null if neither matches (candidate flow then creates a new User; employer flow then rejects). */
@@ -1195,7 +1199,9 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
 
-    return this.issueTokens(stored.user.id, stored.user.role);
+    // Never a signup — refresh only ever runs against an already-issued
+    // token for an already-existing user.
+    return this.issueTokens(stored.user.id, stored.user.role, false);
   }
 
   /** Revoke a refresh token on logout. */
@@ -1226,7 +1232,19 @@ export class AuthService {
     });
   }
 
-  private async issueTokens(userId: string, role: string, user?: unknown) {
+  /**
+   * isNewUser: true only on the branch of a caller that actually ran
+   * `user.create` (or the $transaction wrapping one) this request — never
+   * inferred from anything indirect (no profile yet, first time this token
+   * has been seen, etc.), both of which break for OAuth (profile is created
+   * in the same transaction as the user) or a new device on an old account.
+   * Every call site above passes this explicitly so it's a deliberate
+   * decision at each one, not a default that's easy to get wrong when a new
+   * caller is added. Powers the frontend's sign_up vs. login GA4 split
+   * (apps/web/lib/analyticsEvents.ts) — see that file for why the client
+   * can't determine this on its own.
+   */
+  private async issueTokens(userId: string, role: string, isNewUser: boolean, user?: unknown) {
     const accessToken = await this.jwt.signAsync({ sub: userId, role });
 
     const rawRefreshToken = randomBytes(40).toString('hex');
@@ -1249,7 +1267,7 @@ export class AuthService {
       this.logger.error(`Failed to write lastLoginAt for user ${userId}: ${(err as Error).message}`);
     }
 
-    return { accessToken, refreshToken: rawRefreshToken, ...(user ? { user } : {}) };
+    return { accessToken, refreshToken: rawRefreshToken, isNewUser, ...(user ? { user } : {}) };
   }
 
   private hashToken(raw: string): string {

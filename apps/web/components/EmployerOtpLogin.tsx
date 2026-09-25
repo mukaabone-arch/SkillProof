@@ -30,6 +30,7 @@
  */
 import { useEffect, useState } from 'react';
 import { employerApi } from '@/lib/api';
+import { trackLogin, trackSignUp } from '@/lib/analyticsEvents';
 import BrandLockup from './BrandLockup';
 import AuthMessageRotator, { type AuthMessage } from './AuthMessageRotator';
 import LegalAcceptanceNote from './LegalAcceptanceNote';
@@ -96,11 +97,16 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
     setError('');
     setBusy(true);
     try {
-      const res = await api<{ accessToken: string; refreshToken: string }>('/auth/employer/otp/verify', {
-        method: 'POST',
-        body: JSON.stringify({ email: email.trim(), otp, orgName: orgName.trim() }),
-      });
+      const res = await api<{ accessToken: string; refreshToken: string; isNewUser: boolean }>(
+        '/auth/employer/otp/verify',
+        {
+          method: 'POST',
+          body: JSON.stringify({ email: email.trim(), otp, orgName: orgName.trim() }),
+        },
+      );
       setTokens(res.accessToken, res.refreshToken);
+      if (res.isNewUser) trackSignUp('email_otp', 'employer');
+      else trackLogin('email_otp', 'employer');
       onLoggedIn();
     } catch (e) {
       setError((e as Error).message);

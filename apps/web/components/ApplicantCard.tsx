@@ -14,6 +14,7 @@
 import Link from 'next/link';
 import { Badge } from '@/components/ui';
 import { matchBand, MATCH_BAND_LABELS, MATCH_BAND_VARIANTS } from '@/lib/matchBand';
+import { skillLevelName } from '@/lib/skillLevels';
 import CandidateAvatar from './CandidateAvatar';
 
 export type CredentialIssuer = 'CREDLY' | 'AWS' | 'GOOGLE' | 'AZURE' | 'NVIDIA' | 'DATABRICKS' | 'IBM' | 'OTHER';
@@ -93,6 +94,15 @@ export interface ApplicantCardData {
   /** Bytes are only ever fetched through the authenticated proxy endpoints — see CandidateAvatar. */
   hasPhoto: boolean;
   hasResume: boolean;
+  /**
+   * Same gate as the portfolio endpoint's own 404 (approvedAt set AND
+   * visibleToEmployers true) — decide whether to render a "View portfolio"
+   * link from this, never by linking unconditionally and letting the 404
+   * page be the first the employer hears of it. This card doesn't render
+   * that link itself (see `footer`'s own comment); it just carries the flag
+   * for whichever caller does.
+   */
+  hasPortfolio: boolean;
   /** True for applications that predate the apply-time profile requirement. */
   profileIncomplete: boolean;
   /** Fit against one job's requirements — null when there's no single job to score against (org-wide views). */
@@ -186,7 +196,7 @@ export default function ApplicantCard({ applicant: a, headerActions, resumeActio
             {a.verifiedSkills.map((s) => (
               <Link key={s.skillId} href={`/badges/${s.verifyHash}`}>
                 <Badge variant="verified" title={s.verifiedBy === 'DISCUSSION' ? 'Verified by discussion' : 'Verified by test'}>
-                  {s.skillName} ({s.level}) {s.verifiedBy === 'DISCUSSION' ? '💬' : ''}
+                  {s.skillName} ({skillLevelName(s.level)}) {s.verifiedBy === 'DISCUSSION' ? '💬' : ''}
                 </Badge>
               </Link>
             ))}

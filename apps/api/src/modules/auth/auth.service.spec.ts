@@ -137,9 +137,15 @@ function fakePrisma(
       }),
     },
     identity: {
-      // No pre-existing identity in these tests — the OAuth paths under test
-      // provision brand-new accounts, so (provider, providerId) never resolves.
+      // No pre-existing identity by default — most tests in this file
+      // provision brand-new accounts, so (provider, providerId) never
+      // resolves unless a test overrides this. `create` backs
+      // resolveIdentityUser's verified-email auto-link branch (outside any
+      // $transaction, unlike createUserWithIdentity's own tx-scoped
+      // identity.create below) — just echoes `data` back, same convention
+      // as refreshToken.create.
       findUnique: jest.fn(async () => null),
+      create: jest.fn(async ({ data }: { data: unknown }) => data),
     },
     refreshToken: {
       create: jest.fn(async ({ data }: { data: unknown }) => data),
@@ -1607,5 +1613,203 @@ describe('AuthService — lastLoginAt (written from issueTokens, the one choke p
 
     // The login itself must still succeed and return real tokens.
     expect(result).toMatchObject({ accessToken: 'signed.jwt.token' });
+  });
+});
+
+/**
+ * isNewUser drives the frontend's GA4 sign_up-vs-login split
+ * (apps/web/lib/analyticsEvents.ts) — every path that can create a User
+ * must return true exactly on the branch that actually ran user.create (or
+ * the $transaction wrapping one), and false everywhere else, including
+ * paths (loginEmployerWithIdentity, refresh) that can never create one at
+ * all. One test per branch, not just per method, so a future change that
+ * flips the flag on the wrong side of an if/else fails loudly here rather
+ * than silently inflating (or hiding) signups in analytics.
+ */
+describe('AuthService — isNewUser flag on the auth response', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  describe('verifyOtp (phone)', () => {
+    it('is true for a brand-new candidate phone', async () => {
+      process.env.NODE_ENV = 'test';
+      const { service } = makeService();
+      await service.requestOtp('+919999930001');
+      await expect(service.verifyOtp('+919999930001', DEV_OTP)).resolves.toMatchObject({ isNewUser: true });
+    });
+
+    it('is false for a returning candidate phone', async () => {
+      process.env.NODE_ENV = 'test';
+      const existing: UserRow = { id: 'user-1', phone: '+919999930002', email: null, role: Role.CANDIDATE };
+      const { service } = makeService([existing]);
+      await service.requestOtp('+919999930002');
+      await expect(service.verifyOtp('+919999930002', DEV_OTP)).resolves.toMatchObject({ isNewUser: false });
+    });
+
+    it('is true for a brand-new employer phone (orgName branch)', async () => {
+      process.env.NODE_ENV = 'test';
+      const { service } = makeService();
+      await service.requestOtp('+919999930003');
+      await expect(service.verifyOtp('+919999930003', DEV_OTP, 'Acme Inc.')).resolves.toMatchObject({ isNewUser: true });
+    });
+
+    it('is false for a returning employer phone', async () => {
+      process.env.NODE_ENV = 'test';
+      const existing: UserRow = { id: 'user-1', phone: '+919999930004', email: null, role: Role.EMPLOYER_ADMIN };
+      const { service } = makeService([existing]);
+      await service.requestOtp('+919999930004');
+      await expect(service.verifyOtp('+919999930004', DEV_OTP, 'Acme Inc.')).resolves.toMatchObject({ isNewUser: false });
+    });
+  });
+
+  describe('verifyEmailOtp (employer email)', () => {
+    it('is true for a brand-new employer email', async () => {
+      process.env.NODE_ENV = 'test';
+      const { service } = makeService();
+      await service.requestEmailOtp('new-isnew@acme.com');
+      await expect(service.verifyEmailOtp('new-isnew@acme.com', DEV_OTP, 'Acme Inc.')).resolves.toMatchObject({
+        isNewUser: true,
+      });
+    });
+
+    it('is false for a returning employer email', async () => {
+      process.env.NODE_ENV = 'test';
+      const existing: UserRow = { id: 'user-1', phone: null, email: 'owner-isnew@acme.com', role: Role.EMPLOYER_ADMIN };
+      const { service } = makeService([existing]);
+      await service.requestEmailOtp('owner-isnew@acme.com');
+      await expect(service.verifyEmailOtp('owner-isnew@acme.com', DEV_OTP, 'Acme Inc.')).resolves.toMatchObject({
+        isNewUser: false,
+      });
+    });
+  });
+
+  describe('verifyCandidateEmailOtp', () => {
+    it('is true for a brand-new candidate email', async () => {
+      process.env.NODE_ENV = 'test';
+      const { service } = makeService();
+      await service.requestCandidateEmailOtp('new-isnew@candidate.com');
+      await expect(service.verifyCandidateEmailOtp('new-isnew@candidate.com', DEV_OTP)).resolves.toMatchObject({
+        isNewUser: true,
+      });
+    });
+
+    it('is false for a returning candidate email', async () => {
+      process.env.NODE_ENV = 'test';
+      const existing: UserRow = { id: 'user-1', phone: null, email: 'returning-isnew@candidate.com', role: Role.CANDIDATE };
+      const { service } = makeService([existing]);
+      await service.requestCandidateEmailOtp('returning-isnew@candidate.com');
+      await expect(service.verifyCandidateEmailOtp('returning-isnew@candidate.com', DEV_OTP)).resolves.toMatchObject({
+        isNewUser: false,
+      });
+    });
+  });
+
+  describe('acceptInvite', () => {
+    it('is true when the invite provisions a brand-new EMPLOYER_MEMBER', async () => {
+      process.env.NODE_ENV = 'test';
+      const invitation = pendingInvitation({ email: 'newmember-isnew@acme.com' });
+      const { service } = makeService([], [], [invitation]);
+      await service.requestInviteOtp('newmember-isnew@acme.com');
+      await expect(service.acceptInvite('newmember-isnew@acme.com', DEV_OTP)).resolves.toMatchObject({ isNewUser: true });
+    });
+
+    it('is false when the invite links an existing employer account (no OrgMember yet)', async () => {
+      process.env.NODE_ENV = 'test';
+      const existing: UserRow = { id: 'user-1', phone: null, email: 'linkme-isnew@acme.com', role: Role.EMPLOYER_MEMBER };
+      const invitation = pendingInvitation({ email: 'linkme-isnew@acme.com', organizationId: 'org-1' });
+      const { service } = makeService([existing], [], [invitation]);
+      await service.requestInviteOtp('linkme-isnew@acme.com');
+      await expect(service.acceptInvite('linkme-isnew@acme.com', DEV_OTP)).resolves.toMatchObject({ isNewUser: false });
+    });
+  });
+
+  describe('OAuth (candidate, loginWithGoogle/loginWithGithub)', () => {
+    it('is true when no Identity and no verified-email match exist — createUserWithIdentity runs', async () => {
+      process.env.NODE_ENV = 'test';
+      const profile = { providerId: 'google-sub-isnew-1', email: 'oauth-isnew-1@candidate.com', emailVerified: true };
+      const google = { exchange: jest.fn(async () => profile) };
+      const { service } = makeService([], [], [], { google });
+
+      await expect(service.loginWithGoogle({ code: 'auth-code', redirectUri: 'https://app/cb' })).resolves.toMatchObject({
+        isNewUser: true,
+      });
+    });
+
+    it('is false when an existing Identity resolves the user (returning OAuth login)', async () => {
+      process.env.NODE_ENV = 'test';
+      const profile = { providerId: 'google-sub-isnew-2', email: 'oauth-isnew-2@candidate.com', emailVerified: true };
+      const google = { exchange: jest.fn(async () => profile) };
+      const { service, prisma } = makeService([], [], [], { google });
+
+      // First call provisions the account (createUserWithIdentity); the
+      // second call must resolve via the now-existing Identity row instead.
+      const identityTable = prisma.identity as unknown as { findUnique: jest.Mock };
+      let createdUserId: string | null = null;
+      identityTable.findUnique.mockImplementation(async () =>
+        createdUserId ? { user: { id: createdUserId, phone: null, email: profile.email, role: Role.CANDIDATE } } : null,
+      );
+      const first = (await service.loginWithGoogle({ code: 'auth-code', redirectUri: 'https://app/cb' })) as unknown as {
+        isNewUser: boolean;
+        user: { id: string };
+      };
+      expect(first.isNewUser).toBe(true);
+      createdUserId = first.user.id;
+
+      await expect(service.loginWithGoogle({ code: 'auth-code', redirectUri: 'https://app/cb' })).resolves.toMatchObject({
+        isNewUser: false,
+      });
+    });
+
+    it('is false when a verified-email auto-link resolves an existing User (branch 2, not a create)', async () => {
+      process.env.NODE_ENV = 'test';
+      const existing: UserRow = { id: 'user-1', phone: null, email: 'autolink-isnew@candidate.com', role: Role.CANDIDATE };
+      const profile = { providerId: 'github-sub-isnew-1', email: 'autolink-isnew@candidate.com', emailVerified: true };
+      const github = { exchange: jest.fn(async () => profile) };
+      const { service } = makeService([existing], [], [], { github });
+
+      await expect(service.loginWithGithub({ code: 'auth-code', redirectUri: 'https://app/cb' })).resolves.toMatchObject({
+        isNewUser: false,
+      });
+    });
+  });
+
+  describe('loginEmployerWithGithub — never creates a User', () => {
+    it('is false for a resolved, already-org-member employer account', async () => {
+      process.env.NODE_ENV = 'test';
+      const existing: UserRow = { id: 'user-1', phone: null, email: 'emp-isnew@acme.com', role: Role.EMPLOYER_ADMIN };
+      const orgMember: OrgMemberRow = { id: 'member-1', userId: 'user-1', organizationId: 'org-1' };
+      const profile = { providerId: 'github-sub-isnew-2', email: 'emp-isnew@acme.com', emailVerified: true };
+      const github = { exchange: jest.fn(async () => profile) };
+      const { service, prisma } = makeService([existing], [orgMember], [], { github });
+      (prisma.identity as unknown as { findUnique: jest.Mock }).findUnique = jest.fn(async () => null);
+      (prisma.user as unknown as { findFirst: jest.Mock }).findFirst = jest.fn(async () => existing);
+
+      await expect(service.loginEmployerWithGithub({ code: 'auth-code', redirectUri: 'https://app/cb' })).resolves.toMatchObject({
+        isNewUser: false,
+      });
+    });
+  });
+
+  describe('refresh — never a signup', () => {
+    it('is false on a token refresh', async () => {
+      process.env.NODE_ENV = 'test';
+      const { service, prisma, users } = makeService();
+      await service.requestOtp('+919999930099');
+      const loginResult = (await service.verifyOtp('+919999930099', DEV_OTP)) as unknown as { refreshToken: string };
+
+      const rawToken = loginResult.refreshToken;
+      const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+      const stored = { id: 'rt-1', tokenHash, userId: users[0].id, revokedAt: null as Date | null, expiresAt: new Date(Date.now() + 60_000), user: users[0] };
+      const refreshTokenTable = prisma.refreshToken as unknown as { findUnique: unknown; update: unknown };
+      refreshTokenTable.findUnique = jest.fn(async () => stored);
+      refreshTokenTable.update = jest.fn(async ({ data }: { data: Partial<typeof stored> }) => {
+        Object.assign(stored, data);
+        return stored;
+      });
+
+      await expect(service.refresh(rawToken)).resolves.toMatchObject({ isNewUser: false });
+    });
   });
 });

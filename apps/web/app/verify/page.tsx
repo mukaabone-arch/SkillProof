@@ -28,6 +28,7 @@ import { api, logout, type ApiError } from '@/lib/api';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import { useCandidateVerification } from '@/lib/candidateVerification';
 import { useEntitlements } from '@/lib/entitlements';
+import { trackVerificationComplete } from '@/lib/analyticsEvents';
 
 interface Me {
   role: string;
@@ -125,6 +126,15 @@ export default function VerifyPage() {
     try {
       const ep = endpoints(activeChannel);
       await api(ep.verify, { method: 'POST', body: JSON.stringify(ep.payload({ otp })) });
+      // Fires only when THIS channel was the last one missing — `me` was
+      // loaded before this verify, so if the OTHER channel was already
+      // present, the gate (phone AND email) has now genuinely cleared.
+      // Firing on every successful link/verify instead would double-count a
+      // candidate who needs to add both (bounced back here after the
+      // first), which is exactly what "fire once" for a funnel step means.
+      if (me && (activeChannel === 'phone' ? me.email != null : me.phone != null)) {
+        trackVerificationComplete(activeChannel === 'phone' ? 'phone_otp' : 'email_otp');
+      }
       // Refresh both the gate's cached status and entitlements BEFORE
       // navigating away — otherwise CandidateVerificationProvider still
       // thinks this token is incomplete and immediately bounces back here,

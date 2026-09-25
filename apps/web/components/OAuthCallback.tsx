@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api, employerApi, setTokens } from '@/lib/api';
 import { consumeStoredPortal, consumeStoredState, redirectUriFor, PROVIDER_LABEL, type OAuthProviderId } from '@/lib/oauth';
+import { trackLogin, trackSignUp } from '@/lib/analyticsEvents';
 import BrandLockup from './BrandLockup';
 
 interface Props {
@@ -78,18 +79,23 @@ export default function OAuthCallback({ provider }: Props) {
     (async () => {
       try {
         const body = JSON.stringify({ code, redirectUri: redirectUriFor(provider) });
+        const role = portal === 'employer' ? 'employer' : 'candidate';
         if (portal === 'employer') {
-          const res = await employerApi.api<{ accessToken: string; refreshToken: string }>(
+          const res = await employerApi.api<{ accessToken: string; refreshToken: string; isNewUser: boolean }>(
             `/auth/employer/${provider}`,
             { method: 'POST', body },
           );
           employerApi.setTokens(res.accessToken, res.refreshToken);
+          if (res.isNewUser) trackSignUp(provider, role);
+          else trackLogin(provider, role);
         } else {
-          const res = await api<{ accessToken: string; refreshToken: string }>(`/auth/${provider}`, {
+          const res = await api<{ accessToken: string; refreshToken: string; isNewUser: boolean }>(`/auth/${provider}`, {
             method: 'POST',
             body,
           });
           setTokens(res.accessToken, res.refreshToken);
+          if (res.isNewUser) trackSignUp(provider, role);
+          else trackLogin(provider, role);
         }
         router.replace(backHref);
       } catch (e) {

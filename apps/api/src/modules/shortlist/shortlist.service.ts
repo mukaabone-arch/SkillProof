@@ -5,10 +5,15 @@ import { ProfileViewsService } from '../profile-views/profile-views.service';
 import { assertCandidateAvailableForPipeline } from '../account/account.util';
 import { AddShortlistEntryDto, UpdateShortlistEntryDto } from './shortlist.dto';
 import { formatLocation } from '../locations/location-format.util';
+import { hasVisiblePortfolio } from '../portfolio/portfolio.util';
 
 const shortlistEntryInclude = {
   candidateProfile: {
-    include: { skillClaims: { where: { status: ClaimStatus.VERIFIED }, include: { skill: true, badge: true } } },
+    include: {
+      skillClaims: { where: { status: ClaimStatus.VERIFIED }, include: { skill: true, badge: true } },
+      // Select-only — see `present`'s own comment on hasPortfolio.
+      portfolio: { select: { approvedAt: true, visibleToEmployers: true } },
+    },
   },
   job: { select: { id: true, title: true } },
   // Full visibility for the employer view — unlike GET /interviews/mine
@@ -130,6 +135,14 @@ export class ShortlistService {
       // still 403 there; that's intentional, not a bug in this list).
       hasPhoto: entry.candidateProfile.photoKey != null,
       hasResume: entry.candidateProfile.resumeS3Key != null,
+      // Same visibility gate as PortfolioService.getForEmployer
+      // (hasVisiblePortfolio) — see JobsService.applicantsFor's own, longer
+      // comment on this. The relationship check (employerCanViewPortfolio)
+      // is skipped per row for the same reason it is there: this row IS a
+      // ShortlistEntry for (orgId, candidateId), which alone satisfies
+      // employerCanViewPortfolio, so re-checking it here would just be an
+      // async no-op.
+      hasPortfolio: hasVisiblePortfolio(entry.candidateProfile.portfolio),
       verifiedSkills: entry.candidateProfile.skillClaims
         .filter((c) => c.badge)
         .map((c) => ({

@@ -14,6 +14,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { employerApi } from '@/lib/api';
+import { trackLogin, trackSignUp } from '@/lib/analyticsEvents';
 import BrandLockup from './BrandLockup';
 import LegalAcceptanceNote from './LegalAcceptanceNote';
 
@@ -59,11 +60,13 @@ export default function EmployerInviteAccept({ initialEmail }: Props) {
     setError('');
     setBusy(true);
     try {
-      const res = await api<{ accessToken: string; refreshToken: string }>('/auth/employer/invite/otp/verify', {
-        method: 'POST',
-        body: JSON.stringify({ email: email.trim(), otp }),
-      });
+      const res = await api<{ accessToken: string; refreshToken: string; isNewUser: boolean }>(
+        '/auth/employer/invite/otp/verify',
+        { method: 'POST', body: JSON.stringify({ email: email.trim(), otp }) },
+      );
       setTokens(res.accessToken, res.refreshToken);
+      if (res.isNewUser) trackSignUp('email_otp', 'employer');
+      else trackLogin('email_otp', 'employer');
       router.replace('/employer/dashboard');
     } catch (e) {
       setError((e as Error).message);

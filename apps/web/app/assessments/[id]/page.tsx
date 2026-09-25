@@ -5,13 +5,14 @@
  * start attempt → fetch questions → answer (saved per-question, idempotent)
  * → submit → grade → result + badge.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { api, getToken, type ApiError } from '@/lib/api';
 import { useEntitlements } from '@/lib/entitlements';
 import { UsageMeter } from '@/components/UsageMeter';
 import { Badge } from '@/components/ui';
+import { trackAssessmentStarted, trackAssessmentSubmitted, trackBadgeEarned } from '@/lib/analyticsEvents';
 
 type IntegrityEventType =
   | 'TAB_BLUR'
@@ -114,9 +115,19 @@ function topicPercent(t: TopicStat): number {
   return t.asked === 0 ? 0 : Math.round((t.correct / t.asked) * 100);
 }
 
+/** useSearchParams (for the ?source=employer_request analytics marker — see start() below) requires a Suspense boundary above it in the App Router; see app/assessments/page.tsx for the same pattern. */
 export default function TakeAssessmentPage() {
+  return (
+    <Suspense fallback={<main><p className="meta">Loading…</p></main>}>
+      <TakeAssessmentPageInner />
+    </Suspense>
+  );
+}
+
+function TakeAssessmentPageInner() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { tier, limits, usage, freeSkillLock, refetch } = useEntitlements();
   const [assessmentInfo, setAssessmentInfo] = useState<AssessmentInfo>();
   const [attemptId, setAttemptId] = useState<string>();
@@ -165,12 +176,30 @@ export default function TakeAssessmentPage() {
   // Ref (not state) so in-flight event listeners always see the latest
   // value without needing to be torn down/rebuilt on every render.
   const finishedRef = useRef(false);
+  // Ref, not state — start() is invoked from a useEffect ([acknowledged,
+  // start]) below, and `start` itself is a useCallback whose deps include
+  // `refetch` from useEntitlements(), which can change identity across
+  // renders and re-run that effect while `acknowledged` stays true. A state
+  // flag would still risk a stale read inside this same async callback;
+  // this ref can't.
+  const startTrackedRef = useRef(false);
 
   const start = useCallback(async () => {
     if (!getToken()) { router.push('/candidate'); return; }
     try {
       const attempt = await api<{ id: string }>(`/assessments/${id}/attempts`, { method: 'POST' });
       setAttemptId(attempt.id);
+      if (!startTrackedRef.current) {
+        startTrackedRef.current = true;
+        // The employer-request path already fired this at the true creation
+        // moment (EmployerInvitations.tsx, before routing here) — this
+        // endpoint's own POST is that flow's documented idempotent resume,
+        // not a second creation. See analyticsEvents.ts's own comment on
+        // trackAssessmentStarted.
+        if (searchParams.get('source') !== 'employer_request') {
+          trackAssessmentStarted('self_serve');
+        }
+      }
       const res = await api<QuestionsResponse>(`/attempts/${attempt.id}/questions`);
       setQuestions(res.questions);
       setRemainingSeconds(res.remainingSeconds);
@@ -308,7 +337,16 @@ export default function TakeAssessmentPage() {
     try {
       await api(`/attempts/${attemptId}/submit`, { method: 'POST' });
       finishedRef.current = true; // stop reporting integrity events — the attempt is done
-      setResult(await api<Result>(`/attempts/${attemptId}/result`));
+      const res = await api<Result>(`/attempts/${attemptId}/result`);
+      setResult(res);
+      // MCQ only — grading (and therefore `passed`) is known synchronously
+      // in this same round-trip. See analyticsEvents.ts's own comment on
+      // why this isn't wired for the discussion format, which can land in
+      // AWAITING_SCORING/AWAITING_REVIEW instead. submit() is a one-shot
+      // handler (the Submit button's onClick, not an effect), so no
+      // re-fire guard is needed here the way start() needed one.
+      if (res.passed !== null) trackAssessmentSubmitted(res.passed);
+      if (res.badge) trackBadgeEarned();
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }

@@ -21,6 +21,7 @@
  */
 import { useEffect, useState } from 'react';
 import { employerApi } from '@/lib/api';
+import { skillLevelName } from '@/lib/skillLevels';
 
 const { api } = employerApi;
 
@@ -266,9 +267,9 @@ function LegacyRequestRow({ r }: { r: AssessmentRequestView }) {
       <span
         className="ui-badge ui-badge-neutral chip-truncate"
         style={{ alignSelf: 'flex-start', maxWidth: '100%' }}
-        title={`${r.skill.name} (${r.level}) · ${STATUS_LABELS[r.status]}`}
+        title={`${r.skill.name} (${skillLevelName(r.level!)}) · ${STATUS_LABELS[r.status]}`}
       >
-        {r.skill.name} ({r.level}) · {STATUS_LABELS[r.status]}
+        {r.skill.name} ({skillLevelName(r.level!)}) · {STATUS_LABELS[r.status]}
       </span>
     );
   }
@@ -277,7 +278,7 @@ function LegacyRequestRow({ r }: { r: AssessmentRequestView }) {
       <div className="row" style={{ margin: 0, alignItems: 'center', gap: 8 }}>
         <span className={`ui-badge ${r.passed ? 'ui-badge-verified' : 'ui-badge-danger'}`}>{r.passed ? 'Passed' : 'Not passed'}</span>
         <strong>
-          {r.skill.name} — {r.level}
+          {r.skill.name} — {skillLevelName(r.level!)}
         </strong>
         {r.scorePercent !== null && <span className="meta" style={{ margin: 0 }}>Score: {r.scorePercent}%</span>}
       </div>
@@ -336,7 +337,7 @@ function WholeSkillRequestRow({ r }: { r: AssessmentRequestView }) {
       <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
         {levels.map((l) => (
           <li key={l.level} className="meta">
-            {l.level}:{' '}
+            {skillLevelName(l.level)}:{' '}
             {l.attempted ? (
               <span className={l.passed ? 'ok' : 'error'}>
                 {l.passed ? 'Passed' : 'Not passed'}
