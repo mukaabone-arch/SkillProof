@@ -19,6 +19,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import BrandLockup from '@/components/BrandLockup';
+import LocaleSwitcher from '@/components/LocaleSwitcher';
 
 interface Props {
   /** Candidate sign-in target (see the landing page's own constant + report). */
@@ -62,6 +63,7 @@ export default function LandingHeader({ candidateHref, employerHref }: Props) {
           <a href={employerHref} className="lp-nav-link" onClick={() => setMenuOpen(false)}>
             {t('employer')}
           </a>
+          <LocaleSwitcher className="lp-nav-link" />
         </nav>
       </div>
     </header>

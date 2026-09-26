@@ -19,7 +19,7 @@ import { defineRouting } from 'next-intl/routing';
  * disagree with it.
  */
 export const routing = defineRouting({
-  locales: ['en'], // 'ar' joins in the second step of the Arabic rollout
+  locales: ['en', 'ar'],
   defaultLocale: 'en',
   localePrefix: 'as-needed',
   localeDetection: false,

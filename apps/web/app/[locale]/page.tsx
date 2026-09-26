@@ -206,6 +206,7 @@ export default function LandingPage({ params: { locale } }: { params: { locale: 
             <a href="/refunds" target="_blank" rel="noopener noreferrer">{t('footer.refunds')}</a>
             <a href="/account-deletion" target="_blank" rel="noopener noreferrer">{t('footer.delete')}</a>
             <a href="/faq">{t('footer.faq')}</a>
+            <LocaleSwitcher />
             <ConsentSettingsLink />
           </nav>
         </div>

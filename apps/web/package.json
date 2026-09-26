@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "i18n:check": "node scripts/check-i18n.mjs",
+    "i18n:sync": "node scripts/check-i18n.mjs --update"
   },
   "dependencies": {
     "@next/third-parties": "^14.2.35",
