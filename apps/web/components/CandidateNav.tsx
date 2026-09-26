@@ -2,7 +2,8 @@
 
 /** Persistent nav across the four main candidate areas — always accessible, clear active-state. */
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { usePathname } from '@/i18n/navigation';
 import { logout } from '@/lib/api';
 import { useEntitlements } from '@/lib/entitlements';
 import BrandLockup from './BrandLockup';

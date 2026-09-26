@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { ANALYTICS_CONSENT_CHANGED_EVENT, readAnalyticsConsent, withdrawAnalyticsConsent } from '@/lib/analyticsConsent';
 
 /**
@@ -17,6 +18,7 @@ import { ANALYTICS_CONSENT_CHANGED_EVENT, readAnalyticsConsent, withdrawAnalytic
  * mismatched markup.
  */
 export default function ConsentSettingsLink() {
+  const t = useTranslations('consent.settings');
   const [decision, setDecision] = useState<'granted' | 'denied' | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -50,7 +52,7 @@ export default function ConsentSettingsLink() {
         window.location.reload();
       }}
     >
-      {decision === 'granted' ? 'Analytics: on — change' : 'Analytics: off — change'}
+      {decision === 'granted' ? t('on') : t('off')}
     </button>
   );
 }

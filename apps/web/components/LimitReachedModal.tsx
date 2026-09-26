@@ -34,7 +34,8 @@
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { usePathname } from '@/i18n/navigation';
 import { onLimitReached, LimitReachedPayload } from '@/lib/limitReachedBus';
 
 const METRIC_LABEL: Record<string, string> = {

@@ -31,7 +31,8 @@
  * not be reached by leaving the portal.
  */
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { usePathname } from '@/i18n/navigation';
 import { useState } from 'react';
 import { employerApi } from '@/lib/api';
 import BrandLockup from './BrandLockup';

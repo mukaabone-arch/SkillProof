@@ -16,7 +16,8 @@
  * backed by and why the rest have nothing to administer yet.
  */
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { usePathname } from '@/i18n/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { logout } from '@/lib/api';
 import BrandLockup from './BrandLockup';

@@ -17,6 +17,7 @@
  * shrinking the lockup.
  */
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import BrandLockup from '@/components/BrandLockup';
 
 interface Props {
@@ -27,6 +28,7 @@ interface Props {
 }
 
 export default function LandingHeader({ candidateHref, employerHref }: Props) {
+  const t = useTranslations('header');
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -40,25 +42,25 @@ export default function LandingHeader({ candidateHref, employerHref }: Props) {
   return (
     <header className={`lp-header${scrolled ? ' is-scrolled' : ''}`}>
       <div className="lp-header-inner">
-        <BrandLockup variant="hero" href="/" ariaLabel="MyAmbii home" onClick={() => setMenuOpen(false)} />
+        <BrandLockup variant="hero" href="/" ariaLabel={t('home')} onClick={() => setMenuOpen(false)} />
 
         <button
           type="button"
           className="lp-menu-btn"
           aria-expanded={menuOpen}
           aria-controls="lp-primary-nav"
-          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          aria-label={menuOpen ? t('closeMenu') : t('openMenu')}
           onClick={() => setMenuOpen((v) => !v)}
         >
           <span className="lp-menu-icon" aria-hidden="true">{menuOpen ? '✕' : '☰'}</span>
         </button>
 
-        <nav id="lp-primary-nav" className={`lp-nav${menuOpen ? ' is-open' : ''}`} aria-label="Primary">
+        <nav id="lp-primary-nav" className={`lp-nav${menuOpen ? ' is-open' : ''}`} aria-label={t('primaryNav')}>
           <a href={candidateHref} className="lp-nav-link" onClick={() => setMenuOpen(false)}>
-            Candidate
+            {t('candidate')}
           </a>
           <a href={employerHref} className="lp-nav-link" onClick={() => setMenuOpen(false)}>
-            Employer
+            {t('employer')}
           </a>
         </nav>
       </div>

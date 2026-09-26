@@ -1,9 +1,14 @@
 import type { Metadata } from 'next';
+import { getTranslations, setRequestLocale } from 'next-intl/server';
+import { useTranslations } from 'next-intl';
 import LandingHeader from '@/components/landing/LandingHeader';
 import NewsStrip from '@/components/landing/NewsStrip';
 import ConsentSettingsLink from '@/components/ConsentSettingsLink';
 import BrandLockup from '@/components/BrandLockup';
 import BetaPromoBar from '@/components/BetaPromoBar';
+import LocaleSwitcher from '@/components/LocaleSwitcher';
+import { localeAlternates } from '@/lib/localeMetadata';
+import type { Locale } from '@/i18n/routing';
 
 /**
  * Marketing landing page — served at the domain root ("/"). The candidate
@@ -24,47 +29,43 @@ const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_ORIGIN ?? '';
 const CANDIDATE_HREF = `${APP_ORIGIN}/candidate`;
 const EMPLOYER_HREF = `${APP_ORIGIN}/employer`;
 
-export const metadata: Metadata = {
-  title: 'MyAmbii — Hire on proven AI skills, not keywords',
-  description:
-    'MyAmbii verifies real AI ability through assessments, not keyword matching. Candidates get matched to roles that want their proven skills; employers hire on evidence.',
-};
+export async function generateMetadata({ params: { locale } }: { params: { locale: string } }): Promise<Metadata> {
+  const t = await getTranslations({ locale, namespace: 'meta.landing' });
+  return {
+    title: t('title'),
+    description: t('description'),
+    alternates: localeAlternates(locale as Locale, '/'),
+  };
+}
 
 /**
  * Candidate value props — headings only (the substance is the candidate
  * login rotator, AuthMessageRotator.tsx). Rendered as a compact row of
  * heading-only feature cards; see .lp-card-feature in globals.css.
+ * Keys into messages `landing.platform.items`.
  */
-const CAPABILITIES = [
-  'Proof, not promises',
-  'A co-pilot for your next move',
-  'Talk directly to companies hiring',
-  'Apply in minutes, not hours',
-];
+const CAPABILITY_KEYS = ['proof', 'copilot', 'direct', 'apply'] as const;
 
 /**
  * How verification works — numbered step markers + headings only (drawn from
  * existing positioning; no invented specifics like turnaround or pricing).
- * Rendered as compact cards; see .lp-step in globals.css.
+ * Rendered as compact cards; see .lp-step in globals.css. Keys into messages
+ * `landing.how.steps`; the numerals are not translated.
  */
-const STEPS = [
-  { num: '01', title: 'Take a rigorous assessment' },
-  { num: '02', title: 'Verified, not self-claimed' },
-  { num: '03', title: 'Get matched, verifiably' },
-];
+const STEP_KEYS = ['assess', 'verified', 'matched'] as const;
 
 /**
  * Employer-facing framing — headings only (substance from the employer login
  * rotator, EmployerOtpLogin.tsx). Rendered as compact heading-only cards, the
- * same .lp-card-feature treatment as the platform strip.
+ * same .lp-card-feature treatment as the platform strip. Keys into messages
+ * `landing.employers.points`.
  */
-const EMPLOYER_POINTS = [
-  'Hire on evidence, not claims',
-  'See who can actually do the work',
-  'One place from shortlist to hire',
-];
+const EMPLOYER_POINT_KEYS = ['evidence', 'doers', 'oneplace'] as const;
 
-export default function LandingPage() {
+export default function LandingPage({ params: { locale } }: { params: { locale: string } }) {
+  // Required for static rendering of this page per locale (next-intl).
+  setRequestLocale(locale);
+  const t = useTranslations();
   return (
     <>
       {/* .lp-header is position:fixed, so the promo bar is wrapped together
@@ -80,7 +81,7 @@ export default function LandingPage() {
       <section className="lp-hero" aria-labelledby="lp-hero-heading">
         <div className="lp-hero-scrim" aria-hidden="true" />
         <div className="lp-container lp-hero-inner">
-          <p className="lp-eyebrow">Verified AI talent</p>
+          <p className="lp-eyebrow">{t('landing.hero.eyebrow')}</p>
           {/* Two headline variants, toggled by CSS at 768px (see .lp-hero-title-lg/-sm
               in globals.css). Desktop keeps the full line (3 balanced lines over the
               empty left of the landscape shot); mobile uses a shorter one that fits two
@@ -88,26 +89,23 @@ export default function LandingPage() {
               clear-middle band of the scrim. Exactly one span is display:none at any
               width, so only one contributes to the h1's accessible name. */}
           <h1 id="lp-hero-heading" className="lp-hero-title">
-            <span className="lp-hero-title-lg">Where proven AI skill meets the companies hiring for it</span>
-            <span className="lp-hero-title-sm">Proven AI skill, meet the companies hiring</span>
+            <span className="lp-hero-title-lg">{t('landing.hero.titleLg')}</span>
+            <span className="lp-hero-title-sm">{t('landing.hero.titleSm')}</span>
           </h1>
-          <p className="lp-hero-sub">
-            MyAmbii turns real ability into verified proof — assessments, not keyword
-            matching. Candidates get matched on evidence; employers hire on it.
-          </p>
+          <p className="lp-hero-sub">{t('landing.hero.sub')}</p>
 
           <div className="lp-hero-ctas">
             <div className="lp-cta-block">
               <a className="lp-btn lp-btn-primary" href={CANDIDATE_HREF}>
-                Prove your skills
+                {t('landing.hero.candidateCta')}
               </a>
-              <span className="lp-cta-caption">Prove your AI skills, get matched to roles that want them</span>
+              <span className="lp-cta-caption">{t('landing.hero.candidateCaption')}</span>
             </div>
             <div className="lp-cta-block">
               <a className="lp-btn lp-btn-secondary" href={EMPLOYER_HREF}>
-                Hire on proven skills
+                {t('landing.hero.employerCta')}
               </a>
-              <span className="lp-cta-caption">Hire on proven skills, not keywords</span>
+              <span className="lp-cta-caption">{t('landing.hero.employerCaption')}</span>
             </div>
           </div>
         </div>
@@ -116,15 +114,15 @@ export default function LandingPage() {
       {/* ---------- Capabilities ---------- */}
       <section className="lp-section" aria-labelledby="lp-cap-heading">
         <div className="lp-container">
-          <p className="lp-section-eyebrow">The platform</p>
+          <p className="lp-section-eyebrow">{t('landing.platform.eyebrow')}</p>
           <h2 id="lp-cap-heading" className="lp-section-title">
-            Everything a proven candidate needs — and nothing that wastes an employer&apos;s time
+            {t('landing.platform.title')}
           </h2>
           <div className="lp-card-grid lp-card-grid-features">
-            {CAPABILITIES.map((title, i) => (
-              <div className="lp-card lp-card-feature" key={title}>
+            {CAPABILITY_KEYS.map((key, i) => (
+              <div className="lp-card lp-card-feature" key={key}>
                 <span className="lp-step-num">{String(i + 1).padStart(2, '0')}</span>
-                <h3 className="lp-card-title">{title}</h3>
+                <h3 className="lp-card-title">{t(`landing.platform.items.${key}`)}</h3>
               </div>
             ))}
           </div>
@@ -134,15 +132,15 @@ export default function LandingPage() {
       {/* ---------- How verification works ---------- */}
       <section className="lp-section lp-section-alt" aria-labelledby="lp-how-heading">
         <div className="lp-container">
-          <p className="lp-section-eyebrow">How verification works</p>
+          <p className="lp-section-eyebrow">{t('landing.how.eyebrow')}</p>
           <h2 id="lp-how-heading" className="lp-section-title">
-            From claim to proof
+            {t('landing.how.title')}
           </h2>
           <div className="lp-steps">
-            {STEPS.map((s) => (
-              <div className="lp-step" key={s.num}>
-                <span className="lp-step-num">{s.num}</span>
-                <h3 className="lp-step-title">{s.title}</h3>
+            {STEP_KEYS.map((key, i) => (
+              <div className="lp-step" key={key}>
+                <span className="lp-step-num">{String(i + 1).padStart(2, '0')}</span>
+                <h3 className="lp-step-title">{t(`landing.how.steps.${key}`)}</h3>
               </div>
             ))}
           </div>
@@ -152,21 +150,21 @@ export default function LandingPage() {
       {/* ---------- For employers ---------- */}
       <section className="lp-section" aria-labelledby="lp-emp-heading">
         <div className="lp-container">
-          <p className="lp-section-eyebrow">For employers</p>
+          <p className="lp-section-eyebrow">{t('landing.employers.eyebrow')}</p>
           <h2 id="lp-emp-heading" className="lp-section-title">
-            Stop screening keywords. Start reading proof.
+            {t('landing.employers.title')}
           </h2>
           <div className="lp-card-grid lp-card-grid-3">
-            {EMPLOYER_POINTS.map((title, i) => (
-              <div className="lp-card lp-card-feature" key={title}>
+            {EMPLOYER_POINT_KEYS.map((key, i) => (
+              <div className="lp-card lp-card-feature" key={key}>
                 <span className="lp-step-num">{String(i + 1).padStart(2, '0')}</span>
-                <h3 className="lp-card-title">{title}</h3>
+                <h3 className="lp-card-title">{t(`landing.employers.points.${key}`)}</h3>
               </div>
             ))}
           </div>
           <div className="lp-inline-cta">
             <a className="lp-btn lp-btn-secondary" href={EMPLOYER_HREF}>
-              Go to the employer portal
+              {t('landing.employers.cta')}
             </a>
           </div>
         </div>
@@ -178,15 +176,12 @@ export default function LandingPage() {
       {/* ---------- About ---------- */}
       <section className="lp-section lp-section-alt" id="about" aria-labelledby="lp-about-heading">
         <div className="lp-container lp-prose">
-          <p className="lp-section-eyebrow">About Us</p>
+          <p className="lp-section-eyebrow">{t('landing.about.eyebrow')}</p>
           <h2 id="lp-about-heading" className="lp-section-title">
-            Built to make AI skill legible
+            {t('landing.about.title')}
           </h2>
           <p className="lp-prose-body">
-            MyAmbii is a product built on the <strong>flAIr future Intelligence</strong> platform by <strong>Mukaab Technologies Private Limited</strong>. We believe hiring for
-            AI should rest on demonstrated ability rather than keywords on a résumé — so we verify skills through
-            real assessments, with select skills confirmed through a recorded conversation reviewed by a person, and
-            give employers evidence they can check.
+            {t.rich('landing.about.body', { strong: (chunks) => <strong>{chunks}</strong> })}
           </p>
         </div>
       </section>
@@ -201,16 +196,16 @@ export default function LandingPage() {
               <BrandLockup variant="hero" />
             </div>
             <p className="lp-footer-company">Mukaab Technologies Private Limited</p>
-            <p className="lp-footer-copy">© {new Date().getFullYear()} Mukaab Technologies Private Limited</p>
+            <p className="lp-footer-copy">{t('footer.copy', { year: String(new Date().getFullYear()) })}</p>
           </div>
-          <nav className="lp-footer-links" aria-label="Footer">
-            <a href="#about">About Us</a>
-            <a href="/contact">Contact</a>
-            <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
-            <a href="/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>
-            <a href="/refunds" target="_blank" rel="noopener noreferrer">Refund Policy</a>
-            <a href="/account-deletion" target="_blank" rel="noopener noreferrer">Delete Account</a>
-            <a href="/faq">FAQs</a>
+          <nav className="lp-footer-links" aria-label={t('footer.label')}>
+            <a href="#about">{t('footer.about')}</a>
+            <a href="/contact">{t('footer.contact')}</a>
+            <a href="/privacy" target="_blank" rel="noopener noreferrer">{t('footer.privacy')}</a>
+            <a href="/terms" target="_blank" rel="noopener noreferrer">{t('footer.terms')}</a>
+            <a href="/refunds" target="_blank" rel="noopener noreferrer">{t('footer.refunds')}</a>
+            <a href="/account-deletion" target="_blank" rel="noopener noreferrer">{t('footer.delete')}</a>
+            <a href="/faq">{t('footer.faq')}</a>
             <ConsentSettingsLink />
           </nav>
         </div>

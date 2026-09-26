@@ -6,7 +6,8 @@
  */
 import '@testing-library/jest-dom';
 import { ReactElement } from 'react';
-import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { renderWithIntl as rtlRender } from '../test-utils/renderWithIntl';
 import CandidateJobs from './CandidateJobs';
 import { EntitlementsProvider } from '@/lib/entitlements';
 
@@ -15,6 +16,7 @@ let searchParams = new URLSearchParams('tab=matched');
 jest.mock('next/navigation', () => ({
   useSearchParams: () => searchParams,
   usePathname: () => '/jobs',
+  useParams: () => ({}),
 }));
 
 function jsonResponse(status: number, body: unknown): Response {

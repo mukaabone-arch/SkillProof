@@ -1,0 +1,99 @@
+{
+  "meta": {
+    "landing": {
+      "title": "MyAmbii — Hire on proven AI skills, not keywords",
+      "description": "MyAmbii verifies real AI ability through assessments, not keyword matching. Candidates get matched to roles that want their proven skills; employers hire on evidence."
+    }
+  },
+  "header": {
+    "home": "MyAmbii home",
+    "primaryNav": "Primary",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "candidate": "Candidate",
+    "employer": "Employer"
+  },
+  "locale": {
+    "label": "Language",
+    "en": "English",
+    "ar": "العربية"
+  },
+  "promo": {
+    "lead": "Candidates: free while we're in beta",
+    "until": "— until {date}"
+  },
+  "consent": {
+    "banner": {
+      "label": "Cookie consent",
+      "body": "We'd like to use Google Analytics to understand how MyAmbii is used. Nothing is tracked unless you accept, and you can change your mind at any time.",
+      "privacy": "Privacy Policy",
+      "accept": "Accept",
+      "decline": "Decline"
+    },
+    "settings": {
+      "on": "Analytics: on — change",
+      "off": "Analytics: off — change"
+    }
+  },
+  "landing": {
+    "hero": {
+      "eyebrow": "Verified AI talent",
+      "titleLg": "Where proven AI skill meets the companies hiring for it",
+      "titleSm": "Proven AI skill, meet the companies hiring",
+      "sub": "MyAmbii turns real ability into verified proof — assessments, not keyword matching. Candidates get matched on evidence; employers hire on it.",
+      "candidateCta": "Prove your skills",
+      "candidateCaption": "Prove your AI skills, get matched to roles that want them",
+      "employerCta": "Hire on proven skills",
+      "employerCaption": "Hire on proven skills, not keywords"
+    },
+    "platform": {
+      "eyebrow": "The platform",
+      "title": "Everything a proven candidate needs — and nothing that wastes an employer's time",
+      "items": {
+        "proof": "Proof, not promises",
+        "copilot": "A co-pilot for your next move",
+        "direct": "Talk directly to companies hiring",
+        "apply": "Apply in minutes, not hours"
+      }
+    },
+    "how": {
+      "eyebrow": "How verification works",
+      "title": "From claim to proof",
+      "steps": {
+        "assess": "Take a rigorous assessment",
+        "verified": "Verified, not self-claimed",
+        "matched": "Get matched, verifiably"
+      }
+    },
+    "employers": {
+      "eyebrow": "For employers",
+      "title": "Stop screening keywords. Start reading proof.",
+      "points": {
+        "evidence": "Hire on evidence, not claims",
+        "doers": "See who can actually do the work",
+        "oneplace": "One place from shortlist to hire"
+      },
+      "cta": "Go to the employer portal"
+    },
+    "news": {
+      "eyebrow": "Live from the field",
+      "title": "What's moving in AI"
+    },
+    "about": {
+      "eyebrow": "About Us",
+      "title": "Built to make AI skill legible",
+      "body": "MyAmbii is a product built on the <strong>flAIr future Intelligence</strong> platform by <strong>Mukaab Technologies Private Limited</strong>. We believe hiring for AI should rest on demonstrated ability rather than keywords on a résumé — so we verify skills through real assessments, with select skills confirmed through a recorded conversation reviewed by a person, and give employers evidence they can check."
+    }
+  },
+  "footer": {
+    "label": "Footer",
+    "about": "About Us",
+    "contact": "Contact",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service",
+    "refunds": "Refund Policy",
+    "delete": "Delete Account",
+    "faq": "FAQs",
+    "copy": "© {year} Mukaab Technologies Private Limited"
+  }
+}

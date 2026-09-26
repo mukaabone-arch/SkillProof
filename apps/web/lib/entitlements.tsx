@@ -14,7 +14,7 @@
  * is the only correct way to reflect that.
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname } from '@/i18n/navigation';
 import { api, getToken, type ApiError } from './api';
 
 export type SubscriptionTier = 'FREE' | 'PREMIUM';

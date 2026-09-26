@@ -1,3 +1,5 @@
+import { intlTag } from './formatLocale';
+
 /**
  * Beta pricing ends at the close of 30 November 2026, IST — the audience and
  * the business are both in India, so the cutoff is Asia/Kolkata, not UTC.
@@ -17,14 +19,20 @@ export function isBetaPromoActive(now: Date = new Date()): boolean {
 /**
  * "30 November" — day + month, no year (matches the banner copy), read in
  * IST regardless of the viewer's own timezone so it never disagrees with
- * the IST cutoff `isBetaPromoActive` enforces.
+ * the IST cutoff `isBetaPromoActive` enforces. Month name follows the page
+ * locale; digits and calendar are pinned by lib/formatLocale.ts.
  */
-const dateFormatter = new Intl.DateTimeFormat('en-GB', {
-  day: 'numeric',
-  month: 'long',
-  timeZone: 'Asia/Kolkata',
-});
+const dateFormatters = new Map<string, Intl.DateTimeFormat>();
 
-export function formatBetaPromoDate(date: Date): string {
-  return dateFormatter.format(date);
+export function formatBetaPromoDate(date: Date, locale = 'en'): string {
+  let formatter = dateFormatters.get(locale);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(intlTag(locale, 'en-GB'), {
+      day: 'numeric',
+      month: 'long',
+      timeZone: 'Asia/Kolkata',
+    });
+    dateFormatters.set(locale, formatter);
+  }
+  return formatter.format(date);
 }

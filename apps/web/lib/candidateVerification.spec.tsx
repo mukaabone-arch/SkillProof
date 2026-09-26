@@ -15,11 +15,12 @@
  */
 import '@testing-library/jest-dom';
 import { StrictMode } from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { renderWithIntl as render } from '../test-utils/renderWithIntl';
 import { CandidateVerificationProvider } from './candidateVerification';
 import { api, clearTokens, setTokens } from './api';
 import Providers from '../components/Providers';
-import CandidatePage from '../app/candidate/page';
+import CandidatePage from '../app/[locale]/candidate/page';
 
 const replace = jest.fn();
 // Any non-exempt route works for exercising the provider's own generic
@@ -50,6 +51,7 @@ const searchParamsMock = new URLSearchParams();
 
 jest.mock('next/navigation', () => ({
   usePathname: () => pathname,
+  useParams: () => ({}),
   useRouter: () => routerMock,
   useSearchParams: () => searchParamsMock,
 }));

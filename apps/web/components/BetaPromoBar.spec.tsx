@@ -13,7 +13,8 @@
  * cutoff (23:59:59 IST = 18:29:59 UTC) — see the discriminating case below.
  */
 import '@testing-library/jest-dom';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderWithIntl as render } from '../test-utils/renderWithIntl';
 import BetaPromoBar from './BetaPromoBar';
 import { setTokens, clearTokens, employerApi } from '@/lib/api';
 import { BETA_FREE_UNTIL } from '@/lib/betaPromo';
@@ -22,6 +23,7 @@ let pathname = '/';
 
 jest.mock('next/navigation', () => ({
   usePathname: () => pathname,
+  useParams: () => ({}),
 }));
 
 beforeEach(() => {

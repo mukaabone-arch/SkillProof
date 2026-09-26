@@ -38,7 +38,8 @@
  * one fixed flow container sidesteps that instead of measuring it).
  */
 import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
+import { usePathname } from '@/i18n/navigation';
 import { getToken, employerApi } from '@/lib/api';
 import { BETA_FREE_UNTIL, formatBetaPromoDate, isBetaPromoActive } from '@/lib/betaPromo';
 
@@ -56,6 +57,10 @@ function isAllowedPath(pathname: string): boolean {
 }
 
 export default function BetaPromoBar({ stacked = false }: Props) {
+  const t = useTranslations('promo');
+  const locale = useLocale();
+  // next-intl's usePathname: the path with any locale prefix stripped, so
+  // '/ar' matches the same allow-list entry as '/'.
   const pathname = usePathname() ?? '';
   // Deferred to an effect, same shape as PublicNav's own dashboardHref
   // check — the server never has localStorage, so reading a token during
@@ -83,8 +88,8 @@ export default function BetaPromoBar({ stacked = false }: Props) {
 
   return (
     <div className="beta-promo-bar" role="note">
-      <span>Candidates: free while we&apos;re in beta</span>{' '}
-      <span className="beta-promo-date">— until {formatBetaPromoDate(BETA_FREE_UNTIL)}</span>
+      <span>{t('lead')}</span>{' '}
+      <span className="beta-promo-date">{t('until', { date: formatBetaPromoDate(BETA_FREE_UNTIL, locale) })}</span>
     </div>
   );
 }
