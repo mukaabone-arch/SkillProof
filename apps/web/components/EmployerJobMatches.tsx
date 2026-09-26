@@ -114,7 +114,7 @@ export default function EmployerJobMatches({ jobId }: Props) {
       </div>
 
       <div
-        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, marginTop: 24 }}
+      style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, marginTop: 24, marginBottom: 24 }}
       >
         {FUNNEL_TILES.map((tile) => {
           const count = funnel[tile.key];
@@ -123,7 +123,7 @@ export default function EmployerJobMatches({ jobId }: Props) {
               <div className="status-card-label">{tile.label}</div>
               <div className="status-stat">{count}</div>
               <div className="progress-track">
-                <div className="progress-fill" style={{ width: `${(count / maxCount) * 100}%` }} />
+                <div className="progress-fill" style={{ width: `${(count / (maxCount || 1)) * 100}%` }} />
               </div>
             </div>
           );
