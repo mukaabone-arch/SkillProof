@@ -525,20 +525,6 @@ export default function AccountSettingsPage() {
 
         <LoginMethodsCard />
 
-        {/* The consent banner (Providers -> AnalyticsGate, root layout) is
-            what first records a decision, but it's a one-time prompt — this
-            is the only place to revisit it afterward. It used to exist only
-            in the landing page's own footer (app/page.tsx), unreachable
-            without leaving the portal; DPDP expects withdrawal to be at
-            least as easy as giving consent, so it belongs wherever a
-            signed-in candidate would actually look for a privacy control. */}
-        <Card style={{ marginBottom: 32 }}>
-          <h2 style={{ marginTop: 0 }}>Privacy</h2>
-          <p>
-            See our <Link href="/privacy">Privacy Policy</Link> for what analytics we collect and why.
-          </p>
-          <ConsentSettingsLink />
-        </Card>
 
         {status && SHOW_DATA_EXPORT_UI && <ExportsCard />}
 
@@ -640,6 +626,20 @@ export default function AccountSettingsPage() {
             </Card>
           </>
         )}
+        {/* The consent banner (Providers -> AnalyticsGate, root layout) is
+            what first records a decision, but it's a one-time prompt — this
+            is the only place to revisit it afterward. It used to exist only
+            in the landing page's own footer (app/page.tsx), unreachable
+            without leaving the portal; DPDP expects withdrawal to be at
+            least as easy as giving consent, so it belongs wherever a
+            signed-in candidate would actually look for a privacy control. */}
+        <Card style={{ marginBottom: 32 }}>
+          <h2 style={{ marginTop: 0 }}>Privacy</h2>
+          <p>
+            See our <Link href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</Link> for what analytics we collect and why.
+          </p>
+          <ConsentSettingsLink />
+        </Card>
       </main>
     </>
   );

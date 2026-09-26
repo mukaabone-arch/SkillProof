@@ -38,6 +38,7 @@ export default function ConsentSettingsLink() {
   return (
     <button
       type="button"
+      style={{ alignSelf: 'flex-start' }}
       className="lp-footer-consent-link"
       onClick={() => {
         withdrawAnalyticsConsent();
