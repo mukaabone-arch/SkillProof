@@ -35,6 +35,7 @@
  * app itself.
  */
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { GoogleAnalytics } from '@next/third-parties/google';
 import ConsentBanner from './ConsentBanner';
 import { readAnalyticsConsent, writeAnalyticsConsent, type AnalyticsConsent } from '@/lib/analyticsConsent';
@@ -42,6 +43,8 @@ import { readAnalyticsConsent, writeAnalyticsConsent, type AnalyticsConsent } fr
 const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
 export default function AnalyticsGate() {
+  const pathname = usePathname();
+
   // Read localStorage only after mount (it's unavailable during server
   // rendering) — `hydrated` gates the first render so the banner can't
   // flash on, then off, before the stored decision is known.
@@ -53,7 +56,13 @@ export default function AnalyticsGate() {
     setHydrated(true);
   }, []);
 
-  if (!GA_MEASUREMENT_ID || !hydrated) return null;
+  // /auth/handoff carries a single-use session code in its query string.
+  // GA4's config call reports page_location as the full URL, and a
+  // following history-event page_view would carry this URL as
+  // page_referrer — either deposits a live credential in Google's logs.
+  // The page is transitional (~300ms) and has nothing worth measuring;
+  // suppressing the consent banner there too is deliberate.
+  if (!GA_MEASUREMENT_ID || !hydrated || pathname === '/auth/handoff') return null;
 
   if (consent === 'granted') return <GoogleAnalytics gaId={GA_MEASUREMENT_ID} />;
   if (consent === 'denied') return null;

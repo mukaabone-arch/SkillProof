@@ -7,9 +7,10 @@
  * once logged in we check the role and bounce admins straight to the admin
  * console rather than rendering the candidate dashboard for them.
  */
-import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api, getToken, logout } from '@/lib/api';
+import { isSafeReturnTo } from '@/lib/returnTo';
 import OtpLogin from '@/components/OtpLogin';
 import Dashboard from '@/components/Dashboard';
 import ReactivatePrompt from '@/components/ReactivatePrompt';
@@ -36,7 +37,16 @@ interface AccountStatus {
 const REDIRECT_FALLBACK_MS = 4000;
 
 export default function Home() {
+  return (
+    <Suspense fallback={<main className="app-loading"><p>Loading…</p></main>}>
+      <CandidateHome />
+    </Suspense>
+  );
+}
+
+function CandidateHome() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [status, setStatus] = useState<'loading' | 'anon' | 'authed' | 'deactivated' | 'redirecting'>('loading');
 
   const resolveRole = useCallback(async () => {
@@ -73,6 +83,19 @@ export default function Home() {
         setStatus('deactivated');
         return;
       }
+      // /auth/handoff (the mobile → web session bridge) sends a failed
+      // redeem here with ?returnTo=<original destination> — an ordinary
+      // sign-in from this point on still lands the candidate where the app
+      // was taking them, rather than the bare dashboard. isSafeReturnTo
+      // matters here specifically because this is the post-login redirect:
+      // an unvalidated value would be an open redirect with a session
+      // just attached to it.
+      const returnTo = searchParams.get('returnTo');
+      if (isSafeReturnTo(returnTo)) {
+        setStatus('redirecting');
+        router.replace(returnTo);
+        return;
+      }
     } catch (e) {
       // Genuinely unexpected — /users/me is exempt from the verification
       // gate and can't fail with CANDIDATE_VERIFICATION_INCOMPLETE, so
@@ -82,7 +105,7 @@ export default function Home() {
       console.error('resolveRole: unexpected failure resolving /users/me', e);
     }
     setStatus('authed');
-  }, [router]);
+  }, [router, searchParams]);
 
   useEffect(() => {
     if (!getToken()) {
