@@ -13,6 +13,7 @@ import { JwtService } from '@nestjs/jwt';
 import { IdentityProvider, OrgInvitationStatus, Role, User } from '@prisma/client';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { InMemoryRateLimiter } from '../../common/ip-rate-limiter';
 import { EMAIL_PROVIDER, EmailProvider } from '../notifications/email-provider.interface';
 import { SMS_PROVIDER, SmsProvider } from '../notifications/sms-provider.interface';
 import { GithubOAuthProvider } from './oauth/github-oauth.provider';
@@ -115,6 +116,11 @@ export class AuthService {
   private readonly MAX_SENDS_PER_WINDOW = 3;
   private readonly MAX_VERIFY_ATTEMPTS = 5;
   private readonly REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+  /** Both the TTL and single-use are load-bearing — see createWebSessionCode/redeemWebSessionCode. */
+  private readonly WEB_SESSION_CODE_TTL_MS = 60 * 1000;
+  /** Up to 10 redeem attempts/minute per IP, min 2s apart — see redeemWebSessionCode. */
+  private readonly webSessionRedeemLimiter = new InMemoryRateLimiter(2 * 1000, 10, 60 * 1000);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -1212,6 +1218,80 @@ export class AuthService {
       .updateMany({ where: { tokenHash, revokedAt: null }, data: { revokedAt: new Date() } })
       .catch(() => undefined);
     return { ok: true };
+  }
+
+  /**
+   * Mints a short-lived, single-use code the mobile app hands to the
+   * browser (as a URL query param) so a page that requires auth doesn't hit
+   * a login wall — the app's flutter_secure_storage JWT is invisible to a
+   * browser, so this is the only bridge. Only the SHA-256 hash is ever
+   * stored (see hashToken), same reasoning as RefreshToken: a DB leak yields
+   * nothing redeemable, and the input is already CSPRNG-random so no salt is
+   * needed. The raw code goes out once, in this response, and is never
+   * logged (see redeemWebSessionCode's own doc comment on why that matters).
+   */
+  async createWebSessionCode(userId: string): Promise<{ code: string; expiresAt: Date }> {
+    // Prune expired rows here rather than a cron (no scheduler wired for
+    // this yet) — cheap, and keeps the table from growing forever with dead
+    // codes since every mint is a natural opportunity to sweep.
+    await this.prisma.webSessionCode.deleteMany({ where: { expiresAt: { lt: new Date() } } });
+
+    const code = randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + this.WEB_SESSION_CODE_TTL_MS);
+    await this.prisma.webSessionCode.create({
+      data: { codeHash: this.hashToken(code), userId, expiresAt },
+    });
+
+    return { code, expiresAt };
+  }
+
+  /**
+   * Redeems a web-session code for a normal token pair — called
+   * server-side, unauthenticated, by the web app's handoff route. Rate-
+   * limited by IP: 32 random bytes isn't guessable, but an unauthenticated
+   * endpoint that accepts a secret shouldn't accept unlimited attempts (see
+   * ipRateLimiter's own doc comment; the OTP endpoints have the same gap,
+   * not yet closed).
+   *
+   * The redeem itself is a single atomic `updateMany` with the single-use/
+   * not-expired conditions IN the WHERE clause — a find-then-update sequence
+   * would race exactly the single-use guarantee this exists for. If
+   * `count === 0` the code was invalid, expired, or already used; those
+   * three are deliberately indistinguishable to the caller (both here and at
+   * the web route that calls this), same anti-enumeration posture as OTP
+   * verification.
+   *
+   * Never logged: NestJS's global pipes/filters here don't log request
+   * bodies, and this method itself only ever touches the code's hash, never
+   * the raw value — the 60-second single-use window is what makes the value
+   * appearing in a URL (browser history, access/referrer logs) an accepted
+   * risk; it must not also end up somewhere durable.
+   */
+  async redeemWebSessionCode(code: string, ip: string) {
+    this.webSessionRedeemLimiter.hit(ip, 'Too many attempts. Please try again in a moment.');
+
+    const now = new Date();
+    const claimed = await this.prisma.webSessionCode.updateMany({
+      where: { codeHash: this.hashToken(code), redeemedAt: null, expiresAt: { gt: now } },
+      data: { redeemedAt: now },
+    });
+    if (claimed.count === 0) {
+      throw new UnauthorizedException('Invalid or expired code');
+    }
+
+    // The updateMany above only matched on codeHash, so re-fetch by that
+    // same hash to get the userId — a second query rather than folding
+    // userId into the WHERE (there's nothing to compare it against yet) or
+    // trying to read it back from updateMany's result (Prisma's updateMany
+    // returns only a count, never the affected rows).
+    const row = await this.prisma.webSessionCode.findUniqueOrThrow({
+      where: { codeHash: this.hashToken(code) },
+    });
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: row.userId } });
+
+    // Never a signup — this only ever runs against an already-authenticated
+    // mobile session.
+    return this.issueTokens(user.id, user.role, false, this.publicUser(user));
   }
 
   // ---------- helpers ----------

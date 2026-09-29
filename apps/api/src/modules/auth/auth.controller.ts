@@ -1,5 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Param, Post, HttpCode, Req, UseGuards } from '@nestjs/common';
 import { IdentityProvider } from '@prisma/client';
+import { Request } from 'express';
 import { AuthService } from './auth.service';
 import {
   CandidateEmailOtpRequestDto,
@@ -10,11 +11,13 @@ import {
   EmployerInviteOtpVerifyDto,
   EmployerRegisterDto,
   OAuthCodeDto,
+  RedeemWebSessionDto,
   RequestOtpDto,
   VerifyOtpDto,
 } from './auth.dto';
 import { AuthenticatedRequest, JwtAuthGuard } from './jwt-auth.guard';
 import { SkipVerificationGate } from './skip-verification-gate.decorator';
+import { clientIp } from '../../common/ip-rate-limiter';
 
 /**
  * Exempt from CandidateVerificationGuard entirely — see that guard's own
@@ -228,6 +231,30 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   getTermsAcceptance(@Req() req: AuthenticatedRequest) {
     return this.auth.getTermsAcceptance(req.user.sub);
+  }
+
+  /**
+   * Mints a mobile → web session-bridge code — see AuthService.createWebSessionCode.
+   * Authenticated by the ordinary JwtAuthGuard; the mobile app is the only
+   * caller, right before handing the resulting code to the browser.
+   */
+  @Post('web-session')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  createWebSessionCode(@Req() req: AuthenticatedRequest) {
+    return this.auth.createWebSessionCode(req.user.sub);
+  }
+
+  /**
+   * Redeems a web-session code for a token pair — deliberately
+   * unauthenticated (called server-side by the web app's own /auth/handoff
+   * route, before it has any session of its own). See
+   * AuthService.redeemWebSessionCode for the single-use/rate-limit contract.
+   */
+  @Post('web-session/redeem')
+  @HttpCode(200)
+  redeemWebSessionCode(@Req() req: Request, @Body() dto: RedeemWebSessionDto) {
+    return this.auth.redeemWebSessionCode(dto.code, clientIp(req));
   }
 
   @Post('refresh')
