@@ -16,6 +16,13 @@
  * the exchange code does, and it's single-use/60s, which is what makes that
  * acceptable.
  *
+ * The code is scrubbed from the address bar as the first thing the effect
+ * does. AnalyticsGate already skips this route (GA4's config call reports
+ * page_location as the full URL), so that is belt-and-braces against
+ * everything else that reads location.href — error trackers, future
+ * analytics, browser extensions — and it keeps the URL out of back-button
+ * history.
+ *
  * `next` is validated with isSafeReturnTo before being followed anywhere:
  * this route mints a session, so an unvalidated redirect target here would
  * be an open redirect *with a session attached*. A failure (bad, expired,
@@ -46,6 +53,13 @@ export default function WebHandoff() {
 
     const code = searchParams.get('code');
     const rawNext = searchParams.get('next');
+
+    // Both params are captured above, so nothing downstream reads the URL.
+    // Preserves history.state deliberately: passing null would wipe the
+    // App Router's own bookkeeping, which router.replace() then runs
+    // against two lines later.
+    window.history.replaceState(window.history.state, '', '/auth/handoff');
+
     const safeNext = isSafeReturnTo(rawNext) ? rawNext : '/candidate';
 
     const toSignIn = () =>
@@ -67,7 +81,11 @@ export default function WebHandoff() {
         const data = (await res.json()) as { accessToken: string; refreshToken: string };
         setTokens(data.accessToken, data.refreshToken);
         router.replace(safeNext);
-      } catch {
+      } catch (e) {
+        // The candidate sees an ordinary sign-in screen either way, so
+        // without this a systemic failure — CORS change, API rolled back,
+        // clock skew — is invisible until someone reports it.
+        console.error('WebHandoff: could not redeem session code', e);
         toSignIn();
       }
     })();
