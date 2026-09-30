@@ -44,14 +44,36 @@ const NOT_A_CANDIDATE_MESSAGE = "This isn't a candidate account.";
  * which narrows but doesn't remove the enumeration surface — a logged-in
  * attacker could still create a throwaway account and probe values through
  * it. Accepted as a smaller, authenticated-only residual risk in exchange for
- * a message that isn't actively misleading. Returned identically at both the
- * request-time guard (assert*Linkable) and the commit-time unique-constraint
- * race, so those two paths still can't be distinguished from each other.
+ * a message that isn't actively misleading. PHONE_NOT_LINKABLE_MESSAGE is
+ * returned identically at both the request-time guard (assertPhoneLinkable)
+ * and the commit-time unique-constraint race, so those two paths can't be
+ * distinguished from each other.
+ *
+ * EMAIL_NOT_LINKABLE_MESSAGE no longer has a request-time guard as of the
+ * 2026-09-30 duplicate-account fix — assertEmailLinkable stopped checking
+ * whether the address is taken (see its own doc comment); this message now
+ * only ever fires from the commit-time unique-constraint race in
+ * verifyLinkEmailOtp's plain-update branch, which is a *narrower* window
+ * than it used to guard (the `other`-lookup branch right before it is the
+ * designed path for "someone already has this email" — see that method's
+ * own doc comment).
+ *
  * The "your account already has a phone/email" case below stays a separate
  * message — it's about the caller's *own* account, a different case entirely.
  */
 const PHONE_NOT_LINKABLE_MESSAGE = 'This phone number is already in use by another account.';
 const EMAIL_NOT_LINKABLE_MESSAGE = 'This email address is already in use by another account.';
+
+/**
+ * Distinct from EMAIL_NOT_LINKABLE_MESSAGE on purpose — see
+ * verifyLinkEmailOtp's own doc comment. That message means "we can't tell
+ * whose this is, don't try again"; this one means the opposite — we know
+ * exactly whose it is, there's real history on both sides, and merging them
+ * needs a human's judgment about which badges/applications survive, not an
+ * automatic decision made here.
+ */
+const DUPLICATE_ACCOUNT_MERGE_MESSAGE =
+  "This email belongs to another MyAmbii account that already has activity on it, so we can't merge them automatically. Contact support to combine your accounts.";
 
 /**
  * Change-flow counterparts — still deliberately vague, unlike the two
@@ -861,15 +883,44 @@ export class AuthService {
     return { message: 'OTP sent' };
   }
 
+  /**
+   * The duplicate-account fix (2026-09-30): the address just OTP-verified
+   * here can legitimately belong to ANOTHER account — that's the whole
+   * scenario this exists for (a web candidate who signed up with Google,
+   * then installed the app and signed in with phone OTP, landing on a
+   * brand-new second User). Controlling both the current account's phone
+   * (proved at signup) and this email (just proved by consumeOtp) is
+   * stronger evidence of identity than an ordinary login, so rather than
+   * rejecting, this signs the candidate into the OTHER account and
+   * discards the empty one — see mergeIntoVerifiedAccount for the
+   * precondition and the exact cases it handles.
+   *
+   * `other` uses the same case-insensitive lookup shape as
+   * findVerifiedEmailMatch. It can never resolve to the current user:
+   * assertEmailLinkable above already required userId's own email to be
+   * null.
+   */
   async verifyLinkEmailOtp(userId: string, rawEmail: string, otp: string) {
     const email = normalizeEmail(rawEmail);
     this.consumeOtp(this.linkEmailOtpKey(email), otp);
     await this.assertEmailLinkable(userId, email);
+
+    const other = await this.prisma.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+    });
+    if (other) {
+      return this.mergeIntoVerifiedAccount(userId, other, email);
+    }
+
     try {
       await this.prisma.user.update({ where: { id: userId }, data: { email } });
     } catch (err) {
       if (this.isUniqueConstraintError(err, 'email')) {
-        // Same vague copy as the request-time guard — see the phone path above.
+        // Lost a race against a concurrent link/signup for the same email
+        // between the findFirst lookup above and this write — the `other`
+        // branch above is the deliberate, designed path for that; this is
+        // just the same defensive re-check every other link/change method
+        // in this file has around its own write.
         throw new ConflictException(EMAIL_NOT_LINKABLE_MESSAGE);
       }
       throw err;
@@ -890,15 +941,20 @@ export class AuthService {
   }
 
   /**
-   * Email counterpart to assertPhoneLinkable — case-insensitive match, same
-   * as findVerifiedEmailMatch. Employer-only domain gate bolted on here too
-   * (checked only when `me` already holds an employer role — candidates are
-   * unaffected): without it, a phone-first employer could attach a personal
-   * Gmail address via this generic link flow and then use it to log in
-   * through verifyEmailOtp's `existing` branch, which never re-checks the
-   * domain — sidestepping the signup-time gate entirely. Called from both
-   * requestLinkEmailOtp and verifyLinkEmailOtp (same "recheck at commit"
-   * pattern as the rest of this method), so gating it once here covers both.
+   * Email counterpart to assertPhoneLinkable, minus the "taken" check —
+   * see verifyLinkEmailOtp's own doc comment for why that moved to commit
+   * time and stopped being a hard rejection. Employer-only domain gate
+   * bolted on here too (checked only when `me` already holds an employer
+   * role — candidates are unaffected): without it, a phone-first employer
+   * could attach a personal Gmail address via this generic link flow and
+   * then use it to log in through verifyEmailOtp's `existing` branch, which
+   * never re-checks the domain — sidestepping the signup-time gate
+   * entirely. Called from both requestLinkEmailOtp and verifyLinkEmailOtp
+   * (same "recheck at commit" pattern as the rest of this file) — both
+   * remaining checks are genuine hard-stops regardless of whose email this
+   * is, unlike "taken", so both must still run at request time: the OTP
+   * has to go out even when the address belongs to someone else — that's
+   * how ownership gets proved.
    */
   private async assertEmailLinkable(userId: string, email: string): Promise<void> {
     const me = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
@@ -908,12 +964,143 @@ export class AuthService {
     if (EMPLOYER_ROLES.includes(me.role)) {
       assertCompanyEmail(email);
     }
-    const taken = await this.prisma.user.findFirst({
-      where: { email: { equals: email, mode: 'insensitive' } },
+  }
+
+    /**
+   * True when this account can be deleted outright — the precondition for
+   * mergeIntoVerifiedAccount to discard it rather than refuse.
+   *
+   * This is NOT just "has no candidate-facing history". Every FK on User is
+   * RESTRICT (TermsAcceptance is the schema's only Cascade), so ANY
+   * relation still holding a row makes the delete in
+   * mergeIntoVerifiedAccount throw — the candidate gets a 500 and stays
+   * trapped in the duplicate, instead of DUPLICATE_ACCOUNT_MERGE_MESSAGE
+   * and a support path. Notification is the realistic one: a signup can
+   * leave a row there long before any assessment activity exists.
+   *
+   * So this checks EVERY relation on User except the five
+   * mergeIntoVerifiedAccount handles itself — refreshTokens, identities,
+   * webSessionCodes, termsAcceptances and profile. That exhaustiveness is
+   * load-bearing, not tidiness: a relation added to User later must be
+   * added here too, and until it is, the merge breaks rather than blocks.
+   * Erring toward listing something that "can't happen for a candidate"
+   * costs nothing — it just refuses a merge that was never safe anyway.
+   */
+  private async isDiscardableAccount(userId: string): Promise<boolean> {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: {
+        orgMembership: { select: { userId: true } },
+        _count: {
+          select: {
+            attempts: true,
+            badges: true,
+            notifications: true,
+            reviewedAttempts: true,
+            assessmentSessions: true,
+            reviewedClaimVerdicts: true,
+            decidedSessions: true,
+            shortlistEntriesAdded: true,
+            profileViewsMade: true,
+            interviewSessions: true,
+            assessmentRequestsMade: true,
+            invitationsSent: true,
+            adminAccessLogEntries: true,
+            transactionsCreated: true,
+            orgVerificationsSubmitted: true,
+            orgVerificationsDecided: true,
+            orgsDeactivated: true,
+            assessmentBlocks: true,
+            assessmentBlocksLifted: true,
+          },
+        },
+      },
     });
-    if (taken && taken.id !== userId) {
-      throw new BadRequestException(EMAIL_NOT_LINKABLE_MESSAGE);
+
+    // orgMembership is to-one, so it can't ride along in _count above.
+    if (user.orgMembership) return false;
+    if (Object.values(user._count).some((count) => count > 0)) return false;
+
+    // Applications and certifications hang off CandidateProfile rather than
+    // User, so they need their own counts — but they still belong here:
+    // CandidateProfile is deleted in the merge, and these would block that.
+    const [applications, certifications] = await Promise.all([
+      this.prisma.application.count({ where: { candidateProfile: { userId } } }),
+      this.prisma.certification.count({ where: { profile: { userId } } }),
+    ]);
+    return applications === 0 && certifications === 0;
+  }
+
+  /**
+   * The duplicate-account resolution verifyLinkEmailOtp routes into when
+   * the just-verified email belongs to another account (`other`, "B" below)
+   * instead of the caller's own ("A"). Controlling A's phone (proved at
+   * signup) and B's email (just proved by the OTP this call consumed) is
+   * strong enough evidence that A and B are the same person to sign into B
+   * and discard A automatically — but only when A is provably empty
+   * (isDiscardableAccount): a non-empty A needs a human's judgment about
+   * which badges/applications survive a real merge, which is out of scope
+   * here (see DUPLICATE_ACCOUNT_MERGE_MESSAGE).
+   *
+   * A's own child rows are removed explicitly, in FK-safe order, rather
+   * than a raw `prisma.user.delete` — every FK in this schema is RESTRICT,
+   * not CASCADE (see AccountService.delete's own doc comment on why that
+   * method anonymizes instead of deleting: a real candidate's rows are
+   * referenced from employer-owned tables it must never destroy). A is
+   * different: isDiscardableAccount just confirmed nothing external
+   * references it, so unlike AccountService.delete this really can remove
+   * rows rather than anonymize them. TermsAcceptance is the one exception —
+   * moved to B, not deleted, since it's evidence a human passed the 18+/
+   * terms line, and CASCADEs off User (schema) so it must be moved before A
+   * is deleted, not after.
+   */
+  private async mergeIntoVerifiedAccount(userIdA: string, userB: User, email: string) {
+    if (!(await this.isDiscardableAccount(userIdA))) {
+      this.logger.warn(
+        `Email-link found a duplicate account with existing activity (userId=${userIdA}) — refusing to auto-merge into userId=${userB.id}`,
+      );
+      throw new ConflictException(DUPLICATE_ACCOUNT_MERGE_MESSAGE);
     }
+
+    const userA = await this.prisma.user.findUniqueOrThrow({ where: { id: userIdA } });
+
+    const { keptPhone } = await this.prisma.$transaction(async (tx) => {
+      // Fresh read inside the transaction — the outer `userB` can go stale
+      // across the time this took to reach here, same "recheck at commit"
+      // reasoning as everywhere else in this file.
+      const freshB = await tx.user.findUniqueOrThrow({ where: { id: userB.id } });
+
+      await tx.termsAcceptance.updateMany({ where: { userId: userIdA }, data: { userId: userB.id } });
+      await tx.webSessionCode.deleteMany({ where: { userId: userIdA } });
+      await tx.refreshToken.deleteMany({ where: { userId: userIdA } });
+      await tx.identity.deleteMany({ where: { userId: userIdA } });
+      await tx.candidateProfile.delete({ where: { userId: userIdA } });
+      await tx.user.delete({ where: { id: userIdA } });
+
+      // A no longer exists at this point, so the unique constraint on
+      // `phone` is free — no need to null A's phone in an earlier
+      // statement first.
+      if (userA.phone && !freshB.phone) {
+        await tx.user.update({ where: { id: userB.id }, data: { phone: userA.phone } });
+        return { keptPhone: userA.phone };
+      }
+      return { keptPhone: freshB.phone };
+    });
+
+    const finalB = await this.prisma.user.findUniqueOrThrow({ where: { id: userB.id } });
+    const tokens = await this.issueTokens(userB.id, userB.role, false, this.publicUser(finalB));
+
+    // A `message` only when there's something the client couldn't know on
+    // its own — which phone survived. The generic "welcome back, signed
+    // into your existing account" framing is the mobile app's own copy
+    // (see AuthRepository.verifyLinkEmailOtp), shown for every
+    // switchedAccount: true regardless of whether this is present.
+    const phoneKept = userA.phone !== null && keptPhone !== userA.phone;
+    const message = phoneKept
+      ? `Your account already uses the phone number ending in ${this.maskPhone(keptPhone as string)}. You can change it from account settings.`
+      : undefined;
+
+    return { ok: true, email, switchedAccount: true, ...(message ? { message } : {}), ...tokens };
   }
 
   /** Add-email-to-account copy — distinct from the signup email (sendCandidateOtpEmail). */
