@@ -13,6 +13,7 @@ type TermsAcceptanceRow = {
   acceptedAt: Date;
 };
 type OrgMemberRow = { id: string; userId: string; organizationId: string };
+type RefreshTokenRow = { id: string; tokenHash: string; userId: string; expiresAt: Date; revokedAt: Date | null };
 type WebSessionCodeRow = {
   id: string;
   codeHash: string;
@@ -44,8 +45,20 @@ function fakePrisma(
   orgMembers: OrgMemberRow[] = [],
   invitations: InvitationRow[] = [],
   termsAcceptances: TermsAcceptanceRow[] = [],
+  // userIds with SOME candidate-facing activity (a badge, an attempt, an
+  // assessment session, an application, a certification, an interview
+  // session — real isDiscardableAccount checks all six separately; this
+  // fake collapses them to one flag since no test needs to tell them
+  // apart) — drives isDiscardableAccount's six count() calls below.
+  nonEmptyUserIds: string[] = [],
 ) {
   let nextId = 1;
+  // Shared with the $transaction's own `tx` delegates further down, so a
+  // mutation made inside a transaction (deleting A, moving TermsAcceptance
+  // to B) is visible to both the rest of this test and to the top-level
+  // delegates below, exactly like `users` already is.
+  const webSessionCodeRows: WebSessionCodeRow[] = [];
+  const refreshTokenRows: RefreshTokenRow[] = [];
 
   // Mirrors Prisma's nested-relation write: when a user.create carries
   // `termsAcceptances: { create: {...} }`, the related row is persisted in
@@ -118,6 +131,13 @@ function fakePrisma(
             .sort((a, b) => b.acceptedAt.getTime() - a.acceptedAt.getTime())[0] ?? null
         );
       }),
+      // mergeIntoVerifiedAccount moves A's rows onto B rather than deleting
+      // them — see that method's own doc comment on why.
+      updateMany: jest.fn(async ({ where, data }: { where: { userId: string }; data: { userId: string } }) => {
+        const matches = termsAcceptances.filter((t) => t.userId === where.userId);
+        for (const t of matches) t.userId = data.userId;
+        return { count: matches.length };
+      }),
     },
     orgMember: {
       findUnique: jest.fn(async ({ where }: { where: { userId: string } }) => {
@@ -154,53 +174,113 @@ function fakePrisma(
       // as refreshToken.create.
       findUnique: jest.fn(async () => null),
       create: jest.fn(async ({ data }: { data: unknown }) => data),
+      // mergeIntoVerifiedAccount's own cleanup of A — not modeled as real
+      // rows (nothing in this file reads identities back), just tracked so
+      // a test can assert it ran.
+      deleteMany: jest.fn(async () => ({ count: 0 })),
     },
     refreshToken: {
-      create: jest.fn(async ({ data }: { data: unknown }) => data),
+      create: jest.fn(async ({ data }: { data: { userId: string; tokenHash: string; expiresAt: Date } }) => {
+        const row: RefreshTokenRow = { id: `rt-${nextId++}`, revokedAt: null, ...data };
+        refreshTokenRows.push(row);
+        return row;
+      }),
+      // Backs refresh() — real lookup-by-hash (not an echo-back stub) so a
+      // token deleted out from under it (mergeIntoVerifiedAccount's cleanup
+      // of A) genuinely stops resolving, the same as a real DB would.
+      findUnique: jest.fn(async ({ where }: { where: { tokenHash: string } }) => {
+        const found = refreshTokenRows.find((r) => r.tokenHash === where.tokenHash);
+        if (!found) return null;
+        const user = users.find((u) => u.id === found.userId);
+        return user ? { ...found, user } : null;
+      }),
+      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Partial<RefreshTokenRow> }) => {
+        const found = refreshTokenRows.find((r) => r.id === where.id);
+        if (!found) throw new Error('not found');
+        Object.assign(found, data);
+        return found;
+      }),
+      deleteMany: jest.fn(async ({ where }: { where: { userId: string } }) => {
+        const before = refreshTokenRows.length;
+        const survivors = refreshTokenRows.filter((r) => r.userId !== where.userId);
+        refreshTokenRows.length = 0;
+        refreshTokenRows.push(...survivors);
+        return { count: before - refreshTokenRows.length };
+      }),
+    },
+    // isDiscardableAccount's six checks — collapsed to one shared
+    // nonEmptyUserIds flag (see fakePrisma's own param doc comment); each
+    // count() shape below matches exactly what mergeIntoVerifiedAccount's
+    // Promise.all actually queries.
+    badge: { count: jest.fn(async ({ where }: { where: { userId: string } }) => (nonEmptyUserIds.includes(where.userId) ? 1 : 0)) },
+    attempt: { count: jest.fn(async ({ where }: { where: { userId: string } }) => (nonEmptyUserIds.includes(where.userId) ? 1 : 0)) },
+    assessmentSession: {
+      count: jest.fn(async ({ where }: { where: { userId: string } }) => (nonEmptyUserIds.includes(where.userId) ? 1 : 0)),
+    },
+    application: {
+      count: jest.fn(async ({ where }: { where: { candidateProfile: { userId: string } } }) =>
+        nonEmptyUserIds.includes(where.candidateProfile.userId) ? 1 : 0,
+      ),
+    },
+    certification: {
+      count: jest.fn(async ({ where }: { where: { profile: { userId: string } } }) =>
+        nonEmptyUserIds.includes(where.profile.userId) ? 1 : 0,
+      ),
+    },
+    interviewSession: {
+      count: jest.fn(async ({ where }: { where: { userId: string } }) => (nonEmptyUserIds.includes(where.userId) ? 1 : 0)),
+    },
+    // mergeIntoVerifiedAccount's own cleanup of A's (empty, by construction)
+    // profile — not modeled as real rows, just tracked so a test can assert
+    // it ran, same as identity.deleteMany above.
+    candidateProfile: {
+      delete: jest.fn(async () => ({})),
     },
     // Backs createWebSessionCode/redeemWebSessionCode — a real in-memory
-    // table (not just echo-back mocks like refreshToken above) since these
+    // table (not just echo-back mocks like refreshToken above) since those
     // tests exercise the atomic-updateMany single-use contract, which needs
-    // actual stored state to race against.
-    webSessionCode: (() => {
-      const rows: WebSessionCodeRow[] = [];
-      return {
-        _rows: rows, // test-only escape hatch — no such property on the real PrismaService
-        deleteMany: jest.fn(async ({ where }: { where: { expiresAt: { lt: Date } } }) => {
-          const before = rows.length;
-          const survivors = rows.filter((r) => !(r.expiresAt < where.expiresAt.lt));
-          rows.length = 0;
-          rows.push(...survivors);
-          return { count: before - rows.length };
-        }),
-        create: jest.fn(async ({ data }: { data: { codeHash: string; userId: string; expiresAt: Date } }) => {
-          const row: WebSessionCodeRow = { id: `wsc-${nextId++}`, redeemedAt: null, createdAt: new Date(), ...data };
-          rows.push(row);
-          return row;
-        }),
-        updateMany: jest.fn(
-          async ({
-            where,
-            data,
-          }: {
-            where: { codeHash: string; redeemedAt: null; expiresAt: { gt: Date } };
-            data: { redeemedAt: Date };
-          }) => {
-            const match = rows.find(
-              (r) => r.codeHash === where.codeHash && r.redeemedAt === null && r.expiresAt > where.expiresAt.gt,
-            );
-            if (!match) return { count: 0 };
-            match.redeemedAt = data.redeemedAt;
-            return { count: 1 };
-          },
-        ),
-        findUniqueOrThrow: jest.fn(async ({ where }: { where: { codeHash: string } }) => {
-          const found = rows.find((r) => r.codeHash === where.codeHash);
-          if (!found) throw new Error('not found');
-          return found;
-        }),
-      };
-    })(),
+    // actual stored state to race against. Rows are hoisted to
+    // webSessionCodeRows (fakePrisma's own scope) so the $transaction's
+    // `tx.webSessionCode` below shares the same backing array.
+    webSessionCode: {
+      _rows: webSessionCodeRows, // test-only escape hatch — no such property on the real PrismaService
+      deleteMany: jest.fn(async ({ where }: { where: { expiresAt?: { lt: Date }; userId?: string } }) => {
+        const before = webSessionCodeRows.length;
+        const survivors = webSessionCodeRows.filter((r) => {
+          if (where.userId !== undefined) return r.userId !== where.userId;
+          return !(r.expiresAt < where.expiresAt!.lt);
+        });
+        webSessionCodeRows.length = 0;
+        webSessionCodeRows.push(...survivors);
+        return { count: before - webSessionCodeRows.length };
+      }),
+      create: jest.fn(async ({ data }: { data: { codeHash: string; userId: string; expiresAt: Date } }) => {
+        const row: WebSessionCodeRow = { id: `wsc-${nextId++}`, redeemedAt: null, createdAt: new Date(), ...data };
+        webSessionCodeRows.push(row);
+        return row;
+      }),
+      updateMany: jest.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { codeHash: string; redeemedAt: null; expiresAt: { gt: Date } };
+          data: { redeemedAt: Date };
+        }) => {
+          const match = webSessionCodeRows.find(
+            (r) => r.codeHash === where.codeHash && r.redeemedAt === null && r.expiresAt > where.expiresAt.gt,
+          );
+          if (!match) return { count: 0 };
+          match.redeemedAt = data.redeemedAt;
+          return { count: 1 };
+        },
+      ),
+      findUniqueOrThrow: jest.fn(async ({ where }: { where: { codeHash: string } }) => {
+        const found = webSessionCodeRows.find((r) => r.codeHash === where.codeHash);
+        if (!found) throw new Error('not found');
+        return found;
+      }),
+    },
     $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
       const tx = {
         // Backs generateOrgCode's `SELECT nextval('organization_code_seq')` —
@@ -219,6 +299,26 @@ function fakePrisma(
             captureAcceptance(user.id, data);
             return user;
           }),
+          // mergeIntoVerifiedAccount's own tx-scoped reads/writes — same
+          // backing `users` array as the top-level user delegate above, so
+          // a delete/update inside the transaction is visible outside it.
+          findUniqueOrThrow: jest.fn(async ({ where }: { where: { id: string } }) => {
+            const found = users.find((u) => u.id === where.id);
+            if (!found) throw new Error('not found');
+            return found;
+          }),
+          update: jest.fn(async ({ where, data }: { where: { id: string }; data: Partial<UserRow> }) => {
+            const u = users.find((x) => x.id === where.id);
+            if (!u) throw new Error('not found');
+            Object.assign(u, data);
+            return u;
+          }),
+          delete: jest.fn(async ({ where }: { where: { id: string } }) => {
+            const index = users.findIndex((u) => u.id === where.id);
+            if (index === -1) throw new Error('not found');
+            const [removed] = users.splice(index, 1);
+            return removed;
+          }),
         },
         organization: {
           create: jest.fn(async ({ data }: { data: { name: string; code: string } }) => ({ id: `org-${nextId++}`, ...data })),
@@ -232,6 +332,40 @@ function fakePrisma(
         },
         identity: {
           create: jest.fn(async ({ data }: { data: unknown }) => data),
+          deleteMany: jest.fn(async () => ({ count: 0 })),
+        },
+        // mergeIntoVerifiedAccount's own cleanup of A, tx-scoped — same
+        // backing arrays/behaviour as the matching top-level delegates
+        // above (webSessionCode/refreshToken share their arrays;
+        // termsAcceptance shares `termsAcceptances`; candidateProfile is
+        // untracked, same as the top-level fake).
+        termsAcceptance: {
+          updateMany: jest.fn(async ({ where, data }: { where: { userId: string }; data: { userId: string } }) => {
+            const matches = termsAcceptances.filter((t) => t.userId === where.userId);
+            for (const t of matches) t.userId = data.userId;
+            return { count: matches.length };
+          }),
+        },
+        webSessionCode: {
+          deleteMany: jest.fn(async ({ where }: { where: { userId: string } }) => {
+            const before = webSessionCodeRows.length;
+            const survivors = webSessionCodeRows.filter((r) => r.userId !== where.userId);
+            webSessionCodeRows.length = 0;
+            webSessionCodeRows.push(...survivors);
+            return { count: before - webSessionCodeRows.length };
+          }),
+        },
+        refreshToken: {
+          deleteMany: jest.fn(async ({ where }: { where: { userId: string } }) => {
+            const before = refreshTokenRows.length;
+            const survivors = refreshTokenRows.filter((r) => r.userId !== where.userId);
+            refreshTokenRows.length = 0;
+            refreshTokenRows.push(...survivors);
+            return { count: before - refreshTokenRows.length };
+          }),
+        },
+        candidateProfile: {
+          delete: jest.fn(async () => ({})),
         },
       };
       return fn(tx);
@@ -250,9 +384,10 @@ function makeService(
   orgMembers: OrgMemberRow[] = [],
   invitations: InvitationRow[] = [],
   oauth: { google?: unknown; github?: unknown } = {},
+  nonEmptyUserIds: string[] = [],
 ) {
   const termsAcceptances: TermsAcceptanceRow[] = [];
-  const prisma = fakePrisma(users, orgMembers, invitations, termsAcceptances);
+  const prisma = fakePrisma(users, orgMembers, invitations, termsAcceptances, nonEmptyUserIds);
   const jwt = { signAsync: jest.fn(async () => 'signed.jwt.token') };
   const emailProvider = { send: jest.fn(async (_params: SentEmail): Promise<void> => undefined) };
   const smsProvider = { sendOtp: jest.fn(async (_params: { to: string; otp: string }): Promise<void> => undefined) };
@@ -1186,18 +1321,13 @@ describe('AuthService — add-identifier linking (phone/email onto one account)'
     expect(smsProvider.sendOtp).not.toHaveBeenCalled(); // refused before any send
   });
 
-  it('rejects linking an email that already belongs to another account — with an explicit message', async () => {
+  it('sends the link-email OTP even when the address already belongs to another account — 2026-09-30 duplicate-account fix: proving ownership of the OTP is how the merge in verifyLinkEmailOtp gets its authority, so request time can no longer refuse this the way requestLinkPhoneOtp still does', async () => {
     process.env.NODE_ENV = 'test';
     const me: UserRow = { id: 'user-1', phone: '+919999900021', email: null, role: Role.CANDIDATE };
     const other: UserRow = { id: 'user-2', phone: null, email: 'taken@candidate.com', role: Role.CANDIDATE };
     const { service } = makeService([me, other]);
 
-    // Case-insensitive match still hits (assertEmailLinkable). Same
-    // deliberate reversal as the phone case above — see
-    // EMAIL_NOT_LINKABLE_MESSAGE's own doc comment.
-    await expect(service.requestLinkEmailOtp('user-1', 'Taken@Candidate.com')).rejects.toThrow(
-      'This email address is already in use by another account.',
-    );
+    await expect(service.requestLinkEmailOtp('user-1', 'Taken@Candidate.com')).resolves.toEqual({ message: 'OTP sent' });
   });
 
   it('rejects linking a phone when the account already has one', async () => {
@@ -1305,6 +1435,189 @@ describe('AuthService — add-identifier linking (phone/email onto one account)'
       });
       expect(users[0].email).toBeNull(); // never attached
     });
+  });
+});
+
+describe('AuthService — duplicate-account resolution at email-link time (2026-09-30)', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  /** A phone-only account, exactly what verifyOtp's plain-candidate branch creates. */
+  function accountA(overrides: Partial<UserRow> = {}): UserRow {
+    return { id: 'user-a', phone: '+919999950001', email: null, role: Role.CANDIDATE, ...overrides };
+  }
+  /** An email-first account, exactly what an OAuth/email-OTP signup creates. */
+  function accountB(overrides: Partial<UserRow> = {}): UserRow {
+    return { id: 'user-b', phone: null, email: 'shared@candidate.com', role: Role.CANDIDATE, ...overrides };
+  }
+
+  it('email belongs to nobody: linked onto the caller as today, no token swap', async () => {
+    process.env.NODE_ENV = 'test';
+    const a = accountA({ email: null });
+    const { service, users } = makeService([a]);
+
+    await service.requestLinkEmailOtp(a.id, 'fresh@candidate.com');
+    const result = await service.verifyLinkEmailOtp(a.id, 'fresh@candidate.com', DEV_OTP);
+
+    expect(result).toEqual({ ok: true, email: 'fresh@candidate.com' });
+    expect(users).toHaveLength(1);
+    expect(users[0]).toMatchObject({ id: 'user-a', email: 'fresh@candidate.com', phone: '+919999950001' });
+  });
+
+  it('B has no phone: A is discardable — A\'s phone moves to B, A is gone, tokens/user in the response are B\'s', async () => {
+    process.env.NODE_ENV = 'test';
+    const a = accountA();
+    const b = accountB({ phone: null });
+    const { service, users } = makeService([a, b]);
+
+    await service.requestLinkEmailOtp(a.id, b.email!);
+    const result = await service.verifyLinkEmailOtp(a.id, b.email!, DEV_OTP);
+
+    expect(result).toMatchObject({
+      ok: true,
+      email: b.email,
+      switchedAccount: true,
+      accessToken: 'signed.jwt.token',
+      refreshToken: expect.any(String),
+      user: { id: b.id, phone: a.phone, email: b.email },
+    });
+    expect(result).not.toHaveProperty('message'); // nothing to explain — the ordinary case
+
+    expect(users).toHaveLength(1); // A is gone
+    expect(users[0]).toMatchObject({ id: b.id, phone: a.phone, email: b.email });
+  });
+
+  it('B already has a different phone: A is discardable — signed into B, A is gone, B\'s own phone is untouched, and the response names it', async () => {
+    process.env.NODE_ENV = 'test';
+    const a = accountA({ phone: '+919999950002' });
+    const b = accountB({ phone: '+919999950003' });
+    const { service, users } = makeService([a, b]);
+
+    await service.requestLinkEmailOtp(a.id, b.email!);
+    const result = await service.verifyLinkEmailOtp(a.id, b.email!, DEV_OTP);
+
+    expect(result).toMatchObject({ ok: true, email: b.email, switchedAccount: true, user: { id: b.id, phone: b.phone } });
+    // Last 4 digits only — never the full number in the clear.
+    expect((result as { message: string }).message).toContain('9999950003'.slice(-4));
+    expect((result as { message: string }).message).not.toContain('+919999950003');
+
+    expect(users).toHaveLength(1); // A is gone
+    expect(users[0]).toMatchObject({ id: b.id, phone: '+919999950003' }); // B's own phone, unchanged
+  });
+
+  it('B has real activity on A instead — no, A has real activity: throws a distinct merge error and deletes nothing', async () => {
+    process.env.NODE_ENV = 'test';
+    const a = accountA();
+    const b = accountB({ phone: null });
+    const { service, prisma, users } = makeService([a, b], [], [], {}, [a.id]); // a.id flagged non-empty
+
+    await service.requestLinkEmailOtp(a.id, b.email!);
+    await expect(service.verifyLinkEmailOtp(a.id, b.email!, DEV_OTP)).rejects.toThrow(
+      "can't merge them automatically",
+    );
+
+    // Never even entered the transaction — both accounts, and everything
+    // hanging off them, are exactly as they were.
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(users).toHaveLength(2);
+    expect(users.find((u) => u.id === a.id)).toMatchObject({ phone: a.phone, email: null });
+    expect(users.find((u) => u.id === b.id)).toMatchObject({ phone: null, email: b.email });
+  });
+
+  it('a wrong OTP throws in consumeOtp before any of this runs — A and B are both untouched', async () => {
+    process.env.NODE_ENV = 'test';
+    const a = accountA();
+    const b = accountB({ phone: null });
+    const { service, prisma, users } = makeService([a, b]);
+
+    await service.requestLinkEmailOtp(a.id, b.email!);
+    await expect(service.verifyLinkEmailOtp(a.id, b.email!, '000000')).rejects.toThrow('Incorrect OTP.');
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(users).toHaveLength(2);
+    expect(users.find((u) => u.id === a.id)?.email).toBeNull();
+  });
+
+  it('matches B case-insensitively, same as the ordinary OTP verification', async () => {
+    process.env.NODE_ENV = 'test';
+    const a = accountA();
+    const b = accountB({ email: 'Shared@Candidate.com', phone: null });
+    const { service, users } = makeService([a, b]);
+
+    await service.requestLinkEmailOtp(a.id, 'shared@candidate.com');
+    const result = await service.verifyLinkEmailOtp(a.id, 'shared@candidate.com', DEV_OTP);
+
+    expect(result).toMatchObject({ ok: true, switchedAccount: true });
+    expect(users).toHaveLength(1);
+  });
+
+  it("A's TermsAcceptance rows survive the merge, moved onto B rather than deleted", async () => {
+    process.env.NODE_ENV = 'test';
+    const a = accountA();
+    const b = accountB({ phone: null });
+    const { service, termsAcceptances } = makeService([a, b]);
+    termsAcceptances.push({
+      userId: a.id,
+      termsVersion: TERMS_VERSION,
+      privacyVersion: PRIVACY_VERSION,
+      ageConfirmed: true,
+      acceptedAt: new Date(),
+    });
+
+    await service.requestLinkEmailOtp(a.id, b.email!);
+    await service.verifyLinkEmailOtp(a.id, b.email!, DEV_OTP);
+
+    expect(termsAcceptances).toHaveLength(1); // moved, not duplicated or dropped
+    expect(termsAcceptances[0].userId).toBe(b.id);
+  });
+
+  it('the employer company-domain gate still applies at request time, even though the "taken" check no longer does', async () => {
+    process.env.NODE_ENV = 'test';
+    const a = accountA({ role: Role.EMPLOYER_ADMIN });
+    // Free-provider address — irrelevant here whether anyone else already
+    // holds it; assertCompanyEmail must still refuse it outright.
+    const b = accountB({ phone: null, email: 'personal@gmail.com' });
+    const { service, users } = makeService([a, b]);
+
+    await expect(service.requestLinkEmailOtp(a.id, b.email!)).rejects.toMatchObject({
+      response: { code: 'COMPANY_EMAIL_REQUIRED' },
+    });
+    expect(users.find((u) => u.id === a.id)?.email).toBeNull();
+  });
+
+  it('the request-time OTP goes out even though the address belongs to another account — that is how ownership gets proved', async () => {
+    process.env.NODE_ENV = 'test';
+    const a = accountA();
+    const b = accountB({ phone: null });
+    const { service } = makeService([a, b]);
+
+    await expect(service.requestLinkEmailOtp(a.id, b.email!)).resolves.toEqual({ message: 'OTP sent' });
+  });
+
+  it("an old refresh token issued to A is rejected once the swap has happened — A's own session is really gone, not just its email column", async () => {
+    process.env.NODE_ENV = 'test';
+    const b = accountB({ phone: null });
+    const { service, users } = makeService([b]);
+
+    // A signs up fresh via phone OTP (verifyOtp's plain-candidate branch) —
+    // this is what actually creates A and issues its own real refresh token,
+    // rather than fabricating one that wouldn't hash-match anything.
+    await service.requestOtp('+919999950099');
+    const loginResult = (await service.verifyOtp('+919999950099', DEV_OTP)) as unknown as {
+      refreshToken: string;
+      user: { id: string };
+    };
+    const aUserId = loginResult.user.id;
+    const aRefreshToken = loginResult.refreshToken;
+
+    await service.requestLinkEmailOtp(aUserId, b.email!);
+    const merged = await service.verifyLinkEmailOtp(aUserId, b.email!, DEV_OTP);
+    expect(merged).toMatchObject({ switchedAccount: true });
+    expect(users.find((u) => u.id === aUserId)).toBeUndefined(); // A really is gone
+
+    await expect(service.refresh(aRefreshToken)).rejects.toThrow('Invalid or expired refresh token');
   });
 });
 
