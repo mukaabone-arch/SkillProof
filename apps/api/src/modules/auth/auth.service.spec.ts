@@ -13,6 +13,14 @@ type TermsAcceptanceRow = {
   acceptedAt: Date;
 };
 type OrgMemberRow = { id: string; userId: string; organizationId: string };
+type WebSessionCodeRow = {
+  id: string;
+  codeHash: string;
+  userId: string;
+  expiresAt: Date;
+  redeemedAt: Date | null;
+  createdAt: Date;
+};
 type InvitationRow = {
   id: string;
   organizationId: string;
@@ -150,6 +158,49 @@ function fakePrisma(
     refreshToken: {
       create: jest.fn(async ({ data }: { data: unknown }) => data),
     },
+    // Backs createWebSessionCode/redeemWebSessionCode — a real in-memory
+    // table (not just echo-back mocks like refreshToken above) since these
+    // tests exercise the atomic-updateMany single-use contract, which needs
+    // actual stored state to race against.
+    webSessionCode: (() => {
+      const rows: WebSessionCodeRow[] = [];
+      return {
+        _rows: rows, // test-only escape hatch — no such property on the real PrismaService
+        deleteMany: jest.fn(async ({ where }: { where: { expiresAt: { lt: Date } } }) => {
+          const before = rows.length;
+          const survivors = rows.filter((r) => !(r.expiresAt < where.expiresAt.lt));
+          rows.length = 0;
+          rows.push(...survivors);
+          return { count: before - rows.length };
+        }),
+        create: jest.fn(async ({ data }: { data: { codeHash: string; userId: string; expiresAt: Date } }) => {
+          const row: WebSessionCodeRow = { id: `wsc-${nextId++}`, redeemedAt: null, createdAt: new Date(), ...data };
+          rows.push(row);
+          return row;
+        }),
+        updateMany: jest.fn(
+          async ({
+            where,
+            data,
+          }: {
+            where: { codeHash: string; redeemedAt: null; expiresAt: { gt: Date } };
+            data: { redeemedAt: Date };
+          }) => {
+            const match = rows.find(
+              (r) => r.codeHash === where.codeHash && r.redeemedAt === null && r.expiresAt > where.expiresAt.gt,
+            );
+            if (!match) return { count: 0 };
+            match.redeemedAt = data.redeemedAt;
+            return { count: 1 };
+          },
+        ),
+        findUniqueOrThrow: jest.fn(async ({ where }: { where: { codeHash: string } }) => {
+          const found = rows.find((r) => r.codeHash === where.codeHash);
+          if (!found) throw new Error('not found');
+          return found;
+        }),
+      };
+    })(),
     $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
       const tx = {
         // Backs generateOrgCode's `SELECT nextval('organization_code_seq')` —
@@ -1811,5 +1862,106 @@ describe('AuthService — isNewUser flag on the auth response', () => {
 
       await expect(service.refresh(rawToken)).resolves.toMatchObject({ isNewUser: false });
     });
+  });
+});
+
+describe('AuthService — mobile↔web session bridge (createWebSessionCode/redeemWebSessionCode)', () => {
+  const IP = '203.0.113.9';
+
+  function webSessionTable(prisma: ReturnType<typeof makeService>['prisma']) {
+    return prisma.webSessionCode as unknown as {
+      _rows: WebSessionCodeRow[];
+      create: jest.Mock;
+      deleteMany: jest.Mock;
+    };
+  }
+
+  it('stores only the SHA-256 hash of the code, never the code itself', async () => {
+    const { service, prisma, users } = makeService([{ id: 'user-1', phone: '+919999930099', email: null, role: Role.CANDIDATE }]);
+    const { code } = await service.createWebSessionCode(users[0].id);
+
+    const table = webSessionTable(prisma);
+    expect(table._rows).toHaveLength(1);
+    expect(table._rows[0].codeHash).toBe(createHash('sha256').update(code).digest('hex'));
+    expect(table._rows[0].codeHash).not.toBe(code);
+    expect(JSON.stringify(table._rows)).not.toContain(code);
+  });
+
+  it('a code redeems once; the second attempt is rejected', async () => {
+    const { service, users } = makeService([{ id: 'user-1', phone: '+919999930099', email: null, role: Role.CANDIDATE }]);
+    const { code } = await service.createWebSessionCode(users[0].id);
+
+    // Different IPs for the two attempts — this test is about single-use,
+    // not the (separately tested) per-IP rate limit.
+    await expect(service.redeemWebSessionCode(code, '203.0.113.20')).resolves.toMatchObject({ accessToken: 'signed.jwt.token' });
+    await expect(service.redeemWebSessionCode(code, '203.0.113.21')).rejects.toThrow('Invalid or expired code');
+  });
+
+  it('a code past its expiry is rejected', async () => {
+    const { service, prisma, users } = makeService([{ id: 'user-1', phone: '+919999930099', email: null, role: Role.CANDIDATE }]);
+    const { code } = await service.createWebSessionCode(users[0].id);
+    webSessionTable(prisma)._rows[0].expiresAt = new Date(Date.now() - 1000);
+
+    await expect(service.redeemWebSessionCode(code, IP)).rejects.toThrow('Invalid or expired code');
+  });
+
+  it('two concurrent redeems of the same code: exactly one succeeds', async () => {
+    const { service, users } = makeService([{ id: 'user-1', phone: '+919999930099', email: null, role: Role.CANDIDATE }]);
+    const { code } = await service.createWebSessionCode(users[0].id);
+
+    const results = await Promise.allSettled([
+      service.redeemWebSessionCode(code, '203.0.113.1'),
+      service.redeemWebSessionCode(code, '203.0.113.2'),
+    ]);
+
+    const fulfilled = results.filter((r) => r.status === 'fulfilled');
+    const rejected = results.filter((r) => r.status === 'rejected');
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+  });
+
+  it('an invalid, an expired, and an already-used code all fail with the same message', async () => {
+    const { service, prisma, users } = makeService([{ id: 'user-1', phone: '+919999930099', email: null, role: Role.CANDIDATE }]);
+
+    const neverIssued = service.redeemWebSessionCode('not-a-real-code', '203.0.113.10');
+
+    const { code: expiredCode } = await service.createWebSessionCode(users[0].id);
+    webSessionTable(prisma)._rows.find((r) => r.codeHash === createHash('sha256').update(expiredCode).digest('hex'))!.expiresAt =
+      new Date(Date.now() - 1000);
+    const expired = service.redeemWebSessionCode(expiredCode, '203.0.113.11');
+
+    const { code: usedCode } = await service.createWebSessionCode(users[0].id);
+    await service.redeemWebSessionCode(usedCode, '203.0.113.12');
+    const alreadyUsed = service.redeemWebSessionCode(usedCode, '203.0.113.13');
+
+    await expect(neverIssued).rejects.toThrow('Invalid or expired code');
+    await expect(expired).rejects.toThrow('Invalid or expired code');
+    await expect(alreadyUsed).rejects.toThrow('Invalid or expired code');
+  });
+
+  it('minting a new code prunes rows that have already expired', async () => {
+    const { service, prisma, users } = makeService([{ id: 'user-1', phone: '+919999930099', email: null, role: Role.CANDIDATE }]);
+    const table = webSessionTable(prisma);
+
+    await service.createWebSessionCode(users[0].id);
+    table._rows[0].expiresAt = new Date(Date.now() - 1000); // simulate the TTL having passed
+
+    await service.createWebSessionCode(users[0].id);
+
+    expect(table.deleteMany).toHaveBeenCalled();
+    // The stale row is gone; only the fresh mint from the second call remains.
+    expect(table._rows).toHaveLength(1);
+    expect(table._rows[0].expiresAt.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('rate-limits rapid redeem attempts from the same IP', async () => {
+    const { service } = makeService();
+    const busyIp = '203.0.113.99';
+
+    // First attempt clears the limiter (then fails for an ordinary invalid-code
+    // reason); the very next attempt from the same IP, too soon after, is
+    // throttled before the code is even looked at.
+    await expect(service.redeemWebSessionCode('bogus', busyIp)).rejects.toThrow('Invalid or expired code');
+    await expect(service.redeemWebSessionCode('bogus', busyIp)).rejects.toThrow('Too many attempts');
   });
 });

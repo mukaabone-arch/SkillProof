@@ -38,10 +38,20 @@ let pathname = '/profile';
 // tight loop and could reset in-flight state — a test-mock artifact, not a
 // real bug, but one worth fixing at the source rather than working around.
 const routerMock = { replace };
+// Same "stable reference, not a fresh literal per call" reasoning as
+// routerMock above — app/candidate/page.tsx's resolveRole() depends on this
+// in a useCallback, so a new object on every call would re-fire its mount
+// effect in a loop, exactly the regression documented above. Real
+// /candidate page reads a `returnTo` param here for the mobile→web
+// session-bridge handoff — none of these tests exercise that, so an
+// always-empty URLSearchParams matches today's behavior (no returnTo -> no
+// extra redirect).
+const searchParamsMock = new URLSearchParams();
 
 jest.mock('next/navigation', () => ({
   usePathname: () => pathname,
   useRouter: () => routerMock,
+  useSearchParams: () => searchParamsMock,
 }));
 
 function jsonResponse(status: number, body: unknown): Response {

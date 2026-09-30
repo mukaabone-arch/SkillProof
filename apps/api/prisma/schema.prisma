@@ -352,6 +352,7 @@ model User {
   attempts                  Attempt[]
   badges                    Badge[]
   refreshTokens             RefreshToken[]
+  webSessionCodes           WebSessionCode[]
   orgMembership             OrgMember?
   notifications             Notification[]
   reviewedAttempts          Attempt[]           @relation("AttemptReviewedBy")
@@ -2813,6 +2814,27 @@ model RefreshToken {
   createdAt DateTime  @default(now())
 
   @@index([userId])
+}
+
+/// Mobile → web session-bridge exchange code (AuthService.createWebSessionCode/
+/// redeemWebSessionCode). A browser can't read the app's flutter_secure_storage
+/// JWT, so the app mints one of these (POST /auth/web-session) and hands it to
+/// the browser in a URL; the web app redeems it (POST /auth/web-session/redeem)
+/// for a normal token pair. Only ever the SHA-256 hash is stored — same
+/// reasoning as RefreshToken.tokenHash — so a DB leak yields nothing
+/// redeemable. Single-use (redeemedAt) and short-lived (expiresAt, 60s): both
+/// properties matter because the code itself does travel in a URL (browser
+/// history, access logs), unlike the JWT it's exchanged for.
+model WebSessionCode {
+  id         String    @id @default(uuid())
+  codeHash   String    @unique
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  expiresAt  DateTime
+  redeemedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([expiresAt])
 }
 
 // ---------- Conversational AI assessor sessions (RAG Systems L2, text-based) ----------

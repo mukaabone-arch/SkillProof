@@ -129,3 +129,9 @@ export class OAuthCodeDto {
   codeVerifier?: string;
 }
 
+/** POST /auth/web-session/redeem — see AuthService.redeemWebSessionCode. */
+export class RedeemWebSessionDto {
+  @IsString()
+  code: string;
+}
+
