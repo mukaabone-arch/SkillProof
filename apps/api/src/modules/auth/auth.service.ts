@@ -139,6 +139,29 @@ export class AuthService {
   private readonly MAX_VERIFY_ATTEMPTS = 5;
   private readonly REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
+    /**
+   * Play Console's App Access section needs working credentials, and a
+   * reviewer can receive neither our SMS nor our email. This accepts one
+   * fixed, env-configured code for one designated phone number.
+   *
+   * BOTH variables must be set for the bypass to exist at all — unset, this
+   * is inert and the number behaves like any other. Revoking it is an env
+   * change rather than a deploy, and it is intended to be set only while a
+   * submission is actually under review.
+   *
+   * Scoped to the BARE login key in consumeOtp, never a prefixed one. The
+   * link-phone:/change-phone:/link-email:/invite: flows share consumeOtp and
+   * are distinguished only by key namespace; a bypass firing on those would
+   * let anyone holding this code attach this number to an account that isn't
+   * theirs — an account-takeover primitive rather than a review convenience.
+   */
+  private readonly REVIEW_ACCOUNT_PHONE = process.env.REVIEW_ACCOUNT_PHONE ?? '';
+  private readonly REVIEW_ACCOUNT_OTP = process.env.REVIEW_ACCOUNT_OTP ?? '';
+
+  private get reviewBypassEnabled(): boolean {
+    return this.REVIEW_ACCOUNT_PHONE !== '' && this.REVIEW_ACCOUNT_OTP !== '';
+  }
+
   /** Both the TTL and single-use are load-bearing — see createWebSessionCode/redeemWebSessionCode. */
   private readonly WEB_SESSION_CODE_TTL_MS = 60 * 1000;
   /** Up to 10 redeem attempts/minute per IP, min 2s apart — see redeemWebSessionCode. */
@@ -154,6 +177,13 @@ export class AuthService {
   ) {}
 
   async requestOtp(phone: string): Promise<{ message: string }> {
+        if (this.reviewBypassEnabled && phone === this.REVIEW_ACCOUNT_PHONE) {
+      // No issueOtp and no SMS: MSG91 isn't charged for a code nobody reads,
+      // and issueOtp's rate limiting never applies — a reviewer tapping
+      // "resend" twice would otherwise be locked out for a minute.
+      this.logger.warn('Review-account OTP requested — no SMS sent');
+      return { message: 'OTP sent' };
+    }
     const otp = this.issueOtp(phone);
     const isDev = process.env.NODE_ENV !== 'production';
 
@@ -605,6 +635,16 @@ export class AuthService {
    * from, keyed by whatever issueOtp stored it under.
    */
   private consumeOtp(key: string, otp: string): void {
+        if (
+      this.reviewBypassEnabled &&
+      key === this.REVIEW_ACCOUNT_PHONE &&
+      otp === this.REVIEW_ACCOUNT_OTP
+    ) {
+      // warn, not log: this is a credential being used, and it should be
+      // visible when scanning for anomalies rather than buried in noise.
+      this.logger.warn(`Review-account OTP bypass used for ${key}`);
+      return;
+    }
     const entry = this.otpStore.get(key);
 
     if (!entry || Date.now() > entry.expiresAt) {
