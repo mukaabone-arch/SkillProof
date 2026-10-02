@@ -97,7 +97,7 @@ const CandidateVerificationContext = createContext<CandidateVerificationContextV
  * problem the help pages were built to avoid, just via this provider
  * rather than a nav shell.
  */
-const GATE_EXEMPT_PATH_PREFIXES = ['/employer', '/admin', '/verify', '/candidate', '/help'];
+const GATE_EXEMPT_PATH_PREFIXES = ['/employer', '/admin', '/verify', '/candidate', '/help', '/account-deletion'];
 /** Single exact-match exemption: the account-settings escape hatch (deactivate/delete/export). */
 const GATE_EXEMPT_PATHS = ['/profile/account'];
 
