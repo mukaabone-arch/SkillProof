@@ -583,7 +583,7 @@ export default function AccountSettingsPage() {
                 verifiable to anyone who already has the certificate link, shown without your name attached.
                 Employer records that legitimately belong to them (that you applied, were shortlisted, or
                 interviewed) are kept, anonymised — deleting your account doesn&apos;t create holes in someone
-                else&apos;s hiring history.
+                else&apos;s hiring history. <Link href="/account-deletion">Read the full deletion policy</Link>.
               </p>
 
               {!deleteOpen ? (
