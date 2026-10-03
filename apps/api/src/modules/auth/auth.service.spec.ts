@@ -1990,6 +1990,51 @@ describe('AuthService — lastLoginAt (written from issueTokens, the one choke p
  * flips the flag on the wrong side of an if/else fails loudly here rather
  * than silently inflating (or hiding) signups in analytics.
  */
+describe('AuthService — the auth response carries the account email (phone login)', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  // Regression, 2026-10-03. verifyOtp hand-rolled its user payload as
+  // { id, phone, role } while every other login path used publicUser().
+  // A fully verified candidate logging in by phone was handed a user
+  // object with no email, so the app sent them to the email verification
+  // screen on every login — of an account that already had one. The
+  // server-side gate never fired; the client routed itself there on an
+  // incomplete response. issueTokens' `user?: unknown` parameter is why
+  // the compiler didn't catch it; typing that is the real fix, this is
+  // the regression guard.
+  it('returns the existing email for a returning candidate who has one', async () => {
+    process.env.NODE_ENV = 'test';
+    const existing: UserRow = {
+      id: 'user-1',
+      phone: '+919999940001',
+      email: 'returning@example.com',
+      role: Role.CANDIDATE,
+    };
+    const { service } = makeService([existing]);
+    await service.requestOtp('+919999940001');
+    await expect(service.verifyOtp('+919999940001', DEV_OTP)).resolves.toMatchObject({
+      user: {
+        id: 'user-1',
+        phone: '+919999940001',
+        email: 'returning@example.com',
+        role: Role.CANDIDATE,
+      },
+    });
+  });
+
+  it('includes email as an explicit null for a brand-new phone signup', async () => {
+    process.env.NODE_ENV = 'test';
+    const { service } = makeService();
+    await service.requestOtp('+919999940002');
+    const result = (await service.verifyOtp('+919999940002', DEV_OTP)) as unknown as {
+      user: Record<string, unknown>;
+    };
+    expect(result.user).toHaveProperty('email', null);
+  });
+});
 describe('AuthService — isNewUser flag on the auth response', () => {
   const originalNodeEnv = process.env.NODE_ENV;
   afterEach(() => {
