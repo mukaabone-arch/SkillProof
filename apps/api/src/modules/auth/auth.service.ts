@@ -88,6 +88,13 @@ const PHONE_NOT_CHANGEABLE_MESSAGE =
 const EMAIL_NOT_CHANGEABLE_MESSAGE =
   "This email address can't be used. Double-check it and try again.";
 
+type PublicUser = {
+  id: string;
+  phone: string | null;
+  email: string | null;
+  role: Role;
+};
+
 /** NestJS has no built-in 429 exception, so we define one. */
 class TooManyRequestsException extends HttpException {
   constructor(message: string) {
@@ -408,11 +415,7 @@ export class AuthService {
         );
       }
 
-      return this.issueTokens(existing.id, existing.role, false, {
-        id: existing.id,
-        phone: existing.phone,
-        role: existing.role,
-      });
+      return this.issueTokens(existing.id, existing.role, false, this.publicUser(existing));
     }
 
     const user = isEmployerFlow
@@ -421,11 +424,7 @@ export class AuthService {
           data: { phone, profile: { create: {} }, termsAcceptances: this.termsAcceptanceWrite() },
         });
 
-    return this.issueTokens(user.id, user.role, true, {
-      id: user.id,
-      phone: user.phone,
-      role: user.role,
-    });
+    return this.issueTokens(user.id, user.role, true, this.publicUser(user));
   }
 
   /**
@@ -1551,7 +1550,7 @@ export class AuthService {
    * (apps/web/lib/analyticsEvents.ts) — see that file for why the client
    * can't determine this on its own.
    */
-  private async issueTokens(userId: string, role: string, isNewUser: boolean, user?: unknown) {
+  private async issueTokens(userId: string, role: string, isNewUser: boolean, user?: PublicUser) {
     const accessToken = await this.jwt.signAsync({ sub: userId, role });
 
     const rawRefreshToken = randomBytes(40).toString('hex');
