@@ -6,7 +6,7 @@ import { LlmService } from '../../llm/llm.service';
 import { EmployerCandidateAccessService } from '../access/employer-candidate-access.service';
 import { GenerateResumeDto, UpdateProfileDto } from './profiles.dto';
 import { buildResumePdf, VerifiedSkillEntry } from './resume-pdf.builder';
-import { formatLocation } from '../locations/location-format.util';
+import { formatLocation, LocationDisplayFields } from '../locations/location-format.util';
 import { STORAGE_SERVICE, StorageService } from '../../storage/storage.interface';
 
 /** JwtAuthGuard's decoded token shape — just enough to decide viewer authorization. */
@@ -34,10 +34,24 @@ const PHOTO_CONTENT_TYPE_BY_EXTENSION: Record<string, string> = {
  * reaches a client, replacing it with a boolean — clients fetch the actual
  * bytes only through the authenticated GET /profiles/:id/photo proxy,
  * never by learning the key itself. Used by every response shape that
- * spreads a raw profile row (getMe, updateMe). */
-function withHasPhoto<T extends { photoKey: string | null }>(profile: T): Omit<T, 'photoKey'> & { hasPhoto: boolean } {
+ * spreads a raw profile row (getMe, updateMe, savePhoto, deletePhoto).
+ *
+ * Also adds the composed `location` string. The raw locationCity/Region/
+ * Country/PlaceId/Lat/Lng columns stay in the response because the web's
+ * LocationAutocomplete needs them to populate a structured form — but a
+ * client that only wants to DISPLAY a location shouldn't have to
+ * re-implement formatLocation's precedence rule. It was already written
+ * twice (formatLocation here for every non-owner view, and again as
+ * locationDisplay in apps/web/app/profile/page.tsx), and the mobile app
+ * read a `location` key this endpoint never returned — so every candidate
+ * saw "Not set" no matter what was stored, and a location typed on mobile
+ * saved correctly but appeared to do nothing. Found 2026-10-04.
+ */
+function withHasPhoto<T extends { photoKey: string | null } & LocationDisplayFields>(
+  profile: T,
+): Omit<T, 'photoKey'> & { hasPhoto: boolean; location: string | null } {
   const { photoKey, ...rest } = profile;
-  return { ...rest, hasPhoto: photoKey != null };
+  return { ...rest, hasPhoto: photoKey != null, location: formatLocation(profile) };
 }
 
 @Injectable()
