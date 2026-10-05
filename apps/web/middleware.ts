@@ -1,6 +1,6 @@
 import createIntlMiddleware from 'next-intl/middleware';
 import { NextResponse, type NextRequest } from 'next/server';
-import { LOCALE_COOKIE, LOCALIZED_PATHS, routing } from './i18n/routing';
+import { isLocalizedPath, LOCALE_COOKIE, routing } from './i18n/routing';
 
 /**
  * LOCALE ROUTING ONLY. This is the app's first and only middleware, and it
@@ -36,7 +36,7 @@ export default function middleware(request: NextRequest) {
   }
 
   const arabicPath = pathname.match(/^\/ar(\/.*)$/)?.[1];
-  if (arabicPath && !LOCALIZED_PATHS.includes(arabicPath.replace(/\/$/, '') || '/')) {
+  if (arabicPath && !isLocalizedPath(arabicPath)) {
     const url = request.nextUrl.clone();
     url.pathname = arabicPath;
     return NextResponse.redirect(url);

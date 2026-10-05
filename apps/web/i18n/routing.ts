@@ -43,3 +43,19 @@ export function isRtl(locale: string): boolean {
  * Add a path here in the same change that translates it.
  */
 export const LOCALIZED_PATHS: readonly string[] = ['/'];
+
+/**
+ * Whether `path` (the part after `/ar`, trailing slash already optional) has
+ * a translation. Literal entries match exactly; a `[param]` segment matches
+ * any single path segment, so `/employer/candidates/[id]/portfolio` covers
+ * every candidate's portfolio. Without this, a dynamic route's real URL
+ * never equals its literal entry and bounces to English mid-walkthrough.
+ */
+export function isLocalizedPath(path: string, paths: readonly string[] = LOCALIZED_PATHS): boolean {
+  const normalised = path.replace(/\/$/, '') || '/';
+  return paths.some((entry) => {
+    if (!entry.includes('[')) return entry === normalised;
+    const pattern = entry.replace(/\[[^\]]+\]/g, '[^/]+');
+    return new RegExp(`^${pattern}$`).test(normalised);
+  });
+}
