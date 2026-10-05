@@ -3260,10 +3260,10 @@ body:has(.beta-promo-bar) .lp-hero { padding-top: calc(148px + 64px); }
   background-image:
     linear-gradient(to left,
       var(--brand-900) 0%,
-      var(--brand-900) 40%,
-      color-mix(in srgb, var(--brand-900) 85%, transparent) 52%,
-      color-mix(in srgb, var(--brand-900) 40%, transparent) 64%,
-      transparent 76%),
+      var(--brand-900) 46%,
+      color-mix(in srgb, var(--brand-900) 85%, transparent) 53%,
+      color-mix(in srgb, var(--brand-900) 40%, transparent) 57%,
+      transparent 61%),
     url('/hero-riyadh-table.jpg');
   background-size: 100% 100%, auto 100%;
   background-position: center, left center;
@@ -3271,6 +3271,15 @@ body:has(.beta-promo-bar) .lp-hero { padding-top: calc(148px + 64px); }
   background-color: var(--brand-900);
 }
 :root[lang='ar'] .lp-hero-scrim { display: none; }
+/* The CTA captions are longer in Arabic; the 260px English cap wraps the
+   secondary button's label onto two lines. */
+:root[lang='ar'] .lp-cta-block { max-width: 310px; }
+/* Phone: the photograph shows a chair and nothing else at this height, so
+   the hero drops back to the flat field. The photograph is a desktop-only
+   treatment. */
+@media (max-width: 768px) {
+  :root[lang='ar'] .lp-hero { background-image: none; background-color: var(--brand-900); }
+}
 
 /* Off-canvas sidebars slide in from the inline-start edge, which is the right
    edge under RTL; the sign of the translate must follow. */
