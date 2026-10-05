@@ -3245,35 +3245,30 @@ body:has(.beta-promo-bar) .lp-hero { padding-top: calc(148px + 64px); }
     linear-gradient(245deg, var(--brand-900) 0%, var(--card) 55%, var(--card) 100%);
 }
 
-/* ---- Arabic hero: Riyadh photograph, tinted into the dark theme ----
-   Directional, not uniform. A flat wash across the whole frame guarantees
-   contrast and destroys the photograph — the skyline greys out and the
-   figures stop reading. So: heavy on the right, where the Arabic column
-   sits (.lp-hero-inner > * is 680px there), clearing to near-nothing on the
-   left so the figure and the city read as a photograph. Same approach as
-   the English horizontal desktop scrim, mirrored for RTL.
+/* ---- Arabic hero: photograph left, tinted field right ----
+   The photo is anchored to the inline-start edge at full height and sized
+   by height, so it occupies roughly the left 56% of a 1440×810 hero. The
+   gradient above it is opaque across the right (where .lp-hero-inner > *
+   sits at 680px) and feathers to transparent before reaching the figures,
+   so the picture is never washed — the two surfaces meet instead of
+   overlapping.
 
-   Contrast under the text column: 11.3:1 for #fff and 7.6:1 for
-   --gray-600 at the column's leftmost edge, measured over the photo's
-   palest area. Both clear AA with room.
-
-   Scrim element stays off — the tinting is in this stack. */
+   --brand-900 rather than --gray-50 for the field: a lighter, warmer shade
+   than the near-black page, and the same stop the landing-page card
+   gradients open on. #fff reads 14.3:1 on it, --gray-600 9.6:1. */
 :root[lang='ar'] .lp-hero {
   background-image:
     linear-gradient(to left,
-      color-mix(in srgb, var(--gray-50) 92%, transparent) 0%,
-      color-mix(in srgb, var(--gray-50) 82%, transparent) 50%,
-      color-mix(in srgb, var(--gray-50) 35%, transparent) 75%,
-      color-mix(in srgb, var(--gray-50) 18%, transparent) 100%),
-    linear-gradient(to bottom,
-      color-mix(in srgb, var(--gray-50) 55%, transparent) 0%,
-      transparent 20%,
-      transparent 74%,
-      color-mix(in srgb, var(--gray-50) 70%, transparent) 100%),
-    url('/hero-riyadh.jpg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+      var(--brand-900) 0%,
+      var(--brand-900) 40%,
+      color-mix(in srgb, var(--brand-900) 85%, transparent) 52%,
+      color-mix(in srgb, var(--brand-900) 40%, transparent) 64%,
+      transparent 76%),
+    url('/hero-riyadh-table.jpg');
+  background-size: 100% 100%, auto 100%;
+  background-position: center, left center;
+  background-repeat: no-repeat, no-repeat;
+  background-color: var(--brand-900);
 }
 :root[lang='ar'] .lp-hero-scrim { display: none; }
 
