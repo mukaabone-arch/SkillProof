@@ -20,10 +20,11 @@
  * numeric scoreBand (that one's a ranking tiebreak, not a display concern).
  */
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useLocale, useTranslations } from 'next-intl';
+import { Link } from '@/i18n/navigation';
 import { employerApi } from '@/lib/api';
 import { Badge, EmptyState, ErrorState, LoadingState } from '@/components/ui';
-import { matchBand, MATCH_BAND_LABELS, MATCH_BAND_VARIANTS } from '@/lib/matchBand';
+import { matchBand, MATCH_BAND_VARIANTS } from '@/lib/matchBand';
 
 const { api } = employerApi;
 
@@ -55,11 +56,11 @@ interface MatchesResponse {
   allCandidates: CandidateSummary[];
 }
 
-const FUNNEL_TILES: { key: keyof MatchFunnel; label: string }[] = [
-  { key: 'considered', label: 'Considered' },
-  { key: 'relevant', label: 'Relevant' },
-  { key: 'verifiedMatch', label: 'Verified match' },
-  { key: 'strongMatch', label: 'Strong match' },
+const FUNNEL_TILES: { key: keyof MatchFunnel; labelKey: string }[] = [
+  { key: 'considered', labelKey: 'considered' },
+  { key: 'relevant', labelKey: 'relevant' },
+  { key: 'verifiedMatch', labelKey: 'verifiedMatch' },
+  { key: 'strongMatch', labelKey: 'strongMatch' },
 ];
 
 interface Props {
@@ -67,6 +68,8 @@ interface Props {
 }
 
 export default function EmployerJobMatches({ jobId }: Props) {
+  const t = useTranslations('employerMatches');
+  const locale = useLocale();
   const [data, setData] = useState<MatchesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -85,8 +88,8 @@ export default function EmployerJobMatches({ jobId }: Props) {
   if (loading) {
     return (
       <>
-        <h1>Talent match</h1>
-        <LoadingState message="Scoring candidates…" />
+        <h1>{t('title')}</h1>
+        <LoadingState message={t('scoring')} />
       </>
     );
   }
@@ -94,8 +97,8 @@ export default function EmployerJobMatches({ jobId }: Props) {
   if (error || !data) {
     return (
       <>
-        <h1>Talent match</h1>
-        <ErrorState message={error || 'Could not load matches.'} onRetry={load} />
+        <h1>{t('title')}</h1>
+        <ErrorState message={error || t('loadError')} onRetry={load} />
       </>
     );
   }
@@ -107,10 +110,13 @@ export default function EmployerJobMatches({ jobId }: Props) {
     <>
       <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', margin: 0 }}>
         <div>
-          <h1 style={{ marginBottom: 4 }}>Talent match</h1>
+          <h1 style={{ marginBottom: 4 }}>{t('title')}</h1>
           <p className="meta" style={{ margin: 0 }}>{data.jobTitle}</p>
         </div>
-        <Link href="/employer/jobs" className="btn btn-secondary">Back to Job Postings</Link>
+        {/* Job Postings is not localised yet; under Arabic this link would leave the session for English. */}
+        {locale !== 'ar' && (
+          <Link href="/employer/jobs" className="btn btn-secondary">{t('backToJobs')}</Link>
+        )}
       </div>
 
       <div
@@ -120,7 +126,7 @@ export default function EmployerJobMatches({ jobId }: Props) {
           const count = funnel[tile.key];
           return (
             <div key={tile.key} className="status-card">
-              <div className="status-card-label">{tile.label}</div>
+              <div className="status-card-label">{t(`funnel.${tile.labelKey}`)}</div>
               <div className="status-stat">{count}</div>
               <div className="progress-track">
                 <div className="progress-fill" style={{ width: `${(count / (maxCount || 1)) * 100}%` }} />
@@ -131,27 +137,24 @@ export default function EmployerJobMatches({ jobId }: Props) {
       </div>
 
       {funnel.considered === 0 ? (
-        <EmptyState message="No candidates match this job yet.">
+        <EmptyState message={t('noMatches')}>
           {unmatchedRequiredSkills.length > 0 && (
             <p className="meta" style={{ marginTop: 8 }}>
-              These required skills currently have no verified candidates on the platform:{' '}
-              {unmatchedRequiredSkills.map((s) => s.skillName).join(', ')}. That&apos;s the most direct lever here —
-              broadening the required level, marking a skill optional, or waiting for candidates to earn that badge
-              will all change this number.
+              {t('unmatched', { skills: unmatchedRequiredSkills.map((s) => s.skillName).join(', ') })}
             </p>
           )}
         </EmptyState>
       ) : (
         <>
-          <h2 style={{ marginTop: 32, marginBottom: 12 }}>Candidates</h2>
+          <h2 style={{ marginTop: 32, marginBottom: 12 }}>{t('candidates')}</h2>
           <div className="admin-table-wrap">
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Candidate</th>
-                  <th>Match</th>
-                  <th>Verified skills</th>
-                  <th>Experience</th>
+                  <th>{t('candidate')}</th>
+                  <th>{t('columns.match')}</th>
+                  <th>{t('columns.verifiedSkills')}</th>
+                  <th>{t('columns.experience')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -159,13 +162,13 @@ export default function EmployerJobMatches({ jobId }: Props) {
                   const band = matchBand(c.score);
                   return (
                     <tr key={c.profileId}>
-                      <td>{c.fullName || 'Candidate'}</td>
+                      <td>{c.fullName || t('candidate')}</td>
                       <td>
-                        <Badge variant={MATCH_BAND_VARIANTS[band]}>{MATCH_BAND_LABELS[band]}</Badge>
+                        <Badge variant={MATCH_BAND_VARIANTS[band]}>{t(`bands.${band}`)}</Badge>
                       </td>
                       <td>{c.verifiedSkillCount}</td>
                       <td>
-                        {c.yearsOfExp !== null ? `${c.yearsOfExp} yrs (self-reported)` : 'Not shared'}
+                        {c.yearsOfExp !== null ? t('experienceYears', { years: c.yearsOfExp }) : t('experienceNotShared')}
                       </td>
                     </tr>
                   );

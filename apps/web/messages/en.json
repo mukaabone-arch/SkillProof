@@ -181,5 +181,34 @@
       "L3": "Advanced",
       "L4": "Expert"
     }
+  },
+  "employerMatches": {
+    "title": "Talent match",
+    "backToJobs": "Back to Job Postings",
+    "scoring": "Scoring candidates…",
+    "loadError": "Could not load matches.",
+    "funnel": {
+      "considered": "Considered",
+      "relevant": "Relevant",
+      "verifiedMatch": "Verified match",
+      "strongMatch": "Strong match"
+    },
+    "noMatches": "No candidates match this job yet.",
+    "unmatched": "These required skills currently have no verified candidates on the platform: {skills}. That's the most direct lever here — broadening the required level, marking a skill optional, or waiting for candidates to earn that badge will all change this number.",
+    "candidates": "Candidates",
+    "candidate": "Candidate",
+    "columns": {
+      "match": "Match",
+      "verifiedSkills": "Verified skills",
+      "experience": "Experience"
+    },
+    "experienceYears": "{years} yrs (self-reported)",
+    "experienceNotShared": "Not shared",
+    "bands": {
+      "strong": "Strong match",
+      "good": "Good match",
+      "partial": "Partial match",
+      "none": "Not yet a match"
+    }
   }
 }
