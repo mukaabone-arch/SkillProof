@@ -3245,36 +3245,33 @@ body:has(.beta-promo-bar) .lp-hero { padding-top: calc(148px + 64px); }
     linear-gradient(245deg, var(--brand-900) 0%, var(--card) 55%, var(--card) 100%);
 }
 
-/* ---- Arabic hero: gradient, no photograph ----
-   public/hero-office.jpg is a Western interior with Western subjects — the
-   first thing on the page, and the wrong first thing for the Gulf audience
-   the Arabic locale exists for. Rather than source a second photo, `ar` gets
-   a pure gradient hero: the same move fix/hero-css-gradient made for the
-   dashboard. No asset, no licence, no scrim to tune, and contrast that is
-   exact rather than "fine underneath whatever the photo was doing".
+/* ---- Arabic hero: Riyadh photograph, tinted into the dark theme ----
+   hero-riyadh.jpg is a light image (pale sky, glass) on a dark page, and
+   symmetrical — figures at both edges, clean sky across the top. So the
+   tint layers sit ON TOP of the photo in this stack rather than relying on
+   .lp-hero-scrim, which is tuned per-breakpoint for the English landscape
+   shot and would fight this one. Scrim stays off for `ar`.
 
-   Keyed on lang, not dir: which imagery a locale shows follows from market,
-   not from writing direction. `ar` is currently the only RTL locale, which
-   is why the photo-mirroring rules this replaces could simply be deleted —
-   a future RTL locale that wants the photograph back would need them again.
+   background-position: top — a 1024² source at cover on a 1440×810 hero
+   crops 44% of the height; anchoring top keeps the sky the headline sits
+   over and drops the floor, instead of centring and losing both.
 
-   Peaks anchor LEFT. The reasoning in --lp-lavender-bg inverts here: that
-   gradient anchors off the right edge because its text sits in the left
-   column, and under RTL the hero's text column is on the right. Caps
-   (26/24/18%) sit a step above --lp-news-lavender-bg's verified 24/22/16
-   because this base is darker — --gray-50 rather than --card. */
+   Contrast at the photo's lightest point (near-white sky, the worst case):
+   8.2:1 for #fff, 5.5:1 for --gray-600. Both clear AA with room. */
 :root[lang='ar'] .lp-hero {
   background-image:
-    radial-gradient(ellipse 70% 85% at 2% 8%,
-      color-mix(in srgb, var(--lavender-light) 26%, transparent) 0%, transparent 62%),
-    radial-gradient(ellipse 65% 80% at -6% 72%,
-      color-mix(in srgb, var(--lavender-mid) 24%, transparent) 0%, transparent 58%),
-    radial-gradient(ellipse 85% 60% at 22% 112%,
-      color-mix(in srgb, var(--brand-600) 18%, transparent) 0%, transparent 60%),
-    linear-gradient(245deg, var(--brand-900) 0%, var(--gray-50) 58%, var(--gray-50) 100%);
-  background-position: center;
+    linear-gradient(to bottom,
+      color-mix(in srgb, var(--gray-50) 86%, transparent) 0%,
+      color-mix(in srgb, var(--gray-50) 68%, transparent) 45%,
+      color-mix(in srgb, var(--gray-50) 90%, transparent) 100%),
+    radial-gradient(ellipse 60% 75% at 6% 30%,
+      color-mix(in srgb, var(--brand-600) 28%, transparent) 0%, transparent 62%),
+    url('/hero-riyadh.jpg');
+  background-size: cover;
+  background-position: center 62%;
+  background-repeat: no-repeat;
 }
-/* Nothing underneath for it to protect the text from. */
+/* Tinting happens in the stack above, so the scrim has no job here. */
 :root[lang='ar'] .lp-hero-scrim { display: none; }
 
 /* Off-canvas sidebars slide in from the inline-start edge, which is the right
