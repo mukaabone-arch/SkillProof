@@ -17,19 +17,8 @@ import { isProfileReadyToApply } from '../profiles/profile-readiness';
 import { formatLocation } from '../locations/location-format.util';
 import { BadgeResolverService } from '../badges/badge-resolver.service';
 import { APPLY_GATE_REQUIRED_LEVELS } from '../../config/apply-gate.config';
+import { SKILL_LEVEL_NAME } from '../../config/skill-level-names';
 
-/**
- * Mirrors apps/web/lib/skillLevels.ts. Duplicated rather than shared: a
- * three-entry map is cheaper to keep in step than a cross-app package, and a
- * candidate blocked from applying has to be told why in the same words that
- * appear everywhere else on their screen.
- */
-const LEVEL_NAME: Record<string, string> = {
-  L1: 'Foundational',
-  L2: 'Practitioner',
-  L3: 'Advanced',
-  L4: 'Expert',
-};
 
 /**
  * One-line flip once assessment coverage across the taxonomy is sufficient
@@ -418,7 +407,7 @@ export class CandidateJobsService {
     if (!gate.met) {
       throw new BadRequestException({
         code: 'SKILL_LEVELS_REQUIRED',
-        message: `You need verified badges at ${LEVEL_NAME.L1}, ${LEVEL_NAME.L2}, and ${LEVEL_NAME.L3} level of the same skill before applying — take an assessment to get started.`,
+        message: `You need verified badges at ${SKILL_LEVEL_NAME.L1}, ${SKILL_LEVEL_NAME.L2}, and ${SKILL_LEVEL_NAME.L3} level of the same skill before applying — take an assessment to get started.`,
       });
     }
   }

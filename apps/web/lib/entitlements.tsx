@@ -62,7 +62,15 @@ export type ApplyGateLevel = 'L1' | 'L2' | 'L3';
 export interface ApplyGate {
   requiredLevels: ApplyGateLevel[];
   met: boolean;
-  progress: { skillId: string; skillName: string; levelsHeld: ApplyGateLevel[]; levelsRemaining: ApplyGateLevel[] } | null;
+  progress: {
+    skillId: string;
+    skillName: string;
+    levelsHeld: ApplyGateLevel[];
+    levelsRemaining: ApplyGateLevel[];
+    /** Human names in the same order as levelsHeld / levelsRemaining — render these, not the codes. */
+    levelNamesHeld: string[];
+    levelNamesRemaining: string[];
+  } | null;
 }
 
 export interface EntitlementsResponse {

@@ -43,8 +43,7 @@ function formatSalaryRange(min: number, max: number): string {
 }
 
 /** "Practitioner" / "Practitioner and Advanced" / "Foundational, Practitioner, and Advanced" — used by the apply-gate progress message below. */
-function formatLevelList(levels: string[]): string {
-  const names = levels.map(skillLevelName);
+function formatLevelList(names: string[]): string {
   if (names.length <= 1) return names.join('');
   if (names.length === 2) return `${names[0]} and ${names[1]}`;
   return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
@@ -323,8 +322,8 @@ export default function JobDetailPage() {
         <p className="meta">
           {applyGate.progress ? (
             <>
-              {applyGate.progress.skillName}: {formatLevelList(applyGate.progress.levelsHeld)} earned —{' '}
-              {formatLevelList(applyGate.progress.levelsRemaining)} to go before you can apply to jobs.{' '}
+              {applyGate.progress.skillName}: {formatLevelList(applyGate.progress.levelNamesHeld)} earned —{' '}
+              {formatLevelList(applyGate.progress.levelNamesRemaining)} to go before you can apply to jobs.{' '}
             </>
           ) : (
             <>You need verified badges at Foundational, Practitioner, and Advanced level of the same skill before you can apply to jobs. </>

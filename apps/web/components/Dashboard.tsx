@@ -545,15 +545,16 @@ function buildCopilotMessage(params: {
   }
 
   if (!applyGateMet) {
-    // Partial progress toward the gate (e.g. L1 earned, L2/L3 still to go)
+    // Partial progress toward the gate (e.g. Foundational earned, Practitioner
+    // and Advanced still to go)
     // gets its own specific message, distinct from "nothing yet" — a
     // candidate who's already invested in a skill shouldn't be told to
     // "take an assessment" as if starting from zero.
     if (applyGateProgress) {
-      const remaining = applyGateProgress.levelsRemaining.join(' and ');
+      const remaining = applyGateProgress.levelNamesRemaining.join(' and ');
       return {
         eyebrow: 'Your next move',
-        message: `${applyGateProgress.skillName}: ${applyGateProgress.levelsHeld.join(', ')} earned — ${remaining} to go before you can apply to jobs.`,
+        message: `${applyGateProgress.skillName}: ${applyGateProgress.levelNamesHeld.join(', ')} earned — ${remaining} to go before you can apply to jobs.`,
         ctaLabel: 'Continue assessments',
         ctaHref: '/assessments',
       };

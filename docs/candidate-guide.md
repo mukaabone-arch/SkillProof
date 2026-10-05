@@ -58,7 +58,7 @@ If a certification expires, it gets a warning badge, and you'll see a countdown 
 
 This is the core of MyAmbii, and most other features depend on it.
 
-A skill can be verified at up to three levels, L1 through L3, from foundational to advanced. **Which levels exist depends on the skill** — not every skill offers all three.
+A skill can be verified at up to three levels: Foundational (L1), Practitioner (L2), and Advanced (L3). **Which levels exist depends on the skill** — not every skill offers all three.
 
 **You earn levels in order.** You can attempt the level immediately above the highest one you hold for that skill. If a skill only offers L2, then L2 is where you start; you're not blocked behind a level that doesn't exist.
 
@@ -100,7 +100,7 @@ Pass, and you get your badge, its expiry date, and a link to your public certifi
 
 ### Live discussion {#discussion-format}
 
-Currently offered for one skill and level: RAG Systems L2.
+Currently offered for one skill and level: RAG Systems, Practitioner (L2).
 
 Instead of multiple choice, you have a roughly 20-minute text conversation with an AI assessor. Plan to work alone and without help, since the session is recorded and reviewed by a person afterwards.
 
@@ -120,7 +120,7 @@ Sometimes a session is marked as not having given you a fair chance to show what
 
 There's no waiting period between attempts.
 
-On the free plan the standing limit is **two attempts at each skill and level** — your first, plus one retake — but that's temporarily lifted to unlimited attempts until skill purchases launch later this year. The count is per level, so passing L1 and moving to L2 starts fresh. If a badge expires, the counter effectively resets and only attempts after that expiry count.
+On the free plan the standing limit is **two attempts at each skill and level** — your first, plus one retake — but that's temporarily lifted to unlimited attempts until skill purchases launch later this year. The count is per level, so passing Foundational (L1) and moving on to Practitioner (L2) starts fresh. If a badge expires, the counter effectively resets and only attempts after that expiry count.
 
 ### Before you take your first test {#free-skill-lock}
 
