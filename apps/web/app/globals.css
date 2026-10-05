@@ -3246,32 +3246,35 @@ body:has(.beta-promo-bar) .lp-hero { padding-top: calc(148px + 64px); }
 }
 
 /* ---- Arabic hero: Riyadh photograph, tinted into the dark theme ----
-   hero-riyadh.jpg is a light image (pale sky, glass) on a dark page, and
-   symmetrical — figures at both edges, clean sky across the top. So the
-   tint layers sit ON TOP of the photo in this stack rather than relying on
-   .lp-hero-scrim, which is tuned per-breakpoint for the English landscape
-   shot and would fight this one. Scrim stays off for `ar`.
+   Directional, not uniform. A flat wash across the whole frame guarantees
+   contrast and destroys the photograph — the skyline greys out and the
+   figures stop reading. So: heavy on the right, where the Arabic column
+   sits (.lp-hero-inner > * is 680px there), clearing to near-nothing on the
+   left so the figure and the city read as a photograph. Same approach as
+   the English horizontal desktop scrim, mirrored for RTL.
 
-   background-position: top — a 1024² source at cover on a 1440×810 hero
-   crops 44% of the height; anchoring top keeps the sky the headline sits
-   over and drops the floor, instead of centring and losing both.
+   Contrast under the text column: 11.3:1 for #fff and 7.6:1 for
+   --gray-600 at the column's leftmost edge, measured over the photo's
+   palest area. Both clear AA with room.
 
-   Contrast at the photo's lightest point (near-white sky, the worst case):
-   8.2:1 for #fff, 5.5:1 for --gray-600. Both clear AA with room. */
+   Scrim element stays off — the tinting is in this stack. */
 :root[lang='ar'] .lp-hero {
   background-image:
+    linear-gradient(to left,
+      color-mix(in srgb, var(--gray-50) 92%, transparent) 0%,
+      color-mix(in srgb, var(--gray-50) 82%, transparent) 50%,
+      color-mix(in srgb, var(--gray-50) 35%, transparent) 75%,
+      color-mix(in srgb, var(--gray-50) 18%, transparent) 100%),
     linear-gradient(to bottom,
-      color-mix(in srgb, var(--gray-50) 86%, transparent) 0%,
-      color-mix(in srgb, var(--gray-50) 68%, transparent) 45%,
-      color-mix(in srgb, var(--gray-50) 90%, transparent) 100%),
-    radial-gradient(ellipse 60% 75% at 6% 30%,
-      color-mix(in srgb, var(--brand-600) 28%, transparent) 0%, transparent 62%),
+      color-mix(in srgb, var(--gray-50) 55%, transparent) 0%,
+      transparent 20%,
+      transparent 74%,
+      color-mix(in srgb, var(--gray-50) 70%, transparent) 100%),
     url('/hero-riyadh.jpg');
   background-size: cover;
-  background-position: center 62%;
+  background-position: center;
   background-repeat: no-repeat;
 }
-/* Tinting happens in the stack above, so the scrim has no job here. */
 :root[lang='ar'] .lp-hero-scrim { display: none; }
 
 /* Off-canvas sidebars slide in from the inline-start edge, which is the right
