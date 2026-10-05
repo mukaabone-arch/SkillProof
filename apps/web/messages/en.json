@@ -95,5 +95,91 @@
     "delete": "Delete Account",
     "faq": "FAQs",
     "copy": "© {year} Mukaab Technologies Private Limited"
+  },
+  "employerShell": {
+    "toggleNav": "Toggle navigation menu",
+    "logout": "Log out",
+    "help": "Help",
+    "nav": {
+      "dashboard": "Dashboard",
+      "jobs": "Job Postings",
+      "candidates": "Find Candidates",
+      "applicants": "Applicants",
+      "shortlist": "Shortlist",
+      "billing": "Billing",
+      "settings": "Settings"
+    }
+  },
+  "employerDashboard": {
+    "title": "Dashboard",
+    "subtitle": "Your hiring at a glance.",
+    "inviteTitle": "Invite your team",
+    "inviteBody": "Bring colleagues in to help manage hiring — entirely optional.",
+    "inviteAction": "Invite team →",
+    "dismiss": "Dismiss",
+    "loading": "Loading…",
+    "kpiActive": "Active Jobs",
+    "kpiActiveSub": "Currently live",
+    "kpiApplicants": "Total Applicants",
+    "kpiApplicantsSub": "All-time, across every job",
+    "kpiThisMonth": "New Applicants This Month",
+    "kpiThisMonthSub": "Since the 1st of this month",
+    "kpiHire": "Avg. Time to Hire",
+    "kpiHireSub": "Shortlisted → hired",
+    "kpiHireEmpty": "Not enough data yet — this fills in once a candidate is marked Hired.",
+    "avgDays": "{days}d",
+    "recentJobs": "Recent job postings",
+    "viewAll": "View all",
+    "noJobs": "No jobs posted yet.",
+    "postFirstJob": "Post your first job",
+    "recentApplicants": "Recent applicants",
+    "noApplicants": "No applicants yet — candidates will appear here once they apply.",
+    "appliedFor": "Applied for {job}",
+    "jobMeta": "{count, plural, one {{count} applicant} other {{count} applicants}} · posted {date}",
+    "jobStatus": {
+      "DRAFT": "Draft",
+      "LIVE": "Live",
+      "CLOSED": "Closed"
+    },
+    "pipeline": "Pipeline",
+    "pipelineHint": "Click any stage to see who's in it.",
+    "role": "Role",
+    "allRoles": "All roles",
+    "stage": {
+      "shortlisted": "Shortlisted",
+      "interviewPending": "Interview pending",
+      "interviewing": "Interviewing",
+      "offersOut": "Offers out",
+      "hired": "Hired"
+    },
+    "pipelineSummary": "{total} total in pipeline · {declined} declined · {rejected} rejected · {closed} closed",
+    "pipelineSummaryForJob": "{total} total in pipeline for {job} · {declined} declined · {rejected} rejected · {closed} closed"
+  },
+  "applicantCard": {
+    "candidate": "Candidate",
+    "otherRole": "Other",
+    "verifiedSkills": "MyAmbii-Verified Skills",
+    "verifiedByDiscussion": "Verified by discussion",
+    "verifiedByTest": "Verified by test",
+    "skillWithLevel": "{skill} ({level})",
+    "roles": {
+      "AI_ENGINEER": "AI Engineer",
+      "ML_ENGINEER": "ML Engineer",
+      "PROMPT_ENGINEER": "Prompt Engineer",
+      "DATA_SCIENTIST": "Data Scientist",
+      "MLOPS_ENGINEER": "MLOps Engineer",
+      "NLP_ENGINEER": "NLP Engineer",
+      "COMPUTER_VISION_ENGINEER": "Computer Vision Engineer",
+      "RESEARCH_ENGINEER": "Research Engineer",
+      "DATA_ENGINEER": "Data Engineer",
+      "AI_PRODUCT_MANAGER": "AI Product Manager",
+      "OTHER": "Other"
+    },
+    "levels": {
+      "L1": "Foundational",
+      "L2": "Practitioner",
+      "L3": "Advanced",
+      "L4": "Expert"
+    }
   }
 }

@@ -95,5 +95,91 @@
     "delete": "حذف الحساب",
     "faq": "الأسئلة الشائعة",
     "copy": "© {year} Mukaab Technologies Private Limited"
+  },
+  "employerShell": {
+    "toggleNav": "تبديل قائمة التنقل",
+    "logout": "تسجيل الخروج",
+    "help": "المساعدة",
+    "nav": {
+      "dashboard": "لوحة التحكم",
+      "jobs": "إعلانات الوظائف",
+      "candidates": "البحث عن المتقدمين",
+      "applicants": "المتقدمون",
+      "shortlist": "القائمة المختصرة",
+      "billing": "الفواتير",
+      "settings": "الإعدادات"
+    }
+  },
+  "employerDashboard": {
+    "title": "لوحة التحكم",
+    "subtitle": "نظرة سريعة على عمليات التوظيف لديك.",
+    "inviteTitle": "ادعُ فريقك",
+    "inviteBody": "أشرِك زملاءك في إدارة التوظيف — الأمر اختياري تماماً.",
+    "inviteAction": "ادعُ الفريق ←",
+    "dismiss": "إخفاء",
+    "loading": "جارٍ التحميل…",
+    "kpiActive": "الوظائف النشطة",
+    "kpiActiveSub": "منشورة حالياً",
+    "kpiApplicants": "إجمالي المتقدمين",
+    "kpiApplicantsSub": "منذ البداية، عبر جميع الوظائف",
+    "kpiThisMonth": "المتقدمون الجدد هذا الشهر",
+    "kpiThisMonthSub": "منذ بداية هذا الشهر",
+    "kpiHire": "متوسط مدة التوظيف",
+    "kpiHireSub": "من القائمة المختصرة حتى التوظيف",
+    "kpiHireEmpty": "لا توجد بيانات كافية بعد — ستظهر هنا عند تحديد أول متقدم بأنه «تم توظيفه».",
+    "avgDays": "{days} يوم",
+    "recentJobs": "أحدث الوظائف المنشورة",
+    "viewAll": "عرض الكل",
+    "noJobs": "لم تُنشر أي وظيفة بعد.",
+    "postFirstJob": "انشر وظيفتك الأولى",
+    "recentApplicants": "أحدث المتقدمين",
+    "noApplicants": "لا يوجد متقدمون بعد — سيظهر المتقدمون هنا فور تقديمهم.",
+    "appliedFor": "تقدّم لوظيفة {job}",
+    "jobMeta": "{count, plural, =0 {لا يوجد متقدمون} one {متقدم واحد} two {متقدمان} few {{count} متقدمين} many {{count} متقدماً} other {{count} متقدم}} · نُشرت في {date}",
+    "jobStatus": {
+      "DRAFT": "مسودة",
+      "LIVE": "منشورة",
+      "CLOSED": "مغلقة"
+    },
+    "pipeline": "مسار التوظيف",
+    "pipelineHint": "انقر على أي مرحلة لرؤية المتقدمين فيها.",
+    "role": "الوظيفة",
+    "allRoles": "كل الوظائف",
+    "stage": {
+      "shortlisted": "القائمة المختصرة",
+      "interviewPending": "بانتظار المقابلة",
+      "interviewing": "في المقابلة",
+      "offersOut": "عروض مُرسلة",
+      "hired": "تم التوظيف"
+    },
+    "pipelineSummary": "{total} في مسار التوظيف · اعتذر: {declined} · مرفوض: {rejected} · مغلق: {closed}",
+    "pipelineSummaryForJob": "{total} في مسار التوظيف لوظيفة {job} · اعتذر: {declined} · مرفوض: {rejected} · مغلق: {closed}"
+  },
+  "applicantCard": {
+    "candidate": "المتقدم",
+    "otherRole": "أخرى",
+    "verifiedSkills": "المهارات المثبتة عبر MyAmbii",
+    "verifiedByDiscussion": "مثبتة عبر المحادثة",
+    "verifiedByTest": "مثبتة عبر الاختبار",
+    "skillWithLevel": "{skill} ({level})",
+    "roles": {
+      "AI_ENGINEER": "مهندس ذكاء اصطناعي",
+      "ML_ENGINEER": "مهندس تعلم آلي",
+      "PROMPT_ENGINEER": "مهندس هندسة الأوامر",
+      "DATA_SCIENTIST": "عالم بيانات",
+      "MLOPS_ENGINEER": "مهندس MLOps",
+      "NLP_ENGINEER": "مهندس معالجة اللغات الطبيعية",
+      "COMPUTER_VISION_ENGINEER": "مهندس رؤية حاسوبية",
+      "RESEARCH_ENGINEER": "مهندس أبحاث",
+      "DATA_ENGINEER": "مهندس بيانات",
+      "AI_PRODUCT_MANAGER": "مدير منتج ذكاء اصطناعي",
+      "OTHER": "أخرى"
+    },
+    "levels": {
+      "L1": "أساسي",
+      "L2": "عملي",
+      "L3": "متمكّن",
+      "L4": "خبير"
+    }
   }
 }

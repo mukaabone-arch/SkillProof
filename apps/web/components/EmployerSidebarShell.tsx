@@ -30,21 +30,23 @@
  * navigating this shell away — the help pages are meant to stand alone,
  * not be reached by leaving the portal.
  */
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { usePathname } from '@/i18n/navigation';
+import { Link, usePathname } from '@/i18n/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 import { useState } from 'react';
+import { isLocalizedPath } from '@/i18n/routing';
 import { employerApi } from '@/lib/api';
 import BrandLockup from './BrandLockup';
 
+/** `label` is a key under employerShell.nav. */
 const SECTIONS = [
-  { href: '/employer/dashboard', label: 'Dashboard' },
-  { href: '/employer/jobs', label: 'Job Postings' },
-  { href: '/employer/candidates', label: 'Find Candidates' },
-  { href: '/employer/applicants', label: 'Applicants' },
-  { href: '/employer/shortlist', label: 'Shortlist' },
-  { href: '/employer/billing', label: 'Billing' },
-  { href: '/employer/settings', label: 'Settings' },
+  { href: '/employer/dashboard', label: 'dashboard' },
+  { href: '/employer/jobs', label: 'jobs' },
+  { href: '/employer/candidates', label: 'candidates' },
+  { href: '/employer/applicants', label: 'applicants' },
+  { href: '/employer/shortlist', label: 'shortlist' },
+  { href: '/employer/billing', label: 'billing' },
+  { href: '/employer/settings', label: 'settings' },
 ];
 
 interface Props {
@@ -54,10 +56,18 @@ interface Props {
 }
 
 export default function EmployerSidebarShell({ verified, onLoggedOut, children }: Props) {
+  const t = useTranslations('employerShell');
+  const locale = useLocale();
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const sections = verified ? SECTIONS : SECTIONS.filter((s) => s.href === '/employer/settings');
+  const verifiedSections = verified ? SECTIONS : SECTIONS.filter((s) => s.href === '/employer/settings');
+  // Under Arabic, a link to an untranslated page would drop the walkthrough
+  // into English mid-session (middleware sends /ar/<untranslated> to English).
+  // Show only the sections that have an Arabic version. Help opens a separate
+  // English tab, so it is hidden under Arabic too.
+  const sections = locale === 'ar' ? verifiedSections.filter((s) => isLocalizedPath(s.href)) : verifiedSections;
+  const showHelp = locale !== 'ar';
 
   async function handleLogout() {
     await employerApi.logout();
@@ -71,7 +81,7 @@ export default function EmployerSidebarShell({ verified, onLoggedOut, children }
         <button
           type="button"
           className="employer-nav-toggle"
-          aria-label="Toggle navigation menu"
+          aria-label={t('toggleNav')}
           aria-expanded={mobileOpen}
           onClick={() => setMobileOpen((v) => !v)}
         >
@@ -80,7 +90,7 @@ export default function EmployerSidebarShell({ verified, onLoggedOut, children }
           <span />
         </button>
         <BrandLockup variant="nav" href="/employer/dashboard" />
-        <button type="button" className="appnav-logout" onClick={handleLogout}>Log out</button>
+        <button type="button" className="appnav-logout" onClick={handleLogout}>{t('logout')}</button>
       </header>
       <div className="employer-body">
         <nav className={mobileOpen ? 'employer-sidebar is-open' : 'employer-sidebar'}>
@@ -93,7 +103,7 @@ export default function EmployerSidebarShell({ verified, onLoggedOut, children }
                 className={active ? 'active' : ''}
                 onClick={() => setMobileOpen(false)}
               >
-                {s.label}
+                {t(`nav.${s.label}`)}
               </Link>
             );
           })}
@@ -101,13 +111,15 @@ export default function EmployerSidebarShell({ verified, onLoggedOut, children }
               outside the `verified` filter above. Opens in its own named
               tab (never this one) — see HelpGuidePage.tsx's own doc comment
               on why the help pages carry no way back into the app. */}
-          <Link href="/help/employer" target="myambii-help" rel="noopener" onClick={() => setMobileOpen(false)}>
-            Help
-          </Link>
+          {showHelp && (
+            <Link href="/help/employer" target="myambii-help" rel="noopener" onClick={() => setMobileOpen(false)}>
+              {t('help')}
+            </Link>
+          )}
           {/* Duplicate of the topbar's own Log out button — CSS shows exactly
               one of the two at any width (see .employer-sidebar-logout). */}
           <button type="button" className="employer-sidebar-logout" onClick={handleLogout}>
-            Log out
+            {t('logout')}
           </button>
         </nav>
         {mobileOpen && (

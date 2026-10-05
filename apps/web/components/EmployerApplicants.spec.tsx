@@ -4,7 +4,8 @@
  * module.
  */
 import '@testing-library/jest-dom';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderWithIntl as render } from '@/test-utils/renderWithIntl';
 import EmployerApplicants from './EmployerApplicants';
 
 function jsonResponse(status: number, body: unknown): Response {

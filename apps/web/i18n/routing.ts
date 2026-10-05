@@ -42,7 +42,7 @@ export function isRtl(locale: string): boolean {
  * shell — middleware.ts sends those to the unprefixed English URL instead.
  * Add a path here in the same change that translates it.
  */
-export const LOCALIZED_PATHS: readonly string[] = ['/'];
+export const LOCALIZED_PATHS: readonly string[] = ['/', '/employer/dashboard'];
 
 /**
  * Whether `path` (the part after `/ar`, trailing slash already optional) has

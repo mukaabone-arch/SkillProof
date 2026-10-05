@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderWithIntl as render } from '@/test-utils/renderWithIntl';
 import ApplicantCard, { type ApplicantCardData } from './ApplicantCard';
 
 function baseApplicant(overrides: Partial<ApplicantCardData> = {}): ApplicantCardData {

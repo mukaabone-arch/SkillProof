@@ -44,8 +44,8 @@ describe('middleware (locale routing only)', () => {
   });
 
   it('sends untranslated /ar/<path> to the English URL instead of English-in-RTL', () => {
-    const res = middleware(req('/ar/employer/dashboard'));
+    const res = middleware(req('/ar/employer/jobs'));
     expect(res.status).toBe(307);
-    expect(new URL(location(res)!).pathname).toBe('/employer/dashboard');
+    expect(new URL(location(res)!).pathname).toBe('/employer/jobs');
   });
 });
