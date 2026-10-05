@@ -3245,24 +3245,37 @@ body:has(.beta-promo-bar) .lp-hero { padding-top: calc(148px + 64px); }
     linear-gradient(245deg, var(--brand-900) 0%, var(--card) 55%, var(--card) 100%);
 }
 
-/* Hero: the landscape photo has its empty wall on the left and the subjects
-   on the right, with the text column over the wall. Under RTL the text column
-   is on the right, so the photo (and, on desktop, the horizontal scrim) is
-   mirrored — otherwise the headline lands on the subjects' faces. The photo
-   is drawn on ::before so it can be flipped without flipping the text. The
-   ≤768px portrait crop has a vertical scrim and centred subjects, so it is
-   left alone (background-image on .lp-hero is only cleared above 768px). */
-@media (min-width: 769px) {
-  :root[dir='rtl'] .lp-hero { background-image: none; }
-  :root[dir='rtl'] .lp-hero::before {
-    content: ''; position: absolute; inset: 0; pointer-events: none;
-    background: url('/hero-office.jpg') center right / cover no-repeat;
-    transform: scaleX(-1);
-  }
+/* ---- Arabic hero: gradient, no photograph ----
+   public/hero-office.jpg is a Western interior with Western subjects — the
+   first thing on the page, and the wrong first thing for the Gulf audience
+   the Arabic locale exists for. Rather than source a second photo, `ar` gets
+   a pure gradient hero: the same move fix/hero-css-gradient made for the
+   dashboard. No asset, no licence, no scrim to tune, and contrast that is
+   exact rather than "fine underneath whatever the photo was doing".
+
+   Keyed on lang, not dir: which imagery a locale shows follows from market,
+   not from writing direction. `ar` is currently the only RTL locale, which
+   is why the photo-mirroring rules this replaces could simply be deleted —
+   a future RTL locale that wants the photograph back would need them again.
+
+   Peaks anchor LEFT. The reasoning in --lp-lavender-bg inverts here: that
+   gradient anchors off the right edge because its text sits in the left
+   column, and under RTL the hero's text column is on the right. Caps
+   (26/24/18%) sit a step above --lp-news-lavender-bg's verified 24/22/16
+   because this base is darker — --gray-50 rather than --card. */
+:root[lang='ar'] .lp-hero {
+  background-image:
+    radial-gradient(ellipse 70% 85% at 2% 8%,
+      color-mix(in srgb, var(--lavender-light) 26%, transparent) 0%, transparent 62%),
+    radial-gradient(ellipse 65% 80% at -6% 72%,
+      color-mix(in srgb, var(--lavender-mid) 24%, transparent) 0%, transparent 58%),
+    radial-gradient(ellipse 85% 60% at 22% 112%,
+      color-mix(in srgb, var(--brand-600) 18%, transparent) 0%, transparent 60%),
+    linear-gradient(245deg, var(--brand-900) 0%, var(--gray-50) 58%, var(--gray-50) 100%);
+  background-position: center;
 }
-/* The scrim's vertical layer is symmetric, so flipping the whole element only
-   changes the desktop horizontal fade — exactly what is wanted. */
-:root[dir='rtl'] .lp-hero-scrim { transform: scaleX(-1); }
+/* Nothing underneath for it to protect the text from. */
+:root[lang='ar'] .lp-hero-scrim { display: none; }
 
 /* Off-canvas sidebars slide in from the inline-start edge, which is the right
    edge under RTL; the sign of the translate must follow. */
