@@ -3245,41 +3245,47 @@ body:has(.beta-promo-bar) .lp-hero { padding-top: calc(148px + 64px); }
     linear-gradient(245deg, var(--brand-900) 0%, var(--card) 55%, var(--card) 100%);
 }
 
-/* ---- Arabic hero: photograph left, tinted field right ----
-   The photo is anchored to the inline-start edge at full height and sized
-   by height, so it occupies roughly the left 56% of a 1440×810 hero. The
-   gradient above it is opaque across the right (where .lp-hero-inner > *
-   sits at 680px) and feathers to transparent before reaching the figures,
-   so the picture is never washed — the two surfaces meet instead of
-   overlapping.
+/* ---- Arabic hero: flat field as the base, photograph from 1200px ----
+   The base case is the brand field: it always carries the Arabic column, at
+   every width. The photograph is an enhancement above 1200px only.
+
+   Why not below 1200: the photo is sized by height (auto 100%), so its share
+   of the viewport grows as the screen shrinks — about 56% of a 1440×810 hero,
+   67% at 1024. At 1024 the 680px Arabic column covers most of it, so the
+   picture is 90% hidden. Narrowing the column to fit would make the headline
+   run to four lines. A wider source (2560×1440, sized by width) would behave
+   the other way and is the real fix if this becomes a product.
+
+   Above 1200px: opaque across the right (where .lp-hero-inner > * sits at
+   680px) and feathers to transparent before reaching the figures, so the
+   picture is never washed and the two surfaces meet instead of overlapping.
 
    --brand-900 rather than --gray-50 for the field: a lighter, warmer shade
    than the near-black page, and the same stop the landing-page card
    gradients open on. #fff reads 14.3:1 on it, --gray-600 9.6:1. */
 :root[lang='ar'] .lp-hero {
-  background-image:
-    linear-gradient(to left,
-      var(--brand-900) 0%,
-      var(--brand-900) 46%,
-      color-mix(in srgb, var(--brand-900) 85%, transparent) 53%,
-      color-mix(in srgb, var(--brand-900) 40%, transparent) 57%,
-      transparent 61%),
-    url('/hero-riyadh-table.jpg');
-  background-size: 100% 100%, auto 100%;
-  background-position: center, left center;
-  background-repeat: no-repeat, no-repeat;
+  background-image: none;
   background-color: var(--brand-900);
+}
+@media (min-width: 1200px) {
+  :root[lang='ar'] .lp-hero {
+    background-image:
+      linear-gradient(to left,
+        var(--brand-900) 0%,
+        var(--brand-900) 46%,
+        color-mix(in srgb, var(--brand-900) 85%, transparent) 53%,
+        color-mix(in srgb, var(--brand-900) 40%, transparent) 57%,
+        transparent 61%),
+      url('/hero-riyadh-table.jpg');
+    background-size: 100% 100%, auto 100%;
+    background-position: center, left center;
+    background-repeat: no-repeat, no-repeat;
+  }
 }
 :root[lang='ar'] .lp-hero-scrim { display: none; }
 /* The CTA captions are longer in Arabic; the 260px English cap wraps the
    secondary button's label onto two lines. */
 :root[lang='ar'] .lp-cta-block { max-width: 310px; }
-/* Phone: the photograph shows a chair and nothing else at this height, so
-   the hero drops back to the flat field. The photograph is a desktop-only
-   treatment. */
-@media (max-width: 768px) {
-  :root[lang='ar'] .lp-hero { background-image: none; background-color: var(--brand-900); }
-}
 
 /* Off-canvas sidebars slide in from the inline-start edge, which is the right
    edge under RTL; the sign of the translate must follow. */
