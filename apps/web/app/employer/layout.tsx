@@ -48,7 +48,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { employerApi } from '@/lib/api';
-import EmployerSidebarShell from '@/components/EmployerSidebarShell';
+import EmployerSidebarShell, { EmployerOrgIdentity } from '@/components/EmployerSidebarShell';
 import { isOrgSetupComplete, OrgReadinessFields } from '@/lib/orgReadiness';
 
 const { getToken, api } = employerApi;
@@ -59,6 +59,7 @@ const DEACTIVATED_EXEMPT_PATHS = ['/employer/deactivated'];
 type VerificationStatus = 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
 
 interface OrgMeOrganization extends OrgReadinessFields {
+  name: string;
   deactivatedAt: string | null;
   verificationStatus: VerificationStatus;
 }
@@ -90,6 +91,10 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
   // from the nav — the client-side courtesy half of the gate; see this
   // file's own doc comment on the real, server-side half.
   const [verificationStatus, setVerificationStatus] = useState<VerificationStatus | null>(null);
+  // Topbar identity (EmployerSidebarShell) — read off the same /orgs/me
+  // fetch below rather than a second request. Stays null (identity block
+  // just doesn't render) until this resolves.
+  const [org, setOrg] = useState<EmployerOrgIdentity | null>(null);
 
   useEffect(() => {
     if (pathname === '/employer') {
@@ -110,6 +115,7 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
       .then(({ organization }) => {
         if (cancelled) return;
         setVerificationStatus(organization.verificationStatus);
+        setOrg({ name: organization.name, hasLogo: organization.hasLogo });
         if (organization.deactivatedAt) {
           router.replace('/employer/deactivated');
           return;
@@ -153,7 +159,11 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
   if (DEACTIVATED_EXEMPT_PATHS.includes(pathname)) return <>{children}</>;
 
   return (
-    <EmployerSidebarShell verified={verificationStatus === 'VERIFIED'} onLoggedOut={() => router.replace('/employer')}>
+    <EmployerSidebarShell
+      verified={verificationStatus === 'VERIFIED'}
+      org={org}
+      onLoggedOut={() => router.replace('/employer')}
+    >
       {children}
     </EmployerSidebarShell>
   );

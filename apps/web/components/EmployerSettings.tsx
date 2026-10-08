@@ -10,7 +10,7 @@
  * organization info and member list read-only (GET /orgs/me and
  * /orgs/members are shared), just without the edit/action controls.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { employerApi } from '@/lib/api';
@@ -18,8 +18,10 @@ import ConsentSettingsLink from '@/components/ConsentSettingsLink';
 import { Badge } from '@/components/ui';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { formatOrgIndustry, OrgIndustry, ORG_INDUSTRY_OPTIONS } from '@/lib/orgIndustry';
+import { useOrgLogo } from '@/lib/useOrgLogo';
+import OrgMark from '@/components/OrgMark';
 
-const { api, apiBlob } = employerApi;
+const { api } = employerApi;
 
 type VerificationStatus = 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
 
@@ -111,13 +113,12 @@ export default function EmployerSettings() {
   const [deactivateError, setDeactivateError] = useState('');
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [removingLogo, setRemovingLogo] = useState(false);
   const [logoError, setLogoError] = useState('');
-  // Tracks the currently-displayed blob: URL so it can be revoked before
-  // creating the next one — same pattern as CandidateAvatar's urlRef.
-  const logoUrlRef = useRef<string | null>(null);
+  // Shared with the employer topbar's own org identity — see that hook's
+  // own comment for why this is a blob fetch rather than a plain <img src>.
+  const logoUrl = useOrgLogo(org?.organization.hasLogo ?? false);
 
   useEffect(() => {
     api<OrgMe>('/orgs/me')
@@ -129,33 +130,6 @@ export default function EmployerSettings() {
       })
       .catch((e) => setError(e.message));
     loadTeam();
-  }, []);
-
-  useEffect(() => {
-    if (logoUrlRef.current) {
-      URL.revokeObjectURL(logoUrlRef.current);
-      logoUrlRef.current = null;
-    }
-    setLogoUrl(null);
-    if (!org?.organization.hasLogo) return;
-
-    let cancelled = false;
-    apiBlob('/orgs/me/logo')
-      .then((blob) => {
-        if (cancelled) return;
-        const objectUrl = URL.createObjectURL(blob);
-        logoUrlRef.current = objectUrl;
-        setLogoUrl(objectUrl);
-      })
-      .catch(() => undefined);
-
-    return () => {
-      cancelled = true;
-    };
-  }, [org?.organization.hasLogo]);
-
-  useEffect(() => () => {
-    if (logoUrlRef.current) URL.revokeObjectURL(logoUrlRef.current);
   }, []);
 
   function loadTeam() {
@@ -366,18 +340,7 @@ export default function EmployerSettings() {
           </div>
 
           <div className="row" style={{ margin: 0, alignItems: 'center', gap: 16 }}>
-            {logoUrl ? (
-              <img
-                src={logoUrl}
-                alt=""
-                style={{ width: 64, height: 64, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }}
-              />
-            ) : (
-              <div
-                aria-hidden="true"
-                style={{ width: 64, height: 64, borderRadius: 8, background: 'var(--brand-100)', flexShrink: 0 }}
-              />
-            )}
+            <OrgMark name={org.organization.name} logoUrl={logoUrl} size={64} />
             {isAdmin && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div className="row" style={{ margin: 0, gap: 8, flexWrap: 'wrap' }}>

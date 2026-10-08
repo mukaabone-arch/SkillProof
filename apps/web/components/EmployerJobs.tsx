@@ -236,6 +236,18 @@ export default function EmployerJobs() {
   // every state change — see that effect's own comment for the bug this
   // fixes.
   const autoOpenedApplicantsJobId = useRef<string | null>(null);
+  // Deep link from the topbar's persistent "Post a job" (EmployerSidebarShell)
+  // — reachable from every screen, not just this one. No jobs-loaded
+  // dependency like openApplicants above: openForm() doesn't read `jobs`.
+  const autoOpenNewJob = useSearchParams().get('new') === '1';
+  const autoOpenedNewJob = useRef(false);
+
+  useEffect(() => {
+    if (!autoOpenNewJob || autoOpenedNewJob.current) return;
+    autoOpenedNewJob.current = true;
+    openForm();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpenNewJob]);
 
   useEffect(() => {
     api<Job[]>('/jobs').then(setJobs).catch((e) => setError(e.message));
