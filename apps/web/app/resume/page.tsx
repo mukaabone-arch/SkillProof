@@ -3,11 +3,11 @@
 /**
  * AI resume builder — two paths into the same editable review + PDF-generate
  * step: "Improve my resume" (upload → LlmService.improveResume → edit) and
- * "Build from my profile" (skip straight to an empty, hand-editable review —
- * profile + verified badges alone are enough to generate a PDF). Nothing
- * here is ever written back to the candidate's profile; the PDF is a one-off
- * download built server-side from whatever's in the review form at the
- * moment "Generate PDF" is clicked.
+ * "Build from my profile" (profile + verified badges, plus — when a parsed
+ * portfolio exists — a group/skill selector sourced from it; see
+ * startFromProfile). Nothing here is ever written back to the candidate's
+ * profile; the PDF is a one-off download built server-side from whatever's
+ * in the review form at the moment "Generate PDF" is clicked.
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -16,6 +16,7 @@ import CandidateNav from '@/components/CandidateNav';
 import { Button, Card, ErrorState, Field, LoadingState } from '@/components/ui';
 import { useEntitlements } from '@/lib/entitlements';
 import { RESUME_SKILLS_MAX, RESUME_SKILL_MAX_LENGTH } from '@/lib/resumeLimits';
+import type { PortfolioContent, PortfolioSkillGroup, VerifiedBadge } from '@/lib/portfolioTypes';
 
 interface ExperienceEntry {
   title: string;
@@ -41,6 +42,43 @@ const emptyEducation: EducationEntry = { degree: '', institution: '', dates: '' 
 
 type Stage = 'choose' | 'upload' | 'review';
 
+interface PortfolioMeResponse {
+  content: PortfolioContent | null;
+  verifiedBadges: VerifiedBadge[];
+}
+
+/** A skill's identity for selection purposes is (group index, name), not just name — two groups could in principle repeat a name, and this keeps their checkboxes independent. */
+function skillKey(groupIndex: number, skill: string): string {
+  return `${groupIndex}:${skill}`;
+}
+
+function skillsFromKeys(groups: PortfolioSkillGroup[], keys: Set<string>): string[] {
+  return groups.flatMap((g, gi) => g.skills.filter((s) => keys.has(skillKey(gi, s))));
+}
+
+/**
+ * "Sensible rather than empty": the groups whose skills overlap a verified
+ * badge are the ones the product can already stand behind, so they're the
+ * default. A candidate with no verified badges yet (or whose badges don't
+ * name-match anything in the parse) still gets a non-empty starting point —
+ * the single largest group — rather than an empty selector with no obvious
+ * next step.
+ */
+function defaultSelection(groups: PortfolioSkillGroup[], verifiedBadges: VerifiedBadge[]): Set<string> {
+  const verifiedNames = new Set(verifiedBadges.map((b) => b.skillName.toLowerCase()));
+  const withIndex = groups.map((g, gi) => ({ gi, g }));
+  const overlapping = withIndex.filter(({ g }) => g.skills.some((s) => verifiedNames.has(s.toLowerCase())));
+
+  const chosen =
+    overlapping.length > 0
+      ? overlapping
+      : withIndex.length > 0
+        ? [withIndex.reduce((max, cur) => (cur.g.skills.length > max.g.skills.length ? cur : max))]
+        : [];
+
+  return new Set(chosen.flatMap(({ gi, g }) => g.skills.map((s) => skillKey(gi, s))));
+}
+
 export default function ResumePage() {
   const { limits } = useEntitlements();
   const [ready, setReady] = useState(false);
@@ -54,6 +92,14 @@ export default function ResumePage() {
   const [improving, setImproving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
+
+  // Which path populated `content` — the group selector below only applies
+  // to the profile-sourced path; "Improve my resume" already returns a flat
+  // AI-written list with no groups to choose from.
+  const [source, setSource] = useState<'profile' | 'improve' | null>(null);
+  const [portfolioSkillGroups, setPortfolioSkillGroups] = useState<PortfolioSkillGroup[]>([]);
+  const [selectedSkillKeys, setSelectedSkillKeys] = useState<Set<string>>(new Set());
+  const [loadingProfile, setLoadingProfile] = useState(false);
 
   useEffect(() => {
     const hasToken = !!getToken();
@@ -71,6 +117,9 @@ export default function ResumePage() {
     setError('');
     try {
       const result = await api<ResumeContent>('/profiles/me/resume/improve', { method: 'POST' });
+      setSource('improve');
+      setPortfolioSkillGroups([]);
+      setSelectedSkillKeys(new Set());
       setContent(result);
       setStage('review');
     } catch (e) {
@@ -98,10 +147,61 @@ export default function ResumePage() {
     await improveExistingResume();
   }
 
-  function startFromProfile() {
-    setContent(emptyContent);
+  /**
+   * GenerateResumeDto is all-optional, so a bare "Build from my profile"
+   * used to send an empty body and let the server build from the profile +
+   * badges alone — no skills, no form to overflow. Reading the candidate's
+   * own portfolio here (GET /portfolio/me, already candidate-facing — see
+   * PortfolioController) is what lets this path offer a selection at all;
+   * without a parsed portfolio it falls back to exactly the old behaviour,
+   * an empty, hand-editable skills field.
+   */
+  async function startFromProfile() {
     setError('');
-    setStage('review');
+    setSource('profile');
+    setLoadingProfile(true);
+    try {
+      const res = await api<PortfolioMeResponse>('/portfolio/me');
+      const groups = res.content?.skillGroups ?? [];
+      const defaults = defaultSelection(groups, res.verifiedBadges ?? []);
+      setPortfolioSkillGroups(groups);
+      setSelectedSkillKeys(defaults);
+      setContent({ ...emptyContent, skills: skillsFromKeys(groups, defaults) });
+    } catch {
+      // No parsed portfolio, or a transient read failure — "Build from my
+      // profile" has always worked without one; fall back to the plain
+      // empty, hand-editable field rather than blocking on this read.
+      setPortfolioSkillGroups([]);
+      setSelectedSkillKeys(new Set());
+      setContent(emptyContent);
+    } finally {
+      setLoadingProfile(false);
+      setStage('review');
+    }
+  }
+
+  function toggleSkill(groupIndex: number, skill: string) {
+    const key = skillKey(groupIndex, skill);
+    const next = new Set(selectedSkillKeys);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    applySelection(next);
+  }
+
+  function toggleGroup(groupIndex: number) {
+    const keys = portfolioSkillGroups[groupIndex].skills.map((s) => skillKey(groupIndex, s));
+    const allSelected = keys.every((k) => selectedSkillKeys.has(k));
+    const next = new Set(selectedSkillKeys);
+    for (const k of keys) {
+      if (allSelected) next.delete(k);
+      else next.add(k);
+    }
+    applySelection(next);
+  }
+
+  function applySelection(next: Set<string>) {
+    setSelectedSkillKeys(next);
+    setContent((c) => ({ ...c, skills: skillsFromKeys(portfolioSkillGroups, next) }));
   }
 
   async function generatePdf() {
@@ -183,7 +283,9 @@ export default function ResumePage() {
               <p className="meta" style={{ marginBottom: 16 }}>
                 Generate a resume from your profile and verified skill badges — no upload needed.
               </p>
-              <Button variant="secondary" onClick={startFromProfile}>Build from my profile</Button>
+              <Button variant="secondary" onClick={startFromProfile} disabled={loadingProfile}>
+                {loadingProfile ? 'Loading…' : 'Build from my profile'}
+              </Button>
             </Card>
           </div>
         )}
@@ -283,19 +385,72 @@ export default function ResumePage() {
             </Button>
 
             <div className="field" style={{ marginTop: 24 }}>
-              <label htmlFor="skills">
-                Skills (comma-separated) —{' '}
-                <span style={{ color: skillsOverCount ? 'var(--error)' : 'var(--gray-600)' }}>
-                  {skillsCount} of {RESUME_SKILLS_MAX}
-                </span>
-              </label>
-              <input
-                id="skills"
-                value={content.skills.join(', ')}
-                onChange={(e) =>
-                  setContent({ ...content, skills: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })
-                }
-              />
+              {source === 'profile' && portfolioSkillGroups.length > 0 ? (
+                <>
+                  <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
+                    <label style={{ margin: 0 }}>Skills</label>
+                    <span style={{ color: skillsOverCount ? 'var(--error)' : 'var(--gray-600)' }}>
+                      {skillsCount} of {RESUME_SKILLS_MAX}
+                    </span>
+                  </div>
+                  <p className="meta" style={{ marginTop: 4, marginBottom: 12 }}>
+                    Chosen from your portfolio — pick whole categories or individual skills. Anything
+                    left unchecked stays on your portfolio; it just won&apos;t appear on this resume.
+                  </p>
+                  {portfolioSkillGroups.map((group, gi) => {
+                    const keys = group.skills.map((s) => skillKey(gi, s));
+                    const selectedCount = keys.filter((k) => selectedSkillKeys.has(k)).length;
+                    const allSelected = selectedCount === keys.length;
+                    const someSelected = selectedCount > 0 && !allSelected;
+                    return (
+                      <div key={group.category} style={{ marginBottom: 12 }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, margin: 0 }}>
+                          <input
+                            type="checkbox"
+                            checked={allSelected}
+                            ref={(el) => {
+                              if (el) el.indeterminate = someSelected;
+                            }}
+                            onChange={() => toggleGroup(gi)}
+                          />
+                          {group.category} ({group.skills.length})
+                        </label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', marginLeft: 28, marginTop: 6 }}>
+                          {group.skills.map((skill) => (
+                            <label
+                              key={skill}
+                              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.9rem', fontWeight: 400, margin: 0 }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedSkillKeys.has(skillKey(gi, skill))}
+                                onChange={() => toggleSkill(gi, skill)}
+                              />
+                              {skill}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              ) : (
+                <>
+                  <label htmlFor="skills">
+                    Skills (comma-separated) —{' '}
+                    <span style={{ color: skillsOverCount ? 'var(--error)' : 'var(--gray-600)' }}>
+                      {skillsCount} of {RESUME_SKILLS_MAX}
+                    </span>
+                  </label>
+                  <input
+                    id="skills"
+                    value={content.skills.join(', ')}
+                    onChange={(e) =>
+                      setContent({ ...content, skills: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })
+                    }
+                  />
+                </>
+              )}
               {overLongSkills.length > 0 && (
                 <p className="meta" style={{ color: 'var(--error)', marginTop: 4 }}>
                   Too long to read as one skill on the PDF (max {RESUME_SKILL_MAX_LENGTH} characters) — shorten:{' '}

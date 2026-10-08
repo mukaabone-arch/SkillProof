@@ -195,23 +195,25 @@ export class GenerateResumeDto {
 
   /**
    * A presentation limit, not a security bound: a one-page PDF can't show
-   * more than 60 skills legibly, and no single entry past 60 characters as
-   * a skill chip. Mirrors RESUME_SKILLS_MAX / RESUME_SKILL_MAX_LENGTH in
-   * apps/web/lib/resumeLimits.ts, which enforces the same numbers in the
-   * resume form before the candidate can submit — see that file's comment
-   * for why this isn't an actual shared import.
+   * more than 30 skills legibly (measured, not guessed — see
+   * apps/web/lib/resumeLimits.ts's comment), and no single entry past 60
+   * characters as a skill chip. Mirrors RESUME_SKILLS_MAX /
+   * RESUME_SKILL_MAX_LENGTH there, which enforces the same numbers in the
+   * resume form — including the group/skill selector that lets the
+   * candidate choose this subset from their portfolio — before they can
+   * submit. See that file's comment for why this isn't an actual shared
+   * import.
    *
-   * Deliberately not reconciled with PortfolioSkillGroupDto.skills's
-   * 40-per-group cap (apps/api/src/modules/portfolio/portfolio.dto.ts) — a
-   * portfolio with several groups near that cap already exceeds 60 flat,
-   * and nothing here truncates or rejects on that account. The two caps
-   * measure different things (one page's worth of resume vs. a multi-section
-   * portfolio page) and are not required to agree, but no one has decided
-   * that on purpose — raised as an open question, not fixed here.
+   * Deliberately NOT reconciled with PortfolioSkillGroupDto.skills's
+   * 40-per-group cap (apps/api/src/modules/portfolio/portfolio.dto.ts): the
+   * portfolio holds everything a candidate has, the resume shows a chosen
+   * subset of it — see CandidatePortfolio's doc comment in schema.prisma.
+   * That is a deliberate difference, not a mismatch to fix by making the
+   * two numbers equal.
    */
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(60)
+  @ArrayMaxSize(30)
   @IsString({ each: true })
   @MaxLength(60, { each: true })
   skills?: string[];
