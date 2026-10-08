@@ -67,9 +67,12 @@ export interface ApplyGate {
     skillName: string;
     levelsHeld: ApplyGateLevel[];
     levelsRemaining: ApplyGateLevel[];
-    /** Human names in the same order as levelsHeld / levelsRemaining — render these, not the codes. */
-    levelNamesHeld: string[];
-    levelNamesRemaining: string[];
+    /** Human names in the same order as levelsHeld / levelsRemaining — render these, not the
+     *  codes. Optional: the web auto-deploys on merge while the API deploy is manual, so a
+     *  deployed client can be talking to an API that predates these fields. Fall back to
+     *  mapping the codes through skillLevelName. */
+    levelNamesHeld?: string[];
+    levelNamesRemaining?: string[];
   } | null;
 }
 
