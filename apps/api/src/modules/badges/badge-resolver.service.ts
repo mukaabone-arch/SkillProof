@@ -1,7 +1,25 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { Badge, BadgeVerificationMethod, ClaimStatus, SkillLevel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SKILL_LEVEL_NAME } from '../../config/skill-level-names';
 import { SKILL_LEVEL as DISCUSSION_LEVEL, SKILL_NAME as DISCUSSION_SKILL_NAME } from '../assessment-sessions/rag-systems-l2.rubric';
+
+/**
+ * What the apply-gate progress surfaces show a candidate. `levelsHeld` /
+ * `levelsRemaining` are the machine codes; `levelNamesHeld` /
+ * `levelNamesRemaining` are the human names in the same order, so the
+ * client renders names without keeping its own code→name map.
+ */
+export interface ApplyGateProgress {
+  skillId: string;
+  skillName: string;
+  levelsHeld: SkillLevel[];
+  levelsRemaining: SkillLevel[];
+  levelNamesHeld: string[];
+  levelNamesRemaining: string[];
+}
+
+const levelName = (level: SkillLevel): string => SKILL_LEVEL_NAME[level] ?? level;
 
 /** Ascending level order — index comparison decides "highest level held". */
 export const LEVEL_ORDER: SkillLevel[] = [SkillLevel.L1, SkillLevel.L2, SkillLevel.L3, SkillLevel.L4];
@@ -315,7 +333,7 @@ export class BadgeResolverService {
     levels: SkillLevel[],
   ): Promise<{
     met: boolean;
-    progress: { skillId: string; skillName: string; levelsHeld: SkillLevel[]; levelsRemaining: SkillLevel[] } | null;
+    progress: ApplyGateProgress | null;
   }> {
     const profile = await this.prisma.candidateProfile.findUnique({
       where: { userId },
@@ -346,7 +364,7 @@ export class BadgeResolverService {
 
     let met = false;
     let best:
-      | { skillId: string; skillName: string; levelsHeld: SkillLevel[]; levelsRemaining: SkillLevel[]; earliestIssuedAt: Date }
+      | (Omit<ApplyGateProgress, 'levelNamesHeld' | 'levelNamesRemaining'> & { earliestIssuedAt: Date })
       | null = null;
     for (const [skillId, entry] of bySkill) {
       const levelsHeld = levels.filter((l) => entry.levels.has(l));
@@ -367,7 +385,14 @@ export class BadgeResolverService {
     return {
       met,
       progress: best
-        ? { skillId: best.skillId, skillName: best.skillName, levelsHeld: best.levelsHeld, levelsRemaining: best.levelsRemaining }
+        ? {
+            skillId: best.skillId,
+            skillName: best.skillName,
+            levelsHeld: best.levelsHeld,
+            levelsRemaining: best.levelsRemaining,
+            levelNamesHeld: best.levelsHeld.map(levelName),
+            levelNamesRemaining: best.levelsRemaining.map(levelName),
+          }
         : null,
     };
   }

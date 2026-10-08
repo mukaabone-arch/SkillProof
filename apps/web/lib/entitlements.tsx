@@ -62,7 +62,18 @@ export type ApplyGateLevel = 'L1' | 'L2' | 'L3';
 export interface ApplyGate {
   requiredLevels: ApplyGateLevel[];
   met: boolean;
-  progress: { skillId: string; skillName: string; levelsHeld: ApplyGateLevel[]; levelsRemaining: ApplyGateLevel[] } | null;
+  progress: {
+    skillId: string;
+    skillName: string;
+    levelsHeld: ApplyGateLevel[];
+    levelsRemaining: ApplyGateLevel[];
+    /** Human names in the same order as levelsHeld / levelsRemaining — render these, not the
+     *  codes. Optional: the web auto-deploys on merge while the API deploy is manual, so a
+     *  deployed client can be talking to an API that predates these fields. Fall back to
+     *  mapping the codes through skillLevelName. */
+    levelNamesHeld?: string[];
+    levelNamesRemaining?: string[];
+  } | null;
 }
 
 export interface EntitlementsResponse {

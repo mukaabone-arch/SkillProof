@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useEntitlements, type ApplyGate } from '@/lib/entitlements';
 import { timeOfDayGreeting } from '@/lib/greeting';
+import { skillLevelName } from '@/lib/skillLevels';
 import CandidateNav from './CandidateNav';
 import AdminNav from './AdminNav';
 import FeatureStrip from './FeatureStrip';
@@ -290,7 +291,7 @@ function mostUrgentPipelineAlert(interviews: Interview[]): PipelineAlert | undef
   return undefined;
 }
 
-interface CopilotMessage {
+export interface CopilotMessage {
   eyebrow: string;
   message: string;
   /** Status/expiry line under the message — used by the employer-invite variant. */
@@ -427,7 +428,7 @@ function employerInviteCopilotMessage(selection: SelectedEmployerInvite): Copilo
  * page. Each branch below is mutually exclusive and ordered most- to
  * least-urgent, so the candidate never sees two conflicting suggestions.
  */
-function buildCopilotMessage(params: {
+export function buildCopilotMessage(params: {
   hasProfile: boolean;
   hasBadge: boolean;
   /** From useEntitlements().applyGate?.met — the L1-L3-of-one-skill apply gate, not "has any badge at all." Falls back to hasBadge while entitlements are still loading (see call site). */
@@ -545,15 +546,22 @@ function buildCopilotMessage(params: {
   }
 
   if (!applyGateMet) {
-    // Partial progress toward the gate (e.g. L1 earned, L2/L3 still to go)
+    // Partial progress toward the gate (e.g. Foundational earned, Practitioner
+    // and Advanced still to go)
     // gets its own specific message, distinct from "nothing yet" — a
     // candidate who's already invested in a skill shouldn't be told to
     // "take an assessment" as if starting from zero.
     if (applyGateProgress) {
-      const remaining = applyGateProgress.levelsRemaining.join(' and ');
+      // levelNamesHeld/-Remaining are absent from an API that predates them
+      // (the web deploys on merge, the API deploy is manual — see
+      // entitlements.tsx's own comment on the type) — fall back to mapping
+      // the codes through the same skillLevelName the rest of this page uses.
+      const held = applyGateProgress.levelNamesHeld ?? applyGateProgress.levelsHeld.map(skillLevelName);
+      const remainingNames = applyGateProgress.levelNamesRemaining ?? applyGateProgress.levelsRemaining.map(skillLevelName);
+      const remaining = remainingNames.join(' and ');
       return {
         eyebrow: 'Your next move',
-        message: `${applyGateProgress.skillName}: ${applyGateProgress.levelsHeld.join(', ')} earned — ${remaining} to go before you can apply to jobs.`,
+        message: `${applyGateProgress.skillName}: ${held.join(', ')} earned — ${remaining} to go before you can apply to jobs.`,
         ctaLabel: 'Continue assessments',
         ctaHref: '/assessments',
       };

@@ -142,6 +142,8 @@ describe('BadgeResolverService.resolveApplyGateProgress', () => {
       skillName: 'LLM Evaluation',
       levelsHeld: [L1, L2, L3],
       levelsRemaining: [],
+      levelNamesHeld: ['Foundational', 'Practitioner', 'Advanced'],
+      levelNamesRemaining: [],
     });
   });
 
@@ -163,6 +165,8 @@ describe('BadgeResolverService.resolveApplyGateProgress', () => {
       skillName: 'RAG Systems',
       levelsHeld: [L1, L2],
       levelsRemaining: [L3],
+      levelNamesHeld: ['Foundational', 'Practitioner'],
+      levelNamesRemaining: ['Advanced'],
     });
   });
 
