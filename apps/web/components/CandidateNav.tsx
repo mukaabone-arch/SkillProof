@@ -3,9 +3,12 @@
 /** Persistent nav across the four main candidate areas — always accessible, clear active-state. */
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { logout } from '@/lib/api';
+import { useEffect, useState } from 'react';
+import { api, logout } from '@/lib/api';
 import { useEntitlements } from '@/lib/entitlements';
+import { initialsFrom } from '@/lib/initials';
 import BrandLockup from './BrandLockup';
+import AccountMenu from './AccountMenu';
 
 const LINKS = [
   { href: '/candidate', label: 'Dashboard' },
@@ -29,6 +32,17 @@ export default function CandidateNav({ onLoggedOut }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const { tier } = useEntitlements();
+  // Just the name, for the account menu's initials — this nav otherwise has
+  // no reason to fetch the profile at all, so it's its own minimal request
+  // rather than threading fullName down from whichever page happens to have
+  // already fetched it.
+  const [fullName, setFullName] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<{ fullName: string | null }>('/profiles/me')
+      .then((p) => setFullName(p.fullName))
+      .catch(() => undefined);
+  }, []);
 
   // Some pages that render this nav (e.g. /resume) still track their own
   // "loggedIn" state, and live on a route other than the login page itself —
@@ -64,7 +78,15 @@ export default function CandidateNav({ onLoggedOut }: Props) {
               Upgrade
             </Link>
           )}
-          <button className="appnav-logout" onClick={handleLogout}>Log out</button>
+          <AccountMenu
+            label={fullName ?? 'Account'}
+            initials={fullName ? initialsFrom(fullName) : undefined}
+            items={[
+              { label: 'Profile', href: '/profile' },
+              { label: 'Account', href: '/profile/account' },
+              { label: 'Log out', onClick: handleLogout },
+            ]}
+          />
         </div>
       </div>
     </div>

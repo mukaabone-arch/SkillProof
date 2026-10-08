@@ -1387,8 +1387,52 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
 @media (max-width: 1100px) {
   .appnav-links a:not(.appnav-logout-link) { display: none; }
 }
+/* Admin-only now (2026-10) — candidate and employer both moved their bare
+   Log out button into the shared AccountMenu below. Left as-is for
+   AdminNav/AdminSidebarShell, which are out of scope for this change. */
 .appnav-logout { background: transparent !important; color: var(--ink-60) !important; font-size: 0.85rem; padding: 8px 14px !important; border: 1px solid var(--ink-12) !important; white-space: nowrap; }
 .appnav-logout:hover { color: var(--ink) !important; transform: none !important; }
+
+/* ---- shared account menu (components/AccountMenu.tsx) ----
+   One control for both headers — candidate's .appnav and the employer's
+   .employer-topbar — replacing what was, on both sides, a bare Log out
+   button and the single most emphasised control in the header. See that
+   component's own doc comment for why it's shared.
+
+   --ink/-60/-12 are reset here, not inherited, because .employer-topbar
+   locally reassigns them to the dark header tokens (see that rule's own
+   comment) — a descendant of it would otherwise inherit dark-on-dark text
+   inside this panel's own --card background. Re-declaring them as plain
+   var(--gray-900 / -600 / -100) makes them re-resolve against whichever
+   theme is actually active at THIS element — the employer-light override
+   where this panel sits inside .employer-shell[data-theme="light"], or the
+   default dark theme's own values on the candidate side where no such
+   override exists — the same "re-resolve against this element's own
+   environment" technique .employer-shell[data-theme="light"] itself uses
+   on --ink below. --card/--shadow-lg are left to inherit normally for the
+   same reason: both are already correctly theme-scoped (light-mode real
+   shadows + white card inside .employer-shell, dark-mode's own values
+   everywhere else), so re-declaring them here would be redundant at best. */
+.account-menu { position: relative; flex-shrink: 0; }
+.account-menu-trigger {
+  width: 32px; height: 32px; border-radius: var(--radius-full); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; padding: 0 !important;
+  background: var(--brand-100) !important; color: var(--brand-800) !important;
+  font-size: 0.75rem; font-weight: 700; border: none !important; cursor: pointer;
+}
+.account-menu-trigger:hover { transform: none !important; filter: brightness(0.97); }
+.account-menu-dropdown {
+  --ink: var(--gray-900); --ink-60: var(--gray-600); --ink-12: var(--gray-100);
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 70; min-width: 180px;
+  background: var(--card); border: 1px solid var(--ink-12); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg); padding: 6px; display: flex; flex-direction: column; gap: 2px;
+}
+.account-menu-item {
+  display: block; width: 100%; text-align: left; padding: 8px 10px; white-space: nowrap;
+  border-radius: var(--radius-sm); font-size: 0.88rem; font-weight: 500; color: var(--ink);
+  background: transparent; border: none; cursor: pointer; text-decoration: none;
+}
+.account-menu-item:hover { background: color-mix(in srgb, var(--brand-600) 12%, var(--card)); text-decoration: none; color: var(--ink); }
 
 /* ---- employer portal: sidebar shell ----
    Own class namespace throughout (not .appnav*) since this is a different
@@ -1451,8 +1495,8 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
    Locally reassigning --ink/--ink-60/--ink-12 to them (rather than
    switching every rule below from --ink to --header-text directly) is
    what makes every descendant that already reads --ink/etc — BrandLockup's
-   wordmark, the hamburger bars, .appnav-logout's shared rule — pick up
-   the header theme with no override of its own; custom properties
+   wordmark, the hamburger bars, .employer-org-identity — pick up the
+   header theme with no override of its own; custom properties
    inherit normally from whichever element last declared them. */
 /* --header-bg is translucent (rgba(22,24,38,0.85)) with a backdrop-filter
    blur — a "glass over dark content scrolling underneath" effect that's
@@ -1474,11 +1518,30 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
   --ink-12: var(--header-border);
   --header-bg: #161826;
   position: sticky; top: 0; z-index: 50; height: 76px; flex-shrink: 0;
-  display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-5);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: 0 var(--space-5);
   background: var(--header-bg); color: var(--ink);
   backdrop-filter: blur(10px); border-bottom: 1px solid var(--ink-12);
 }
-.employer-topbar .appnav-logout { margin-left: auto; }
+/* Two groups either side of justify-content: space-between above, replacing
+   the old single margin-left:auto on the one button that used to be here —
+   there's no longer exactly one "everything else" element to hang that off
+   of. min-width: 0 on -brand lets .employer-org-name's own ellipsis (below)
+   actually engage instead of being measured against its own intrinsic
+   (unbounded) width — the standard flex-item "min-width:auto by default"
+   gotcha. */
+.employer-topbar-brand { display: flex; align-items: center; gap: var(--space-4); min-width: 0; }
+.employer-topbar-actions { display: flex; align-items: center; gap: var(--space-3); flex-shrink: 0; }
+/* A plain 1px rule, not a second lockup-style element — the mark stays the
+   brand; this just shows the org identity is sharing its space, not
+   replacing it. */
+.employer-topbar-divider { width: 1px; height: 24px; background: var(--ink-12); flex-shrink: 0; }
+.employer-org-identity { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink); min-width: 0; }
+.employer-org-identity:hover { text-decoration: none; color: var(--ink); }
+/* Ellipsis, not wrap — a long org name must never push Post a job/the
+   account menu out of the band. Hidden outright below 860px (see that
+   media block) rather than relying on this alone at every width. */
+.employer-org-name { font-size: 0.92rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+.employer-post-job-label { white-space: nowrap; }
 .employer-nav-toggle {
   display: none; flex-direction: column; justify-content: center; gap: 4px;
   width: 32px; height: 32px; padding: 0; background: transparent !important; border: none !important;
@@ -1498,16 +1561,6 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
 .employer-sidebar a.active { color: var(--ink); background: color-mix(in srgb, var(--brand-600) 22%, var(--card)); }
 .employer-content { flex: 1; min-width: 0; }
 .employer-sidebar-scrim { display: none; }
-/* Duplicate of the topbar's own Log out — hidden here by default (desktop
-   only shows the topbar one, via margin-left:auto). Below 480px the two
-   swap: see that breakpoint below for why (the topbar can no longer fit
-   hamburger + 44px logo + Log out at that width, wordmark already hidden
-   or not — moving Log out into the already-open-able drawer, rather than
-   shrinking it or the logo, is the same "follow the existing off-canvas
-   pattern" move this whole restructure leans on elsewhere). */
-.employer-sidebar-logout {
-  display: none;
-}
 
 /* Below this width the sidebar becomes an off-canvas drawer opened by the
    hamburger toggle in the topbar, rather than the fixed 220px rail above —
@@ -1516,8 +1569,17 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
    .appnav-links (see the note on that rule): this shell never uses
    .appnav-links, so employers always have a way to navigate, on any
    screen width. */
+/* This is also where the hamburger first appears, so it's the width where
+   the band is most crowded, not least — a long org name is what actually
+   risks overflow here (the short-name case has room to spare well below
+   this), so the name text (not the mark) is what drops. Log out needing no
+   equivalent swap-into-the-drawer here (contrast the old fix this
+   replaced, in git history) is a direct consequence of it no longer being
+   a topbar-only control: the account menu is always present, at every
+   width, so there's nothing to relocate. */
 @media (max-width: 860px) {
   .employer-nav-toggle { display: flex; }
+  .employer-org-name { display: none; }
   .employer-sidebar {
     position: fixed; top: 76px; bottom: 0; left: 0; z-index: 60; width: 260px;
     transform: translateX(-100%); transition: transform 0.18s ease;
@@ -1529,23 +1591,15 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
     background: rgba(0, 0, 0, 0.5);
   }
 }
-/* hamburger(32) + gap + the 44px-tall logo mark alone (~209px at this
-   width's mobile-hero size, measured — see the branding section's own
-   comment) already leaves no room left for a topbar Log out button below
-   this width, wordmark or no wordmark. The drawer already exists and is
-   already reachable via the hamburger at this width (see the 860px block
-   above) — Log out moves inside it instead of the topbar swapping to an
-   icon-only button or the logo shrinking. */
-@media (max-width: 480px) {
-  .employer-topbar .appnav-logout { display: none; }
-  .employer-sidebar-logout {
-    display: block; width: 100%; text-align: left;
-    padding: 10px 14px; margin-top: var(--space-3); border-top: 1px solid var(--ink-12);
-    font-size: 0.92rem; font-weight: 500; color: var(--ink-60);
-    background: transparent; border-left: none; border-right: none; border-bottom: none; border-radius: 0;
-    cursor: pointer;
-  }
-  .employer-sidebar-logout:hover { color: var(--ink); background: color-mix(in srgb, var(--brand-600) 12%, var(--card)); }
+/* Narrower than the org-name collapse above and the wordmark's own
+   (pre-existing, shared) 640px breakpoint — by the time both of those have
+   already dropped, "Post a job" with its full label is the next thing
+   competing for room next to the hamburger + mark + org logo + account
+   menu, so its label goes next, to an icon-only button, in the same
+   smallest-affordance-first order. */
+@media (max-width: 700px) {
+  .employer-post-job-label { display: none; }
+  .employer-post-job { padding-left: var(--space-3); padding-right: var(--space-3); }
 }
 
 /* ---- employer portal: light theme ----
@@ -1713,7 +1767,11 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
 }
 .admin-content { flex: 1; min-width: 0; }
 .admin-sidebar-scrim { display: none; }
-/* Mirrors .employer-sidebar-logout above — see that rule's own comment. */
+/* Used to mirror the employer shell's own duplicate Log out button for the
+   same narrow-width swap; that mechanism is gone there now (replaced by
+   the shared AccountMenu — see EmployerSidebarShell's own comment), but
+   admin's bare Log out button is unchanged and out of scope for that
+   change, so this stays as it was. */
 .admin-sidebar-logout {
   display: none;
 }

@@ -12,6 +12,7 @@ import { useRequireAuth } from '@/lib/useRequireAuth';
 import CertificationsPanel from '@/components/CertificationsPanel';
 import ProfileViewersPanel from '@/components/ProfileViewersPanel';
 import { LocationAutocomplete, LocationSuggestion } from '@/components/LocationAutocomplete';
+import { initialsFrom } from '@/lib/initials';
 
 /**
  * Structured role dropdown — display/filter only, mirrors the API's
@@ -90,15 +91,6 @@ interface Profile {
 function locationDisplay(p: Pick<Profile, 'locationCity' | 'locationRegion' | 'locationCountry' | 'locationLegacy'>): string {
   if (p.locationCity) return [p.locationCity, p.locationRegion, p.locationCountry].filter(Boolean).join(', ');
   return p.locationLegacy ?? '';
-}
-
-/** First letters of up to the first two words of a name, for the
- * placeholder avatar shown until a photo is set (or if one fails to
- * load). Falls back to a generic "?" for a candidate with no name yet. */
-function initials(fullName: string | null | undefined): string {
-  const parts = (fullName ?? '').trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  return parts.slice(0, 2).map((p) => p[0]!.toUpperCase()).join('');
 }
 
 interface ResumeExtraction {
@@ -476,7 +468,7 @@ function ProfilePageInner() {
                     fontWeight: 600,
                   }}
                 >
-                  {initials(form.fullName)}
+                  {initialsFrom(form.fullName)}
                 </div>
               )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 0 }}>
