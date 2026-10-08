@@ -193,6 +193,22 @@ export class GenerateResumeDto {
   @Type(() => EducationEntryDto)
   education?: EducationEntryDto[];
 
+  /**
+   * A presentation limit, not a security bound: a one-page PDF can't show
+   * more than 60 skills legibly, and no single entry past 60 characters as
+   * a skill chip. Mirrors RESUME_SKILLS_MAX / RESUME_SKILL_MAX_LENGTH in
+   * apps/web/lib/resumeLimits.ts, which enforces the same numbers in the
+   * resume form before the candidate can submit — see that file's comment
+   * for why this isn't an actual shared import.
+   *
+   * Deliberately not reconciled with PortfolioSkillGroupDto.skills's
+   * 40-per-group cap (apps/api/src/modules/portfolio/portfolio.dto.ts) — a
+   * portfolio with several groups near that cap already exceeds 60 flat,
+   * and nothing here truncates or rejects on that account. The two caps
+   * measure different things (one page's worth of resume vs. a multi-section
+   * portfolio page) and are not required to agree, but no one has decided
+   * that on purpose — raised as an open question, not fixed here.
+   */
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(60)

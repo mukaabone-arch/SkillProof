@@ -15,6 +15,7 @@ import { api, apiBlob, getToken } from '@/lib/api';
 import CandidateNav from '@/components/CandidateNav';
 import { Button, Card, ErrorState, Field, LoadingState } from '@/components/ui';
 import { useEntitlements } from '@/lib/entitlements';
+import { RESUME_SKILLS_MAX, RESUME_SKILL_MAX_LENGTH } from '@/lib/resumeLimits';
 
 interface ExperienceEntry {
   title: string;
@@ -142,6 +143,15 @@ export default function ResumePage() {
   function removeEducation(index: number) {
     setContent((c) => ({ ...c, education: c.education.filter((_, i) => i !== index) }));
   }
+
+  // The DTO caps skills at RESUME_SKILLS_MAX entries of RESUME_SKILL_MAX_LENGTH
+  // characters each (see lib/resumeLimits.ts) — enforced here too, live, so a
+  // candidate with a full CV sees the problem while editing rather than after
+  // a "Generate PDF" that was always going to fail.
+  const skillsCount = content.skills.length;
+  const skillsOverCount = skillsCount > RESUME_SKILLS_MAX;
+  const overLongSkills = content.skills.filter((s) => s.length > RESUME_SKILL_MAX_LENGTH);
+  const skillsInvalid = skillsOverCount || overLongSkills.length > 0;
 
   if (!ready) return <main className="container-reading"><p>Loading…</p></main>;
 
@@ -273,7 +283,12 @@ export default function ResumePage() {
             </Button>
 
             <div className="field" style={{ marginTop: 24 }}>
-              <label htmlFor="skills">Skills (comma-separated)</label>
+              <label htmlFor="skills">
+                Skills (comma-separated) —{' '}
+                <span style={{ color: skillsOverCount ? 'var(--error)' : 'var(--gray-600)' }}>
+                  {skillsCount} of {RESUME_SKILLS_MAX}
+                </span>
+              </label>
               <input
                 id="skills"
                 value={content.skills.join(', ')}
@@ -281,6 +296,12 @@ export default function ResumePage() {
                   setContent({ ...content, skills: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })
                 }
               />
+              {overLongSkills.length > 0 && (
+                <p className="meta" style={{ color: 'var(--error)', marginTop: 4 }}>
+                  Too long to read as one skill on the PDF (max {RESUME_SKILL_MAX_LENGTH} characters) — shorten:{' '}
+                  {overLongSkills.map((s) => `"${s}"`).join(', ')}
+                </p>
+              )}
             </div>
             <p className="meta">
               Your verified skill badges are added automatically — no need to list them here.
@@ -316,7 +337,7 @@ export default function ResumePage() {
             )}
 
             <div className="row" style={{ marginTop: 12 }}>
-              <Button onClick={generatePdf} disabled={generating}>
+              <Button onClick={generatePdf} disabled={generating || skillsInvalid}>
                 {generating ? 'Generating…' : 'Generate PDF →'}
               </Button>
               <Button variant="secondary" onClick={() => setStage('choose')} disabled={generating}>
