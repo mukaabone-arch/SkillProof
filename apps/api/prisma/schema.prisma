@@ -841,7 +841,14 @@ model CandidatePortfolio {
   profileId          String           @unique
   profile            CandidateProfile @relation(fields: [profileId], references: [id])
   /**
-   * Parsed sections: headline, summary, experience[], projects[], education[], skills[] — see PortfolioContent in portfolio.service.ts. Display text only, never queried/joined on.
+   * Parsed sections: headline, summary, experience[], projects[], education[], skillGroups[] — see PortfolioContent in portfolio.service.ts. Display text only, never queried/joined on.
+   *
+   * skillGroups holds everything the candidate has, grouped by category and
+   * uncapped in total (PortfolioSkillGroupDto caps each group at 40, not the
+   * sum). The resume (GenerateResumeDto.skills) is a candidate-chosen subset
+   * of this, capped near RESUME_SKILLS_MAX because a one-page PDF can't show
+   * more legibly — a deliberate difference in what each surface is for, not
+   * a mismatch to reconcile by making the caps equal.
    */
   content            Json
   /**
