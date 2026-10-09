@@ -3227,6 +3227,19 @@ body:has(.beta-promo-bar) .lp-hero { padding-top: calc(148px + 64px); }
    bullet, chip) can land in any text node here, parsed verbatim from a
    resume with no wordwrap-friendly guarantees. */
 .portfolio-view { display: flex; flex-direction: column; gap: var(--space-6); max-width: 640px; margin: 0 auto; overflow-wrap: anywhere; }
+/* A wider page container (main.container-standard, see the layout
+   container system above) is not licence to widen prose: past ~75
+   characters the eye loses its place on the return sweep, so a wider
+   paragraph reads worse while looking fuller. Applied to free-form text a
+   candidate reads or edits at length — the page intro, and the Summary/
+   Bullets/Description textareas in app/portfolio/page.tsx's own edit form
+   — never to short structured fields (Title, Dates, Technologies), which
+   don't have this problem. Reuses the tier system's own token rather than
+   a new number or a ch-based measure (contrast .portfolio-hero-summary's
+   pre-existing 60ch, a different mechanism for the same job, used by the
+   read-only preview both this page and the employer-facing view render —
+   left as-is since it already works and isn't this page's bug). */
+.portfolio-prose { max-width: var(--container-reading); }
 .portfolio-hero-title { font-size: var(--text-lg); color: var(--indigo); font-weight: 600; margin: var(--space-2) 0 0; }
 .portfolio-hero-summary { color: var(--ink-60); margin: var(--space-3) 0 0; max-width: 60ch; }
 .portfolio-stats { margin-bottom: 0; }
@@ -3248,3 +3261,51 @@ body:has(.beta-promo-bar) .lp-hero { padding-top: calc(148px + 64px); }
    page's usual overflow offenders at 390px — see this app's documented
    history of horizontal overflow bugs. */
 .portfolio-view .chip, .portfolio-view .ui-badge { overflow-wrap: anywhere; max-width: 100%; }
+
+/* ---- candidate's own portfolio preview: two columns, and matching the
+   Approved panel's width (app/portfolio/page.tsx only) ----
+   Scoped to main.container-standard rather than changing the base
+   .portfolio-view rule above, which the employer-facing view
+   (EmployerPortfolioView.tsx) still depends on: that page renders
+   PortfolioSections inside a bare <main className="hub"> with no
+   container-tier class of its own, so .portfolio-view's 640px cap is
+   currently its ONLY width constraint. Only app/portfolio/page.tsx uses
+   main.container-standard among the two PortfolioSections consumers, so
+   this selector reaches exactly this page and never the employer one —
+   widening/regridding that page was never asked for and isn't verified
+   here.
+
+   Un-capping .portfolio-view here is what fixes the "cards don't share
+   edges" bug: the "Approved" panel above it is a plain Card spanning the
+   full main width, while .portfolio-view's own max-width/margin:auto
+   inset it on both sides — two stacked cards at different widths. Letting
+   it span the same full width, then giving the hero/stats/contact blocks
+   grid-column: 1 / -1 so THEY still read as one full-width panel directly
+   under "Approved" (exactly like today), is what makes the two agree.
+
+   grid-auto-flow (the browser's default) is what lets the four structured
+   sections (Experience/Skills/Projects/Education) fall into two columns
+   without the CSS needing to know which ones exist — Skills always
+   renders, the other three are conditional on the candidate's own data
+   (see PortfolioSections.tsx), so their actual DOM position shifts from
+   one candidate's draft to another's, and an nth-child-based grid-area
+   assignment would misplace them. Same ratio, same align-items: start, and same
+   900px collapse point as .profile-columns/.list-page-columns above —
+   not independently tuned. */
+main.container-standard .portfolio-view {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-7);
+  align-items: start;
+  max-width: none;
+  margin: 0;
+}
+main.container-standard .portfolio-hero,
+main.container-standard .portfolio-stats,
+main.container-standard .portfolio-contact {
+  grid-column: 1 / -1;
+}
+main.container-standard .portfolio-section { min-width: 0; }
+@media (max-width: 900px) {
+  main.container-standard .portfolio-view { grid-template-columns: 1fr; gap: var(--space-6); }
+}

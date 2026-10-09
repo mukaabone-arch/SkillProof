@@ -147,7 +147,7 @@ export default function PortfolioPage() {
     setContent((c) => ({ ...c, skillGroups: c.skillGroups.filter((_, i) => i !== index) }));
   }
 
-  if (!ready) return <main className="container-reading"><p>Loading…</p></main>;
+  if (!ready) return <main className="container-standard"><p>Loading…</p></main>;
 
   const previewData: PortfolioViewData | null = data
     ? {
@@ -167,9 +167,20 @@ export default function PortfolioPage() {
   return (
     <>
       {loggedIn && <CandidateNav onLoggedOut={() => setLoggedIn(false)} />}
-      <main className="hub container-reading">
+      {/*
+        container-standard (1200px), not -reading (720px): this page carries
+        an approval panel, an identity card, skill groups, experience,
+        projects and education — structured content, not the single-focus
+        prose -reading is for (see globals.css's own comment on the tier
+        system). Both occurrences (this one and the loading state above)
+        must match, or the page visibly jumps width when data arrives.
+        .appnav-inner's width follows main's own class automatically (see
+        globals.css's body:has(main.container-standard) rule) — nothing
+        else to change for the header.
+      */}
+      <main className="hub container-standard">
         <h1>Your portfolio</h1>
-        <p>
+        <p className="portfolio-prose">
           A richer, shareable view of your experience, skills and projects — built from your
           uploaded resume, alongside it, not instead of it.
         </p>
@@ -252,6 +263,7 @@ export default function PortfolioPage() {
                     <label htmlFor="summary">Summary</label>
                     <textarea
                       id="summary"
+                      className="portfolio-prose"
                       rows={3}
                       value={content.summary ?? ''}
                       onChange={(e) => setContent((c) => ({ ...c, summary: e.target.value }))}
@@ -269,6 +281,7 @@ export default function PortfolioPage() {
                       <label htmlFor={`exp-bullets-${i}`}>Bullets (one per line)</label>
                       <textarea
                         id={`exp-bullets-${i}`}
+                        className="portfolio-prose"
                         rows={4}
                         value={exp.bullets.join('\n')}
                         onChange={(e) => updateExperience(i, { bullets: e.target.value.split('\n') })}
@@ -297,6 +310,7 @@ export default function PortfolioPage() {
                       <label htmlFor={`proj-desc-${i}`}>Description</label>
                       <textarea
                         id={`proj-desc-${i}`}
+                        className="portfolio-prose"
                         rows={3}
                         value={p.description}
                         onChange={(e) => updateProject(i, { description: e.target.value })}
