@@ -1171,26 +1171,54 @@ main.auth.auth-gradient {
    whichever space happens to fall near the cap's edge), so "natural
    width" here means the wider of those two lines, not a single-line
    measurement:
-     line 1 "Candidates: free while we're in beta"  → 368px (wider)
-     line 2 "until 30 November"                     → narrower
-   W = 368px. B = W + 640 + 56 (reversing the cap formula) + 24px slack so
-   the breakpoint doesn't sit on the exact wrapping boundary, rounded up
-   to the nearest 10 → 1090px. Below 1090px the cap is tighter than the
+     line 1 "Candidates: free while we're in beta"  → 322px of text (wider)
+     line 2 "until 30 November"                     → 166px of text, narrower
+   W is the ribbon's own natural (unwrapped) BOX width, not the bare text
+   width — this rule's 36px inline padding on each side is inside the
+   max-width below (box-sizing: border-box, set globally), so it has to
+   be added back in or the cap starts squeezing the ribbon a full padding
+   short of where this comment used to claim: 322px text + 72px padding
+   = 394px, rounded up → W = 395px. (Confirmed empirically, not just by
+   formula: capping max-width to exactly W made the line wrap right up
+   to a 1090px viewport and only stopped at 1091 — i.e. exactly
+   W + 640 + 56, with zero slack left. A prior version of this comment
+   measured only the bare text and got 368px, which is why it previously
+   landed on 1090 — a number that, per that same check, is one viewport
+   pixel short of actually working.)
+   B = W + 640 + 56 (reversing the cap formula) + 24px slack so the
+   breakpoint doesn't sit on the exact wrapping boundary, rounded up to
+   the nearest 10 → 1120px. Below 1120px the cap is tighter than the
    ribbon's two-line width, which would still squeeze it further (a third
    line) instead of just preventing the overlap it exists to prevent —
    the static in-flow rule above reads better than that the whole way up
-   to 1090px, so it now covers the entire 860–1090px band, not just
-   860px. Measured 2026-10 at 1440px viewport, real fonts (this app's own
-   Google Fonts Inter, loaded the same way at every width — there is only
-   one copy/one font here, nothing locale-dependent to re-measure if that
-   ever changes). Stays relative rather than becoming a flat px value at
-   B: a longer copy change later (the date format, the lead sentence)
-   grows the ribbon's natural width while this breakpoint number wouldn't
-   move on its own, and at that point the relative cap is what keeps the
-   ribbon off the card instead of under it — this breakpoint only
-   guarantees today's measured string doesn't get squeezed past its
-   deliberate two lines once the cap applies. */
-@media (min-width: 1090px) {
+   to 1120px, so it now covers the entire 860–1120px band, not just
+   860px. Re-measured 2026-10 at 1440px viewport via Playwright, at this
+   rule's current 1.125rem/600 type. English only — this component has no
+   Arabic string on this branch; next-intl isn't wired up here at all.
+   Hard ceiling on W is 545px (past that, B exceeds 1265 and a 1280px
+   laptop with a scrollbar falls back to the in-flow variant) — 395px
+   clears that with room to spare.
+   A second, differently-sized English measurement (368px, bare text —
+   see above re: that number's own gap) exists on
+   fix/oauth-locale-round-trip, where this component is localised and an
+   Arabic string measured 337px against it there — narrower, so English
+   was the binding constraint on that branch too, which is the opposite
+   of the usual assumption and worth not "fixing" on sight. That
+   measurement predates this rule's 1.125rem type, so it isn't comparable
+   to the 395px above. When that branch's i18n work merges here, BOTH
+   strings must be re-measured as full ribbon-box widths (not bare text)
+   against this file's then-current type size, and re-checked against
+   the 545px ceiling, before this breakpoint is trusted — a larger type
+   scales both strings, and the ratio between two different fonts isn't
+   guaranteed to hold just because it held once.
+   Stays relative rather than becoming a flat px value at B: a longer
+   copy change later (the date format, the lead sentence) grows the
+   ribbon's natural width while this breakpoint number wouldn't move on
+   its own, and at that point the relative cap is what keeps the ribbon
+   off the card instead of under it — this breakpoint only guarantees
+   today's measured string doesn't get squeezed past its deliberate two
+   lines once the cap applies. */
+@media (min-width: 1120px) {
   .auth-split-panel > .beta-promo-scroll {
     position: absolute;
     inset-block-start: 28px;
@@ -3313,7 +3341,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .beta-promo-scroll {
   position: relative;
   width: max-content;
-  padding-block: 16px;
+  padding-block: 17px;
   padding-inline: 36px;
   background: var(--indigo);
   border-radius: var(--radius-lg);
@@ -3321,7 +3349,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   text-align: center;
   color: #fff;
   font-family: var(--font-body);
-  font-size: 1.05rem;
+  font-size: 1.125rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   line-height: 1.4;
