@@ -3,7 +3,7 @@ import LandingHeader from '@/components/landing/LandingHeader';
 import NewsStrip from '@/components/landing/NewsStrip';
 import ConsentSettingsLink from '@/components/ConsentSettingsLink';
 import BrandLockup from '@/components/BrandLockup';
-import BetaPromoBar from '@/components/BetaPromoBar';
+import BetaPromoScroll from '@/components/BetaPromoScroll';
 
 /**
  * Marketing landing page — served at the domain root ("/"). The candidate
@@ -67,19 +67,13 @@ const EMPLOYER_POINTS = [
 export default function LandingPage() {
   return (
     <>
-      {/* .lp-header is position:fixed, so the promo bar is wrapped together
-          with it here rather than mounted via the generic app-wide slot
-          (Providers.tsx) — see BetaPromoBar's own doc comment and
-          .lp-header-stack in globals.css for why. */}
-      <div className="lp-header-stack">
-        <BetaPromoBar stacked />
-        <LandingHeader candidateHref={CANDIDATE_HREF} employerHref={EMPLOYER_HREF} />
-      </div>
+      <LandingHeader candidateHref={CANDIDATE_HREF} employerHref={EMPLOYER_HREF} />
       <main className="lp-page" id="top">
       {/* ---------- Hero ---------- */}
       <section className="lp-hero" aria-labelledby="lp-hero-heading">
         <div className="lp-hero-scrim" aria-hidden="true" />
         <div className="lp-container lp-hero-inner">
+          <BetaPromoScroll />
           <p className="lp-eyebrow">Verified AI talent</p>
           {/* Two headline variants, toggled by CSS at 768px (see .lp-hero-title-lg/-sm
               in globals.css). Desktop keeps the full line (3 balanced lines over the

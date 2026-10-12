@@ -5,7 +5,17 @@
  */
 import '@testing-library/jest-dom';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { clearTokens, setTokens, employerApi } from '@/lib/api';
 import OtpLogin from './OtpLogin';
+
+beforeEach(() => {
+  // BetaPromoScroll (rendered by OtpLogin) reads auth tokens on mount —
+  // a token left over from a previous test's completed login flow would
+  // hide it in a later test that never signed in.
+  clearTokens();
+  employerApi.clearTokens();
+  localStorage.clear();
+});
 
 function jsonResponse(status: number, body: unknown): Response {
   return { ok: status >= 200 && status < 300, status, json: async () => body } as Response;
@@ -97,5 +107,26 @@ describe('OtpLogin — sign_up vs. login analytics', () => {
         expect(PII_KEYS).not.toContain(key);
       }
     }
+  });
+});
+
+describe('OtpLogin — beta promo ribbon', () => {
+  it('renders BetaPromoScroll for an anonymous visitor', () => {
+    render(<OtpLogin onLoggedIn={jest.fn()} />);
+    expect(screen.getByRole('note')).toHaveTextContent(
+      "Candidates: free while we're in beta",
+    );
+  });
+
+  it('renders nothing when a candidate token is present', () => {
+    setTokens('access-token', 'refresh-token');
+    render(<OtpLogin onLoggedIn={jest.fn()} />);
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+  });
+
+  it('renders nothing when an employer token is present', () => {
+    employerApi.setTokens('emp-access-token', 'emp-refresh-token');
+    render(<OtpLogin onLoggedIn={jest.fn()} />);
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
   });
 });

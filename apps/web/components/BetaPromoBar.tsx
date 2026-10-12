@@ -29,25 +29,16 @@
  * redirect placeholder never hides this) — the same shape as the
  * always-mounted AnalyticsGate/LimitReachedModal, so it can't end up
  * reachable from only one page the way the footer did (see app/page.tsx's
- * own history). The one exception is the landing page: `.lp-header` there
- * is `position: fixed`, so this component renders again explicitly in
- * app/page.tsx (via the `stacked` prop) wrapped together with
- * LandingHeader in `.lp-header-stack` — see that class in globals.css for
- * why (a guessed pixel offset for `.lp-header`'s `top` would drift the
- * moment this bar's text wraps to a second line at a narrow width; sharing
- * one fixed flow container sidesteps that instead of measuring it).
+ * own history). The landing page ("/") and the candidate login screen
+ * ("/candidate") are NOT in this component's allow-list below: both render
+ * BetaPromoScroll in-page instead (the landing page's hero, OtpLogin.tsx's
+ * split panel) rather than this bar.
  */
-import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { getToken, employerApi } from '@/lib/api';
-import { BETA_FREE_UNTIL, formatBetaPromoDate, isBetaPromoActive } from '@/lib/betaPromo';
+import { useBetaPromoVisible } from '@/lib/useBetaPromoVisible';
+import { BETA_FREE_UNTIL, formatBetaPromoDate } from '@/lib/betaPromo';
 
-interface Props {
-  /** Set only by app/page.tsx, where this is wrapped together with LandingHeader inside .lp-header-stack — see this file's own doc comment. */
-  stacked?: boolean;
-}
-
-const ALLOWED_EXACT_PATHS = new Set(['/', '/candidate', '/employer', '/faq']);
+const ALLOWED_EXACT_PATHS = new Set(['/employer', '/faq']);
 const ALLOWED_PATH_PREFIXES = ['/help'];
 
 function isAllowedPath(pathname: string): boolean {
@@ -55,31 +46,12 @@ function isAllowedPath(pathname: string): boolean {
   return ALLOWED_PATH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
-export default function BetaPromoBar({ stacked = false }: Props) {
+export default function BetaPromoBar() {
   const pathname = usePathname() ?? '';
-  // Deferred to an effect, same shape as PublicNav's own dashboardHref
-  // check — the server never has localStorage, so reading a token during
-  // the render that produces the server HTML (or the first client render
-  // that has to match it) would disagree with what mounts a moment later
-  // and trip a hydration mismatch. First paint always renders as
-  // logged-out; this corrects it immediately after mount.
-  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const visible = useBetaPromoVisible();
 
-  useEffect(() => {
-    setSignedIn(Boolean(getToken()) || Boolean(employerApi.getToken()));
-  }, [pathname]);
-
-  // The landing page renders its own stacked copy (see this file's own
-  // doc comment) — skip the generic app-wide mount there to avoid
-  // rendering the bar twice.
-  if (pathname === '/' && !stacked) return null;
-
-  if (!isBetaPromoActive()) return null;
+  if (!visible) return null;
   if (!isAllowedPath(pathname)) return null;
-  // Acquisition message for logged-out visitors only — never for someone
-  // already inside a portal, whatever route they're on when a session
-  // happens to exist (e.g. a signed-in candidate revisiting "/").
- if (signedIn !== false) return null;
 
   return (
     <div className="beta-promo-bar" role="note">

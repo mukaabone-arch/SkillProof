@@ -27,6 +27,7 @@ import BrandLockup from './BrandLockup';
 import { GoogleIcon, GithubIcon } from './OAuthIcons';
 import AuthMessageRotator from './AuthMessageRotator';
 import LegalAcceptanceNote from './LegalAcceptanceNote';
+import BetaPromoScroll from './BetaPromoScroll';
 
 /** Matches AuthService's RESEND_COOLDOWN_MS (60s) — purely a UX countdown; the server enforces the real limit regardless. */
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -138,6 +139,7 @@ export default function OtpLogin({ onLoggedIn }: Props) {
         <AuthMessageRotator />
       </div>
       <div className="auth-split-panel">
+        <BetaPromoScroll />
         <h1 className="auth-split-headline">Global AI Talent Hub</h1>
         <div className="auth-split-card">
           <BrandLockup variant="hero" href="/" ariaLabel="MyAmbii home" />
