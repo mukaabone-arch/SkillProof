@@ -845,6 +845,18 @@ main.auth.auth-gradient {
      same way for the same reason; without this, the grid below gets
      squeezed into a 640px centered box instead of spanning the viewport. */
   max-width: none; margin: 0; padding: 0;
+  /* Containing block for BetaPromoScroll's desktop placement (see
+     .auth-split-panel > .beta-promo-scroll below) — the ribbon overlays
+     the FIRST column (.auth-split-visual) even though it's coded as the
+     first child of the SECOND (.auth-split-panel), by positioning against
+     this shared grid container rather than its literal DOM parent.
+     This is also what WOULD break it: adding `position: relative` to
+     .auth-split-panel itself — an ordinary thing to reach for later, for
+     an unrelated tooltip or loading overlay on that panel — would make
+     the panel the nearer positioned ancestor instead of this element, and
+     the ribbon would snap back into the right-hand column it's supposed
+     to overlay the left one from. */
+  position: relative;
   /* min-height, not height: a floor, not a ceiling. This used to be a flat
      `height: 100vh` pairing with .auth-split-panel's own `overflow-y: auto`
      below, on the reasoning that pinning the grid to exactly the viewport
@@ -1036,7 +1048,40 @@ main.auth.auth-gradient {
      follows its grid row: exactly the viewport when content fits (the
      common case, no visible change), taller than the viewport when it
      doesn't, in which case the page scrolls and justify-content's
-     centering just applies to whatever room the row actually has. */
+     centering just applies to whatever room the row actually has.
+     Also now load-bearing for a second, unrelated reason: at the desktop
+     breakpoint below, BetaPromoScroll absolutely-positions itself out of
+     this panel and over .auth-split-visual on purpose (see .auth-split's
+     own comment). Any `overflow` added here later — even `overflow:
+     hidden` for something that looks unrelated, like a border-radius on
+     this panel — would clip that descendant back inside this box instead. */
+}
+/* BetaPromoScroll, coded as the first child of .auth-split-panel (see
+   OtpLogin.tsx) so it's naturally "the first thing in the column, above
+   the sign-in card" at every width. Below the split-layout breakpoint
+   that's exactly where it stays — a static, in-flow banner, left-aligned
+   (align-self: flex-start, since the panel itself centers its children)
+   rather than full width. At and above that breakpoint it switches to
+   `position: absolute` in the @media block below, which lifts it out of
+   this flex column entirely and positions it against .auth-split instead
+   — see that rule's own comment for why.
+   max-width here is NOT decoration — without it the ribbon's own
+   `width: max-content` (its wider line is ~368px, see the overlay
+   breakpoint's own measurements below) overflows the panel's padded
+   width at a phone's ~320–360px content area, which this flex column's
+   align-self: flex-start does nothing to prevent (it only stops the
+   ribbon stretching to fill the cross axis; it doesn't cap it from
+   exceeding it) — confirmed via document.documentElement.scrollWidth
+   actually exceeding clientWidth at 375px before this was added. 100%
+   resolves against the flex column's own content width, so this always
+   leaves the ribbon's existing inline padding clear of the panel's own
+   edge; the 460px ceiling matches the landing page's identical cap
+   (.lp-hero-inner > .beta-promo-scroll) so neither mount site invents
+   its own number. */
+.auth-split-panel > .beta-promo-scroll {
+  align-self: flex-start;
+  margin-block-end: var(--space-6);
+  max-width: min(100%, 460px);
 }
 .auth-split-headline {
   font-family: var(--font-body); font-weight: 700;
@@ -1096,7 +1141,9 @@ main.auth.auth-gradient {
      rule is `min-height: 100vh` (a floor, never a ceiling) and
      .auth-split-panel carries no overflow-y at all, so the whole page
      already scrolls as one normal flow at every width, this breakpoint
-     included, with no separate fix required. This block used to
+     included, with no separate fix required — see .auth-split-panel's
+     own comment for the second, newer reason that absence now matters
+     too (BetaPromoScroll's desktop placement). This block used to
      specifically UNDO a `height: 100vh` + `overflow-y: auto` pairing that
      only made sense for the desktop two-column layout and actively broke
      mobile's single-column stack (see git history if you need the exact
@@ -1104,6 +1151,54 @@ main.auth.auth-gradient {
      ceiling, there was nothing left to undo. Verified by comparing computed
      styles and full-page screenshots at 360x740 before and after removing
      these two lines — pixel-identical. */
+}
+/* BetaPromoScroll's desktop placement. Lifts the ribbon out of
+   .auth-split-panel's flex column (position: absolute removes it from flex
+   layout entirely) and positions it against .auth-split instead, which
+   overlays the dark .auth-split-visual column despite the ribbon's DOM
+   home being the panel on the other side (see .auth-split's own comment
+   for why that resolves there).
+   max-width stays relative to the panel column's own ceiling
+   (minmax(420px, 640px) — see .auth-split's grid-template-columns), not a
+   flat number: that's what guarantees the ribbon can never run under the
+   sign-in card at any width, however this breakpoint itself moves.
+   The breakpoint (1090px) is NOT the split-layout collapse (860px, above)
+   — it's the width at which that relative cap first equals the ribbon's
+   own natural (unwrapped) width, measured, not guessed. The ribbon is two
+   lines everywhere now (see .beta-promo-scroll .beta-promo-date below: a
+   deterministic break at the lead/date boundary, not a width-triggered
+   wrap — the SAME break in every browser, at every width, rather than
+   whichever space happens to fall near the cap's edge), so "natural
+   width" here means the wider of those two lines, not a single-line
+   measurement:
+     line 1 "Candidates: free while we're in beta"  → 368px (wider)
+     line 2 "until 30 November"                     → narrower
+   W = 368px. B = W + 640 + 56 (reversing the cap formula) + 24px slack so
+   the breakpoint doesn't sit on the exact wrapping boundary, rounded up
+   to the nearest 10 → 1090px. Below 1090px the cap is tighter than the
+   ribbon's two-line width, which would still squeeze it further (a third
+   line) instead of just preventing the overlap it exists to prevent —
+   the static in-flow rule above reads better than that the whole way up
+   to 1090px, so it now covers the entire 860–1090px band, not just
+   860px. Measured 2026-10 at 1440px viewport, real fonts (this app's own
+   Google Fonts Inter, loaded the same way at every width — there is only
+   one copy/one font here, nothing locale-dependent to re-measure if that
+   ever changes). Stays relative rather than becoming a flat px value at
+   B: a longer copy change later (the date format, the lead sentence)
+   grows the ribbon's natural width while this breakpoint number wouldn't
+   move on its own, and at that point the relative cap is what keeps the
+   ribbon off the card instead of under it — this breakpoint only
+   guarantees today's measured string doesn't get squeezed past its
+   deliberate two lines once the cap applies. */
+@media (min-width: 1090px) {
+  .auth-split-panel > .beta-promo-scroll {
+    position: absolute;
+    inset-block-start: 28px;
+    inset-inline-start: 28px;
+    margin: 0;
+    max-width: calc(100% - 640px - 56px);
+    z-index: 1;
+  }
 }
 @media (max-width: 480px) {
   .auth-split-visual { min-height: 110px; }
@@ -2479,42 +2574,14 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) { html:has(.lp-page) { scroll-behavior: auto; } }
 .lp-container { width: min(100% - 48px, 1200px); margin: 0 auto; }
 
-/* ---- Beta promo bar + glass header, stacked (landing page only) ----
-   .lp-header is position:fixed on its own (see below) everywhere except
-   here: when BetaPromoBar renders above it, the two share this single
-   fixed-position wrapper instead — the bar sits first in normal flow,
-   .lp-header right after it with its own position reset to `static` so it
-   simply follows in flow rather than fixing itself to the viewport a
-   second time. That means .lp-header always sits exactly at the bar's
-   real rendered height, however tall the bar turns out to be (one line or
-   two at a narrow width) — no guessed `top` pixel offset to keep in sync
-   with the bar's own font-size/padding. See BetaPromoBar.tsx's own doc
-   comment for why this page mounts the bar itself (via the `stacked`
-   prop) instead of relying on the generic app-wide mount every other page
-   uses. */
-.lp-header-stack {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-}
-.lp-header-stack .lp-header {
-  position: static;
-}
-/* .lp-hero's padding-top only ever had to clear .lp-header's own fixed
-   72px — now it has to clear the promo bar sitting above it too. Adds a
-   flat, deliberately generous 64px (covers the bar at two lines, the
-   worst case, even though it's sized to fit one — see .beta-promo-bar's
-   own comment) rather than measuring the bar's actual height, since a few
-   extra px of breathing room above the hero on the common one-line case is
-   harmless, while under-provisioning here is exactly the "header element
-   overflow" failure mode this app has hit before. Scoped to :has() so
-   pages/visits where the bar doesn't render (past the cutoff, or a
-   signed-in visitor) get the original spacing back, not permanent dead
-   space. */
-body:has(.beta-promo-bar) .lp-hero { padding-top: calc(148px + 64px); }
-@media (max-width: 640px) {
-  body:has(.beta-promo-bar) .lp-hero { padding-top: calc(116px + 64px); }
-}
-
-/* ---- Glass header (fixed over the hero) ---- */
+/* ---- Glass header (fixed over the hero) ----
+   Used to share a position:fixed wrapper with BetaPromoBar here (the one
+   page where the bar rendered above a fixed header) — see git history
+   (.lp-header-stack) for that. The bar no longer mounts on this page at
+   all (BetaPromoScroll replaces it, in-flow inside the hero — see
+   .beta-promo-scroll below), so .lp-header is back to fixing itself
+   directly with no wrapper and .lp-hero's padding-top is back to a flat
+   value with no :has() override. */
 .lp-header {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   /* Translucent so the photo shows through (~22% at rest); a dark tint (not a
@@ -2595,6 +2662,16 @@ body:has(.beta-promo-bar) .lp-hero { padding-top: calc(148px + 64px); }
 }
 .lp-hero-inner { position: relative; z-index: 1; }
 .lp-hero-inner > * { max-width: 620px; }
+/* BetaPromoScroll — first element of the hero's content column, hugging
+   the inline-start edge. In flow (not absolutely positioned) on purpose:
+   this is the same region the headline already proves is legible against
+   the scrim/photograph behind it (both the English scrim and the Arabic
+   flat-field-below-1200px/photo-above-1200px treatment — see that rule's
+   own comment), so the ribbon inherits whatever that region does without
+   needing its own overlay/scrim. More specific than the `> *` rule above
+   so its own max-width (set on .beta-promo-scroll itself) wins over the
+   620px/680px(ar) text measure, which is sized for prose, not a banner. */
+.lp-hero-inner > .beta-promo-scroll { margin-block: 0 28px; max-width: min(90%, 460px); }
 .lp-eyebrow {
   font-family: var(--font-body); text-transform: uppercase; letter-spacing: 0.1em;
   font-size: 0.75rem; font-weight: 600; color: var(--brand-400); margin-bottom: 18px;
@@ -3191,9 +3268,10 @@ body:has(.beta-promo-bar) .lp-hero { padding-top: calc(148px + 64px); }
    sized to fit "Candidates: free while we're in beta — until 30 November"
    on one line down to a 360px viewport, but if a future copy change or an
    unusually wide font ever doesn't fit, this should wrap to a second line
-   rather than force horizontal scroll (see .lp-header-stack below for how
-   the one page with a fixed header — the landing page — stays correct
-   either way, without measuring which one happened). */
+   rather than force horizontal scroll. Renders on /employer, /faq and
+   /help/* only — the landing page and /candidate render .beta-promo-scroll
+   below instead (see BetaPromoBar.tsx's own doc comment for the full
+   allow-list and why those two are carved out). */
 .beta-promo-bar {
   width: 100%;
   box-sizing: border-box;
@@ -3215,6 +3293,98 @@ body:has(.beta-promo-bar) .lp-hero { padding-top: calc(148px + 64px); }
 .beta-promo-date {
   white-space: nowrap;
 }
+
+/* ---- Beta acquisition ribbon (BetaPromoScroll, 2026-10) ----
+   The landing page and /candidate's floating in-page replacement for the
+   thin bar above — see BetaPromoScroll.tsx's own doc comment. Drawn in CSS
+   (a content box plus two pseudo-element "rolls"), not an image or a
+   fixed-viewBox SVG, because the text isn't fixed length: the date string
+   changes length through the month ("1 November" vs. "30 November").
+   `width: max-content`
+   (capped by `max-width`, set per mount site below) so the ribbon hugs its
+   own text instead of stretching edge-to-edge — a full-width ribbon is
+   just the thin bar again with bigger padding.
+   Same background/text colour as .beta-promo-bar (white on --indigo) and
+   the same font-weight-only emphasis (no <strong>) — only the size, shape
+   and container change. Measured once for the bar, still correct here
+   since the colours didn't move: #FFFFFF on --indigo (#5D5294) is 6.77:1,
+   clearing the 4.5:1 AA-normal-text floor the bar needs and, since this
+   text is larger, the 3:1 AA-large-text floor with more room still. */
+.beta-promo-scroll {
+  position: relative;
+  width: max-content;
+  padding-block: 16px;
+  padding-inline: 36px;
+  background: var(--indigo);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+}
+/* The ribbon is deliberately two lines, always — on the landing page, in
+   flow on /candidate, and overlaying the dark panel on /candidate — not a
+   width-triggered wrap, and not scoped to any one breakpoint. Scoped to
+   the ribbon only, never .beta-promo-bar, which stays the one line it's
+   sized for down to 360px. A `display: block` date line breaks at
+   exactly the lead/date boundary every time, regardless of viewport
+   width, font metrics or browser — a
+   width-triggered wrap would instead break wherever a space happened to
+   fall once the ribbon ran out of room, which isn't guaranteed to be a
+   good-looking place and isn't the same place in two different browsers.
+   One consistent two-line shape at every width also means this sets the
+   ribbon's own natural (unwrapped) width for the overlay breakpoint
+   below: `width: max-content` on the container now means the WIDER of
+   its two lines, not the single-line length .beta-promo-bar would
+   measure. */
+.beta-promo-scroll .beta-promo-date {
+  display: block;
+  margin-block-start: 2px;
+}
+/* The two "rolls" — decoration only (::before/::after, never announced,
+   never reorderable children). Width stops well short of the panel's own
+   36px inline padding so text never runs under them.
+   A vertical cylinder, not a rounded rectangle, needs two things a flat
+   tab doesn't: it has to stick out past the sheet it's rolled into
+   (block-size: 100% + 14px, via a -7px start inset, so it overhangs both
+   the top and bottom edge), and its shading has to vary ACROSS its
+   width, not top-to-bottom — a dark/light/dark sweep in the direction the
+   surface actually curves away from the eye, which is what the brain
+   reads as "round" rather than "flat panel, darker." Both mixes are
+   derived from --indigo (the panel's own fill) via color-mix, same idiom
+   as this token's existing hover-state darken elsewhere in this file,
+   just one step further each way (darker for the rolled edges, lighter
+   for the curve's highlight) so it reads as a different surface, not a
+   hover.
+   `border-radius: 5px` (not the logical per-corner radii a shape like
+   this would otherwise need) is a plain, symmetric rounding of all four
+   corners — safe under RTL without a mirrored pair, since a uniform
+   radius looks identical from either direction. `linear-gradient(to
+   right, …)` below is the one physical-direction value in this file
+   (everything else here is logical on purpose — see this file's own
+   opening note) and that's deliberately fine: the gradient is a
+   palindrome (dark → light → dark), so mirroring its direction under RTL
+   produces the exact same pixels, not a backwards one. */
+.beta-promo-scroll::before,
+.beta-promo-scroll::after {
+  content: '';
+  position: absolute;
+  inset-block-start: -7px;
+  block-size: calc(100% + 14px);
+  inline-size: 20px;
+  border-radius: 5px;
+  z-index: 1;
+  background: linear-gradient(to right,
+    color-mix(in srgb, var(--indigo) 75%, black),
+    color-mix(in srgb, var(--indigo) 45%, white),
+    color-mix(in srgb, var(--indigo) 75%, black));
+}
+.beta-promo-scroll::before { inset-inline-start: -2px; }
+.beta-promo-scroll::after { inset-inline-end: -2px; }
 
 /* ---- candidate portfolio (PortfolioSections.tsx) ----
    Structure only borrowed from docs/design/portfolio-reference/ — every
