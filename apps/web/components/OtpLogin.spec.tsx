@@ -114,7 +114,7 @@ describe('OtpLogin — beta promo ribbon', () => {
   it('renders BetaPromoScroll for an anonymous visitor', () => {
     render(<OtpLogin onLoggedIn={jest.fn()} />);
     expect(screen.getByRole('note')).toHaveTextContent(
-      "Candidates: free while we're in beta",
+      'Candidates: Be among the first to prove your AI skills and apply for jobs',
     );
   });
 

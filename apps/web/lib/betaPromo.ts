@@ -15,13 +15,14 @@ export function isBetaPromoActive(now: Date = new Date()): boolean {
 }
 
 /**
- * "30 November" — day + month, no year (matches the banner copy), read in
- * IST regardless of the viewer's own timezone so it never disagrees with
- * the IST cutoff `isBetaPromoActive` enforces.
+ * "30 November 2026" — day + month + year, read in IST regardless of the
+ * viewer's own timezone so it never disagrees with the IST cutoff
+ * `isBetaPromoActive` enforces.
  */
 const dateFormatter = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
   month: 'long',
+  year: 'numeric',
   timeZone: 'Asia/Kolkata',
 });
 

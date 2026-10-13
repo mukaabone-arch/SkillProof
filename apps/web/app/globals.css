@@ -1065,12 +1065,11 @@ main.auth.auth-gradient {
    `position: absolute` in the @media block below, which lifts it out of
    this flex column entirely and positions it against .auth-split instead
    — see that rule's own comment for why.
-   max-width here is NOT decoration — without it the ribbon's own
-   `width: max-content` (its wider line is ~368px, see the overlay
-   breakpoint's own measurements below) overflows the panel's padded
-   width at a phone's ~320–360px content area, which this flex column's
-   align-self: flex-start does nothing to prevent (it only stops the
-   ribbon stretching to fill the cross axis; it doesn't cap it from
+   max-width here is NOT decoration — without it the ribbon's own fixed
+   `width: 420px` (see .beta-promo-scroll below) overflows the panel's
+   padded width at a phone's ~320–360px content area, which this flex
+   column's align-self: flex-start does nothing to prevent (it only stops
+   the ribbon stretching to fill the cross axis; it doesn't cap it from
    exceeding it) — confirmed via document.documentElement.scrollWidth
    actually exceeding clientWidth at 375px before this was added. 100%
    resolves against the flex column's own content width, so this always
@@ -1162,63 +1161,31 @@ main.auth.auth-gradient {
    (minmax(420px, 640px) — see .auth-split's grid-template-columns), not a
    flat number: that's what guarantees the ribbon can never run under the
    sign-in card at any width, however this breakpoint itself moves.
-   The breakpoint (1090px) is NOT the split-layout collapse (860px, above)
+   The breakpoint (1140px) is NOT the split-layout collapse (860px, above)
    — it's the width at which that relative cap first equals the ribbon's
-   own natural (unwrapped) width, measured, not guessed. The ribbon is two
-   lines everywhere now (see .beta-promo-scroll .beta-promo-date below: a
-   deterministic break at the lead/date boundary, not a width-triggered
-   wrap — the SAME break in every browser, at every width, rather than
-   whichever space happens to fall near the cap's edge), so "natural
-   width" here means the wider of those two lines, not a single-line
-   measurement:
-     line 1 "Candidates: free while we're in beta"  → 322px of text (wider)
-     line 2 "until 30 November"                     → 166px of text, narrower
-   W is the ribbon's own natural (unwrapped) BOX width, not the bare text
-   width — this rule's 36px inline padding on each side is inside the
-   max-width below (box-sizing: border-box, set globally), so it has to
-   be added back in or the cap starts squeezing the ribbon a full padding
-   short of where this comment used to claim: 322px text + 72px padding
-   = 394px, rounded up → W = 395px. (Confirmed empirically, not just by
-   formula: capping max-width to exactly W made the line wrap right up
-   to a 1090px viewport and only stopped at 1091 — i.e. exactly
-   W + 640 + 56, with zero slack left. A prior version of this comment
-   measured only the bare text and got 368px, which is why it previously
-   landed on 1090 — a number that, per that same check, is one viewport
-   pixel short of actually working.)
-   B = W + 640 + 56 (reversing the cap formula) + 24px slack so the
-   breakpoint doesn't sit on the exact wrapping boundary, rounded up to
-   the nearest 10 → 1120px. Below 1120px the cap is tighter than the
-   ribbon's two-line width, which would still squeeze it further (a third
-   line) instead of just preventing the overlap it exists to prevent —
-   the static in-flow rule above reads better than that the whole way up
-   to 1120px, so it now covers the entire 860–1120px band, not just
-   860px. Re-measured 2026-10 at 1440px viewport via Playwright, at this
-   rule's current 1.125rem/600 type. English only — this component has no
-   Arabic string on this branch; next-intl isn't wired up here at all.
-   Hard ceiling on W is 545px (past that, B exceeds 1265 and a 1280px
-   laptop with a scrollbar falls back to the in-flow variant) — 395px
-   clears that with room to spare.
-   A second, differently-sized English measurement (368px, bare text —
-   see above re: that number's own gap) exists on
-   fix/oauth-locale-round-trip, where this component is localised and an
-   Arabic string measured 337px against it there — narrower, so English
-   was the binding constraint on that branch too, which is the opposite
-   of the usual assumption and worth not "fixing" on sight. That
-   measurement predates this rule's 1.125rem type, so it isn't comparable
-   to the 395px above. When that branch's i18n work merges here, BOTH
-   strings must be re-measured as full ribbon-box widths (not bare text)
-   against this file's then-current type size, and re-checked against
-   the 545px ceiling, before this breakpoint is trusted — a larger type
-   scales both strings, and the ratio between two different fonts isn't
-   guaranteed to hold just because it held once.
-   Stays relative rather than becoming a flat px value at B: a longer
-   copy change later (the date format, the lead sentence) grows the
-   ribbon's natural width while this breakpoint number wouldn't move on
-   its own, and at that point the relative cap is what keeps the ribbon
-   off the card instead of under it — this breakpoint only guarantees
-   today's measured string doesn't get squeezed past its deliberate two
-   lines once the cap applies. */
-@media (min-width: 1120px) {
+   own box width. Derived, not measured: this rule now gives the ribbon a
+   fixed content width (~420px, see .beta-promo-scroll below) instead of
+   sizing to whatever the copy happens to be, so there's a fixed W to
+   reverse the cap formula from rather than a string to measure.
+     B = W + 640 + 56 (reversing the cap formula) + 24px slack so the
+     breakpoint doesn't sit on the exact wrapping boundary
+       = 420 + 640 + 56 + 24 = 1140
+   Below 1140px the cap is tighter than the ribbon's own width, which
+   would squeeze it narrower still (more wrapped lines in the lead
+   clause) instead of just preventing the overlap this breakpoint exists
+   to prevent — the static in-flow rule above reads better than that the
+   whole way up to 1140px, so it now covers the entire 860–1140px band,
+   not just 860px.
+   Because the ribbon no longer sizes to its own content, this number is
+   now independent of the copy: editing the lead clause, the date format,
+   or adding a third clause changes how many lines the lead clause wraps
+   into, never the box's width — so none of that moves this breakpoint.
+   That also retires the old per-locale concern this comment used to
+   carry (a wider Arabic or French string growing the box and demanding
+   a re-measured B before it could be trusted): there's no longer
+   anything to re-measure, in any language, because the width isn't
+   derived from the string any more. */
+@media (min-width: 1140px) {
   .auth-split-panel > .beta-promo-scroll {
     position: absolute;
     inset-block-start: 28px;
@@ -2690,10 +2657,13 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 }
 .lp-hero-inner { position: relative; z-index: 1; }
 .lp-hero-inner > * { max-width: 620px; }
-/* BetaPromoScroll — first element of the hero's content column, hugging
-   the inline-start edge. In flow (not absolutely positioned) on purpose:
-   this is the same region the headline already proves is legible against
-   the scrim/photograph behind it (both the English scrim and the Arabic
+/* BetaPromoScroll — first element of the hero's content column above the
+   ≤768px breakpoint (see the `order` rules under "Reorder BetaPromoScroll
+   below the headline" further down for the mobile exception, where it
+   moves after the sub-line instead), hugging the inline-start edge. In
+   flow (not absolutely positioned) on purpose: this is the same region
+   the headline already proves is legible against the scrim/photograph
+   behind it (both the English scrim and the Arabic
    flat-field-below-1200px/photo-above-1200px treatment — see that rule's
    own comment), so the ribbon inherits whatever that region does without
    needing its own overlay/scrim. More specific than the `> *` rule above
@@ -3228,6 +3198,46 @@ html:has(.lp-page) { scroll-behavior: smooth; }
      directly above it, and cutting both frees ~90px so the block sits higher,
      clear of the subjects. Desktop keeps them (see .lp-cta-caption). */
   .lp-cta-caption { display: none; }
+
+  /* Reorder BetaPromoScroll below the headline, mobile only. Above this
+     breakpoint the ribbon stays the first child, in source order, hugging
+     the inline-start edge as before (see .lp-hero-inner > .beta-promo-scroll
+     above) — nothing here touches that. Below it, the ribbon (now up to
+     5 lines at this component's 2026-10 enlarged/bolded type — see
+     .beta-promo-scroll's own comment) would otherwise sit, as the FIRST
+     child of .lp-hero-inner, directly in front of "Proven AI skill, meet
+     the companies hiring" — the page's whole value proposition and a
+     phone visitor's first impression of it. Moved to after the sub-line
+     instead: the headline leads, but the time-limited offer still shows
+     on mobile rather than being dropped from it outright (this is a
+     reorder, not a `display: none`).
+     Safe to reorder visually away from DOM order here specifically
+     because BetaPromoScroll renders `role="note"` with no focusable
+     content — nothing a screen reader or keyboard user tabs through needs
+     to match reading order to visual order for. A reordered *interactive*
+     element (a link, a button, a form field) would be a real accessibility
+     problem; a non-interactive note is not.
+     `display: flex` only exists on .lp-hero-inner inside this ≤768px
+     block — block layout above it is untouched, so `order` (which only
+     affects flex/grid items) only ever applies down here. The one thing
+     flex changes that block layout didn't: adjacent margins no longer
+     COLLAPSE to the larger of the two, they SUM — so re-using each
+     element's existing margin-bottom/margin-top unmodified would make
+     every gap the sum instead of the max, growing the mobile hero taller
+     for no visual reason. Fixed by zeroing .lp-hero-ctas's margin-top
+     here (it no longer sits against .lp-hero-sub, so that 30px no longer
+     applies) and giving the ribbon its own explicit margin-block for its
+     two new neighbours, rather than leaving either gap to an accidental
+     sum. The eyebrow→title and title→sub gaps are both still adjacent,
+     same as before reordering, so neither needed touching — they're
+     unchanged (confirmed via full-page 375px screenshots, before and
+     after this block was added, compared). */
+  .lp-hero-inner { display: flex; flex-direction: column; }
+  .lp-hero-inner > .lp-eyebrow { order: 0; }
+  .lp-hero-inner > .lp-hero-title { order: 1; }
+  .lp-hero-inner > .lp-hero-sub { order: 2; }
+  .lp-hero-inner > .beta-promo-scroll { order: 3; margin-block: 20px 30px; }
+  .lp-hero-inner > .lp-hero-ctas { order: 4; margin-top: 0; }
 }
 
 /* ---- Landing: collapse header links into a menu below the lockup budget
@@ -3315,10 +3325,17 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   color: #fff;
 }
 
-/* The date itself must never split across lines (see doc comment above:
-   sized to fit on one line down to 360px, but if it ever doesn't, the
-   wrap should happen at the em dash, not inside "30 November"). */
-.beta-promo-date {
+/* The bar's date itself must never split across lines (see doc comment
+   above: sized to fit on one line down to 360px, but if it ever doesn't,
+   the wrap should happen at the em dash, not inside "30 November 2026").
+   Scoped to .beta-promo-bar specifically, not the bare .beta-promo-date
+   class both components share — the ribbon's date line (.beta-promo-scroll
+   .beta-promo-date, below) now sits inside a fixed, sometimes-narrow box
+   (see that rule's own comment) rather than a box that always grows to
+   fit it, so forcing nowrap there would push the date past the box's
+   right edge instead of wrapping, on any viewport narrow enough that
+   "Free until 30 November 2026" doesn't fit the shrunk width. */
+.beta-promo-bar .beta-promo-date {
   white-space: nowrap;
 }
 
@@ -3326,12 +3343,20 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    The landing page and /candidate's floating in-page replacement for the
    thin bar above — see BetaPromoScroll.tsx's own doc comment. Drawn in CSS
    (a content box plus two pseudo-element "rolls"), not an image or a
-   fixed-viewBox SVG, because the text isn't fixed length: the date string
-   changes length through the month ("1 November" vs. "30 November").
-   `width: max-content`
-   (capped by `max-width`, set per mount site below) so the ribbon hugs its
-   own text instead of stretching edge-to-edge — a full-width ribbon is
-   just the thin bar again with bigger padding.
+   fixed-viewBox SVG, because the text isn't fixed length: both the lead
+   clause and the date string can change length (copy edits, "1 November"
+   vs. "30 November 2026").
+   `width: 420px` (box-sizing: border-box, set globally, so this is the
+   full box including the 36px inline padding each side) rather than the
+   old `width: max-content` — the lead clause ("Candidates: Be among the
+   first to prove your AI skills and apply for jobs") is long enough now
+   that sizing the box to it would make the ribbon nearly as wide as the
+   thin bar it replaced. A fixed width and a wrapping first line keeps
+   this a compact block instead, and — see the @media (min-width: 1140px)
+   rule above — gives the overlay breakpoint a fixed number to derive from
+   instead of a string to measure, so future copy edits can't move it.
+   Still capped by `max-width`, set per mount site below, for viewports
+   narrower than 420px.
    Same background/text colour as .beta-promo-bar (white on --indigo) and
    the same font-weight-only emphasis (no <strong>) — only the size, shape
    and container change. Measured once for the bar, still correct here
@@ -3340,7 +3365,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    text is larger, the 3:1 AA-large-text floor with more room still. */
 .beta-promo-scroll {
   position: relative;
-  width: max-content;
+  width: 420px;
   padding-block: 17px;
   padding-inline: 36px;
   background: var(--indigo);
@@ -3354,24 +3379,74 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   letter-spacing: 0.01em;
   line-height: 1.4;
 }
-/* The ribbon is deliberately two lines, always — on the landing page, in
+/* Typographic hierarchy, ribbon only (every selector below is scoped
+   under .beta-promo-scroll — never a bare .beta-promo-date or a bare
+   `strong`, which would leak into .beta-promo-bar's one-line text the way
+   the old unscoped `.beta-promo-date { white-space: nowrap }` rule once
+   did). Three weights now, where there used to be one uniform 600:
+     "Candidates:" (strong)  → 700 — the qualifier
+     rest of the lead clause → 600 (the panel's own base weight, above —
+                                no override needed here)
+     the date line           → 700, see below
+   700 only reads as emphasis because the clause around it dropped to
+   600 — two things at the same weight (the old state) can't emphasize
+   one against the other. */
+.beta-promo-scroll strong {
+  font-weight: 700;
+}
+/* `text-wrap: balance` on the lead clause only (excludes the date line
+   via :not) — the unbalanced wrap broke after "first to", an awkward
+   place that reads like a hiccup rather than a line break. Progressive
+   enhancement: browsers without `text-wrap: balance` support just keep
+   the normal wrap, so this is additive, nothing to fall back to on
+   purpose. */
+.beta-promo-scroll span:not(.beta-promo-date) {
+  text-wrap: balance;
+}
+/* The date is deliberately its own line, always — on the landing page, in
    flow on /candidate, and overlaying the dark panel on /candidate — not a
    width-triggered wrap, and not scoped to any one breakpoint. Scoped to
    the ribbon only, never .beta-promo-bar, which stays the one line it's
    sized for down to 360px. A `display: block` date line breaks at
    exactly the lead/date boundary every time, regardless of viewport
-   width, font metrics or browser — a
-   width-triggered wrap would instead break wherever a space happened to
-   fall once the ribbon ran out of room, which isn't guaranteed to be a
-   good-looking place and isn't the same place in two different browsers.
-   One consistent two-line shape at every width also means this sets the
-   ribbon's own natural (unwrapped) width for the overlay breakpoint
-   below: `width: max-content` on the container now means the WIDER of
-   its two lines, not the single-line length .beta-promo-bar would
-   measure. */
+   width, font metrics or browser — a width-triggered wrap would instead
+   break wherever a space happened to fall once the ribbon ran out of
+   room, which isn't guaranteed to be a good-looking place and isn't the
+   same place in two different browsers. The lead clause ABOVE this line
+   is not pinned the same way: at the fixed 420px box width it wraps
+   on its own, across however many lines the copy needs (currently two at
+   desktop, more on narrow viewports where the per-mount `max-width`
+   shrinks the box below 420px) — only the lead/date boundary itself is
+   deterministic, not the lead clause's own line count.
+   font-size: 1.08em (not a literal rem value) is relative to the panel's
+   own font-size above, so a future change to that base size scales the
+   date line with it automatically rather than needing a second number
+   kept in sync by hand. Paired with font-weight: 700 (up from the
+   inherited 600) so the offer line — the actual reason this banner
+   exists — reads as the heaviest thing in the block, heavier than even
+   the "Candidates:" qualifier above it. No color tint on top of that:
+   the date text is already pure white (#fff) against --indigo, already
+   measured at 6.77:1 (see this rule block's own opening comment above
+   .beta-promo-scroll) — there is no tint lighter than white to reach for,
+   and anything else would only lower that ratio, not raise it, which
+   the brief for this change explicitly rules out. The size and weight
+   bump alone are doing the emphasis work here.
+   This line is EXPECTED to wrap on its own on narrower phones now — at
+   1.08em/700 the full date no longer always fits in one line once the
+   per-mount `max-width` has shrunk the box (confirmed: on /candidate at
+   375px the previous 18px/600 date fit its ~267px text column with only
+   ~3px to spare; at this size/weight it needs ~286px and wraps). That's
+   accepted, not a bug to fix by shrinking the type back — the old fit
+   was never robust (3px of slack against a font fallback or a raised
+   browser default size), and BetaPromoScroll.tsx replaces the date's own
+   spaces with non-breaking spaces before rendering, so on the occasions
+   this does wrap, it always wraps as "Free until" / "30 November 2026"
+   — a deliberate break before the date, never one inside it. */
 .beta-promo-scroll .beta-promo-date {
   display: block;
   margin-block-start: 2px;
+  font-size: 1.08em;
+  font-weight: 700;
 }
 /* The two "rolls" — decoration only (::before/::after, never announced,
    never reorderable children). Width stops well short of the panel's own

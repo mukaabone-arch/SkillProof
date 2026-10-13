@@ -20,9 +20,10 @@
  * "Candidates:" is load-bearing, not decoration — the free offer is
  * candidate-side only. Employer-triggered assessment requests are charged
  * from day one (₹0/₹177/₹590 by candidate depth), disclosed at the confirm
- * step in AssessCandidateAction. An unqualified "Free while we're in beta"
- * over /employer — the page whose whole job is convincing employers to sign
- * up — would tell them something untrue about what they're about to pay.
+ * step in AssessCandidateAction. An unqualified "Free until 30 November
+ * 2026" over /employer — the page whose whole job is convincing employers
+ * to sign up — would tell them something untrue about what they're about
+ * to pay.
  *
  * Mounted once, app-wide, in Providers.tsx (ahead of `children` in DOM
  * order, outside CandidateVerificationProvider so its own blocking
@@ -55,8 +56,8 @@ export default function BetaPromoBar() {
 
   return (
     <div className="beta-promo-bar" role="note">
-      <span>Candidates: free while we&apos;re in beta</span>{' '}
-      <span className="beta-promo-date">— until {formatBetaPromoDate(BETA_FREE_UNTIL)}</span>
+      <span>Candidates: Be among the first to prove your AI skills and apply for jobs</span>{' '}
+      <span className="beta-promo-date">— Free until {formatBetaPromoDate(BETA_FREE_UNTIL)}</span>
     </div>
   );
 }

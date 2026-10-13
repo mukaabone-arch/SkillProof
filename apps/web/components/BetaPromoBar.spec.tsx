@@ -94,7 +94,7 @@ describe('BetaPromoBar — copy', () => {
     render(<BetaPromoBar />);
     expect(BETA_FREE_UNTIL.toISOString()).toBe('2026-11-30T18:29:59.000Z');
     expect(screen.getByRole('note')).toHaveTextContent(
-      "Candidates: free while we're in beta — until 30 November",
+      'Candidates: Be among the first to prove your AI skills and apply for jobs — Free until 30 November 2026',
     );
   });
 });
@@ -197,11 +197,13 @@ describe('BetaPromoScroll — the landing/candidate-login ribbon', () => {
 
     render(<BetaPromoScroll />);
     // Not an exact string match: the ribbon deliberately drops the bar's
-    // leading em dash before "until" (see BetaPromoScroll.tsx's own doc
+    // leading em dash before "Free" (see BetaPromoScroll.tsx's own doc
     // comment — orphaned punctuation once the date is forced onto its own
-    // line). Same date, same "Candidates: free while we're in beta" lead.
-    expect(barText).toContain('30 November');
-    expect(screen.getByRole('note')).toHaveTextContent("Candidates: free while we're in beta");
-    expect(screen.getByRole('note')).toHaveTextContent('until 30 November');
+    // line). Same date, same "Candidates: Be among the first..." lead.
+    expect(barText).toContain('30 November 2026');
+    expect(screen.getByRole('note')).toHaveTextContent(
+      'Candidates: Be among the first to prove your AI skills and apply for jobs',
+    );
+    expect(screen.getByRole('note')).toHaveTextContent('Free until 30 November 2026');
   });
 });
