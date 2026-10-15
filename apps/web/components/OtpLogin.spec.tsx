@@ -7,6 +7,7 @@ import '@testing-library/jest-dom';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { clearTokens, setTokens, employerApi } from '@/lib/api';
 import OtpLogin from './OtpLogin';
+import EmployerOtpLogin from './EmployerOtpLogin';
 
 beforeEach(() => {
   // BetaPromoScroll (rendered by OtpLogin) reads auth tokens on mount —
@@ -128,5 +129,60 @@ describe('OtpLogin — beta promo ribbon', () => {
     employerApi.setTokens('emp-access-token', 'emp-refresh-token');
     render(<OtpLogin onLoggedIn={jest.fn()} />);
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
+  });
+});
+
+describe('OtpLogin — AuthPitch (replaces AuthMessageRotator)', () => {
+  it('renders the headline and all three proof points', () => {
+    render(<OtpLogin onLoggedIn={jest.fn()} />);
+    // Both the visual and inline AuthPitch variants render (CSS, not JS,
+    // decides which is visible at a given width — see AuthPitch.tsx's own
+    // doc comment), so headline/proof-point text legitimately appears
+    // twice in this jsdom render; getAllByText rather than getByText.
+    expect(screen.getAllByText('Prove your skills. Get matched to jobs that want them.').length).toBe(2);
+    expect(
+      screen.getAllByText('One skill, one level — Prompt Engineering, Practitioner — not a vague "AI skills" checkbox.')
+        .length,
+    ).toBe(2);
+    expect(screen.getAllByText('Earned under assessment — never self-reported.').length).toBe(2);
+    expect(
+      screen.getAllByText('Nothing reaches employers until you approve it — visibility is off by default.').length,
+    ).toBe(2);
+  });
+
+  it('renders the badge specimen with no name or person-identifying content', () => {
+    render(<OtpLogin onLoggedIn={jest.fn()} />);
+    expect(screen.getByText('Prompt Engineering — Practitioner')).toBeInTheDocument();
+    expect(screen.getByText('Example badge')).toBeInTheDocument();
+    // Nothing resembling the real verify page's name/date/ID fields.
+    expect(screen.queryByText(/Verification ID/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Issued/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Valid until/i)).not.toBeInTheDocument();
+  });
+
+  it('no longer renders AuthMessageRotator or its candidate messages', () => {
+    render(<OtpLogin onLoggedIn={jest.fn()} />);
+    expect(screen.queryByText('Apply in minutes, not hours')).not.toBeInTheDocument();
+    expect(screen.queryByText('Proof, not promises')).not.toBeInTheDocument();
+  });
+
+  it('the sign-in card still renders every existing control', () => {
+    render(<OtpLogin onLoggedIn={jest.fn()} />);
+    expect(screen.getByRole('tab', { name: 'Email' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Phone' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Email')).toBeInTheDocument();
+    expect(screen.getByText('Send code')).toBeInTheDocument();
+    expect(screen.getByText('Sign in with Google')).toBeInTheDocument();
+    expect(screen.getByText('Sign in with GitHub')).toBeInTheDocument();
+  });
+});
+
+describe('EmployerOtpLogin — still on AuthMessageRotator (regression check)', () => {
+  it('still renders the rotator with its own employer messages, not AuthPitch', () => {
+    render(<EmployerOtpLogin onLoggedIn={jest.fn()} />);
+    expect(screen.getByText('Hire on evidence, not claims')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Prove your skills. Get matched to jobs that want them.'),
+    ).not.toBeInTheDocument();
   });
 });

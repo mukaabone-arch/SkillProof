@@ -25,7 +25,7 @@ import { startOAuthLogin } from '@/lib/oauth';
 import { trackLogin, trackSignUp } from '@/lib/analyticsEvents';
 import BrandLockup from './BrandLockup';
 import { GoogleIcon, GithubIcon } from './OAuthIcons';
-import AuthMessageRotator from './AuthMessageRotator';
+import AuthPitch from './AuthPitch';
 import LegalAcceptanceNote from './LegalAcceptanceNote';
 import BetaPromoScroll from './BetaPromoScroll';
 
@@ -136,16 +136,20 @@ export default function OtpLogin({ onLoggedIn }: Props) {
   return (
     <main className="auth-split">
       <div className="auth-split-visual">
-        <AuthMessageRotator />
+        <AuthPitch variant="visual" />
       </div>
       <div className="auth-split-panel">
+        {/* Pitch leads, promo follows: the ribbon is a time-limited offer
+            ON the product, so it reads better after the panel has said
+            what the product is than in front of it — same reasoning
+            already applied to the landing hero's own mobile reorder.
+            Combined height checked at 375px (see this change's own
+            verification pass) alongside this panel's existing BetaPromoScroll
+            + card + LegalAcceptanceNote stack. */}
+        <AuthPitch variant="inline" />
         <BetaPromoScroll />
-        <h1 className="auth-split-headline">Global AI Talent Hub</h1>
         <div className="auth-split-card">
           <BrandLockup variant="hero" href="/" ariaLabel="MyAmbii home" />
-          <p className="auth-subtitle" style={{ marginBottom: 4 }}>
-            Prove your AI skills, get matched to roles that want them.
-          </p>
           <p className="meta" style={{ marginBottom: 18 }}>
             Sign in with your email or phone to get started.
           </p>

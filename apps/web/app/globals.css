@@ -1038,6 +1038,114 @@ main.auth.auth-gradient {
   .auth-split-message { transition: none; }
   .auth-split-message-dots span { transition: none; }
 }
+/* ---- AuthPitch (OtpLogin.tsx only) ----
+   Static replacement for AuthMessageRotator on the candidate login —
+   see AuthPitch.tsx's own doc comment for the two-variant structure
+   (`.auth-pitch-visual` here, `.auth-pitch-inline` further below) and
+   why both exist rather than one element moved by CSS.
+   `.auth-pitch-visual` reuses the rotator's own positioning idiom
+   (absolute, inset: 0, centered) and its own scrim shape (bottom-weighted
+   linear-gradient, see `.auth-pitch-scrim`) for the same reason: this
+   content sits on `.auth-split-visual`'s brand gradient, which is tuned
+   for the full colour ramp, not for text underneath it.
+   Taller than the rotator's headline+support pair (a specimen plus three
+   proof points, not one line), so the scrim below is NOT a copy of the
+   rotator's numbers — re-measured for this content's actual height, see
+   that rule's own comment. */
+.auth-pitch-visual {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 64px;
+}
+/* Stops at 82% rather than the rotator's 72%, and peaks slightly higher
+   (0.90 vs 0.88), because this content block is taller (headline +
+   specimen + three proof points, not headline + one support line) and
+   so sits higher in the panel at its centered position — not copied from
+   the rotator's own numbers, re-measured for this content.
+   Measured, not eyeballed, same method as AuthMessageRotator's own scrim
+   (see that rule's comment): rendered OtpLogin at 1440px and 1920px,
+   screenshotted .auth-split-visual with the headline/proof-point text
+   made transparent and the specimen hidden (so sampled pixels are
+   background only), decoded the PNG back in a page context via canvas +
+   getImageData, and computed WCAG contrast for the real headline
+   (#FFFFFF) and proof-point (#E4E4EE) colors against the average
+   background color behind the headline (the panel's "top end," least
+   scrim coverage) and the last proof point (the "bottom end," most
+   coverage). Worst case across both widths and both text colors:
+     headline  #FFFFFF  vs bg behind headline     11.31:1  (1920px)
+     points    #E4E4EE  vs bg behind headline       8.95:1  (1920px)
+   (The bottom end tested stronger at both widths — 18.3–18.5:1 headline,
+   14.5–14.6:1 points — so the headline position is the binding case.)
+   Worst case overall (8.95:1) clears the 4.5:1 AA floor for body text
+   with wide margin, and clears the stricter 7:1 AAA floor too. */
+.auth-pitch-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(8, 9, 15, 0.90) 0%,
+    rgba(8, 9, 15, 0.78) 30%,
+    rgba(8, 9, 15, 0.42) 58%,
+    transparent 82%
+  );
+  pointer-events: none;
+}
+.auth-pitch-content {
+  position: relative;
+  max-width: 480px;
+}
+/* Shared by both variants — colour is set per-variant below, since white
+   text makes no sense on the inline variant's light panel background. */
+.auth-pitch-headline {
+  font-family: var(--font-body); font-weight: 700;
+  font-size: clamp(1.5rem, 2.6vw, 2.1rem); line-height: 1.22;
+  margin: 0 0 20px;
+}
+.auth-pitch-visual .auth-pitch-headline { color: #FFFFFF; }
+/* Reuses .cert/.cert-mark/.cert-skill wholesale (app/badges/[hash] — see
+   AuthPitch.tsx's own comment on why this is a copy, not an import).
+   Scaled down from that page's own centered, 40px-padded full-width
+   treatment to fit this panel's 480px content column without padding
+   dominating the card. */
+.auth-pitch-specimen {
+  padding: 20px;
+  margin: 0 0 20px;
+  text-align: left;
+}
+.auth-pitch-specimen .cert-mark { margin: 0 0 10px; width: 44px; height: 44px; font-size: 1.3rem; }
+.auth-pitch-specimen .cert-skill { font-size: 1.05rem; }
+.auth-pitch-specimen-caption {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  color: var(--ink-60);
+}
+.auth-pitch-points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.auth-pitch-points li {
+  position: relative;
+  padding-left: 24px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+/* Checkmark glyph, not a bullet — these are claims being confirmed, the
+   same visual idiom .cert-mark already uses for the same idea. */
+.auth-pitch-points li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  font-weight: 700;
+}
+.auth-pitch-visual .auth-pitch-points li { color: #E4E4EE; }
+.auth-pitch-visual .auth-pitch-points li::before { color: #FFFFFF; }
 .auth-split-panel {
   display: flex; flex-direction: column; align-items: center; justify-content: safe center;
   padding: 56px 40px;
@@ -1082,15 +1190,65 @@ main.auth.auth-gradient {
   margin-block-end: var(--space-6);
   max-width: min(100%, 460px);
 }
+/* `.auth-pitch-inline` — AuthPitch's <1100px variant (see AuthPitch.tsx
+   and `.auth-pitch-visual` above). `display: none` by default; the
+   @media block right below flips it on exactly where
+   `.auth-split-message-rotator` flips off, so the candidate login never
+   has the "decorative band + bare card, no pitch at all" gap that
+   breakpoint otherwise leaves (see that rule's own comment on just how
+   much traffic that gap covers — most phones). In flow, first child of
+   the panel, above BetaPromoScroll and the card: the pitch has to
+   establish what this product is before a time-limited offer on it
+   makes sense, same ordering reasoning already applied to the landing
+   hero's own mobile layout. No specimen here — see AuthPitch.tsx's own
+   comment on dropping it rather than shrinking it. */
+.auth-pitch-inline {
+  display: none;
+  align-self: flex-start;
+  max-width: min(100%, 480px);
+  margin-block-end: var(--space-6);
+}
+.auth-pitch-inline .auth-pitch-headline { color: var(--ink); }
+.auth-pitch-inline .auth-pitch-points li { color: var(--ink-60); }
+.auth-pitch-inline .auth-pitch-points li::before { color: var(--ink); }
+@media (max-width: 1100px) {
+  .auth-pitch-visual { display: none; }
+  .auth-pitch-inline { display: block; }
+}
+/* Still rendered by EmployerOtpLogin.tsx ("Global AI Talent Hub") — that
+   page's own decision, unchanged. OtpLogin.tsx (candidate) no longer
+   renders this element: "Global AI Talent Hub" names a category, not a
+   benefit, and belonged to neither column once AuthPitch gave the left
+   panel an actual pitch (see AuthPitch.tsx and .auth-pitch-* below) — the
+   rule itself stays here, shared, rather than forking a second copy for
+   one remaining caller. */
 .auth-split-headline {
   font-family: var(--font-body); font-weight: 700;
   font-size: clamp(1.6rem, 5vw, 2.4rem); line-height: 1.15; letter-spacing: 0;
   color: var(--ink); text-align: center;
   margin: 0 0 var(--space-6); max-width: 440px;
 }
+/* Card separation (OtpLogin and EmployerOtpLogin both use this class —
+   intentional, see "Don't touch EmployerOtpLogin" in this change's own
+   scope notes: this bumps the shared rule, not a new OtpLogin-only one,
+   so both pages' cards read as more distinct objects against their panel
+   background rather than one of two split-layout cards getting a visibly
+   different treatment than the other).
+   Shadow tried first, per the brief, and already maxed: box-shadow is
+   --shadow-lg, this file's strongest tier (sm/md/lg, nothing past lg to
+   step up to) — it was already here, unchanged.
+   Border stepped second. The old border was --gray-100 via --ink-12
+   (#3F424D in the dark theme) against this card's own --card fill
+   (#232532) — two dark, close-in-lightness colours, which is exactly why
+   the card "reads as a slightly different shade rather than an object."
+   --ink-30 (--gray-300, #B2B6CA) is the existing token this file already
+   reaches for when a border needs to actually read as an edge rather
+   than a seam (e.g. CertificationsPanel's self-reported pill) — no new
+   colour, just the next token up the same --ink-NN ramp this file
+   already has. */
 .auth-split-card {
   background: var(--card);
-  border: 1px solid var(--gray-100); border-radius: var(--radius);
+  border: 1px solid var(--ink-30); border-radius: var(--radius);
   box-shadow: var(--shadow-lg);
   padding: 40px 36px; max-width: 440px; width: 100%;
 }
