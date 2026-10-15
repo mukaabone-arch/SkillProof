@@ -886,6 +886,16 @@ main.auth.auth-gradient {
      headline never stretch into an awkward line length just because the
      screen is wide. */
   grid-template-columns: minmax(0, 1fr) minmax(420px, 640px);
+  /* Shared between two rules that don't nest inside each other:
+     .auth-pitch-visual's own inline padding (where the pitch content's
+     left edge sits) and .auth-split-panel > .beta-promo-scroll's desktop
+     inset-inline-start (where the ribbon's left edge sits once it
+     overlays this same visual column at ≥1140px — see that rule). Both
+     read this one custom property, declared here on their nearest common
+     ancestor so it's inherited either way, rather than each carrying its
+     own literal 64px that could drift from the other — that drift is
+     exactly what happened before this property existed. */
+  --auth-visual-gutter: 64px;
 }
 /* Decorative gradient shared by both split-layout login pages. Layered radial
    "soft overlapping shapes" over a diagonal base gradient, finished with a
@@ -1058,7 +1068,7 @@ main.auth.auth-gradient {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 0 64px;
+  padding: 0 var(--auth-visual-gutter);
 }
 /* Stops at 82% rather than the rotator's 72%, and peaks slightly higher
    (0.90 vs 0.88), because this content block is taller (headline +
@@ -1113,9 +1123,15 @@ main.auth.auth-gradient {
 .auth-pitch-specimen {
   padding: 20px;
   margin: 0 0 20px;
-  text-align: left;
 }
-.auth-pitch-specimen .cert-mark { margin: 0 0 10px; width: 44px; height: 44px; font-size: 1.3rem; }
+/* margin: 0 auto (not 0 0) — .cert-mark's own base rule centers it
+   (`margin: 0 auto 16px`) because .cert's own text-align: center expects
+   it to; a left-margin override here without this would leave the mark
+   flush against the card's edge while .cert-skill and the caption below
+   it stay centered by .cert's own rule, two different alignments in one
+   card. Scaled down (16px bottom margin to 10px) to match this card's
+   own tighter 20px padding, not re-aligned. */
+.auth-pitch-specimen .cert-mark { margin: 0 auto 10px; width: 44px; height: 44px; font-size: 1.3rem; }
 .auth-pitch-specimen .cert-skill { font-size: 1.05rem; }
 .auth-pitch-specimen-caption {
   margin: 6px 0 0;
@@ -1347,10 +1363,38 @@ main.auth.auth-gradient {
   .auth-split-panel > .beta-promo-scroll {
     position: absolute;
     inset-block-start: 28px;
-    inset-inline-start: 28px;
+    /* Was a second 28px literal — drifted from .auth-pitch-visual's own
+       64px gutter (where the pitch headline/specimen/proof points
+       actually sit), leaving the ribbon's left edge and the pitch
+       content's left edge 36px apart in the same column. Both now read
+       --auth-visual-gutter, declared once on .auth-split (see that
+       rule's own comment) — this is the fix for that drift, and the
+       reason it was a shared property instead of just matching the
+       literal here to 64px by hand. */
+    inset-inline-start: var(--auth-visual-gutter);
     margin: 0;
     max-width: calc(100% - 640px - 56px);
     z-index: 1;
+  }
+  /* AuthPitch's centering container must clear the ribbon above it here
+     — the ribbon only overlays .auth-split-visual at this breakpoint
+     (below it, it's still in flow at the top of .auth-split-panel
+     instead, nowhere near the visual column — see that rule's own
+     comment). .auth-pitch-visual's base rule (above) centers within the
+     FULL column height; on anything shorter than roughly 820px tall that
+     puts the content's top edge above the ribbon's own bottom edge.
+     padding-block-start shifts the centering REGION itself down past the
+     ribbon rather than shrinking the content or dropping the centering —
+     costs nothing on a tall viewport, where the ribbon already clears by
+     hundreds of pixels regardless.
+     142px = the ribbon's own measured bottom edge (28px inset-block-start
+     + ~114px rendered height at its current two-line-lead/one-line-date
+     shape) + var(--space-7) (32px gap). Re-measure if the ribbon's own
+     rendered height assumptions change (a copy edit, a type-size change
+     — see .beta-promo-scroll's own comments on what can move that
+     number). */
+  .auth-pitch-visual {
+    padding-block-start: calc(142px + var(--space-7));
   }
 }
 @media (max-width: 480px) {
