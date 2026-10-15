@@ -3,7 +3,7 @@
 /**
  * Static value-prop pitch for the candidate login's split-layout visual
  * panel (OtpLogin.tsx) — replaces AuthMessageRotator there. One permanent
- * headline, one rendered badge specimen, three proof points; no rotation.
+ * headline, one rendered badge specimen, two proof points; no rotation.
  * AuthMessageRotator itself is untouched and still renders on
  * EmployerOtpLogin.tsx — that's a separate page with its own messages and
  * its own (not yet made) decision about whether to move off the rotator.
@@ -36,17 +36,18 @@ import { skillLevelName } from '@/lib/skillLevels';
 const HEADLINE = 'Prove your skills. Get matched to jobs that want them.';
 
 /**
- * Each line answers one question a candidate silently has before signing
- * up. The third is the one that matters most: `visibleToEmployers`
- * defaults to false and the portfolio requires explicit candidate
- * approval before any of it reaches an employer (see
- * PortfolioService/CandidatePortfolio.approvedAt) — this is the one
- * un-scoped, universally true claim on this page, and it's the actual
- * objection (being measured in public), not price.
+ * Two lines, not three — the middle one ("Earned under assessment — never
+ * self-reported") was cut; these two were always the load-bearing pair.
+ * The first is the concrete thing a candidate gets (paired with the
+ * specimen above it, which already shows the same fact). The second is
+ * the one that matters most: `visibleToEmployers` defaults to false and
+ * the portfolio requires explicit candidate approval before any of it
+ * reaches an employer (see PortfolioService/CandidatePortfolio.approvedAt)
+ * — this is the one un-scoped, universally true claim on this page, and
+ * it's the actual objection (being measured in public), not price.
  */
 const PROOF_POINTS = [
   'One skill, one level — Prompt Engineering, Practitioner — not a vague "AI skills" checkbox.',
-  'Earned under assessment — never self-reported.',
   'Nothing reaches employers until you approve it — visibility is off by default.',
 ];
 

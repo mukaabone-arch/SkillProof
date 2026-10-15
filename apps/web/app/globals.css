@@ -1058,10 +1058,14 @@ main.auth.auth-gradient {
    linear-gradient, see `.auth-pitch-scrim`) for the same reason: this
    content sits on `.auth-split-visual`'s brand gradient, which is tuned
    for the full colour ramp, not for text underneath it.
-   Taller than the rotator's headline+support pair (a specimen plus three
+   Taller than the rotator's headline+support pair (a specimen plus two
    proof points, not one line), so the scrim below is NOT a copy of the
    rotator's numbers — re-measured for this content's actual height, see
-   that rule's own comment. */
+   that rule's own comment. (Originally measured against three proof
+   points, since cut to two — see PROOF_POINTS in AuthPitch.tsx — which
+   only shortens the block further; the scrim's own coverage was never
+   loosened to match, so it stays at least as conservative as measured,
+   not less.) */
 .auth-pitch-visual {
   position: absolute;
   inset: 0;
@@ -1072,9 +1076,9 @@ main.auth.auth-gradient {
 }
 /* Stops at 82% rather than the rotator's 72%, and peaks slightly higher
    (0.90 vs 0.88), because this content block is taller (headline +
-   specimen + three proof points, not headline + one support line) and
-   so sits higher in the panel at its centered position — not copied from
-   the rotator's own numbers, re-measured for this content.
+   specimen + proof points, not headline + one support line) and so sits
+   higher in the panel at its centered position — not copied from the
+   rotator's own numbers, re-measured for this content.
    Measured, not eyeballed, same method as AuthMessageRotator's own scrim
    (see that rule's comment): rendered OtpLogin at 1440px and 1920px,
    screenshotted .auth-split-visual with the headline/proof-point text

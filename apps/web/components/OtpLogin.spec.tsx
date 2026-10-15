@@ -133,7 +133,7 @@ describe('OtpLogin — beta promo ribbon', () => {
 });
 
 describe('OtpLogin — AuthPitch (replaces AuthMessageRotator)', () => {
-  it('renders the headline and all three proof points', () => {
+  it('renders the headline and both proof points', () => {
     render(<OtpLogin onLoggedIn={jest.fn()} />);
     // Both the visual and inline AuthPitch variants render (CSS, not JS,
     // decides which is visible at a given width — see AuthPitch.tsx's own
@@ -144,10 +144,12 @@ describe('OtpLogin — AuthPitch (replaces AuthMessageRotator)', () => {
       screen.getAllByText('One skill, one level — Prompt Engineering, Practitioner — not a vague "AI skills" checkbox.')
         .length,
     ).toBe(2);
-    expect(screen.getAllByText('Earned under assessment — never self-reported.').length).toBe(2);
     expect(
       screen.getAllByText('Nothing reaches employers until you approve it — visibility is off by default.').length,
     ).toBe(2);
+    // The middle point ("Earned under assessment — never self-reported")
+    // was cut — these two were always the load-bearing pair.
+    expect(screen.queryByText('Earned under assessment — never self-reported.')).not.toBeInTheDocument();
   });
 
   it('renders the badge specimen with no name or person-identifying content', () => {
