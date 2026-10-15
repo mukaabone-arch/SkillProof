@@ -1364,27 +1364,28 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   transition: width 0.2s ease;
 }
 
-/* Width comes from main.container-wide (see the layout container system
-   above) — wide enough for two columns of fields to have room to breathe. */
-/* Left column: the profile form card. Right column: a flex stack of
-   whatever else this page has (see .profile-resume-zone above this pair
-   for the résumé zone, which is no longer part of either column — it
-   renders full width, above both), in DOM order — collapsing to `1fr`
-   below the breakpoint keeps that same source order as a single mobile
-   stack, no reordering needed. */
-.profile-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-7); align-items: start; }
+/* The two-column layout itself is .list-page-columns, below — this page
+   used to have its own symmetric 1fr/1fr grid (.profile-columns) back
+   when the right column held three full cards (Resume, Build a resume
+   PDF, Your portfolio) alongside Certifications; now that those collapsed
+   into the leaner Zone 3/4 pair (see app/profile/page.tsx's own
+   restructure comments), the asymmetric list-page pattern — main column
+   wider, sidebar narrower and sticky — fits what's actually on each side
+   better than an even split would, so this page reuses that pattern
+   instead of keeping its own near-identical one. .profile-side-col
+   supplies the flex column + gap .list-page-sidebar itself doesn't (that
+   class only adds sticky positioning); .profile-panel's min-width: 0
+   still applies wherever a grid item needs it, independent of which grid
+   it sits in. */
 .profile-side-col { display: flex; flex-direction: column; gap: var(--space-7); min-width: 0; }
 .profile-panel { min-width: 0; }
 .profile-panel h2 { font-size: var(--text-lg); margin-bottom: var(--space-4); }
-@media (max-width: 900px) {
-  .profile-columns { grid-template-columns: 1fr; gap: var(--space-6); }
-}
 
 /* Zone 1 — résumé upload (see app/profile/page.tsx's own Zone 1 comment).
-   Full width, sitting above .profile-columns rather than inside either
+   Full width, sitting above .list-page-columns rather than inside either
    column — the page's primary action, not a card competing with the
    other panels for a column's share of the width. margin-bottom matches
-   .profile-columns' own gap (var(--space-7)) so the vertical rhythm
+   .list-page-columns' own gap (var(--space-7)) so the vertical rhythm
    between this zone and the columns below it matches the rhythm within
    them, rather than introducing a third, one-off spacing value. */
 .profile-resume-zone { margin-bottom: var(--space-7); }
@@ -1399,14 +1400,18 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
    Generic version of the pattern above (growing main list + fixed-size
    sticky tool), reused wherever a list page has a genuine companion tool
    worth it — /jobs (search), /employer/shortlist (stage/role filters),
-   /interviews (prep guides) as of this pass. Same ratio, same 900px
-   collapse point, same DOM-order-first main column on mobile as
-   .profile-columns above — deliberately identical rather than
-   independently tuned, so every list page in the app behaves the same
-   way at the same breakpoint. Not applied everywhere a list exists:
-   /assessments has no comparable companion-tool content today (a single
-   skill card, and no natural sidebar concept even set that aside — see
-   that page's own notes on why it stays single-column). */
+   /interviews (prep guides) as of this pass, and now /profile (the form,
+   which only ever grows, alongside the narrower Zone 3/4 proof-and-output
+   sidebar — see .profile-side-col above) even though it isn't a list page
+   itself: the same "wide growing primary + narrow companion" shape
+   applies regardless of what the primary column's content actually is.
+   Same ratio, same 900px collapse point, same DOM-order-first main column
+   on mobile across every page that uses it — deliberately identical
+   rather than independently tuned, so every page on this pattern behaves
+   the same way at the same breakpoint. Not applied everywhere a list
+   exists: /assessments has no comparable companion-tool content today (a
+   single skill card, and no natural sidebar concept even set that aside —
+   see that page's own notes on why it stays single-column). */
 .list-page-columns { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--space-7); align-items: start; }
 .list-page-main { min-width: 0; }
 .list-page-sidebar {

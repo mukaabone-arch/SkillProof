@@ -6,13 +6,14 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api, apiBlob } from '@/lib/api';
 import CandidateNav from '@/components/CandidateNav';
-import { ErrorState, LoadingState } from '@/components/ui';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui';
 import { isSafeReturnTo } from '@/lib/returnTo';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import CertificationsPanel from '@/components/CertificationsPanel';
 import ProfileViewersPanel from '@/components/ProfileViewersPanel';
 import { LocationAutocomplete, LocationSuggestion } from '@/components/LocationAutocomplete';
 import { initialsFrom } from '@/lib/initials';
+import { skillLevelName } from '@/lib/skillLevels';
 import type { PortfolioContent, VerifiedBadge, VerifiedCertification } from '@/lib/portfolioTypes';
 
 /**
@@ -124,16 +125,6 @@ interface PortfolioMe {
   verifiedCertifications: VerifiedCertification[];
 }
 
-interface ReviewForm {
-  fullName: string;
-  headline: string;
-  location: string;
-  yearsOfExp: string;
-  /** Holds a CandidateRoleTitle key or '' — plain string like the other <select>-bound form fields. */
-  roleTitle: string;
-  roleTitleOther: string;
-}
-
 interface FormState {
   fullName: string;
   email: string;
@@ -159,6 +150,27 @@ interface FormState {
   githubUrl: string;
   linkedinUrl: string;
 }
+
+/**
+ * Mirrors ProfilesService.computeCompleteness's own 7 equally-weighted
+ * fields exactly (fullName, headline, location, yearsOfExp, githubUrl,
+ * linkedinUrl, email) — same fields, same order — so the progress bar can
+ * name what's actually missing instead of just reporting a percentage.
+ * `locationText` stands in for the server's `locationCity ?? locationLegacy`
+ * check: toForm() below only ever leaves it empty when both are null.
+ * 100% is reachable (fill all 7) and every field here is already a Zone 2
+ * input, which is what makes naming them worthwhile rather than removing
+ * the meter outright.
+ */
+const COMPLETENESS_FIELDS: ReadonlyArray<[keyof FormState, string]> = [
+  ['fullName', 'full name'],
+  ['headline', 'headline'],
+  ['locationText', 'location'],
+  ['yearsOfExp', 'years of experience'],
+  ['githubUrl', 'GitHub URL'],
+  ['linkedinUrl', 'LinkedIn URL'],
+  ['email', 'email'],
+];
 
 function toForm(p: Profile): FormState {
   return {
@@ -211,9 +223,13 @@ function ProfilePageInner() {
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState('');
   const [extraction, setExtraction] = useState<ResumeExtraction | null>(null);
-  const [review, setReview] = useState<ReviewForm | null>(null);
-  const [applying, setApplying] = useState(false);
-  const [applied, setApplied] = useState(false);
+  // Zone 2 fields currently holding a value copied in from the parse,
+  // not yet confirmed by the candidate — see applyExtractionToForm below.
+  // Cleared per-field the moment the candidate edits that field (update(),
+  // and the two LocationAutocomplete callbacks), and cleared entirely on
+  // a successful save() — "confirm or correct, then Save" is what
+  // confirms a suggestion now, there's no separate apply step.
+  const [suggestedFields, setSuggestedFields] = useState<Set<keyof FormState>>(new Set());
 
   // Zone 1 (résumé) state. `portfolio` is null until the GET below resolves
   // — treated as "not parsed" meanwhile, same as a genuine null parsedAt,
@@ -315,9 +331,19 @@ function ProfilePageInner() {
     }
   }
 
+  function clearSuggested(key: keyof FormState) {
+    setSuggestedFields((s) => {
+      if (!s.has(key)) return s;
+      const next = new Set(s);
+      next.delete(key);
+      return next;
+    });
+  }
+
   function update<K extends keyof FormState>(key: K, value: string) {
     setForm((f) => (f ? { ...f, [key]: value } : f));
     setSaved(false);
+    clearSuggested(key);
   }
 
   async function save() {
@@ -362,6 +388,9 @@ function ProfilePageInner() {
       setForm(toForm(updated));
       setCompleteness(updated.completeness);
       setSaved(true);
+      // Saving is the confirm step now (see suggestedFields above) —
+      // whatever was AI-suggested a moment ago is now just the profile.
+      setSuggestedFields(new Set());
 
       // Came here from "complete your profile to apply" — go straight back
       // so the candidate can try applying again immediately.
@@ -376,11 +405,72 @@ function ProfilePageInner() {
     }
   }
 
+  /**
+   * Merges a resume-field extraction directly into the main profile form
+   * — no separate review/apply step, no second PATCH. Confirming a
+   * suggestion is now just editing (or leaving, then saving) the same
+   * field everything else lives in; see suggestedFields above for how
+   * that's tracked and surfaced, and save() for how it's cleared.
+   *
+   * Only fills fields that are currently EMPTY in the form — never
+   * overwrites something already there, whether loaded from a previous
+   * save or typed this session. A brand-new profile (every field blank)
+   * gets fully filled, which is the case this exists for; a returning
+   * candidate who replaces their résumé doesn't get their own edits
+   * silently clobbered by a fresh parse.
+   */
+  function applyExtractionToForm(result: ResumeExtraction) {
+    setExtraction(result);
+    // `filled` is computed AND consumed inside this one updater — reading
+    // it after calling setForm (rather than from within the updater
+    // itself) would race React's own batching: the updater isn't
+    // guaranteed to have run yet at that point, so filled could still read
+    // empty. Calling setSuggestedFields/setSaved from inside the updater
+    // instead means they only ever act on the same pass that actually
+    // computed filled.
+    setForm((f) => {
+      if (!f) return f;
+      const next = { ...f };
+      const filled = new Set<keyof FormState>();
+      if (result.fullName && !f.fullName) {
+        next.fullName = result.fullName;
+        filled.add('fullName');
+      }
+      if (result.headline && !f.headline) {
+        next.headline = result.headline;
+        filled.add('headline');
+      }
+      if (result.location && !f.locationText) {
+        next.locationText = result.location;
+        next.locationStructured = null;
+        filled.add('locationText');
+      }
+      if (result.yearsOfExp !== null && result.yearsOfExp !== undefined && f.yearsOfExp === '') {
+        next.yearsOfExp = String(result.yearsOfExp);
+        filled.add('yearsOfExp');
+      }
+      if (result.suggestedRoleTitle && !f.roleTitle) {
+        next.roleTitle = result.suggestedRoleTitle;
+        filled.add('roleTitle');
+      }
+      if (filled.size > 0) {
+        setSuggestedFields((prev) => {
+          const merged = new Set(prev);
+          filled.forEach((key) => merged.add(key));
+          return merged;
+        });
+        setSaved(false);
+      }
+      return next;
+    });
+  }
+
   async function uploadResume() {
     if (!resumeFile) return;
     setUploading(true);
     setUploadError('');
     setUploaded(false);
+    setParseError('');
     try {
       const body = new FormData();
       body.append('file', resumeFile);
@@ -388,8 +478,6 @@ function ProfilePageInner() {
       setHasResume(true);
       setUploaded(true);
       setExtraction(null);
-      setReview(null);
-      setApplied(false);
       // The upload request already waited on the server's own parse
       // attempt (ProfilesController.uploadResume awaits
       // PortfolioService.parseFromResume before responding — see that
@@ -402,6 +490,32 @@ function ProfilePageInner() {
       // actually happen.
       await loadPortfolio();
       setReplacingResume(false);
+
+      // Auto-chain straight into the field-parse, fired from here — the
+      // upload's own success path — rather than from an effect watching
+      // hasResume, so it runs exactly once per actual upload click and
+      // never spuriously (a reload, an unrelated re-render). This is what
+      // makes Zone 1's "Upload your résumé and we'll fill this in" promise
+      // literally true instead of requiring a second "Parse with AI"
+      // click. A failure here is isolated with its own try/catch and its
+      // own error state (parseError, surfaced below with a retry) — it
+      // must never read as the upload itself having failed, since by this
+      // point the file is already safely stored and Zone 1 has already
+      // gone quiet. True "don't re-parse an identical file" dedup isn't
+      // possible here: ProfilesController.uploadResume keys every upload
+      // on a fresh randomUUID() regardless of file content, so there's no
+      // signal anywhere that two uploads are byte-identical — the
+      // once-per-click guarantee above is the dedup this can actually
+      // offer today.
+      setParsing(true);
+      try {
+        const result = await api<ResumeExtraction>('/profiles/me/resume/parse', { method: 'POST' });
+        applyExtractionToForm(result);
+      } catch (e) {
+        setParseError((e as Error).message);
+      } finally {
+        setParsing(false);
+      }
     } catch (e) {
       setUploadError((e as Error).message);
     } finally {
@@ -409,59 +523,19 @@ function ProfilePageInner() {
     }
   }
 
+  /** Manual re-run — e.g. after a chained parse failed, or to re-extract
+   * without replacing the file. Shares applyExtractionToForm with the
+   * auto-chain above so both ever write the form the same way. */
   async function parseResume() {
     setParsing(true);
     setParseError('');
     try {
       const result = await api<ResumeExtraction>('/profiles/me/resume/parse', { method: 'POST' });
-      setExtraction(result);
-      setReview({
-        fullName: result.fullName ?? '',
-        headline: result.headline ?? '',
-        location: result.location ?? '',
-        yearsOfExp:
-          result.yearsOfExp !== null && result.yearsOfExp !== undefined ? String(result.yearsOfExp) : '',
-        // A suggestion the candidate must confirm below — never applied until "Looks good" is clicked.
-        roleTitle: result.suggestedRoleTitle ?? '',
-        roleTitleOther: '',
-      });
-      setApplied(false);
+      applyExtractionToForm(result);
     } catch (e) {
       setParseError((e as Error).message);
     } finally {
       setParsing(false);
-    }
-  }
-
-  async function applyExtraction() {
-    if (!review) return;
-    setApplying(true);
-    setParseError('');
-    try {
-      const body: Record<string, unknown> = {
-        fullName: review.fullName || undefined,
-        headline: review.headline || undefined,
-        roleTitle: review.roleTitle || undefined,
-        roleTitleOther: review.roleTitle === 'OTHER' ? review.roleTitleOther || undefined : undefined,
-        // AI-extracted text, never a structured city — same fallback field
-        // free-text location entry writes to (see save() above). The
-        // candidate can re-select from the dropdown afterward like any
-        // other legacy value.
-        locationLegacy: review.location || undefined,
-      };
-      if (review.yearsOfExp !== '') body.yearsOfExp = Number(review.yearsOfExp);
-
-      const updated = await api<Profile>('/profiles/me', {
-        method: 'PATCH',
-        body: JSON.stringify(body),
-      });
-      setForm(toForm(updated));
-      setCompleteness(updated.completeness);
-      setApplied(true);
-    } catch (e) {
-      setParseError((e as Error).message);
-    } finally {
-      setApplying(false);
     }
   }
 
@@ -470,7 +544,7 @@ function ProfilePageInner() {
   return (
     <>
       <CandidateNav />
-      <main className="container-wide">
+      <main className="container-standard">
       <h1>Your profile</h1>
       <p>Keep this up to date — employers see it alongside your verified badges.</p>
       <p style={{ marginTop: -16 }}>
@@ -485,6 +559,14 @@ function ProfilePageInner() {
         </p>
       )}
 
+      {/* The payoff, not evidence or an output — mounted ahead of
+          everything else (including the progress bar, outside the
+          `form &&` gate below) so a returning candidate with employer
+          interest sees that first. Renders nothing at zero views; see
+          ProfileViewersPanel's own doc comment for why absence, not an
+          empty-state card, is the deliberate zero state here. */}
+      <ProfileViewersPanel />
+
       {error && <ErrorState message={error} />}
 
       {form && (
@@ -492,7 +574,14 @@ function ProfilePageInner() {
           <div className="progress-track">
             <div className="progress-fill" style={{ width: `${completeness}%` }} />
           </div>
-          <p className="meta" style={{ marginBottom: 24 }}>{completeness}% complete</p>
+          <p className="meta" style={{ marginBottom: 24 }}>
+            {completeness}% complete
+            {completeness < 100 &&
+              (() => {
+                const missing = COMPLETENESS_FIELDS.filter(([key]) => !form[key]).map(([, label]) => label);
+                return missing.length > 0 ? ` — add your ${missing.join(', ')}` : '';
+              })()}
+          </p>
 
           {/* Zone 1 — résumé upload. Full width, above the two-column
               layout: the page's primary action, not one card among several
@@ -516,11 +605,8 @@ function ProfilePageInner() {
               </p>
             ) : (
               <>
-                <h2>Resume</h2>
-                <p>
-                  Upload your resume as a PDF, then have AI pull out the highlights. Nothing is
-                  saved to your profile until you review and confirm it below.
-                </p>
+                <h2>Upload your résumé and we&apos;ll fill this in</h2>
+                <p>PDF, up to 5MB. Nothing is saved to your profile until you review it.</p>
 
                 <div className="field">
                   <label htmlFor="resumeFile">PDF resume (max 5MB)</label>
@@ -534,10 +620,15 @@ function ProfilePageInner() {
 
                 <div className="row">
                   <button onClick={uploadResume} disabled={!resumeFile || uploading}>
-                    {uploading ? 'Uploading…' : 'Upload'}
+                    {uploading ? (parsing ? 'Reading your résumé…' : 'Uploading…') : 'Upload'}
                   </button>
+                  {/* Manual fallback — the upload button above already chains
+                      straight into this same extraction (see uploadResume),
+                      so this is for re-running it without replacing the
+                      file: after a chained parse failed (paired with the
+                      retry below), or just to pull fresh suggestions. */}
                   <button onClick={parseResume} disabled={!hasResume || parsing}>
-                    {parsing ? 'Parsing…' : 'Parse with AI'}
+                    {parsing ? 'Reading your résumé…' : 'Parse with AI'}
                   </button>
                   {replacingResume && (
                     <button type="button" className="btn-secondary" onClick={() => setReplacingResume(false)}>
@@ -547,100 +638,30 @@ function ProfilePageInner() {
                 </div>
                 {uploaded && <p className="ok">✓ Resume uploaded</p>}
                 {uploadError && <ErrorState message={uploadError} />}
-                {parseError && <ErrorState message={parseError} />}
-
-                {review && (
-                  <div
-                    className="card"
-                    style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12, marginTop: 8 }}
-                  >
-                    <strong>Review AI-extracted details</strong>
-                    <p className="meta" style={{ margin: 0 }}>
-                      Confirm or correct these before they&apos;re saved — nothing has been applied to
-                      your profile yet.
-                    </p>
-
-                    <div className="field">
-                      <label htmlFor="rvFullName">Full name</label>
-                      <input
-                        id="rvFullName"
-                        value={review.fullName}
-                        onChange={(e) => setReview({ ...review, fullName: e.target.value })}
-                      />
-                    </div>
-                    <div className="field">
-                      <label htmlFor="rvHeadline">Headline</label>
-                      <input
-                        id="rvHeadline"
-                        value={review.headline}
-                        onChange={(e) => setReview({ ...review, headline: e.target.value })}
-                      />
-                    </div>
-                    <div className="field">
-                      <label htmlFor="rvRoleTitle">
-                        Role {extraction?.suggestedRoleTitle && <span className="meta">(AI suggestion — confirm or change)</span>}
-                      </label>
-                      <select
-                        id="rvRoleTitle"
-                        value={review.roleTitle}
-                        onChange={(e) => setReview({ ...review, roleTitle: e.target.value })}
-                      >
-                        <option value="">Not set</option>
-                        {ROLE_TITLE_OPTIONS.map((r) => (
-                          <option key={r} value={r}>{ROLE_TITLE_LABELS[r]}</option>
-                        ))}
-                      </select>
-                      {review.roleTitle === 'OTHER' && (
-                        <input
-                          value={review.roleTitleOther}
-                          onChange={(e) => setReview({ ...review, roleTitleOther: e.target.value })}
-                          placeholder="Your role title"
-                          maxLength={160}
-                          style={{ marginTop: 8 }}
-                        />
-                      )}
-                    </div>
-                    <div className="field">
-                      <label htmlFor="rvLocation">Location</label>
-                      <input
-                        id="rvLocation"
-                        value={review.location}
-                        onChange={(e) => setReview({ ...review, location: e.target.value })}
-                      />
-                    </div>
-                    <div className="field">
-                      <label htmlFor="rvYearsOfExp">Years of experience</label>
-                      <input
-                        id="rvYearsOfExp"
-                        type="number"
-                        min={0}
-                        max={80}
-                        value={review.yearsOfExp}
-                        onChange={(e) => setReview({ ...review, yearsOfExp: e.target.value })}
-                      />
-                    </div>
-
-                    {extraction && extraction.skills.length > 0 && (
-                      <div className="field">
-                        <label>Skills detected (informational — not saved automatically)</label>
-                        <p className="meta" style={{ margin: 0 }}>{extraction.skills.join(', ')}</p>
-                      </div>
-                    )}
-
-                    <div className="row" style={{ margin: 0 }}>
-                      <button onClick={applyExtraction} disabled={applying}>
-                        {applying ? 'Applying…' : 'Looks good — apply to my profile'}
-                      </button>
-                      {applied && <p className="ok" style={{ margin: 0 }}>✓ Applied to your profile</p>}
-                    </div>
+                {parseError && (
+                  <div className="row" style={{ alignItems: 'baseline' }}>
+                    <ErrorState message={parseError} />
+                    <button type="button" className="btn-link" onClick={parseResume} disabled={parsing}>
+                      Try again
+                    </button>
                   </div>
+                )}
+                {extraction && !parseError && !parsing && (
+                  <p className="ok">
+                    ✓ Filled in your details below from the résumé — review and save when ready.
+                  </p>
+                )}
+                {extraction && extraction.skills.length > 0 && (
+                  <p className="meta" style={{ margin: 0 }}>
+                    Skills detected (informational — not saved automatically): {extraction.skills.join(', ')}
+                  </p>
                 )}
               </>
             )}
           </section>
 
-          <div className="profile-columns">
-          <section className="ui-card profile-panel">
+          <div className="list-page-columns">
+          <section className="ui-card profile-panel list-page-main">
           <h2>Profile details</h2>
 
           <div className="field">
@@ -701,7 +722,9 @@ function ProfilePageInner() {
           </div>
 
           <div className="field">
-            <label htmlFor="fullName">Full name</label>
+            <label htmlFor="fullName">
+              Full name {suggestedFields.has('fullName') && <span className="meta">(from your résumé — confirm or correct)</span>}
+            </label>
             <input
               id="fullName"
               value={form.fullName}
@@ -726,7 +749,9 @@ function ProfilePageInner() {
           </div>
 
           <div className="field">
-            <label htmlFor="headline">Headline</label>
+            <label htmlFor="headline">
+              Headline {suggestedFields.has('headline') && <span className="meta">(from your résumé — confirm or correct)</span>}
+            </label>
             <input
               id="headline"
               value={form.headline}
@@ -737,7 +762,9 @@ function ProfilePageInner() {
           </div>
 
           <div className="field">
-            <label htmlFor="roleTitle">Role</label>
+            <label htmlFor="roleTitle">
+              Role {suggestedFields.has('roleTitle') && <span className="meta">(AI suggestion from your résumé — confirm or change)</span>}
+            </label>
             <select
               id="roleTitle"
               value={form.roleTitle}
@@ -764,13 +791,16 @@ function ProfilePageInner() {
           </div>
 
           <div className="field">
-            <label htmlFor="location">Location</label>
+            <label htmlFor="location">
+              Location {suggestedFields.has('locationText') && <span className="meta">(from your résumé — confirm or correct)</span>}
+            </label>
             <LocationAutocomplete
               id="location"
               value={form.locationText}
               onChangeText={(text) => {
                 setForm((f) => (f ? { ...f, locationText: text, locationStructured: null } : f));
                 setSaved(false);
+                clearSuggested('locationText');
               }}
               onSelect={(s) => {
                 setForm((f) =>
@@ -783,6 +813,7 @@ function ProfilePageInner() {
                     : f,
                 );
                 setSaved(false);
+                clearSuggested('locationText');
               }}
               placeholder="Start typing a city…"
             />
@@ -813,7 +844,9 @@ function ProfilePageInner() {
           </div>
 
           <div className="field">
-            <label htmlFor="yearsOfExp">Years of experience</label>
+            <label htmlFor="yearsOfExp">
+              Years of experience {suggestedFields.has('yearsOfExp') && <span className="meta">(from your résumé — confirm or correct)</span>}
+            </label>
             <input
               id="yearsOfExp"
               type="number"
@@ -869,33 +902,91 @@ function ProfilePageInner() {
           </div>
           </section>
 
-          <div className="profile-side-col">
-          <section className="ui-card profile-panel">
-            <h2>Build a resume PDF</h2>
-            <p>
-              Turn your profile and verified badges into a clean, one-page PDF — or upload an
-              existing resume and have AI rewrite it. Either way, you review and edit everything
-              before downloading.
-            </p>
-            <Link href="/resume">
-              <button>Build your resume →</button>
-            </Link>
-          </section>
+          <div className="profile-side-col list-page-sidebar">
+          {/* Zone 3 — Your proof. Verified badges and certifications are
+              the same category from the candidate's point of view
+              (evidence), grouped under one eyebrow label rather than one
+              physical card — CertificationsPanel owns its own ui-card
+              chrome and isn't worth un-nesting from this component just to
+              share a box with the badges card below it. */}
+          <p className="eyebrow">Your proof</p>
+          {portfolio && (
+            <section className="ui-card profile-panel">
+              <h2>Verified skills</h2>
+              {/*
+                * Badge chip row duplicated from PortfolioSections.tsx's
+                * "Verified on MyAmbii" subsection (same GET /portfolio/me
+                * data, same .signal-chip-row/.chip treatment) rather than
+                * imported from there — that component's badges markup is
+                * inline, not an extracted sub-component, and refactoring it
+                * to share one isn't worth the risk two weeks from launch on
+                * a page (the portfolio editor) that otherwise has nothing
+                * to do with this change. Known duplication: if the visual
+                * treatment changes, it needs updating in both places until
+                * someone unifies them after launch.
+                *
+                * Empty state written first and deliberately not an
+                * afterthought: most candidates loading this page have no
+                * verified skills yet, and this is the best-placed prompt
+                * into a first assessment anywhere in the product.
+                */}
+              {portfolio.verifiedBadges.length > 0 ? (
+                <div className="signal-chip-row">
+                  {portfolio.verifiedBadges.map((b) => (
+                    <Link key={b.skillId} href={`/badges/${b.verifyHash}`}>
+                      <span className="chip" title={`Verified ${new Date(b.issuedAt).toLocaleDateString()}`}>
+                        {b.skillName} · {skillLevelName(b.level)}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  message="No verified skills yet — self-reported skills aren't independently tested."
+                  actionLabel="Take an assessment"
+                  actionHref="/assessments"
+                />
+              )}
+            </section>
+          )}
 
+          <CertificationsPanel />
+
+          {/* Zone 4 — What employers see. Outputs, not builders: a link to
+              the rendered portfolio (with its actual visibility state, not
+              assumed) and a link to the PDF builder — both collapsed from
+              their old separate "build a ___" cards into one section, same
+              reasoning as Zone 3 above. "Your public page" is the honest
+              label available today: there is no unauthenticated, truly
+              public URL (checked — the only non-owner portfolio view is
+              /employer/candidates/[id]/portfolio, itself employer-gated),
+              so this links to the candidate's own /portfolio rather than
+              a link meant for external sharing. */}
+          <p className="eyebrow" style={{ marginTop: 8 }}>What employers see</p>
           <section className="ui-card profile-panel">
-            <h2>Your portfolio</h2>
+            <h2>Your public page</h2>
             <p>
-              A richer, shareable page — experience, skills, projects, education — built from
-              your uploaded resume. Verified badges and self-reported resume content are kept
-              clearly separate.
+              {!portfolio?.visibleToEmployers
+                ? 'Not visible to employers yet.'
+                : portfolio.approvedAt
+                  ? "Visible to employers you've engaged with."
+                  : 'Not shown yet — approve your draft first.'}
             </p>
             <Link href="/portfolio">
               <button>Review your portfolio →</button>
             </Link>
           </section>
 
-          <CertificationsPanel />
-          <ProfileViewersPanel />
+          <section className="ui-card profile-panel">
+            <h2>Download as PDF</h2>
+            <p>
+              A clean, one-page resume built from your profile and verified badges — or rewritten
+              by AI from an uploaded resume. Review and edit everything before downloading.
+            </p>
+            <Link href="/resume">
+              <button>Build your resume →</button>
+            </Link>
+          </section>
           </div>
           </div>
         </>
@@ -907,7 +998,7 @@ function ProfilePageInner() {
 
 export default function ProfilePage() {
   return (
-    <Suspense fallback={<main className="container-wide"><LoadingState /></main>}>
+    <Suspense fallback={<main className="container-standard"><LoadingState /></main>}>
       <ProfilePageInner />
     </Suspense>
   );
