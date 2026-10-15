@@ -13,6 +13,7 @@ import CertificationsPanel from '@/components/CertificationsPanel';
 import ProfileViewersPanel from '@/components/ProfileViewersPanel';
 import { LocationAutocomplete, LocationSuggestion } from '@/components/LocationAutocomplete';
 import { initialsFrom } from '@/lib/initials';
+import type { PortfolioContent, VerifiedBadge, VerifiedCertification } from '@/lib/portfolioTypes';
 
 /**
  * Structured role dropdown — display/filter only, mirrors the API's
@@ -101,6 +102,26 @@ interface ResumeExtraction {
   skills: string[];
   /** AI's best guess at the closest dropdown match — a suggestion only, never auto-applied. */
   suggestedRoleTitle: CandidateRoleTitle | null;
+}
+
+/**
+ * GET /portfolio/me — same shape app/portfolio/page.tsx reads, fetched here
+ * too (not re-exported from a shared type, to match that page's own local
+ * interface rather than inventing a third source of truth) for two fields
+ * this page didn't need before: `parsedAt` (Zone 1's quiet-state condition
+ * — see the resume zone below) and `verifiedBadges`/`verifiedCertifications`
+ * (Zone 3's "Your proof" — see CertificationsPanel's neighbour below).
+ * `content`/`approvedAt`/`visibleToEmployers` are fetched now too, ahead of
+ * when Zone 4 needs them, so that work doesn't require a second call later.
+ */
+interface PortfolioMe {
+  hasResume: boolean;
+  content: PortfolioContent | null;
+  approvedAt: string | null;
+  visibleToEmployers: boolean;
+  parsedAt: string | null;
+  verifiedBadges: VerifiedBadge[];
+  verifiedCertifications: VerifiedCertification[];
 }
 
 interface ReviewForm {
@@ -194,6 +215,28 @@ function ProfilePageInner() {
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
 
+  // Zone 1 (résumé) state. `portfolio` is null until the GET below resolves
+  // — treated as "not parsed" meanwhile, same as a genuine null parsedAt,
+  // so the zone fails open to its full prompt rather than flashing a quiet
+  // state it can't back up yet.
+  const [portfolio, setPortfolio] = useState<PortfolioMe | null>(null);
+  // True once the candidate clicks "Replace" on the quiet state — reopens
+  // the full upload prompt without losing the fact that a résumé already
+  // exists. Reset to false after a fresh upload's own parse completes (see
+  // uploadResume below), so a successful replace collapses the zone back
+  // to quiet on the new parsedAt rather than staying pinned open.
+  const [replacingResume, setReplacingResume] = useState(false);
+
+  function loadPortfolio() {
+    return api<PortfolioMe>('/portfolio/me')
+      .then(setPortfolio)
+      // Best-effort, same convention as ProfileViewersPanel's own GET: a
+      // failure here degrades Zone 1 to its full prompt state (see above)
+      // rather than blocking the rest of the page, which has nothing to
+      // do with portfolio data.
+      .catch(() => undefined);
+  }
+
   useEffect(() => {
     if (!ready) return;
     api<Profile>('/profiles/me')
@@ -206,6 +249,7 @@ function ProfilePageInner() {
         if (p.hasPhoto) loadPhoto(p.id);
       })
       .catch((e) => setError(e.message));
+    loadPortfolio();
   }, [ready]);
 
   // Revoke the last blob: URL on unmount — createObjectURL'd blobs are
@@ -346,6 +390,18 @@ function ProfilePageInner() {
       setExtraction(null);
       setReview(null);
       setApplied(false);
+      // The upload request already waited on the server's own parse
+      // attempt (ProfilesController.uploadResume awaits
+      // PortfolioService.parseFromResume before responding — see that
+      // method's doc comment), so parsedAt is already settled by the time
+      // this resolves; re-fetching now picks up its real value instead of
+      // assuming success. A silent parse failure there (caught and logged
+      // server-side, never thrown) leaves parsedAt at whatever it was
+      // before — unchanged on a first upload, stale on a replace — which
+      // correctly keeps this zone from going quiet on a parse that didn't
+      // actually happen.
+      await loadPortfolio();
+      setReplacingResume(false);
     } catch (e) {
       setUploadError((e as Error).message);
     } finally {
@@ -437,6 +493,151 @@ function ProfilePageInner() {
             <div className="progress-fill" style={{ width: `${completeness}%` }} />
           </div>
           <p className="meta" style={{ marginBottom: 24 }}>{completeness}% complete</p>
+
+          {/* Zone 1 — résumé upload. Full width, above the two-column
+              layout: the page's primary action, not one card among several
+              (see this page's own restructure notes — four same-underlying-
+              thing cards collapsed into this zone plus the proof/output
+              zones below). Quiet state (profile-resume-quiet) once a parse
+              is already on file, so a returning candidate isn't re-asked to
+              do something they've done — see `portfolio` state above for
+              why that's keyed off CandidatePortfolio.parsedAt rather than
+              just resumeS3Key's presence: an upload whose parse silently
+              failed server-side should still read as "not done" here, not
+              as quiet. */}
+          <section className="ui-card profile-panel profile-resume-zone">
+            {portfolio?.parsedAt && hasResume && !replacingResume ? (
+              <p className="profile-resume-quiet">
+                Résumé parsed {new Date(portfolio.parsedAt).toLocaleDateString()}
+                {' · '}
+                <button type="button" className="btn-link" onClick={() => setReplacingResume(true)}>
+                  Replace
+                </button>
+              </p>
+            ) : (
+              <>
+                <h2>Resume</h2>
+                <p>
+                  Upload your resume as a PDF, then have AI pull out the highlights. Nothing is
+                  saved to your profile until you review and confirm it below.
+                </p>
+
+                <div className="field">
+                  <label htmlFor="resumeFile">PDF resume (max 5MB)</label>
+                  <input
+                    id="resumeFile"
+                    type="file"
+                    accept="application/pdf"
+                    onChange={(e) => setResumeFile(e.target.files?.[0] ?? null)}
+                  />
+                </div>
+
+                <div className="row">
+                  <button onClick={uploadResume} disabled={!resumeFile || uploading}>
+                    {uploading ? 'Uploading…' : 'Upload'}
+                  </button>
+                  <button onClick={parseResume} disabled={!hasResume || parsing}>
+                    {parsing ? 'Parsing…' : 'Parse with AI'}
+                  </button>
+                  {replacingResume && (
+                    <button type="button" className="btn-secondary" onClick={() => setReplacingResume(false)}>
+                      Cancel
+                    </button>
+                  )}
+                </div>
+                {uploaded && <p className="ok">✓ Resume uploaded</p>}
+                {uploadError && <ErrorState message={uploadError} />}
+                {parseError && <ErrorState message={parseError} />}
+
+                {review && (
+                  <div
+                    className="card"
+                    style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12, marginTop: 8 }}
+                  >
+                    <strong>Review AI-extracted details</strong>
+                    <p className="meta" style={{ margin: 0 }}>
+                      Confirm or correct these before they&apos;re saved — nothing has been applied to
+                      your profile yet.
+                    </p>
+
+                    <div className="field">
+                      <label htmlFor="rvFullName">Full name</label>
+                      <input
+                        id="rvFullName"
+                        value={review.fullName}
+                        onChange={(e) => setReview({ ...review, fullName: e.target.value })}
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="rvHeadline">Headline</label>
+                      <input
+                        id="rvHeadline"
+                        value={review.headline}
+                        onChange={(e) => setReview({ ...review, headline: e.target.value })}
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="rvRoleTitle">
+                        Role {extraction?.suggestedRoleTitle && <span className="meta">(AI suggestion — confirm or change)</span>}
+                      </label>
+                      <select
+                        id="rvRoleTitle"
+                        value={review.roleTitle}
+                        onChange={(e) => setReview({ ...review, roleTitle: e.target.value })}
+                      >
+                        <option value="">Not set</option>
+                        {ROLE_TITLE_OPTIONS.map((r) => (
+                          <option key={r} value={r}>{ROLE_TITLE_LABELS[r]}</option>
+                        ))}
+                      </select>
+                      {review.roleTitle === 'OTHER' && (
+                        <input
+                          value={review.roleTitleOther}
+                          onChange={(e) => setReview({ ...review, roleTitleOther: e.target.value })}
+                          placeholder="Your role title"
+                          maxLength={160}
+                          style={{ marginTop: 8 }}
+                        />
+                      )}
+                    </div>
+                    <div className="field">
+                      <label htmlFor="rvLocation">Location</label>
+                      <input
+                        id="rvLocation"
+                        value={review.location}
+                        onChange={(e) => setReview({ ...review, location: e.target.value })}
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="rvYearsOfExp">Years of experience</label>
+                      <input
+                        id="rvYearsOfExp"
+                        type="number"
+                        min={0}
+                        max={80}
+                        value={review.yearsOfExp}
+                        onChange={(e) => setReview({ ...review, yearsOfExp: e.target.value })}
+                      />
+                    </div>
+
+                    {extraction && extraction.skills.length > 0 && (
+                      <div className="field">
+                        <label>Skills detected (informational — not saved automatically)</label>
+                        <p className="meta" style={{ margin: 0 }}>{extraction.skills.join(', ')}</p>
+                      </div>
+                    )}
+
+                    <div className="row" style={{ margin: 0 }}>
+                      <button onClick={applyExtraction} disabled={applying}>
+                        {applying ? 'Applying…' : 'Looks good — apply to my profile'}
+                      </button>
+                      {applied && <p className="ok" style={{ margin: 0 }}>✓ Applied to your profile</p>}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </section>
 
           <div className="profile-columns">
           <section className="ui-card profile-panel">
@@ -669,123 +870,6 @@ function ProfilePageInner() {
           </section>
 
           <div className="profile-side-col">
-          <section className="ui-card profile-panel">
-          <h2>Resume</h2>
-          <p>
-            Upload your resume as a PDF, then have AI pull out the highlights. Nothing is saved
-            to your profile until you review and confirm it below.
-          </p>
-
-          <div className="field">
-            <label htmlFor="resumeFile">PDF resume (max 5MB)</label>
-            <input
-              id="resumeFile"
-              type="file"
-              accept="application/pdf"
-              onChange={(e) => setResumeFile(e.target.files?.[0] ?? null)}
-            />
-          </div>
-
-          <div className="row">
-            <button onClick={uploadResume} disabled={!resumeFile || uploading}>
-              {uploading ? 'Uploading…' : 'Upload'}
-            </button>
-            <button onClick={parseResume} disabled={!hasResume || parsing}>
-              {parsing ? 'Parsing…' : 'Parse with AI'}
-            </button>
-          </div>
-          {uploaded && <p className="ok">✓ Resume uploaded</p>}
-          {uploadError && <ErrorState message={uploadError} />}
-          {parseError && <ErrorState message={parseError} />}
-
-          {review && (
-            <div
-              className="card"
-              style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12, marginTop: 8 }}
-            >
-              <strong>Review AI-extracted details</strong>
-              <p className="meta" style={{ margin: 0 }}>
-                Confirm or correct these before they&apos;re saved — nothing has been applied to
-                your profile yet.
-              </p>
-
-              <div className="field">
-                <label htmlFor="rvFullName">Full name</label>
-                <input
-                  id="rvFullName"
-                  value={review.fullName}
-                  onChange={(e) => setReview({ ...review, fullName: e.target.value })}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="rvHeadline">Headline</label>
-                <input
-                  id="rvHeadline"
-                  value={review.headline}
-                  onChange={(e) => setReview({ ...review, headline: e.target.value })}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="rvRoleTitle">
-                  Role {extraction?.suggestedRoleTitle && <span className="meta">(AI suggestion — confirm or change)</span>}
-                </label>
-                <select
-                  id="rvRoleTitle"
-                  value={review.roleTitle}
-                  onChange={(e) => setReview({ ...review, roleTitle: e.target.value })}
-                >
-                  <option value="">Not set</option>
-                  {ROLE_TITLE_OPTIONS.map((r) => (
-                    <option key={r} value={r}>{ROLE_TITLE_LABELS[r]}</option>
-                  ))}
-                </select>
-                {review.roleTitle === 'OTHER' && (
-                  <input
-                    value={review.roleTitleOther}
-                    onChange={(e) => setReview({ ...review, roleTitleOther: e.target.value })}
-                    placeholder="Your role title"
-                    maxLength={160}
-                    style={{ marginTop: 8 }}
-                  />
-                )}
-              </div>
-              <div className="field">
-                <label htmlFor="rvLocation">Location</label>
-                <input
-                  id="rvLocation"
-                  value={review.location}
-                  onChange={(e) => setReview({ ...review, location: e.target.value })}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="rvYearsOfExp">Years of experience</label>
-                <input
-                  id="rvYearsOfExp"
-                  type="number"
-                  min={0}
-                  max={80}
-                  value={review.yearsOfExp}
-                  onChange={(e) => setReview({ ...review, yearsOfExp: e.target.value })}
-                />
-              </div>
-
-              {extraction && extraction.skills.length > 0 && (
-                <div className="field">
-                  <label>Skills detected (informational — not saved automatically)</label>
-                  <p className="meta" style={{ margin: 0 }}>{extraction.skills.join(', ')}</p>
-                </div>
-              )}
-
-              <div className="row" style={{ margin: 0 }}>
-                <button onClick={applyExtraction} disabled={applying}>
-                  {applying ? 'Applying…' : 'Looks good — apply to my profile'}
-                </button>
-                {applied && <p className="ok" style={{ margin: 0 }}>✓ Applied to your profile</p>}
-              </div>
-            </div>
-          )}
-          </section>
-
           <section className="ui-card profile-panel">
             <h2>Build a resume PDF</h2>
             <p>

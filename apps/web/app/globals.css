@@ -1366,10 +1366,12 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Width comes from main.container-wide (see the layout container system
    above) — wide enough for two columns of fields to have room to breathe. */
-/* Left column: the profile form card. Right column: a flex stack of the
-   Resume card and Certifications card, in that DOM order — collapsing
-   to `1fr` below the breakpoint keeps that same source order (form, then
-   resume, then certifications) as a single mobile stack, no reordering needed. */
+/* Left column: the profile form card. Right column: a flex stack of
+   whatever else this page has (see .profile-resume-zone above this pair
+   for the résumé zone, which is no longer part of either column — it
+   renders full width, above both), in DOM order — collapsing to `1fr`
+   below the breakpoint keeps that same source order as a single mobile
+   stack, no reordering needed. */
 .profile-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-7); align-items: start; }
 .profile-side-col { display: flex; flex-direction: column; gap: var(--space-7); min-width: 0; }
 .profile-panel { min-width: 0; }
@@ -1377,6 +1379,21 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 @media (max-width: 900px) {
   .profile-columns { grid-template-columns: 1fr; gap: var(--space-6); }
 }
+
+/* Zone 1 — résumé upload (see app/profile/page.tsx's own Zone 1 comment).
+   Full width, sitting above .profile-columns rather than inside either
+   column — the page's primary action, not a card competing with the
+   other panels for a column's share of the width. margin-bottom matches
+   .profile-columns' own gap (var(--space-7)) so the vertical rhythm
+   between this zone and the columns below it matches the rhythm within
+   them, rather than introducing a third, one-off spacing value. */
+.profile-resume-zone { margin-bottom: var(--space-7); }
+/* Quiet state: one line, no card chrome beyond .ui-card's own — deliberately
+   not styled as an empty state or a warning, just a fact plus an action.
+   Button sits inline via .btn-link (already borderless/inline), not a
+   block-level row, so "Résumé parsed <date> · Replace" reads as one
+   sentence rather than a label-plus-button pair. */
+.profile-resume-quiet { margin: 0; }
 
 /* ---- list-page two-column layout ----
    Generic version of the pattern above (growing main list + fixed-size
