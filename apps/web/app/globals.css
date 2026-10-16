@@ -1050,9 +1050,10 @@ main.auth.auth-gradient {
 }
 /* ---- AuthPitch (OtpLogin.tsx only) ----
    Static replacement for AuthMessageRotator on the candidate login —
-   see AuthPitch.tsx's own doc comment for the two-variant structure
-   (`.auth-pitch-visual` here, `.auth-pitch-inline` further below) and
-   why both exist rather than one element moved by CSS.
+   see AuthPitch.tsx's own doc comment for the three-export structure
+   (`.auth-pitch-visual` here, `.auth-pitch-headline-inline` /
+   `.auth-pitch-points-inline` further below) and why the <1100px pieces
+   are two separate elements rather than one block.
    `.auth-pitch-visual` reuses the rotator's own positioning idiom
    (absolute, inset: 0, centered) and its own scrim shape (bottom-weighted
    linear-gradient, see `.auth-pitch-scrim`) for the same reason: this
@@ -1184,15 +1185,17 @@ main.auth.auth-gradient {
      hidden` for something that looks unrelated, like a border-radius on
      this panel — would clip that descendant back inside this box instead. */
 }
-/* BetaPromoScroll, coded as the first child of .auth-split-panel (see
-   OtpLogin.tsx) so it's naturally "the first thing in the column, above
-   the sign-in card" at every width. Below the split-layout breakpoint
-   that's exactly where it stays — a static, in-flow banner, left-aligned
-   (align-self: flex-start, since the panel itself centers its children)
-   rather than full width. At and above that breakpoint it switches to
-   `position: absolute` in the @media block below, which lifts it out of
-   this flex column entirely and positions it against .auth-split instead
-   — see that rule's own comment for why.
+/* BetaPromoScroll sits between the proof points and the sign-in card in
+   DOM order (see OtpLogin.tsx) — that's the actual visual order at
+   861px and up, a static in-flow banner, left-aligned (align-self:
+   flex-start, since the panel itself centers its children) rather than
+   full width. At ≤860px it's visually reordered to after the card
+   instead (see the @media (max-width: 860px) block further below) —
+   DOM position is unchanged, only where it paints. At ≥1140px it
+   switches to `position: absolute` in the @media block directly below
+   this one, which lifts it out of this flex column entirely regardless
+   of order and positions it against .auth-split instead — see that
+   rule's own comment for why.
    max-width here is NOT decoration — without it the ribbon's own fixed
    `width: 420px` (see .beta-promo-scroll below) overflows the panel's
    padded width at a phone's ~320–360px content area, which this flex
@@ -1210,30 +1213,40 @@ main.auth.auth-gradient {
   margin-block-end: var(--space-6);
   max-width: min(100%, 460px);
 }
-/* `.auth-pitch-inline` — AuthPitch's <1100px variant (see AuthPitch.tsx
-   and `.auth-pitch-visual` above). `display: none` by default; the
-   @media block right below flips it on exactly where
-   `.auth-split-message-rotator` flips off, so the candidate login never
-   has the "decorative band + bare card, no pitch at all" gap that
+/* `.auth-pitch-headline-inline` / `.auth-pitch-points-inline` —
+   AuthPitchHeadline / AuthPitchProofPoints, the <1100px pieces (see
+   AuthPitch.tsx and `.auth-pitch-visual` above). `display: none` by
+   default on both; the @media block right below flips them on exactly
+   where `.auth-split-message-rotator` flips off, so the candidate login
+   never has the "decorative band + bare card, no pitch at all" gap that
    breakpoint otherwise leaves (see that rule's own comment on just how
-   much traffic that gap covers — most phones). In flow, first child of
-   the panel, above BetaPromoScroll and the card: the pitch has to
-   establish what this product is before a time-limited offer on it
-   makes sense, same ordering reasoning already applied to the landing
-   hero's own mobile layout. No specimen here — see AuthPitch.tsx's own
-   comment on dropping it rather than shrinking it. */
-.auth-pitch-inline {
+   much traffic that gap covers — most phones).
+   Two elements, not one — unlike the old single `.auth-pitch-inline`
+   block, these need independent `order` at ≤860px (see that media query
+   further below): the headline leads the mobile stack, the proof points
+   trail it, with the card and ribbon in between. Above 860px (while
+   still below the 1100px cutoff) no `order` is set, so they fall back to
+   plain DOM order — adjacent to each other, exactly the single-block
+   sequence this replaced. No specimen in either — see AuthPitch.tsx's
+   own comment on dropping it rather than shrinking it. */
+.auth-pitch-headline-inline,
+.auth-pitch-points-inline {
   display: none;
   align-self: flex-start;
   max-width: min(100%, 480px);
+}
+.auth-pitch-headline-inline {
+  color: var(--ink);
   margin-block-end: var(--space-6);
 }
-.auth-pitch-inline .auth-pitch-headline { color: var(--ink); }
-.auth-pitch-inline .auth-pitch-points li { color: var(--ink-60); }
-.auth-pitch-inline .auth-pitch-points li::before { color: var(--ink); }
+.auth-pitch-points-inline .auth-pitch-points li { color: var(--ink-60); }
+.auth-pitch-points-inline .auth-pitch-points li::before { color: var(--ink); }
 @media (max-width: 1100px) {
   .auth-pitch-visual { display: none; }
-  .auth-pitch-inline { display: block; }
+  .auth-pitch-headline-inline,
+  .auth-pitch-points-inline {
+    display: block;
+  }
 }
 /* Still rendered by EmployerOtpLogin.tsx ("Global AI Talent Hub") — that
    page's own decision, unchanged. OtpLogin.tsx (candidate) no longer
@@ -1310,9 +1323,18 @@ main.auth.auth-gradient {
      ~421px — coincidentally close to the desktop column's own
      minmax(420px, 640px) floor — regardless of actual viewport width).
      The *desktop* rule's first column already uses minmax(0, 1fr) for
-     exactly this reason; this mobile override just needed the same fix. */
+     exactly this reason; this mobile override just needed the same fix.
+     min-height stepped down from 140px to 64px (and the ≤480px override
+     below from 110px to 56px, same reasoning) once OtpLogin.tsx's mobile
+     stack got AuthPitch's headline leading it, directly below this band
+     — the brand continuity the band exists for still holds (gradient and
+     grain still render, still visibly its own panel), but at the old
+     height it was consuming close to a fifth of a phone's first
+     screen in front of the page's actual primary action. Still a band,
+     not a sliver: stayed clear of ~40px, where it would stop reading as
+     intentional and start looking like a rendering artefact. */
   .auth-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
-  .auth-split-visual { min-height: 140px; }
+  .auth-split-visual { min-height: 64px; }
   .auth-split-panel { padding: 40px 24px; }
   /* No height/overflow override needed here anymore — .auth-split's base
      rule is `min-height: 100vh` (a floor, never a ceiling) and
@@ -1328,6 +1350,45 @@ main.auth.auth-gradient {
      ceiling, there was nothing left to undo. Verified by comparing computed
      styles and full-page screenshots at 360x740 before and after removing
      these two lines — pixel-identical. */
+
+  /* Stack reorder. .auth-split-panel is already a flex column (see its
+     own base rule) — unlike the landing hero reorder, nothing here needs
+     switching to flex first. The action (the sign-in card, with its
+     legal line directly beneath it — a consent statement about that
+     card, so the two stay adjacent) comes right after the one-line
+     headline; the ribbon and the proof points — detail, not the thing an
+     arriving stranger needs to act — move below it. DOM order is
+     untouched (see AuthPitchHeadline/AuthPitchProofPoints and
+     BetaPromoScroll's own comments above for what it still governs
+     ≥861px); only visual order changes, and only in this block, so
+     nothing at or above 861px is affected.
+     Safe to let visual order diverge from DOM order here: neither the
+     ribbon (BetaPromoScroll, role="note") nor the proof points
+     (AuthPitchProofPoints, plain text) carry any focusable content, so
+     there's nothing a keyboard or screen-reader user needs to encounter
+     in visual order to use this page — the sign-in controls themselves
+     stay in their one, unchanged position in both DOM and visual order. */
+  .auth-pitch-headline-inline { order: 0; }
+  .auth-split-card { order: 1; }
+  .auth-split-panel > .auth-legal { order: 2; }
+  .auth-split-panel > .beta-promo-scroll { order: 3; }
+  .auth-pitch-points-inline { order: 4; }
+  /* Headline step-down. The shared .auth-pitch-headline clamp (1.5rem–
+     2.1rem) floors at 1.5rem below ~923px viewport width — i.e. at every
+     phone width, not scaling down further — which ran "Prove your
+     skills. Get matched to jobs that want them." to two full-width lines
+     taking most of the first screen. globals.css has no single shared
+     "mobile heading step" token to read instead (checked: .lp-hero-title's
+     own mobile override a few thousand lines down is the closest
+     precedent — a viewport-scaled clamp plus text-wrap: balance — but
+     it's that component's own literal, not a reusable value); this
+     follows the same shape at a size suited to this headline's own
+     range, scoped to .auth-pitch-headline-inline only so the ≥1100px
+     visual variant's headline is untouched. */
+  .auth-pitch-headline-inline {
+    font-size: clamp(1.25rem, 5.5vw, 1.5rem);
+    text-wrap: balance;
+  }
 }
 /* BetaPromoScroll's desktop placement. Lifts the ribbon out of
    .auth-split-panel's flex column (position: absolute removes it from flex
@@ -1402,7 +1463,12 @@ main.auth.auth-gradient {
   }
 }
 @media (max-width: 480px) {
-  .auth-split-visual { min-height: 110px; }
+  /* 56px — see the ≤860px rule's own comment on why this came down from
+     110px. This is the one that actually governs on real phones (this
+     query wins over the ≤860px one at any width it also matches, later
+     in source order, equal specificity) — the ≤860px value mostly
+     matters for the narrower end of the tablet range instead. */
+  .auth-split-visual { min-height: 56px; }
   .auth-split-panel { padding: 28px 18px; }
   .auth-split-card { padding: 26px 22px; }
 }

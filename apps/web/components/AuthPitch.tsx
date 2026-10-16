@@ -8,28 +8,38 @@
  * EmployerOtpLogin.tsx — that's a separate page with its own messages and
  * its own (not yet made) decision about whether to move off the rotator.
  *
- * Two variants, not one element repositioned by CSS: `visual` sits inside
- * `.auth-split-visual` (the gradient column) and is the ≥1100px
- * experience — full treatment, specimen included, with its own scrim (see
+ * Three exports, not one element repositioned by CSS. The default export
+ * is the ≥1100px experience — `.auth-split-visual` (the gradient column),
+ * full treatment, specimen included, with its own scrim (see
  * `.auth-pitch-scrim` in globals.css) for the same reason
  * AuthMessageRotator carries its own: `.auth-split-visual`'s background
  * stays tuned for the full brand ramp, not for text contrast, so whatever
- * sits on top of it has to guarantee its own. `inline` sits inside
- * `.auth-split-panel`, in flow, above the sign-in card, and is what
- * renders below 1100px instead of nothing (see globals.css's own note on
- * `.auth-split-message-rotator`'s `display: none` below that breakpoint —
- * this component deliberately does not inherit that rule). It drops the
- * badge specimen rather than shrinking it: "hidden if there isn't room
- * for it," not a smaller version of the same thing.
+ * sits on top of it has to guarantee its own.
  *
- * Both variants render the same headline/proof-point copy through shared
+ * `AuthPitchHeadline` and `AuthPitchProofPoints` are the <1100px pieces —
+ * split into two separate elements, not one wrapped block, because
+ * OtpLogin.tsx's mobile stack (≤860px) reorders the headline and the
+ * proof points to opposite ends of the page (headline first, points
+ * last, around the sign-in card — see that file's own comment), which
+ * needs them to be independent flex items. Rendered in flow inside
+ * `.auth-split-panel`, adjacent to each other by default (≥861px, where
+ * no reorder applies) so the visual sequence there is unchanged from
+ * when they were one block. This pair is what renders below 1100px
+ * instead of nothing (see globals.css's own note on
+ * `.auth-split-message-rotator`'s `display: none` below that breakpoint
+ * — this component deliberately does not inherit that rule). No badge
+ * specimen in either: dropped rather than shrunk, "hidden if there isn't
+ * room for it," not a smaller version of the same thing.
+ *
+ * All three render the same headline/proof-point copy through shared
  * classes (`.auth-pitch-headline`, `.auth-pitch-points`) so there is one
- * source of truth for the words; only the wrapper and the specimen differ.
- * Only one variant is ever visible at a given viewport width (the other is
- * `display: none`, which removes it from the accessibility tree, not just
- * hides it visually — same pattern as `.lp-hero-title-lg`/`-sm` on the
- * landing page) — so despite both being `<h1>`s, only one is ever exposed
- * to assistive tech at once.
+ * source of truth for the words; only the wrapper and the specimen
+ * differ. Only one of {default export, the inline pair} is ever visible
+ * at a given viewport width (the other is `display: none`, which removes
+ * it from the accessibility tree, not just hides it visually — same
+ * pattern as `.lp-hero-title-lg`/`-sm` on the landing page) — so despite
+ * two `<h1>`s existing in the DOM, only one is ever exposed to assistive
+ * tech at once.
  */
 import { skillLevelName } from '@/lib/skillLevels';
 
@@ -84,20 +94,23 @@ function ProofPoints() {
   );
 }
 
-interface Props {
-  variant: 'visual' | 'inline';
+/** The <1100px headline, standalone — see this file's own top comment on
+ * why it's split from AuthPitchProofPoints rather than one block. */
+export function AuthPitchHeadline() {
+  return <h1 className="auth-pitch-headline auth-pitch-headline-inline">{HEADLINE}</h1>;
 }
 
-export default function AuthPitch({ variant }: Props) {
-  if (variant === 'inline') {
-    return (
-      <div className="auth-pitch auth-pitch-inline">
-        <h1 className="auth-pitch-headline">{HEADLINE}</h1>
-        <ProofPoints />
-      </div>
-    );
-  }
+/** The <1100px proof points, standalone — see this file's own top comment. */
+export function AuthPitchProofPoints() {
+  return (
+    <div className="auth-pitch-points-inline">
+      <ProofPoints />
+    </div>
+  );
+}
 
+/** The ≥1100px experience — full treatment inside `.auth-split-visual`. */
+export default function AuthPitch() {
   return (
     <div className="auth-pitch auth-pitch-visual">
       <div className="auth-pitch-scrim" aria-hidden="true" />

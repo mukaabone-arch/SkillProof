@@ -25,7 +25,7 @@ import { startOAuthLogin } from '@/lib/oauth';
 import { trackLogin, trackSignUp } from '@/lib/analyticsEvents';
 import BrandLockup from './BrandLockup';
 import { GoogleIcon, GithubIcon } from './OAuthIcons';
-import AuthPitch from './AuthPitch';
+import AuthPitch, { AuthPitchHeadline, AuthPitchProofPoints } from './AuthPitch';
 import LegalAcceptanceNote from './LegalAcceptanceNote';
 import BetaPromoScroll from './BetaPromoScroll';
 
@@ -136,17 +136,23 @@ export default function OtpLogin({ onLoggedIn }: Props) {
   return (
     <main className="auth-split">
       <div className="auth-split-visual">
-        <AuthPitch variant="visual" />
+        <AuthPitch />
       </div>
       <div className="auth-split-panel">
-        {/* Pitch leads, promo follows: the ribbon is a time-limited offer
-            ON the product, so it reads better after the panel has said
-            what the product is than in front of it — same reasoning
-            already applied to the landing hero's own mobile reorder.
-            Combined height checked at 375px (see this change's own
-            verification pass) alongside this panel's existing BetaPromoScroll
-            + card + LegalAcceptanceNote stack. */}
-        <AuthPitch variant="inline" />
+        {/* ≥861px: pitch leads, promo follows, DOM order === visual order —
+            the ribbon is a time-limited offer ON the product, so it reads
+            better after the panel has said what the product is than in
+            front of it. ≤860px: visually reordered entirely — headline
+            first, then the card (with its legal line), then the ribbon,
+            then the proof points — see the @media (max-width: 860px)
+            block in globals.css for why and the order values themselves.
+            AuthPitchHeadline and AuthPitchProofPoints are separate
+            elements (not one AuthPitch block) specifically so that
+            reorder can move them independently; adjacent here in source
+            order so the ≥861px sequence reads exactly as it did before
+            the split. */}
+        <AuthPitchHeadline />
+        <AuthPitchProofPoints />
         <BetaPromoScroll />
         <div className="auth-split-card">
           <BrandLockup variant="hero" href="/" ariaLabel="MyAmbii home" />
