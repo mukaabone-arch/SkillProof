@@ -1371,7 +1371,23 @@ main.auth.auth-gradient {
   .auth-pitch-headline-inline { order: 0; }
   .auth-split-card { order: 1; }
   .auth-split-panel > .auth-legal { order: 2; }
-  .auth-split-panel > .beta-promo-scroll { order: 3; }
+  /* margin-block-start only exists here, scoped to this mobile rule —
+     the base rule (above) only ever had margin-block-end, from when the
+     ribbon was first in the column with nothing above it to clear. After
+     this reorder the legal line sits directly above it instead, with no
+     separation of its own (.auth-legal's own margin is top-only — see
+     that rule — so this is the only thing that can create one). The
+     ≥1140px overlay rule sets `margin: 0` and must keep doing that; this
+     margin-block-start is additive to the base rule, not a replacement,
+     and only applies in the ≤860px range this block is already scoped
+     to. var(--space-6) — same token as margin-block-end, not a
+     coincidence: the rolls (::before/::after) overhang the box by 7px on
+     *both* inset-block-start and inset-block-end (confirmed: -7px /
+     calc(100% + 14px)), so the gap the eye actually sees is the margin
+     minus that 7px on each side symmetrically — matching the token on
+     both sides is what makes the visual gaps match too, not a smaller
+     one that only matches the raw margin numbers. */
+  .auth-split-panel > .beta-promo-scroll { order: 3; margin-block-start: var(--space-6); }
   .auth-pitch-points-inline { order: 4; }
   /* Headline step-down. The shared .auth-pitch-headline clamp (1.5rem–
      2.1rem) floors at 1.5rem below ~923px viewport width — i.e. at every
