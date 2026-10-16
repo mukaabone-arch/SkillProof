@@ -28,15 +28,16 @@ import { BETA_FREE_UNTIL } from '@/lib/betaPromo';
 // A path that stays in BetaPromoBar's allow-list throughout this file —
 // '/' and '/candidate' are deliberately NOT in it any more (see the
 // "route gating" describe below): both now render BetaPromoScroll instead,
-// which has no path awareness of its own.
-let pathname = '/employer';
+// which has no path awareness of its own. '/employer' isn't either —
+// dropped from ALLOWED_EXACT_PATHS (see that rule's own comment on why).
+let pathname = '/faq';
 
 jest.mock('next/navigation', () => ({
   usePathname: () => pathname,
 }));
 
 beforeEach(() => {
-  pathname = '/employer';
+  pathname = '/faq';
   clearTokens();
   employerApi.clearTokens();
   localStorage.clear();
@@ -104,7 +105,7 @@ describe('BetaPromoBar — route gating', () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-10-01T12:00:00+05:30'));
   });
 
-  it.each(['/employer', '/faq', '/help', '/help/candidate', '/help/employer'])(
+  it.each(['/faq', '/help', '/help/candidate', '/help/employer'])(
     'renders on public marketing route %s',
     (path) => {
       pathname = path;
@@ -116,6 +117,7 @@ describe('BetaPromoBar — route gating', () => {
   it.each([
     ['/', 'landing page — renders .beta-promo-scroll instead, not this bar'],
     ['/candidate', 'candidate login — renders .beta-promo-scroll instead, not this bar'],
+    ['/employer', 'dropped from the allow-list — candidate-only offer, no employer offer to replace it with'],
     ['/assessments', 'assessment list'],
     ['/assessments/discussion/session/abc123', 'assessment-taking flow'],
     ['/employer/dashboard', 'authenticated employer portal'],
@@ -144,7 +146,10 @@ describe('BetaPromoBar — signed-in visitors', () => {
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
   });
 
-  it('hides for a signed-in employer on /employer', async () => {
+  it('hides for a signed-in employer, even on an allowed path', async () => {
+    // Uses the default '/faq' pathname, not '/employer' — '/employer' is no
+    // longer in the allow-list at all (see BetaPromoBar.tsx), so testing on
+    // it would exercise the path gate, not the token check this test is for.
     employerApi.setTokens('emp-access-token', 'emp-refresh-token');
     render(<BetaPromoBar />);
     expect(screen.queryByRole('note')).not.toBeInTheDocument();

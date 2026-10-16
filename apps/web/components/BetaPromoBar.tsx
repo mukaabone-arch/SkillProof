@@ -20,10 +20,18 @@
  * "Candidates:" is load-bearing, not decoration — the free offer is
  * candidate-side only. Employer-triggered assessment requests are charged
  * from day one (₹0/₹177/₹590 by candidate depth), disclosed at the confirm
- * step in AssessCandidateAction. An unqualified "Free until 30 November
- * 2026" over /employer — the page whose whole job is convincing employers
- * to sign up — would tell them something untrue about what they're about
- * to pay.
+ * step in AssessCandidateAction. /faq and /help/* keep a mixed audience —
+ * the qualifier is still what keeps an employer reader from misreading a
+ * candidate-only offer as theirs — but it's incidental there, not the
+ * page's headline, which is why it's a thin bar and not a pitch.
+ *
+ * /employer is deliberately NOT in the allow-list below (it used to be):
+ * that page's whole job is convincing employers to sign up, and there's
+ * no employer-side free offer to qualify this message into one — only a
+ * candidate-side fact that doesn't belong on a page written for the other
+ * audience. Not replaced with an employer-facing banner either: there's
+ * no employer offer to make, and a value statement here would just
+ * compete with the page's own headline for the same attention.
  *
  * Mounted once, app-wide, in Providers.tsx (ahead of `children` in DOM
  * order, outside CandidateVerificationProvider so its own blocking
@@ -39,7 +47,7 @@ import { usePathname } from 'next/navigation';
 import { useBetaPromoVisible } from '@/lib/useBetaPromoVisible';
 import { BETA_FREE_UNTIL, formatBetaPromoDate } from '@/lib/betaPromo';
 
-const ALLOWED_EXACT_PATHS = new Set(['/employer', '/faq']);
+const ALLOWED_EXACT_PATHS = new Set(['/faq']);
 const ALLOWED_PATH_PREFIXES = ['/help'];
 
 function isAllowedPath(pathname: string): boolean {
