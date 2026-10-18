@@ -60,21 +60,13 @@ export default function BadgeVerifyPage() {
     );
   }
 
-  // An expired badge is never hidden or 404'd (see AssessmentsService.verifyBadge —
-  // only a missing/revoked badge 404s). It's shown honestly: genuinely earned
-  // and verified, but since lapsed. The whole cert shifts from the green
-  // "valid" chrome to a muted amber "expired" treatment so it can't be mistaken
-  // for a currently-valid credential at a glance, while the ✓ mark and the
-  // issued date preserve the fact that it *was* earned and verified.
-  const expired = !badge.valid;
-
   return (
     <>
       <PublicNav />
       <main>
-        <div className={`cert${expired ? ' cert-expired' : ''}`}>
-          <div className={`cert-mark${expired ? ' cert-mark-expired' : ''}`}>✓</div>
-          <h1>{expired ? 'Expired Credential' : 'Verified Skill'}</h1>
+        <div className="cert">
+          <div className="cert-mark">✓</div>
+          <h1>Verified Skill</h1>
           <p className="cert-skill">{badge.skill} — Level {badge.level}</p>
           <p><strong>{badge.candidate}</strong></p>
           <p className="meta">
@@ -86,37 +78,16 @@ export default function BadgeVerifyPage() {
             </p>
           )}
           <p className="meta">
-            {expired ? (
-              <>
-                Issued {new Date(badge.issuedAt).toLocaleDateString()} · Expired{' '}
-                {new Date(badge.expiresAt).toLocaleDateString()}
-              </>
-            ) : (
-              <>
-                Issued {new Date(badge.issuedAt).toLocaleDateString()} · Valid until{' '}
-                {new Date(badge.expiresAt).toLocaleDateString()}
-              </>
-            )}
+            Issued {new Date(badge.issuedAt).toLocaleDateString()} · Valid until{' '}
+            {new Date(badge.expiresAt).toLocaleDateString()}
           </p>
-          <p className={expired ? 'cert-status-expired' : 'ok'}>
-            {expired ? 'This certificate has expired.' : 'This certificate is valid.'}
+          <p className={badge.valid ? 'ok' : 'error'}>
+            {badge.valid ? 'This certificate is valid.' : 'This certificate has expired.'}
           </p>
-          {expired && (
-            <p className="meta">
-              This credential was genuinely earned and verified on{' '}
-              {new Date(badge.issuedAt).toLocaleDateString()}. It has since lapsed and is no longer current — the
-              candidate can retake the assessment to renew it.
-            </p>
-          )}
           {badge.accountStatus === 'inactive' && (
             <p className="meta">
-<<<<<<< Updated upstream
               This candidate is not currently active on MyAmbii. The credential itself was genuinely earned and
               remains valid.
-=======
-              This candidate is not currently active on SkillProof. The credential itself was genuinely earned{' '}
-              {expired ? 'and has since expired.' : 'and remains valid.'}
->>>>>>> Stashed changes
             </p>
           )}
           <p className="meta">Verification ID: {hash}</p>

@@ -1635,16 +1635,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   justify-content: center; margin: 0 auto 16px;
 }
 .cert-skill { font-size: 1.2rem; color: var(--ink); font-weight: 600; }
-/* Expired credential: shown honestly, never hidden — the cert shifts from the
-   green "valid" chrome to a muted amber tone so it can't read as currently
-   valid at a glance, while the ✓ mark and issued date still attest it was
-   genuinely earned and verified. --warning (amber) not --error (red) on
-   purpose: a lapsed credential is not a fraudulent or invalid one. Same
-   color-mix-onto-black darkening the base .cert-mark uses, for the same
-   white-glyph-on-bright-fill dark-theme reason documented above. */
-.cert-expired { border-color: var(--warning); }
-.cert-mark-expired { background: color-mix(in srgb, var(--warning) 70%, black); }
-.cert-status-expired { color: var(--warning); font-weight: 600; }
 
 /* ---- profile slice ---- */
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
