@@ -42,6 +42,8 @@
  * tech at once.
  */
 import { skillLevelName } from '@/lib/skillLevels';
+import BrandLockup from './BrandLockup';
+import BetaPromoScroll from './BetaPromoScroll';
 
 const HEADLINE = 'Prove your skills. Get matched to jobs that want them.';
 
@@ -109,12 +111,25 @@ export function AuthPitchProofPoints() {
   );
 }
 
-/** The ≥1100px experience — full treatment inside `.auth-split-visual`. */
+/** The ≥1100px experience — full treatment inside `.auth-split-visual`.
+ * Leads with the logo (a way back to "/", same BrandLockup markup the
+ * sign-in card uses) and the beta ribbon — both now part of this
+ * component's own centered column rather than living elsewhere in the
+ * page and either hiding below this breakpoint (the logo, previously
+ * card-only) or overlaying this column from outside its flow (the
+ * ribbon, previously absolutely positioned — see globals.css's
+ * `.auth-split-panel > .beta-promo-scroll` for why that approach is
+ * gone). BetaPromoScroll still also renders from OtpLogin.tsx directly
+ * inside `.auth-split-panel` for the <1101px tiers, where this export
+ * isn't the one on screen — same display:none/block swap already used
+ * for AuthPitchHeadline vs. this component's own `<h1>`. */
 export default function AuthPitch() {
   return (
     <div className="auth-pitch auth-pitch-visual">
       <div className="auth-pitch-scrim" aria-hidden="true" />
       <div className="auth-pitch-content">
+        <BrandLockup variant="hero" href="/" ariaLabel="MyAmbii home" />
+        <BetaPromoScroll />
         <h1 className="auth-pitch-headline">{HEADLINE}</h1>
         <BadgeSpecimen />
         <ProofPoints />

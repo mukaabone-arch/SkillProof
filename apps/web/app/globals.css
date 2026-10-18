@@ -886,15 +886,11 @@ main.auth.auth-gradient {
      headline never stretch into an awkward line length just because the
      screen is wide. */
   grid-template-columns: minmax(0, 1fr) minmax(420px, 640px);
-  /* Shared between two rules that don't nest inside each other:
-     .auth-pitch-visual's own inline padding (where the pitch content's
-     left edge sits) and .auth-split-panel > .beta-promo-scroll's desktop
-     inset-inline-start (where the ribbon's left edge sits once it
-     overlays this same visual column at ≥1140px — see that rule). Both
-     read this one custom property, declared here on their nearest common
-     ancestor so it's inherited either way, rather than each carrying its
-     own literal 64px that could drift from the other — that drift is
-     exactly what happened before this property existed. */
+  /* .auth-pitch-visual's own inline padding — where the pitch content's
+     (and, since it moved in-flow there, the ribbon's) left edge sits.
+     Declared here rather than as a literal on that rule so anything else
+     that ever needs to align against this column's content edge reads
+     the same value instead of risking its own, possibly-drifted 64px. */
   --auth-visual-gutter: 64px;
 }
 /* Decorative gradient shared by both split-layout login pages. Layered radial
@@ -1066,13 +1062,28 @@ main.auth.auth-gradient {
    points, since cut to two — see PROOF_POINTS in AuthPitch.tsx — which
    only shortens the block further; the scrim's own coverage was never
    loosened to match, so it stays at least as conservative as measured,
-   not less.) */
+   not less.)
+   align-items: center horizontally centers `.auth-pitch-content` within
+   the gutter-padded column rather than pinning it to the start edge —
+   this column flexes wider than its 480px content cap on a wide monitor
+   (see .auth-split's own comment on why the visual side gets the extra
+   room there), and left-anchored content on that much spare width reads
+   as off-center rather than deliberately laid out. The gutter padding
+   still sets the minimum breathing room on either side regardless of how
+   the centering lands. The logo and ribbon the content column now also
+   carries (see AuthPitch.tsx) sit taller than the headline+specimen+
+   points block the scrim coverage below was measured against; that
+   measurement's own margin (8.95:1 worst case against a 4.5:1 AA floor)
+   is wide enough to absorb the shift without redoing the pixel sampling,
+   but re-verify if either addition visibly crowds the headline against
+   the top of the panel on a short viewport. */
 .auth-pitch-visual {
   position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: center;
   padding: 0 var(--auth-visual-gutter);
 }
 /* Stops at 82% rather than the rotator's 72%, and peaks slightly higher
@@ -1111,6 +1122,27 @@ main.auth.auth-gradient {
 .auth-pitch-content {
   position: relative;
   max-width: 480px;
+}
+/* MyAmbii logo, leading this panel's stack (AuthPitch.tsx) — reuses
+   BrandLockup's 'hero' variant wholesale, same markup/classes as the
+   sign-in card's own lockup on the other side of the page. That variant's
+   default colours (`.brand-product-name`'s --ink) assume the light panel
+   it's everywhere else used on; overridden to white immediately below,
+   same pattern as `.auth-pitch-headline`'s own colour override. Linked to
+   "/" (see AuthPitch.tsx) so the panel doubles as a way back to the
+   marketing page, not just decoration. */
+.auth-pitch-content .brand-product-name { color: #FFFFFF; }
+/* The ribbon (BetaPromoScroll), moved here from its old absolute overlay
+   (see .auth-split-panel > .beta-promo-scroll's own comment on why) so it
+   sits in the same centered column as the headline/specimen/points below
+   it instead of floating independently above them. max-width: 100%
+   overrides the component's own fixed 420px box (see .beta-promo-scroll)
+   for the same reason every other mount site needs the override: this
+   column can render narrower than 420px near the 1101px breakpoint where
+   it first takes over from the in-flow panel instance. */
+.auth-pitch-content > .beta-promo-scroll {
+  max-width: 100%;
+  margin: 0 0 var(--space-6);
 }
 /* Shared by both variants — colour is set per-variant below, since white
    text makes no sense on the inline variant's light panel background. */
@@ -1177,25 +1209,24 @@ main.auth.auth-gradient {
      follows its grid row: exactly the viewport when content fits (the
      common case, no visible change), taller than the viewport when it
      doesn't, in which case the page scrolls and justify-content's
-     centering just applies to whatever room the row actually has.
-     Also now load-bearing for a second, unrelated reason: at the desktop
-     breakpoint below, BetaPromoScroll absolutely-positions itself out of
-     this panel and over .auth-split-visual on purpose (see .auth-split's
-     own comment). Any `overflow` added here later — even `overflow:
-     hidden` for something that looks unrelated, like a border-radius on
-     this panel — would clip that descendant back inside this box instead. */
+     centering just applies to whatever room the row actually has. */
 }
-/* BetaPromoScroll sits between the proof points and the sign-in card in
-   DOM order (see OtpLogin.tsx) — that's the actual visual order at
-   861px and up, a static in-flow banner, left-aligned (align-self:
+/* BetaPromoScroll's DOM home is still between the proof points and the
+   sign-in card here (see OtpLogin.tsx) — that's the actual visual order
+   up to 1100px, a static in-flow banner, left-aligned (align-self:
    flex-start, since the panel itself centers its children) rather than
-   full width. At ≤860px it's visually reordered to after the card
-   instead (see the @media (max-width: 860px) block further below) —
-   DOM position is unchanged, only where it paints. At ≥1140px it
-   switches to `position: absolute` in the @media block directly below
-   this one, which lifts it out of this flex column entirely regardless
-   of order and positions it against .auth-split instead — see that
-   rule's own comment for why.
+   full width. At ≤860px it's visually reordered to after the card instead
+   (see the @media (max-width: 860px) block further below) — DOM position
+   is unchanged, only where it paints.
+   At ≥1101px it's hidden here outright (see the @media (max-width:
+   1100px) block below, which is where this flips back to visible) —
+   AuthPitch.tsx renders its own instance inside `.auth-pitch-content`
+   instead at that width, in the normal centered flow alongside the
+   headline/specimen/points rather than escaping this column via absolute
+   positioning (the previous approach — see git history for why that
+   needed its own derived breakpoint and a padding-block-start hack on
+   `.auth-pitch-visual` to keep the centered content clear of it; moving
+   the ribbon into the flow it's supposed to line up with retires both).
    max-width here is NOT decoration — without it the ribbon's own fixed
    `width: 420px` (see .beta-promo-scroll below) overflows the panel's
    padded width at a phone's ~320–360px content area, which this flex
@@ -1209,6 +1240,7 @@ main.auth.auth-gradient {
    (.lp-hero-inner > .beta-promo-scroll) so neither mount site invents
    its own number. */
 .auth-split-panel > .beta-promo-scroll {
+  display: none;
   align-self: flex-start;
   margin-block-end: var(--space-6);
   max-width: min(100%, 460px);
@@ -1247,6 +1279,10 @@ main.auth.auth-gradient {
   .auth-pitch-points-inline {
     display: block;
   }
+  /* AuthPitch.tsx's own ribbon instance (inside .auth-pitch-visual) is
+     hidden at this width along with the rest of that export — this is
+     the one that takes over, back in .auth-split-panel's own flow. */
+  .auth-split-panel > .beta-promo-scroll { display: block; }
 }
 /* Still rendered by EmployerOtpLogin.tsx ("Global AI Talent Hub") — that
    page's own decision, unchanged. OtpLogin.tsx (candidate) no longer
@@ -1376,11 +1412,13 @@ main.auth.auth-gradient {
      ribbon was first in the column with nothing above it to clear. After
      this reorder the legal line sits directly above it instead, with no
      separation of its own (.auth-legal's own margin is top-only — see
-     that rule — so this is the only thing that can create one). The
-     ≥1140px overlay rule sets `margin: 0` and must keep doing that; this
-     margin-block-start is additive to the base rule, not a replacement,
-     and only applies in the ≤860px range this block is already scoped
-     to. var(--space-6) — same token as margin-block-end, not a
+     that rule — so this is the only thing that can create one). This
+     margin-block-start is additive to the base rule, not a replacement
+     (the ribbon isn't visible past 1100px at all here any more — see
+     that rule's own comment — so there's no wider-breakpoint override
+     left to stay consistent with), and only applies in the ≤860px range
+     this block is already scoped to. var(--space-6) — same token as
+     margin-block-end, not a
      coincidence: the rolls (::before/::after) overhang the box by 7px on
      *both* inset-block-start and inset-block-end (confirmed: -7px /
      calc(100% + 14px)), so the gap the eye actually sees is the margin
@@ -1404,78 +1442,6 @@ main.auth.auth-gradient {
   .auth-pitch-headline-inline {
     font-size: clamp(1.25rem, 5.5vw, 1.5rem);
     text-wrap: balance;
-  }
-}
-/* BetaPromoScroll's desktop placement. Lifts the ribbon out of
-   .auth-split-panel's flex column (position: absolute removes it from flex
-   layout entirely) and positions it against .auth-split instead, which
-   overlays the dark .auth-split-visual column despite the ribbon's DOM
-   home being the panel on the other side (see .auth-split's own comment
-   for why that resolves there).
-   max-width stays relative to the panel column's own ceiling
-   (minmax(420px, 640px) — see .auth-split's grid-template-columns), not a
-   flat number: that's what guarantees the ribbon can never run under the
-   sign-in card at any width, however this breakpoint itself moves.
-   The breakpoint (1140px) is NOT the split-layout collapse (860px, above)
-   — it's the width at which that relative cap first equals the ribbon's
-   own box width. Derived, not measured: this rule now gives the ribbon a
-   fixed content width (~420px, see .beta-promo-scroll below) instead of
-   sizing to whatever the copy happens to be, so there's a fixed W to
-   reverse the cap formula from rather than a string to measure.
-     B = W + 640 + 56 (reversing the cap formula) + 24px slack so the
-     breakpoint doesn't sit on the exact wrapping boundary
-       = 420 + 640 + 56 + 24 = 1140
-   Below 1140px the cap is tighter than the ribbon's own width, which
-   would squeeze it narrower still (more wrapped lines in the lead
-   clause) instead of just preventing the overlap this breakpoint exists
-   to prevent — the static in-flow rule above reads better than that the
-   whole way up to 1140px, so it now covers the entire 860–1140px band,
-   not just 860px.
-   Because the ribbon no longer sizes to its own content, this number is
-   now independent of the copy: editing the lead clause, the date format,
-   or adding a third clause changes how many lines the lead clause wraps
-   into, never the box's width — so none of that moves this breakpoint.
-   That also retires the old per-locale concern this comment used to
-   carry (a wider Arabic or French string growing the box and demanding
-   a re-measured B before it could be trusted): there's no longer
-   anything to re-measure, in any language, because the width isn't
-   derived from the string any more. */
-@media (min-width: 1140px) {
-  .auth-split-panel > .beta-promo-scroll {
-    position: absolute;
-    inset-block-start: 28px;
-    /* Was a second 28px literal — drifted from .auth-pitch-visual's own
-       64px gutter (where the pitch headline/specimen/proof points
-       actually sit), leaving the ribbon's left edge and the pitch
-       content's left edge 36px apart in the same column. Both now read
-       --auth-visual-gutter, declared once on .auth-split (see that
-       rule's own comment) — this is the fix for that drift, and the
-       reason it was a shared property instead of just matching the
-       literal here to 64px by hand. */
-    inset-inline-start: var(--auth-visual-gutter);
-    margin: 0;
-    max-width: calc(100% - 640px - 56px);
-    z-index: 1;
-  }
-  /* AuthPitch's centering container must clear the ribbon above it here
-     — the ribbon only overlays .auth-split-visual at this breakpoint
-     (below it, it's still in flow at the top of .auth-split-panel
-     instead, nowhere near the visual column — see that rule's own
-     comment). .auth-pitch-visual's base rule (above) centers within the
-     FULL column height; on anything shorter than roughly 820px tall that
-     puts the content's top edge above the ribbon's own bottom edge.
-     padding-block-start shifts the centering REGION itself down past the
-     ribbon rather than shrinking the content or dropping the centering —
-     costs nothing on a tall viewport, where the ribbon already clears by
-     hundreds of pixels regardless.
-     142px = the ribbon's own measured bottom edge (28px inset-block-start
-     + ~114px rendered height at its current two-line-lead/one-line-date
-     shape) + var(--space-7) (32px gap). Re-measure if the ribbon's own
-     rendered height assumptions change (a copy edit, a type-size change
-     — see .beta-promo-scroll's own comments on what can move that
-     number). */
-  .auth-pitch-visual {
-    padding-block-start: calc(142px + var(--space-7));
   }
 }
 @media (max-width: 480px) {
@@ -3423,17 +3389,39 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    the pixels behind it. */
 @media (min-width: 1024px) {
   .lp-hero-scrim {
+    /* 90deg stops pushed further right than before (60/68% → 66/76%) —
+       on a wide desktop viewport (a Mac laptop's 1440-1728px logical
+       width, or wider) the text column sat close enough to where this
+       fade finished that it read as running onto the bright left side of
+       the photo rather than clearly off it. Widening the dark zone (and
+       tightening the column below, which does the other half of the same
+       job) puts visible daylight between the two again. */
     background:
       linear-gradient(90deg,
         rgba(10, 12, 18, 0.97) 0%,
         rgba(10, 12, 18, 0.90) 44%,
-        rgba(10, 12, 18, 0.82) 52%,
-        rgba(10, 12, 18, 0.20) 60%,
-        rgba(10, 12, 18, 0) 68%),
+        rgba(10, 12, 18, 0.82) 54%,
+        rgba(10, 12, 18, 0.20) 66%,
+        rgba(10, 12, 18, 0) 76%),
       linear-gradient(180deg,
         rgba(10, 12, 18, 0.30) 0%, rgba(10, 12, 18, 0) 26%,
         rgba(10, 12, 18, 0) 72%, var(--gray-50) 100%);
   }
+  /* Tighter than the shared 620px cap (`.lp-hero-inner > *` above) —
+     max-w-xl's 576px. Keeps the text column's right edge inside the wider
+     dark zone above with margin to spare, instead of hugging its old
+     edge; the gap this opens up between the column and the photo's clear
+     side is the other half of "off the photo". */
+  .lp-hero-inner > * { max-width: 576px; }
+  /* The 90vh floor plus the base 96px bottom padding left a visible empty
+     band under the CTAs on a short/wide desktop viewport (a laptop's
+     ~900-982px logical height is the common case, not an edge case) —
+     there's no next-section content down there, just leftover height the
+     floor forced. A lower floor and less bottom padding close that gap;
+     anything taller than ~84vh / 56px still reads as a full-bleed hero
+     exactly as before, since this only ever reduces space the content
+     wasn't using. */
+  .lp-hero { min-height: 84vh; padding-bottom: 56px; }
 }
 
 /* ---- Landing hero: sub-line legibility on the clear-middle scrim (≤1023px) ----
@@ -3640,9 +3628,9 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    first to prove your AI skills and apply for jobs") is long enough now
    that sizing the box to it would make the ribbon nearly as wide as the
    thin bar it replaced. A fixed width and a wrapping first line keeps
-   this a compact block instead, and — see the @media (min-width: 1140px)
-   rule above — gives the overlay breakpoint a fixed number to derive from
-   instead of a string to measure, so future copy edits can't move it.
+   this a compact block instead, and means future copy edits can't move
+   the box's own footprint even if they change how many lines the lead
+   clause wraps into.
    Still capped by `max-width`, set per mount site below, for viewports
    narrower than 420px.
    Same background/text colour as .beta-promo-bar (white on --indigo) and
