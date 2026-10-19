@@ -315,7 +315,7 @@ export default function ResumePage() {
             </Button>
             {improving && (
               <div style={{ marginTop: 16 }}>
-                <LoadingState message="Polishing your resume — this can take up to 15 seconds…" />
+                <LoadingState message="Polishing your resume — this usually takes a few seconds…" />
               </div>
             )}
           </Card>
