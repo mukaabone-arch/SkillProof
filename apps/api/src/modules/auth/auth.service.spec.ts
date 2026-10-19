@@ -88,7 +88,17 @@ function fakePrisma(
         if (where.id !== undefined) return users.find((u) => u.id === where.id) ?? null;
         return null;
       }),
-      findUniqueOrThrow: jest.fn(async ({ where }: { where: { id: string } }) => {
+      findUniqueOrThrow: jest.fn(async ({ where, select }: { where: { id: string }; select?: { _count?: { select: Record<string, boolean> } } }) => {
+        // isDiscardableAccount asks for { orgMembership, _count }: every counted
+        // relation reports the shared nonEmptyUserIds flag.
+        if (select?._count) {
+          if (!users.some((u) => u.id === where.id)) throw new Error('not found');
+          const active = nonEmptyUserIds.includes(where.id) ? 1 : 0;
+          return {
+            orgMembership: orgMembers.find((m) => m.userId === where.id) ?? null,
+            _count: Object.fromEntries(Object.keys(select._count.select).map((k) => [k, active])),
+          };
+        }
         const found = users.find((u) => u.id === where.id);
         if (!found) throw new Error('not found');
         return found;
