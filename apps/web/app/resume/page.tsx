@@ -273,7 +273,7 @@ export default function ResumePage() {
             <Card elevated className="resume-option-card">
               <h3 style={{ marginBottom: 8 }}>Improve my resume</h3>
               <p className="meta" style={{ marginBottom: 16 }}>
-                Upload your resume — Claude rewrites it with stronger bullets and a tighter summary.
+                Upload your resume and we’ll rewrite it with stronger bullets and a tighter summary.
                 Review and edit everything before downloading.
               </p>
               <Button onClick={() => setStage('upload')}>Improve my resume</Button>
@@ -315,7 +315,7 @@ export default function ResumePage() {
             </Button>
             {improving && (
               <div style={{ marginTop: 16 }}>
-                <LoadingState message="Claude is rewriting your resume — this can take up to 15 seconds…" />
+                <LoadingState message="Polishing your resume — this can take up to 15 seconds…" />
               </div>
             )}
           </Card>
