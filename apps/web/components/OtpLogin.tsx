@@ -28,6 +28,7 @@ import { GoogleIcon, GithubIcon } from './OAuthIcons';
 import AuthPitch, { AuthPitchHeadline, AuthPitchProofPoints } from './AuthPitch';
 import LegalAcceptanceNote from './LegalAcceptanceNote';
 import BetaPromoScroll from './BetaPromoScroll';
+import { passkeysSupported, signInWithPasskey } from '@/lib/passkeys';
 
 /** Matches AuthService's RESEND_COOLDOWN_MS (60s) — purely a UX countdown; the server enforces the real limit regardless. */
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -48,6 +49,8 @@ export default function OtpLogin({ onLoggedIn }: Props) {
   const [error, setError] = useState('');
   const [oauthError, setOauthError] = useState('');
   const [resendIn, setResendIn] = useState(0);
+  const [canUsePasskey, setCanUsePasskey] = useState(false);
+   useEffect(() => setCanUsePasskey(passkeysSupported()), []);
 
   const value = method === 'email' ? email : phone;
   const isEmail = method === 'email';
@@ -75,6 +78,19 @@ export default function OtpLogin({ onLoggedIn }: Props) {
       setOauthError((e as Error).message);
     }
   }
+
+   async function passkeySignIn() {
+     setOauthError('');
+     try {
+       const res = await signInWithPasskey();
+       if (!res) return; // dialog closed
+       setTokens(res.accessToken, res.refreshToken);
+       trackLogin('passkey', 'candidate');
+       onLoggedIn();
+     } catch (e) {
+       setOauthError((e as Error).message);
+     }
+   }
 
   /** Endpoint + payload key differ by method; everything else is shared. */
   function endpoints() {
@@ -291,6 +307,11 @@ export default function OtpLogin({ onLoggedIn }: Props) {
             >
               <GithubIcon /> Sign in with GitHub
             </button>
+               {canUsePasskey && (
+              <button type="button" className="btn btn-secondary" style={{ width: '100%' }} onClick={passkeySignIn}>
+              <span aria-hidden="true">🔑</span> Sign in with a passkey
+              </button>
+         )}
           </div>
 
           {oauthError && <p className="error">{oauthError}</p>}

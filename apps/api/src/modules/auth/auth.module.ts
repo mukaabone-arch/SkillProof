@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { PasskeysController } from './passkeys.controller';
+import { PasskeysService } from './passkeys.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
 import { OrgMemberGuard } from './org-member.guard';
@@ -24,7 +26,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     // EMAIL_PROVIDER, for employer-signup OTP emails — see AuthService.sendOtpEmail.
     NotificationsModule,
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, PasskeysController],
   providers: [
     AuthService,
     JwtAuthGuard,
@@ -36,6 +38,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     CandidateVerificationGuard,
     GoogleOAuthProvider,
     GithubOAuthProvider,
+    PasskeysService,
   ],
   // CandidateVerificationGuard and OrgActiveGuard must both be exported
   // even though nothing injects them directly except JwtAuthGuard/

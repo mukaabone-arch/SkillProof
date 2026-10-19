@@ -353,6 +353,7 @@ model User {
   badges                    Badge[]
   refreshTokens             RefreshToken[]
   webSessionCodes           WebSessionCode[]
+  passkeys                  Passkey[]
   orgMembership             OrgMember?
   notifications             Notification[]
   reviewedAttempts          Attempt[]           @relation("AttemptReviewedBy")
@@ -3221,4 +3222,30 @@ model NewsItem {
 
   @@unique([source, link])
   @@index([publishedAt])
+}
+
+/// A WebAuthn passkey (see PasskeysService). `id` is the credential ID
+/// (base64url) the authenticator returns, so sign-in looks it up directly.
+model Passkey {
+  id         String    @id
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publicKey  Bytes
+  counter    Int       @default(0)
+  transports String[]
+  deviceType String
+  backedUp   Boolean
+  name       String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  @@index([userId])
+}
+
+/// Single-use, 5-minute WebAuthn challenges, deleted when consumed.
+model WebAuthnChallenge {
+  id        String   @id @default(cuid())
+  challenge String
+  userId    String?
+  expiresAt DateTime
 }

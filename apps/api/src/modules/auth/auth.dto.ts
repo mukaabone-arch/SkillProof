@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsPhoneNumber, IsString, Length, MaxLength, MinLength, ValidateIf } from 'class-validator';
+import { IsEmail, IsObject, IsOptional, IsPhoneNumber, IsString, Length, MaxLength, MinLength, ValidateIf } from 'class-validator';
 
 export class RequestOtpDto {
   // 'IN' default region; accepts +91XXXXXXXXXX or local formats
@@ -135,3 +135,19 @@ export class RedeemWebSessionDto {
   code: string;
 }
 
+
+export class PasskeyVerifyDto {
+  @IsString()
+  challengeId!: string;
+
+  /** Raw WebAuthn response from the browser — validated cryptographically by PasskeysService, not here. */
+  @IsObject()
+  response!: Record<string, unknown>;
+}
+
+export class PasskeyRegisterVerifyDto extends PasskeyVerifyDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  name?: string;
+}

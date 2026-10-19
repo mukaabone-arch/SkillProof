@@ -1,3 +1,4 @@
+import type { User as PasskeyUser } from '@prisma/client';
 import {
   BadRequestException,
   ConflictException,
@@ -673,6 +674,16 @@ export class AuthService {
   }
 
   /**
+   * Passkey sign-in (see PasskeysService.verifyLogin) — the passkey's
+   * signature already proved who this is, so this only issues tokens
+   * through the same choke point as every other login path. Never creates
+   * a user: passkeys are only ever added to an existing account.
+   */
+  issueTokensForPasskey(user: PasskeyUser) {
+    return this.issueTokens(user.id, user.role, false, this.publicUser(user));
+  }
+
+  /**
    * Sign-in/sign-up policy shared by every non-phone provider (spec: three
    * equal sign-up paths):
    *
@@ -1051,6 +1062,7 @@ export class AuthService {
             orgsDeactivated: true,
             assessmentBlocks: true,
             assessmentBlocksLifted: true,
+            passkeys: true,
           },
         },
       },

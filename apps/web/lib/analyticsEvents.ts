@@ -31,7 +31,7 @@ export function track(event: string, params?: Record<string, string | number>): 
 }
 
 /** How the account authenticated — reused across sign_up/login/verification_complete so all three read the same vocabulary. */
-export type AuthMethod = 'phone_otp' | 'email_otp' | 'google' | 'github';
+export type AuthMethod = 'phone_otp' | 'email_otp' | 'google' | 'github' | 'passkey';
 export type FunnelRole = 'candidate' | 'employer';
 
 /**

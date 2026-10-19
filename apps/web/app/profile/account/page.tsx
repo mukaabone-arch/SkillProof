@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { api, logout, type ApiError } from '@/lib/api';
 import CandidateNav from '@/components/CandidateNav';
 import ConsentSettingsLink from '@/components/ConsentSettingsLink';
+import PasskeysSection from '@/components/PasskeysSection';
 import { Badge, Card, ErrorState, LoadingState } from '@/components/ui';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 
@@ -524,6 +525,7 @@ export default function AccountSettingsPage() {
         {!status && !loadError && <LoadingState />}
 
         <LoginMethodsCard />
+        <PasskeysSection />
 
 
         {status && SHOW_DATA_EXPORT_UI && <ExportsCard />}
