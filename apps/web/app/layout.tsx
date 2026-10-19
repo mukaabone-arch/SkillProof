@@ -3,6 +3,7 @@ import './globals.css';
 import Providers from '@/components/Providers';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://www.myambii.com'),
   title: 'MyAmbii — Verified AI talent',
   description: 'Take rigorous AI-skill assessments, earn verified badges, get matched.',
 };
