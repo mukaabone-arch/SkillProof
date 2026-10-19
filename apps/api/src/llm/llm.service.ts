@@ -10,6 +10,15 @@ import { CandidateRoleTitle, SkillLevel } from '@prisma/client';
  */
 const MODEL = 'claude-haiku-4-5';
 
+// Text-first resume input: sending a PDF as a document makes the model process
+// every page as an image as well as text, which is most of the latency. Plain
+// extracted text is far smaller; scanned/image-only PDFs have no text layer and
+// fall back to the document path automatically (see resumeSource).
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const pdfParse: (data: Buffer) => Promise<{ text: string; numpages: number }> = require('pdf-parse/lib/pdf-parse.js');
+const MIN_RESUME_TEXT_CHARS = 200;
+const MAX_RESUME_TEXT_CHARS = 30_000;
+
 export interface ResumeExtraction {
   fullName: string | null;
   headline: string | null;
@@ -277,8 +286,25 @@ export class LlmService {
     this.client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   }
 
+  /** Extracted text when the PDF has a real text layer; the original PDF otherwise. */
+  private async resumeSource(pdfBase64: string): Promise<Anthropic.ContentBlockParam> {
+    try {
+      const { text, numpages } = await pdfParse(Buffer.from(pdfBase64, 'base64'));
+      const clean = text.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+      if (clean.length >= MIN_RESUME_TEXT_CHARS) {
+        this.logger.log(`Resume sent as text (${numpages} page(s), ${clean.length} chars)`);
+        return { type: 'text', text: `<resume>\n${clean.slice(0, MAX_RESUME_TEXT_CHARS)}\n</resume>` };
+      }
+      this.logger.log('Resume has little or no text layer, sending the PDF itself');
+    } catch (e) {
+      this.logger.warn(`PDF text extraction failed, sending the PDF itself: ${(e as Error).message}`);
+    }
+    return { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } };
+  }
+
   async extractResumeFields(pdfBase64: string): Promise<ResumeExtraction> {
     this.logger.log('Requesting resume field extraction from Claude');
+    const resumeBlock = await this.resumeSource(pdfBase64);
 
     const parsed = await this.callForJson(
       {
@@ -295,10 +321,7 @@ export class LlmService {
           {
             role: 'user',
             content: [
-              {
-                type: 'document',
-                source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 },
-              },
+              resumeBlock,
               {
                 type: 'text',
                 text:
@@ -337,6 +360,7 @@ export class LlmService {
    */
   async improveResume(pdfBase64: string): Promise<ResumeImprovement> {
     this.logger.log('Requesting resume improvement from Claude');
+    const resumeBlock = await this.resumeSource(pdfBase64);
 
     const parsed = await this.callForJson(
       {
@@ -355,10 +379,7 @@ export class LlmService {
           {
             role: 'user',
             content: [
-              {
-                type: 'document',
-                source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 },
-              },
+              resumeBlock,
               {
                 type: 'text',
                 text:
