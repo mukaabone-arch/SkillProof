@@ -1717,6 +1717,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
    app/layout.tsx / components/Providers.tsx, neither wraps children in an
    extra element) — so this tracks whatever tier each page actually uses
    with no prop-threading between page components and the nav. */
+/* 2026-10: the header now uses the WIDE width on every tier, so the logo and
+   menu sit in the same place on every page; only <main> keeps its own tier. */
 .appnav-inner { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); height: 76px; max-width: 880px; margin: 0 auto; padding: 0 24px; }
 body:has(main.container-reading) .appnav-inner,
 body:has(main.container-standard) .appnav-inner,
@@ -1725,8 +1727,8 @@ body:has(main.container-wide) .appnav-inner {
   padding-left: 0;
   padding-right: 0;
 }
-body:has(main.container-reading) .appnav-inner  { width: min(100% - (var(--container-gutter) * 2), var(--container-reading)); }
-body:has(main.container-standard) .appnav-inner { width: min(100% - (var(--container-gutter) * 2), var(--container-standard)); }
+body:has(main.container-reading) .appnav-inner  { width: min(100% - (var(--container-gutter) * 2), var(--container-wide)); }
+body:has(main.container-standard) .appnav-inner { width: min(100% - (var(--container-gutter) * 2), var(--container-wide)); }
 body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--container-gutter) * 2), var(--container-wide)); }
 /* Same 900px step main.container-wide itself takes (see the layout
    container system above) — without this, a wide-tier page's nav would
@@ -1735,6 +1737,8 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
    to one column), misaligning the two again in exactly the band this
    whole fix is for. */
 @media (max-width: 900px) {
+  body:has(main.container-reading) .appnav-inner,
+  body:has(main.container-standard) .appnav-inner,
   body:has(main.container-wide) .appnav-inner { width: min(100% - (var(--container-gutter) * 2), var(--container-reading)); }
 }
 /* The 44px lockup (wordmark already hidden below 640px — see the branding
