@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { api } from '@/lib/api';
-import { addPasskey, guessDeviceName, passkeysSupported } from '@/lib/passkeys';
+import { addPasskey, apiFor, guessDeviceName, passkeysSupported, type Portal } from '@/lib/passkeys';
 
 type Passkey = { id: string; name: string | null; createdAt: string; lastUsedAt: string | null; backedUp: boolean };
 
 const fmt = (d: string) => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
-export default function PasskeysSection() {
+export default function PasskeysSection({ portal = 'candidate' }: { portal?: Portal }) {
+  const api = apiFor(portal);
   const [items, setItems] = useState<Passkey[] | null>(null);
   const [supported, setSupported] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -31,7 +31,7 @@ export default function PasskeysSection() {
     setError('');
     setBusy(true);
     try {
-      if (await addPasskey(guessDeviceName())) await load();
+      if (await addPasskey(guessDeviceName(), portal)) await load();
     } catch (e) {
       setError((e as Error).message);
     } finally {

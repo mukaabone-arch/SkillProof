@@ -34,6 +34,7 @@ import { trackLogin, trackSignUp } from '@/lib/analyticsEvents';
 import BrandLockup from './BrandLockup';
 import AuthMessageRotator, { type AuthMessage } from './AuthMessageRotator';
 import LegalAcceptanceNote from './LegalAcceptanceNote';
+import { passkeysSupported, signInWithPasskey } from '@/lib/passkeys';
 
 const { api, setTokens } = employerApi;
 
@@ -72,6 +73,8 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [resendIn, setResendIn] = useState(0);
+  const [canUsePasskey, setCanUsePasskey] = useState(false);
+  useEffect(() => setCanUsePasskey(passkeysSupported()), []);
 
   useEffect(() => {
     if (resendIn <= 0) return;
@@ -112,6 +115,19 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function passkeySignIn() {
+    setError('');
+    try {
+      const res = await signInWithPasskey('employer');
+      if (!res) return; // dialog closed
+      setTokens(res.accessToken, res.refreshToken);
+      trackLogin('passkey', 'employer');
+      onLoggedIn();
+    } catch (e) {
+      setError((e as Error).message);
     }
   }
 
@@ -179,6 +195,21 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
               <button style={{ width: '100%' }} onClick={sendCode} disabled={!canSend}>
                 {busy ? 'Sending code…' : 'Send code'}
               </button>
+              {canUsePasskey && (
+                <>
+                  <div
+                    className="auth-divider-label"
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0', fontSize: '0.8rem' }}
+                  >
+                    <span style={{ flex: 1, height: 1, background: 'var(--ink-12)' }} />
+                    or
+                    <span style={{ flex: 1, height: 1, background: 'var(--ink-12)' }} />
+                  </div>
+                  <button type="button" className="btn btn-secondary" style={{ width: '100%' }} onClick={passkeySignIn}>
+                    <span aria-hidden="true">🔑</span> Sign in with a passkey
+                  </button>
+                </>
+              )}
             </>
           )}
 

@@ -20,6 +20,7 @@ import { SearchableSelect } from '@/components/SearchableSelect';
 import { formatOrgIndustry, OrgIndustry, ORG_INDUSTRY_OPTIONS } from '@/lib/orgIndustry';
 import { useOrgLogo } from '@/lib/useOrgLogo';
 import OrgMark from '@/components/OrgMark';
+import PasskeysSection from './PasskeysSection';
 
 const { api } = employerApi;
 
@@ -613,6 +614,7 @@ export default function EmployerSettings() {
         </p>
         <ConsentSettingsLink />
       </div>
+      <PasskeysSection portal="employer" />
     </main>
   );
 }

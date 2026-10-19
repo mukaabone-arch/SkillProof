@@ -1,4 +1,4 @@
-import { IsEmail, IsObject, IsOptional, IsPhoneNumber, IsString, Length, MaxLength, MinLength, ValidateIf } from 'class-validator';
+import { IsEmail, IsIn, IsObject, IsOptional, IsPhoneNumber, IsString, Length, MaxLength, MinLength, ValidateIf } from 'class-validator';
 
 export class RequestOtpDto {
   // 'IN' default region; accepts +91XXXXXXXXXX or local formats
@@ -143,6 +143,11 @@ export class PasskeyVerifyDto {
   /** Raw WebAuthn response from the browser — validated cryptographically by PasskeysService, not here. */
   @IsObject()
   response!: Record<string, unknown>;
+
+  /** Which login screen this came from — omitted means candidate (keeps older clients working). */
+  @IsOptional()
+  @IsIn(['candidate', 'employer'])
+  portal?: 'candidate' | 'employer';
 }
 
 export class PasskeyRegisterVerifyDto extends PasskeyVerifyDto {

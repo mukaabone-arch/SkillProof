@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
@@ -155,7 +156,7 @@ export class PasskeysService {
     return { options, challengeId };
   }
 
-  async verifyLogin(challengeId: string, response: AuthenticationResponseJSON) {
+  async verifyLogin(challengeId: string, response: AuthenticationResponseJSON, portal: 'candidate' | 'employer' = 'candidate') {
     const { rpID, origins } = config();
     const challenge = await this.consumeChallenge(challengeId);
 
@@ -164,10 +165,6 @@ export class PasskeysService {
       throw new UnauthorizedException(
         "This passkey isn't registered with MyAmbii. Sign in another way, then add it from your account settings.",
       );
-    }
-    // Same cross-portal rule as verifyCandidateEmailOtp.
-    if (EMPLOYER_ROLES.includes(passkey.user.role)) {
-      throw new BadRequestException('This passkey belongs to an employer account. Log in from the employer portal.');
     }
 
     let result;
@@ -188,6 +185,19 @@ export class PasskeysService {
       throw new UnauthorizedException('Passkey sign-in failed. Please try again.');
     }
     if (!result.verified) throw new UnauthorizedException('Passkey sign-in failed. Please try again.');
+
+    // Portal rules — checked only after the signature verified, so they never
+    // reveal anything about an account to someone who doesn't hold its key.
+    if (portal === 'employer') {
+      // Same rule as AuthService.loginEmployerWithIdentity: employer role AND an OrgMember row.
+      const membership = await this.prisma.orgMember.findUnique({ where: { userId: passkey.userId } });
+      if (!EMPLOYER_ROLES.includes(passkey.user.role) || !membership) {
+        throw new ForbiddenException("This account isn't registered as an employer. Contact your administrator.");
+      }
+    } else if (EMPLOYER_ROLES.includes(passkey.user.role)) {
+      // Same cross-portal rule as verifyCandidateEmailOtp.
+      throw new BadRequestException('This passkey belongs to an employer account. Log in from the employer portal.');
+    }
 
     await this.prisma.passkey.update({
       where: { id: passkey.id },

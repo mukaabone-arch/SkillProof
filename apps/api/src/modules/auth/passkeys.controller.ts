@@ -27,7 +27,11 @@ export class PasskeysController {
   @HttpCode(200)
   loginVerify(@Req() req: Request, @Body() dto: PasskeyVerifyDto) {
     this.limiter.hit(`verify:${clientIp(req)}`);
-    return this.passkeys.verifyLogin(dto.challengeId, dto.response as unknown as AuthenticationResponseJSON);
+    return this.passkeys.verifyLogin(
+      dto.challengeId,
+      dto.response as unknown as AuthenticationResponseJSON,
+      dto.portal ?? 'candidate',
+    );
   }
 
   @Post('register/options')
