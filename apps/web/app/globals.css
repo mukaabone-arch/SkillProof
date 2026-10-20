@@ -3813,3 +3813,80 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    page's usual overflow offenders at 390px — see this app's documented
    history of horizontal overflow bugs. */
 .portfolio-view .chip, .portfolio-view .ui-badge { overflow-wrap: anywhere; max-width: 100%; }
+
+/* ---- Candidate header: glass icon tiles (CandidateNav) ----
+   Each link is a frosted tile + small label. Scoped under .appnav-links with
+   the .nav-glass class so it overrides the old text-link styles without
+   touching the employer/admin navs. */
+.appnav-links { align-items: center; }
+.appnav-links a.nav-glass {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  color: var(--ink-70, rgba(233, 233, 237, 0.75));
+  text-decoration: none;
+  font-weight: 500;
+  border-bottom: none;
+}
+.nav-glass-tile {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.03));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 6px 18px rgba(0, 0, 0, 0.25);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  backdrop-filter: blur(12px) saturate(140%);
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.nav-glass-label { font-size: 11.5px; line-height: 1.2; letter-spacing: 0.01em; white-space: nowrap; }
+
+.appnav-links a.nav-glass:hover .nav-glass-tile,
+.appnav-links a.nav-glass:focus-visible .nav-glass-tile {
+  transform: translateY(-1px);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05));
+  border-color: rgba(255, 255, 255, 0.24);
+}
+.appnav-links a.nav-glass:hover,
+.appnav-links a.nav-glass:focus-visible { color: var(--ink, #e9e9ed); }
+.appnav-links a.nav-glass:focus-visible { outline: none; }
+.appnav-links a.nav-glass:focus-visible .nav-glass-tile { outline: 2px solid var(--indigo, #8b84ff); outline-offset: 2px; }
+
+/* Current page: purple glass glow. */
+.appnav-links a.nav-glass.active { color: var(--ink, #e9e9ed); }
+.appnav-links a.nav-glass.active .nav-glass-tile {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--indigo, #8b84ff) 45%, transparent), color-mix(in srgb, var(--indigo, #8b84ff) 18%, transparent));
+  border-color: color-mix(in srgb, var(--indigo, #8b84ff) 70%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 0 18px color-mix(in srgb, var(--indigo, #8b84ff) 45%, transparent);
+}
+.appnav-links a.nav-glass-upgrade { color: var(--indigo, #8b84ff); }
+
+/* Narrow screens: icons only; labels stay for screen readers and the hover title. */
+@media (max-width: 760px) {
+  .nav-glass-label {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  .nav-glass-tile { width: 36px; height: 36px; border-radius: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-glass-tile { transition: none; }
+}
+
+/* Active page tile: solid deep purple so the current page is unmistakable
+   (the earlier translucent tint read too close to the inactive tiles). */
+.appnav-links a.nav-glass.active .nav-glass-tile {
+  background: linear-gradient(160deg, #7a6cf0 0%, #4c3fb4 100%);
+  border-color: rgba(190, 182, 255, 0.85);
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 0 0 3px rgba(122, 108, 240, 0.22),
+    0 6px 20px rgba(76, 63, 180, 0.55);
+}
+.appnav-links a.nav-glass.active .nav-glass-label { color: #ffffff; font-weight: 700; }
+.appnav-links a.nav-glass.active:hover .nav-glass-tile { transform: none; }
