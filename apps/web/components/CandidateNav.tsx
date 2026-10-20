@@ -88,9 +88,9 @@ export default function CandidateNav({ onLoggedOut }: Props) {
             label={fullName ?? 'Account'}
             initials={fullName ? initialsFrom(fullName) : undefined}
             items={[
-              { label: 'Profile', href: '/profile' },
-              { label: 'Account', href: '/profile/account' },
-              { label: 'Log out', onClick: handleLogout },
+              { label: 'Profile', href: '/profile', icon: 'profile' },
+              { label: 'Account', href: '/profile/account', icon: 'settings' },
+              { label: 'Log out', onClick: handleLogout, icon: 'logout' },
             ]}
           />
         </div>

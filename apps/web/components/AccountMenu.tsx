@@ -21,6 +21,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import NavGlyph, { type NavGlyphName } from './NavGlyphs';
 
 export interface AccountMenuItem {
   label: string;
@@ -29,6 +30,8 @@ export interface AccountMenuItem {
   rel?: string;
   /** For an action item (Log out) rather than a link. */
   onClick?: () => void;
+  /** Optional glass icon shown before the label (see NavGlyphs). */
+  icon?: NavGlyphName;
 }
 
 interface Props {
@@ -94,7 +97,12 @@ export default function AccountMenu({ initials, label, items }: Props) {
                 className="account-menu-item"
                 onClick={() => setOpen(false)}
               >
-                {item.label}
+                {item.icon && (
+                  <span className="account-menu-icon">
+                    <NavGlyph name={item.icon} />
+                  </span>
+                )}
+                <span>{item.label}</span>
               </Link>
             ) : (
               <button
@@ -107,7 +115,12 @@ export default function AccountMenu({ initials, label, items }: Props) {
                   item.onClick?.();
                 }}
               >
-                {item.label}
+                {item.icon && (
+                  <span className="account-menu-icon">
+                    <NavGlyph name={item.icon} />
+                  </span>
+                )}
+                <span>{item.label}</span>
               </button>
             ),
           )}

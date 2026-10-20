@@ -56,15 +56,16 @@ import { useOrgLogo } from '@/lib/useOrgLogo';
 import BrandLockup from './BrandLockup';
 import OrgMark from './OrgMark';
 import AccountMenu from './AccountMenu';
+import NavGlyph, { type NavGlyphName } from './NavGlyphs';
 
-const SECTIONS = [
-  { href: '/employer/dashboard', label: 'Dashboard' },
-  { href: '/employer/jobs', label: 'Job Postings' },
-  { href: '/employer/candidates', label: 'Find Candidates' },
-  { href: '/employer/applicants', label: 'Applicants' },
-  { href: '/employer/shortlist', label: 'Shortlist' },
-  { href: '/employer/billing', label: 'Billing' },
-  { href: '/employer/settings', label: 'Settings' },
+const SECTIONS: { href: string; label: string; icon: NavGlyphName }[] = [
+  { href: '/employer/dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { href: '/employer/jobs', label: 'Job Postings', icon: 'postings' },
+  { href: '/employer/candidates', label: 'Find Candidates', icon: 'search' },
+  { href: '/employer/applicants', label: 'Applicants', icon: 'applicants' },
+  { href: '/employer/shortlist', label: 'Shortlist', icon: 'shortlist' },
+  { href: '/employer/billing', label: 'Billing', icon: 'billing' },
+  { href: '/employer/settings', label: 'Settings', icon: 'settings' },
 ];
 
 /** Minimal shape this shell needs for the topbar identity — a subset of app/employer/layout.tsx's own OrgMeOrganization. */
@@ -134,10 +135,10 @@ export default function EmployerSidebarShell({ verified, org, onLoggedOut, child
           <AccountMenu
             label={org?.name ?? 'Account'}
             items={[
-              { label: 'Settings', href: '/employer/settings' },
-              { label: 'Billing', href: '/employer/billing' },
-              { label: 'Team members', href: '/employer/settings#team' },
-              { label: 'Log out', onClick: handleLogout },
+              { label: 'Settings', href: '/employer/settings', icon: 'settings' },
+              { label: 'Billing', href: '/employer/billing', icon: 'billing' },
+              { label: 'Team members', href: '/employer/settings#team', icon: 'applicants' },
+              { label: 'Log out', onClick: handleLogout, icon: 'logout' },
             ]}
           />
         </div>
@@ -150,10 +151,14 @@ export default function EmployerSidebarShell({ verified, org, onLoggedOut, child
               <Link
                 key={s.href}
                 href={s.href}
-                className={active ? 'active' : ''}
+                className={active ? 'side-glass active' : 'side-glass'}
+                aria-current={active ? 'page' : undefined}
                 onClick={() => setMobileOpen(false)}
               >
-                {s.label}
+                <span className="nav-glass-tile">
+                  <NavGlyph name={s.icon} />
+                </span>
+                <span>{s.label}</span>
               </Link>
             );
           })}
@@ -161,8 +166,17 @@ export default function EmployerSidebarShell({ verified, org, onLoggedOut, child
               outside the `verified` filter above. Opens in its own named
               tab (never this one) — see HelpGuidePage.tsx's own doc comment
               on why the help pages carry no way back into the app. */}
-          <Link href="/help/employer" target="myambii-help" rel="noopener" onClick={() => setMobileOpen(false)}>
-            Help
+          <Link
+            href="/help/employer"
+            target="myambii-help"
+            rel="noopener"
+            className="side-glass"
+            onClick={() => setMobileOpen(false)}
+          >
+            <span className="nav-glass-tile">
+              <NavGlyph name="help" />
+            </span>
+            <span>Help</span>
           </Link>
         </nav>
         {mobileOpen && (

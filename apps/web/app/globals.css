@@ -3890,3 +3890,55 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 }
 .appnav-links a.nav-glass.active .nav-glass-label { color: #ffffff; font-weight: 700; }
 .appnav-links a.nav-glass.active:hover .nav-glass-tile { transform: none; }
+
+/* ---- Employer sidebar: glass icon tiles (EmployerSidebarShell) ----
+   Light-theme counterpart of the candidate header's .nav-glass tiles:
+   frosted white glass with a faint brand edge; the active page gets the same
+   solid purple tile as the candidate side. Scoped to .employer-sidebar. */
+.employer-sidebar a.side-glass {
+  display: flex; align-items: center; gap: 12px;
+  padding: 7px 10px;
+}
+.employer-sidebar .nav-glass-tile {
+  display: grid; place-items: center; flex-shrink: 0;
+  width: 34px; height: 34px; border-radius: 10px;
+  color: var(--brand-600, #5b4fe0);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.6));
+  border: 1px solid rgba(91, 79, 224, 0.18);
+  box-shadow: inset 0 1px 0 #ffffff, 0 4px 12px rgba(40, 30, 120, 0.10);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  backdrop-filter: blur(10px) saturate(140%);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.employer-sidebar a.side-glass:hover .nav-glass-tile {
+  transform: translateY(-1px);
+  border-color: rgba(91, 79, 224, 0.35);
+  box-shadow: inset 0 1px 0 #ffffff, 0 6px 16px rgba(40, 30, 120, 0.16);
+}
+.employer-sidebar a.side-glass.active { font-weight: 700; }
+.employer-sidebar a.side-glass.active .nav-glass-tile {
+  color: #ffffff;
+  background: linear-gradient(160deg, #7a6cf0 0%, #4c3fb4 100%);
+  border-color: rgba(122, 108, 240, 0.9);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 0 0 3px rgba(122, 108, 240, 0.18), 0 6px 16px rgba(76, 63, 180, 0.35);
+}
+.employer-sidebar a.side-glass:focus-visible { outline: none; }
+.employer-sidebar a.side-glass:focus-visible .nav-glass-tile { outline: 2px solid var(--brand-600, #5b4fe0); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .employer-sidebar .nav-glass-tile { transition: none; }
+}
+
+/* ---- Account menu: glass icons (AccountMenu items with `icon`) ----
+   Same frosted-tile language as the sidebar/header nav, sized down for a
+   dropdown row. Items without an icon are unaffected apart from the flex row. */
+.account-menu-item { display: flex; align-items: center; gap: 10px; }
+.account-menu-icon {
+  display: grid; place-items: center; flex-shrink: 0;
+  width: 28px; height: 28px; border-radius: 8px;
+  color: var(--brand-600, #5b4fe0);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.6));
+  border: 1px solid rgba(91, 79, 224, 0.18);
+  box-shadow: inset 0 1px 0 #ffffff, 0 3px 8px rgba(40, 30, 120, 0.08);
+}
+.account-menu-icon svg { width: 16px; height: 16px; }
+.account-menu-item:hover .account-menu-icon { border-color: rgba(91, 79, 224, 0.35); }
