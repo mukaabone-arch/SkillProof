@@ -5,6 +5,7 @@ import {
   EmployerInviteSignal,
   formatDateTime,
   InterviewSignal,
+  possessive,
   MatchedJobSignal,
   MAX_PLAN_STEPS,
   mostUrgentInterview,
@@ -19,7 +20,7 @@ const days = (n: number) => new Date(NOW.getTime() + n * 86_400_000).toISOString
 /**
  * The OLD single-message ladder, copied from apps/web/components/Dashboard.tsx
  * (buildCopilotMessage + its helpers) as of 2026-10-21, adapted only to read
- * the same signal shapes. It exists so the parity test below can prove the
+ * the same signal shapes (plus the possessive fix, applied to both). It exists so the parity test below can prove the
  * server port shows exactly what the dashboard showed. Delete it once the web
  * ladder itself is deleted and the plan has diverged on purpose.
  */
@@ -61,7 +62,7 @@ function legacyLadder(s: CopilotSignals) {
   if (active.length > 0 || expiredInvite) {
     const exDays = (e: string | Date) => Math.max(0, Math.ceil((new Date(e).getTime() - NOW.getTime()) / 86_400_000));
     if (active.length === 0) {
-      return { eyebrow: 'Assessment expired', message: `${expiredInvite!.organization.name}'s request to verify ${expiredInvite!.skill.name} expired before you started it.`, ctaLabel: 'Request a new invite', ctaHref: '/assessments' };
+      return { eyebrow: 'Assessment expired', message: `${possessive(expiredInvite!.organization.name)} request to verify ${expiredInvite!.skill.name} expired before you started it.`, ctaLabel: 'Request a new invite', ctaHref: '/assessments' };
     }
     const inv = [...active].sort((a, b) => (!a.expiresAt ? 1 : !b.expiresAt ? -1 : new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime()))[0];
     const more = active.length - 1;
@@ -79,7 +80,7 @@ function legacyLadder(s: CopilotSignals) {
         moreLink,
       };
     }
-    if (inv.status === 'STARTED' && inv.submitted) return { eyebrow: 'Assessment submitted', message: `${org}'s ${skill} assessment is with a reviewer. We'll notify you when scoring completes.`, moreLink };
+    if (inv.status === 'STARTED' && inv.submitted) return { eyebrow: 'Assessment submitted', message: `${possessive(org)} ${skill} assessment is with a reviewer. We'll notify you when scoring completes.`, moreLink };
     if (inv.status === 'STARTED') return { eyebrow: 'Assessment in progress', message: `Pick up where you left off on ${skill} for ${org}.`, meta: inv.startedAt ? 'Started 2 days ago' : undefined, ctaLabel: 'Resume assessment', ctaAction: { kind: 'resume', requestId: inv.id, level: inv.level }, moreLink };
     const parts: string[] = [];
     if (inv.durationMins) parts.push(`~${inv.durationMins} min`);
@@ -194,6 +195,7 @@ const variants = {
     [inv({ level: null, durationMins: null })],
     [inv({ level: null, status: 'STARTED' })],
     [inv({ status: 'EXPIRED_UNBILLED' })],
+    [inv({ status: 'EXPIRED_UNBILLED', organization: { name: 'Mukaab Technologies' } })],
     [inv({ id: 'late', expiresAt: days(4) }), inv({ id: 'soon', expiresAt: days(1) }), inv({ id: 'none', expiresAt: null })],
   ] as EmployerInviteSignal[][],
   matchedJobs: [
@@ -310,6 +312,12 @@ describe('selection helpers', () => {
       skillName: 'Y',
       count: 3,
     });
+  });
+
+  it('possessive: bare apostrophe after a trailing s', () => {
+    expect(possessive('Mukaab Technologies')).toBe("Mukaab Technologies'");
+    expect(possessive('Globex')).toBe("Globex's");
+    expect(possessive('Acme Labs ')).toBe("Acme Labs '");
   });
 
   it('formatDateTime falls back to Asia/Kolkata for an invalid zone', () => {

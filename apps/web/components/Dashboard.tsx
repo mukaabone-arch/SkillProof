@@ -404,6 +404,11 @@ function selectEmployerInvite(invites: EmployerInvite[]): SelectedEmployerInvite
  * correct per-level picker/actions, so a whole-skill invite just links
  * there instead of trying to reproduce that inline.
  */
+/** "Mukaab Technologies' request", not "Technologies's". Mirrors possessive() in apps/api's copilot-plan.ts. */
+function possessive(name: string): string {
+  return /s$/i.test(name.trim()) ? `${name}'` : `${name}'s`;
+}
+
 function employerInviteCopilotMessage(selection: SelectedEmployerInvite): CopilotMessage {
   const { invite, moreCount, expired } = selection;
   const moreLink =
@@ -412,7 +417,7 @@ function employerInviteCopilotMessage(selection: SelectedEmployerInvite): Copilo
   if (expired) {
     return {
       eyebrow: 'Assessment expired',
-      message: `${invite.organization.name}'s request to verify ${invite.skill.name} expired before you started it.`,
+      message: `${possessive(invite.organization.name)} request to verify ${invite.skill.name} expired before you started it.`,
       ctaLabel: 'Request a new invite',
       ctaHref: '/assessments',
     };
@@ -435,7 +440,7 @@ function employerInviteCopilotMessage(selection: SelectedEmployerInvite): Copilo
   if (invite.status === 'STARTED' && invite.submitted) {
     return {
       eyebrow: 'Assessment submitted',
-      message: `${invite.organization.name}'s ${invite.skill.name} assessment is with a reviewer. We'll notify you when scoring completes.`,
+      message: `${possessive(invite.organization.name)} ${invite.skill.name} assessment is with a reviewer. We'll notify you when scoring completes.`,
       moreLink,
     };
   }

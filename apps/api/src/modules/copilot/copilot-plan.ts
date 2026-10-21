@@ -182,6 +182,11 @@ export function formatDateTime(v: string | Date, timeZone: string): string {
   }
 }
 
+/** "Mukaab Technologies' request", not "Technologies's" — for org names ending in s. */
+export function possessive(name: string): string {
+  return /s$/i.test(name.trim()) ? `${name}'` : `${name}'s`;
+}
+
 function roleLineFor(job: { title: string } | null): string {
   return job ? ` for ${job.title}` : '';
 }
@@ -311,7 +316,7 @@ function employerInviteStep(sel: SelectedEmployerInvite, now: Date): CopilotStep
     return {
       id,
       eyebrow: 'Assessment expired',
-      message: `${org}'s request to verify ${skill} expired before you started it.`,
+      message: `${possessive(org)} request to verify ${skill} expired before you started it.`,
       cta: nav('Request a new invite', 'assessments', '/assessments'),
     };
   }
@@ -334,7 +339,7 @@ function employerInviteStep(sel: SelectedEmployerInvite, now: Date): CopilotStep
     return {
       id,
       eyebrow: 'Assessment submitted',
-      message: `${org}'s ${skill} assessment is with a reviewer. We'll notify you when scoring completes.`,
+      message: `${possessive(org)} ${skill} assessment is with a reviewer. We'll notify you when scoring completes.`,
       moreLink,
     };
   }
