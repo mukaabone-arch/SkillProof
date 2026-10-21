@@ -3990,3 +3990,11 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   /* Keep page content clear of the fixed bar. */
   body:has(.appnav-bottom) { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
 }
+
+/* Candidate header on phones: the nav links moved to the bottom bar, so the
+   header now has room for the full "MyAmbii" lockup again. Overrides the
+   640px rule above for the candidate header (.appnav) only; the employer
+   topbar keeps hiding it. */
+@media (max-width: 640px) {
+  .appnav .appnav-logo .brand-product-name { display: inline; }
+}
