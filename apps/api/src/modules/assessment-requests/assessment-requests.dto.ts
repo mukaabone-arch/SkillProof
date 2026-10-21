@@ -16,6 +16,14 @@ export class InitiateAssessmentRequestDto {
 
   @IsString()
   skillId: string;
+
+  /**
+   * The org's own LIVE job this assessment is for (2026-10-21) — required.
+   * Validated server-side (ownership + LIVE) in AssessmentRequestsService.
+   * Closing the job withdraws the request if the candidate hasn't started.
+   */
+  @IsString()
+  jobId: string;
 }
 
 /** Candidate: which of the request's levels they're starting — see AssessmentRequestsService.startFromRequest. */
@@ -23,3 +31,4 @@ export class StartAssessmentRequestLevelDto {
   @IsEnum(SkillLevel)
   level: SkillLevel;
 }
+

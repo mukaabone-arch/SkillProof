@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { AssessmentRequestStatus, AssessmentSessionStatus, AttemptStatus, NotificationType, SkillLevel, TransactionStatus, TransactionType } from '@prisma/client';
+import { AssessmentRequestExclusionReason, AssessmentRequestStatus, AssessmentSessionStatus, AttemptStatus, JobStatus, NotificationType, SkillLevel, TransactionStatus, TransactionType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AssessmentsService } from '../assessments/assessments.service';
@@ -80,6 +80,23 @@ type SettlementOutcome = 'PARTIAL' | 'COMPLETE';
  * already covers both — legacy via STARTED (Transaction already exists
  * then), whole-skill via COMPLETED (Transaction never exists before then).
  *
+ * JOB-LINKED (2026-10-21): every new request names one of the org's LIVE
+ * jobs (AssessmentRequest.jobId) — "verify this skill for this role".
+ * Closing that job (LIVE -> CLOSED) withdraws every request for it that
+ * the candidate hasn't started yet: ACCRUED_PENDING_START -> EXPIRED_UNBILLED
+ * with exclusionReason JOB_CLOSED, ₹0, same terminal state and same atomic
+ * claim as the 5-day expiry (so start-vs-withdraw races resolve exactly like
+ * start-vs-expiry). A request already STARTED is deliberately left alone:
+ * the employer is billed for a started request either way (PARTIAL at
+ * minimum), so cutting it off would charge them for nothing and strand the
+ * candidate mid-assessment — they finish, the employer gets the result, the
+ * candidate keeps any badge. Pull-based like everything else here (see
+ * reconcile): checked on every read and on start, with
+ * AssessmentRequestSettlementJob's hourly sweep as the backstop — never a
+ * push from JobsService, which would make JobsModule import this module
+ * while this module (via AssessmentsModule) already imports JobsModule.
+ * Rows created before this have jobId null and keep their old behaviour.
+ *
  * The old Razorpay integration (order creation, HMAC-SHA256 signature
  * verification, refund-on-expiry) is gone entirely, not left dormant —
  * see the commit that made this change for the reasoning (zero production
@@ -115,9 +132,11 @@ export class AssessmentRequestsService {
    * the old per-level check) and each child's badgeId is set directly, no
    * attempt needed.
    */
-  async create(orgId: string, requestedByUserId: string, candidateId: string, skillId: string) {
+  async create(orgId: string, requestedByUserId: string, candidateId: string, skillId: string, jobId?: string) {
     const shortlisted = await this.prisma.shortlistEntry.findFirst({ where: { orgId, candidateId } });
     if (!shortlisted) throw new ForbiddenException('This candidate is not on your shortlist.');
+
+    await this.assertOpenJob(orgId, jobId);
 
     const candidateProfile = await this.prisma.candidateProfile.findUnique({ where: { id: candidateId } });
     if (!candidateProfile) throw new NotFoundException('Candidate not found');
@@ -134,6 +153,7 @@ export class AssessmentRequestsService {
           requestedByUserId,
           candidateId,
           skillId,
+          jobId,
           status: AssessmentRequestStatus.ALREADY_BADGED,
           levels: {
             create: levels.map((level) => ({ level, badgeId: existingBadges[level]!.id })),
@@ -150,6 +170,7 @@ export class AssessmentRequestsService {
         requestedByUserId,
         candidateId,
         skillId,
+        jobId,
         status: AssessmentRequestStatus.ACCRUED_PENDING_START,
         expiresAt: new Date(createdAt.getTime() + EXPIRY_WINDOW_MS),
         levels: {
@@ -179,6 +200,15 @@ export class AssessmentRequestsService {
    */
   async startFromRequest(requestId: string, level: SkillLevel, userId: string) {
     const request = await this.getOwnedByCandidate(requestId, userId);
+
+    // Belt-and-braces for the window between a job closing and the next
+    // read/sweep withdrawing its requests: never let a candidate START a
+    // request for a role that's already closed. A request they had already
+    // started is unaffected (see this class's doc comment).
+    if (request.status === AssessmentRequestStatus.ACCRUED_PENDING_START && request.job?.status === JobStatus.CLOSED) {
+      await this.withdrawForClosedJob(request.id);
+      throw new ConflictException('This role has been closed, so this invitation was withdrawn.');
+    }
 
     if (request.level !== null) {
       if (level !== request.level) {
@@ -294,7 +324,14 @@ export class AssessmentRequestsService {
   }
 
   /** Employer-facing single request, reconciling/settling on read (see reconcile's own doc comment) before returning. */
-  private readonly displayInclude = { skill: true, organization: true, badge: true } as const;
+  private readonly displayInclude = {
+    skill: true,
+    organization: true,
+    badge: true,
+    // Title + status only — enough for "for the <role>" copy and the
+    // role-closed states; the employer-internal Job.code is never included.
+    job: { select: { id: true, title: true, status: true } },
+  } as const;
 
   async getForEmployer(orgId: string, requestId: string) {
     const request = await this.prisma.assessmentRequest.findUnique({ where: { id: requestId }, include: this.displayInclude });
@@ -504,7 +541,12 @@ export class AssessmentRequestsService {
     attemptId: string | null;
     sessionId: string | null;
     startedAt: Date | null;
+    job?: { status: JobStatus } | null;
   }): Promise<any> {
+    if (request.status === AssessmentRequestStatus.ACCRUED_PENDING_START && request.job?.status === JobStatus.CLOSED) {
+      await this.withdrawForClosedJob(request.id);
+      return this.prisma.assessmentRequest.findUniqueOrThrow({ where: { id: request.id }, include: this.displayInclude });
+    }
     if (request.status !== AssessmentRequestStatus.STARTED) return request;
     if (request.level !== null) return this.reconcileLegacy(request);
     return this.maybeSettleWholeSkill(request);
@@ -663,8 +705,44 @@ export class AssessmentRequestsService {
     throw new NotFoundException('This skill/level combination is not available for assessment.');
   }
 
+  /** The job a new request is for must be this org's own, and currently LIVE — the candidate is being asked to verify a skill for a role they could actually get. */
+  private async assertOpenJob(orgId: string, jobId: string | undefined): Promise<void> {
+    if (!jobId) {
+      throw new BadRequestException({ code: 'JOB_REQUIRED', message: 'Choose the open position you are assessing this candidate for.' });
+    }
+    const job = await this.prisma.job.findUnique({ where: { id: jobId }, select: { orgId: true, status: true } });
+    if (!job || job.orgId !== orgId) throw new NotFoundException('Job not found');
+    if (job.status !== JobStatus.LIVE) {
+      throw new BadRequestException({ code: 'JOB_NOT_OPEN', message: 'You can only assess candidates for a position that is currently open.' });
+    }
+  }
+
+  /**
+   * Withdraws one not-yet-started request because its job closed —
+   * ACCRUED_PENDING_START -> EXPIRED_UNBILLED (₹0), exclusionReason
+   * JOB_CLOSED. Same atomic conditional claim as
+   * AssessmentRequestsExpiryJob.excludeOne, so it races a candidate's start
+   * exactly the way expiry does: whichever commits first wins, and a
+   * request the candidate managed to start stays STARTED (and billable).
+   * Re-checks the job inside the WHERE, so a job reopened in the meantime
+   * withdraws nothing. No Transaction to void: every job-linked request is
+   * whole-skill, which never accrues before settlement. Idempotent — the
+   * sweep, reads and start can all call this for the same row. Notifies
+   * the candidate only; the employer closed the role themselves.
+   */
+  async withdrawForClosedJob(requestId: string): Promise<void> {
+    const { count } = await this.prisma.assessmentRequest.updateMany({
+      where: { id: requestId, status: AssessmentRequestStatus.ACCRUED_PENDING_START, job: { status: JobStatus.CLOSED } },
+      data: { status: AssessmentRequestStatus.EXPIRED_UNBILLED, exclusionReason: AssessmentRequestExclusionReason.JOB_CLOSED },
+    });
+    if (count === 1) await this.notifyCandidateWithdrawn(requestId);
+  }
+
   private async getOwnedByCandidate(requestId: string, userId: string) {
-    const request = await this.prisma.assessmentRequest.findUnique({ where: { id: requestId } });
+    const request = await this.prisma.assessmentRequest.findUnique({
+      where: { id: requestId },
+      include: { job: { select: { status: true } } },
+    });
     if (!request) throw new NotFoundException('Assessment request not found');
     const profile = await this.prisma.candidateProfile.findUnique({ where: { userId } });
     if (!profile || request.candidateId !== profile.id) throw new ForbiddenException();
@@ -675,14 +753,15 @@ export class AssessmentRequestsService {
     try {
       const request = await this.prisma.assessmentRequest.findUniqueOrThrow({
         where: { id: requestId },
-        include: { organization: true, skill: true, candidateProfile: true, levels: true },
+        include: { organization: true, skill: true, candidateProfile: true, levels: true, job: { select: { title: true } } },
       });
       const levelNames = request.levels.map((l) => l.level).join(', ');
+      const roleLine = request.job ? ` for the <strong>${escapeHtml(request.job.title)}</strong> role` : '';
       await this.notifications.sendEmail(
         request.candidateProfile.userId,
         NotificationType.ASSESSMENT_REQUEST_INVITE,
         `${request.organization.name} invited you to verify your ${request.skill.name} skills`,
-        `<p><strong>${request.organization.name}</strong> has invited you to verify <strong>${request.skill.name}</strong> ` +
+        `<p><strong>${request.organization.name}</strong> has invited you to verify <strong>${request.skill.name}</strong>${roleLine} ` +
           `across all of its levels (${levelNames}). Attempt them in any order.</p>` +
           `<p>Start at least one within 5 days, before ${request.expiresAt?.toDateString()} — it's free until you do.</p>` +
           `<p>When you finish a level, ${request.organization.name} will see whether you passed, your score, and how ` +
@@ -690,6 +769,26 @@ export class AssessmentRequestsService {
       );
     } catch {
       // Best-effort — same contract as every other NotificationsService caller.
+    }
+  }
+
+  private async notifyCandidateWithdrawn(requestId: string): Promise<void> {
+    try {
+      const request = await this.prisma.assessmentRequest.findUniqueOrThrow({
+        where: { id: requestId },
+        include: { organization: true, skill: true, candidateProfile: true, job: { select: { title: true } } },
+      });
+      const role = request.job ? `the ${request.job.title} role` : 'this role';
+      await this.notifications.sendEmail(
+        request.candidateProfile.userId,
+        NotificationType.ASSESSMENT_REQUEST_EXPIRED,
+        `${request.organization.name} closed ${role}`,
+        `<p><strong>${request.organization.name}</strong> has closed ${request.job ? `the <strong>${escapeHtml(request.job.title)}</strong> role` : 'this role'}, ` +
+          `so their invitation to verify <strong>${request.skill.name}</strong> has been withdrawn. There's nothing you need to do.</p>` +
+          `<p>You can still verify ${request.skill.name} on your own any time from Assessments — your badges are yours to keep.</p>`,
+      );
+    } catch {
+      // Best-effort.
     }
   }
 
@@ -738,4 +837,10 @@ export class AssessmentRequestsService {
       // Best-effort.
     }
   }
+}
+
+
+/** Employer-authored free text (job title) in an HTML email — same local escape JobsService uses. */
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

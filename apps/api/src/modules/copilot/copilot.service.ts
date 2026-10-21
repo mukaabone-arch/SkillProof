@@ -114,6 +114,9 @@ export class CopilotService {
           submitted: r.submitted ?? false,
           skill: { name: r.skill?.name ?? 'a skill' },
           organization: { name: r.organization?.name ?? 'An employer' },
+          jobTitle: r.job?.title ?? null,
+          jobClosed: r.job?.status === 'CLOSED',
+          exclusionReason: r.exclusionReason ?? null,
         }),
       ),
       matchedJobs: matched.jobs.map((j) => ({

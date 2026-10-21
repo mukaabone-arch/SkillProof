@@ -843,7 +843,6 @@ model CandidatePortfolio {
   profile            CandidateProfile @relation(fields: [profileId], references: [id])
   /**
    * Parsed sections: headline, summary, experience[], projects[], education[], skillGroups[] — see PortfolioContent in portfolio.service.ts. Display text only, never queried/joined on.
-   *
    * skillGroups holds everything the candidate has, grouped by category and
    * uncapped in total (PortfolioSkillGroupDto caps each group at 40, not the
    * sum). The resume (GenerateResumeDto.skills) is a candidate-chosen subset
@@ -1934,9 +1933,10 @@ model Job {
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
-  skills           JobSkill[]
-  applications     Application[]
-  shortlistEntries ShortlistEntry[]
+  skills             JobSkill[]
+  applications       Application[]
+  shortlistEntries   ShortlistEntry[]
+  assessmentRequests AssessmentRequest[]
 
   @@unique([orgId, code])
   @@index([orgId])
@@ -2130,16 +2130,29 @@ model AssessmentRequest {
   id String @id @default(uuid())
 
   orgId             String
-  organization      Organization     @relation(fields: [orgId], references: [id])
+  organization      Organization                      @relation(fields: [orgId], references: [id])
   requestedByUserId String
-  requestedByUser   User             @relation("AssessmentRequestRequestedBy", fields: [requestedByUserId], references: [id])
+  requestedByUser   User                              @relation("AssessmentRequestRequestedBy", fields: [requestedByUserId], references: [id])
   /**
    * CandidateProfile.id — matches ShortlistEntry.candidateId's own convention, since every request originates from a ShortlistEntry.
    */
   candidateId       String
-  candidateProfile  CandidateProfile @relation(fields: [candidateId], references: [id])
+  candidateProfile  CandidateProfile                  @relation(fields: [candidateId], references: [id])
   skillId           String
-  skill             Skill            @relation(fields: [skillId], references: [id])
+  skill             Skill                             @relation(fields: [skillId], references: [id])
+  /**
+   * The employer's job this assessment is for (2026-10-21). Required by the
+   * API for every new request; null only on rows created before. Closing the
+   * job withdraws the request if the candidate hasn't started it — see
+   * AssessmentRequestsService.withdrawForClosedJob.
+   */
+  jobId             String?
+  job               Job?                              @relation(fields: [jobId], references: [id])
+  /**
+   * Why an EXPIRED_UNBILLED request ended. Set only to JOB_CLOSED today;
+   * null on older rows and on 5-day expiries (read as "expired").
+   */
+  exclusionReason   AssessmentRequestExclusionReason?
   /**
    * Set = legacy single-level request. Null = whole-skill request (see this
    * model's own doc comment) — the discriminator between the two coexisting
@@ -2217,6 +2230,7 @@ model AssessmentRequest {
   @@index([status, expiresAt])
   // The settlement job's own query shape: whole-skill STARTED rows whose 14-day deadline has passed.
   @@index([level, status, startedAt])
+  @@index([jobId])
 }
 
 /**
@@ -3248,4 +3262,16 @@ model WebAuthnChallenge {
   challenge String
   userId    String?
   expiresAt DateTime
+}
+
+/**
+ * Why an AssessmentRequest ended up EXPIRED_UNBILLED without being started.
+ */
+enum AssessmentRequestExclusionReason {
+  EXPIRED
+  CANDIDATE_UNAVAILABLE
+  /**
+   * The employer closed the job the request was for (LIVE -> CLOSED).
+   */
+  JOB_CLOSED
 }

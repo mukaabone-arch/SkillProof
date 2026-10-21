@@ -294,6 +294,50 @@ describe('buildCopilotPlan — the extra steps', () => {
   });
 });
 
+describe('buildCopilotPlan — job-linked invites', () => {
+  const linked = (p: Partial<EmployerInviteSignal>) => inv({ level: null, durationMins: null, jobTitle: 'NLP Engineer', ...p });
+
+  it('names the role on an open invite', () => {
+    const { steps } = buildCopilotPlan(base({ employerInvites: [linked({})] }));
+    expect(steps[0].message).toBe('Globex asked you to verify Prompt Engineering for the NLP Engineer role — three levels, any order.');
+  });
+
+  it('a withdrawn invite says the role closed and offers no new-invite button', () => {
+    const { steps } = buildCopilotPlan(base({ employerInvites: [linked({ status: 'EXPIRED_UNBILLED', exclusionReason: 'JOB_CLOSED', jobClosed: true })] }));
+    expect(steps[0]).toMatchObject({
+      eyebrow: 'Role closed',
+      message: 'Globex closed the NLP Engineer role, so their request to verify Prompt Engineering was withdrawn — nothing for you to do.',
+      cta: { label: 'View matches', target: 'jobs_matched' },
+    });
+  });
+
+  it('a time-expired invite whose role has also closed does not offer a new invite', () => {
+    const { steps } = buildCopilotPlan(base({ employerInvites: [linked({ status: 'EXPIRED_UNBILLED', jobClosed: true })] }));
+    expect(steps[0].eyebrow).toBe('Assessment expired');
+    expect(steps[0].cta).toMatchObject({ label: 'View matches' });
+  });
+
+  it('names the role naturally on a started invite', () => {
+    const { steps } = buildCopilotPlan(base({ employerInvites: [linked({ status: 'STARTED' })] }));
+    expect(steps[0].message).toBe("Continue verifying Prompt Engineering for Globex's NLP Engineer role — pick up any level you haven't finished.");
+  });
+
+  it('a time-expired invite names the role', () => {
+    const { steps } = buildCopilotPlan(base({ employerInvites: [linked({ status: 'EXPIRED_UNBILLED' })] }));
+    expect(steps[0].message).toBe("Globex's request to verify Prompt Engineering for the NLP Engineer role expired before you started it.");
+    expect(steps[0].cta).toMatchObject({ label: 'Request a new invite' });
+  });
+
+  it('a started invite whose role closed tells the candidate they can still finish', () => {
+    const { steps } = buildCopilotPlan(base({ employerInvites: [linked({ status: 'STARTED', jobClosed: true })] }));
+    expect(steps[0]).toMatchObject({
+      eyebrow: 'Assessment in progress',
+      meta: 'The NLP Engineer role has closed — you can still finish; your result and any badge are yours to keep.',
+      cta: { label: 'Continue assessment' },
+    });
+  });
+});
+
 describe('selection helpers', () => {
   it('mostUrgentInterview: HIRED > awaiting offer > invited > interviewing', () => {
     expect(mostUrgentInterview([iv({ stage: 'INVITED' }), iv({ stage: 'HIRED' })])?.stage).toBe('HIRED');

@@ -7,6 +7,10 @@
  * it's synthesized separately in AssessmentsService.buildSkillBuckets;
  * requesting it here isn't offered as a known limitation, not a bug) →
  * confirm the outcome-dependent charge → POST /assessment-requests.
+ * Every request is for one of the org's open (LIVE) jobs (2026-10-21):
+ * the employer picks the position first, and closing that position later
+ * withdraws the request at ₹0 if the candidate hasn't started it (a started
+ * one runs to completion and bills as below).
  * Already-badged-at-every-level short-circuits with no charge at all.
  *
  * Whole-skill, outcome-priced (2026-09-14 rework, replacing the original
@@ -49,6 +53,13 @@ interface LiveAssessment {
   skill: { name: string; domain: { name: string } };
 }
 
+interface EmployerJob {
+  id: string;
+  title: string;
+  code: string;
+  status: 'DRAFT' | 'LIVE' | 'CLOSED';
+}
+
 interface SkillOption {
   skillId: string;
   label: string;
@@ -84,6 +95,10 @@ interface AssessmentRequestView {
   level: string | null;
   status: RequestStatus;
   createdAt: string;
+  /** The position this request is for — null on requests made before jobs were required. */
+  job: { id: string; title: string; status: 'DRAFT' | 'LIVE' | 'CLOSED' } | null;
+  /** 'JOB_CLOSED' when an EXPIRED_UNBILLED request was withdrawn because its position closed. */
+  exclusionReason: 'EXPIRED' | 'CANDIDATE_UNAVAILABLE' | 'JOB_CLOSED' | null;
   /** Legacy (level set) only. */
   badgeId: string | null;
   passed: boolean | null;
@@ -99,6 +114,17 @@ interface CreateResponse {
   requestId?: string;
 }
 
+/** Status label, with the "withdrawn because the position closed" case told apart from a plain 5-day expiry. */
+function statusLabel(r: AssessmentRequestView): string {
+  if (r.status === 'EXPIRED_UNBILLED' && r.exclusionReason === 'JOB_CLOSED') return 'Withdrawn — position closed, not billed';
+  return STATUS_LABELS[r.status];
+}
+
+/** " · NLP Engineer" — which position a request is for, when it has one. */
+function roleSuffix(r: AssessmentRequestView): string {
+  return r.job ? ` · ${r.job.title}` : '';
+}
+
 const STATUS_LABELS: Record<RequestStatus, string> = {
   ACCRUED_PENDING_START: 'Awaiting start',
   STARTED: 'In progress',
@@ -110,6 +136,8 @@ const STATUS_LABELS: Record<RequestStatus, string> = {
 export default function AssessCandidateAction({ candidateId }: { candidateId: string }) {
   const [open, setOpen] = useState(false);
   const [assessments, setAssessments] = useState<LiveAssessment[]>([]);
+  const [jobs, setJobs] = useState<EmployerJob[] | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState('');
   const [selectedSkillId, setSelectedSkillId] = useState('');
   // Gates the actual POST behind an explicit second confirmation once a
   // skill is chosen — the disclosure step this component exists to
@@ -136,7 +164,19 @@ export default function AssessCandidateAction({ candidateId }: { candidateId: st
     if (assessments.length === 0) {
       api<LiveAssessment[]>('/assessments').then(setAssessments).catch(() => undefined);
     }
+    if (jobs === null) {
+      api<EmployerJob[]>('/jobs')
+        .then((all) => {
+          const open = all.filter((j) => j.status === 'LIVE');
+          setJobs(open);
+          // One open position — nothing to choose.
+          if (open.length === 1) setSelectedJobId(open[0].id);
+        })
+        .catch(() => setJobs([]));
+    }
   }
+
+  const selectedJob = jobs?.find((j) => j.id === selectedJobId);
 
   const options: SkillOption[] = Array.from(
     new Map(assessments.map((a) => [a.skillId, { skillId: a.skillId, label: `${a.skill.name} (${a.skill.domain.name})` }])).values(),
@@ -145,21 +185,21 @@ export default function AssessCandidateAction({ candidateId }: { candidateId: st
   const selectedLabel = options.find((o) => o.skillId === selectedSkillId)?.label ?? '';
 
   async function submit() {
-    if (!selectedSkillId) return;
+    if (!selectedSkillId || !selectedJobId) return;
     setError('');
     setMessage('');
     setBusy(true);
     try {
       const result = await api<CreateResponse>('/assessment-requests', {
         method: 'POST',
-        body: JSON.stringify({ candidateId, skillId: selectedSkillId }),
+        body: JSON.stringify({ candidateId, skillId: selectedSkillId, jobId: selectedJobId }),
       });
 
       if (result.alreadyBadged) {
         setMessage('This candidate already holds verified badges at every level of this skill — no charge, nothing added to your invoice.');
       } else {
         setMessage(
-          `Candidate invited to verify ${selectedLabel} across all three levels. The charge — ₹0, ${rupees(DISPLAY_PARTIAL_TOTAL_PAISE)}, or ${rupees(DISPLAY_COMPLETE_TOTAL_PAISE)} — depends on how far they get, and will appear on a future invoice once it's known.`,
+          `Candidate invited to verify ${selectedLabel} for ${selectedJob?.title ?? 'this position'} across all three levels. The charge — ₹0, ${rupees(DISPLAY_PARTIAL_TOTAL_PAISE)}, or ${rupees(DISPLAY_COMPLETE_TOTAL_PAISE)} — depends on how far they get, and will appear on a future invoice once it's known.`,
         );
       }
       setOpen(false);
@@ -195,9 +235,42 @@ export default function AssessCandidateAction({ candidateId }: { candidateId: st
         </button>
       )}
 
-      {open && (
+      {open && jobs !== null && jobs.length === 0 && (
         <div className="field" style={{ maxWidth: 420 }}>
-          <label htmlFor={`assess-skill-${candidateId}`}>Verify this candidate in</label>
+          <p className="meta" style={{ margin: 0 }}>
+            Assessments are requested for an open position. Publish a job first, then come back to assess this candidate for it.
+          </p>
+          <div className="row" style={{ marginTop: 8 }}>
+            <button type="button" className="btn-secondary" onClick={() => setOpen(false)}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {open && (jobs === null || jobs.length > 0) && (
+        <div className="field" style={{ maxWidth: 420 }}>
+          <label htmlFor={`assess-job-${candidateId}`}>For which open position</label>
+          <select
+            id={`assess-job-${candidateId}`}
+            value={selectedJobId}
+            disabled={jobs === null}
+            onChange={(e) => {
+              setSelectedJobId(e.target.value);
+              setConfirmed(false); // a new position needs its own confirmation
+            }}
+          >
+            <option value="">{jobs === null ? 'Loading positions…' : 'Choose a position…'}</option>
+            {(jobs ?? []).map((j) => (
+              <option key={j.id} value={j.id}>
+                {j.title} ({j.code})
+              </option>
+            ))}
+          </select>
+
+          <label htmlFor={`assess-skill-${candidateId}`} style={{ marginTop: 8 }}>
+            Verify this candidate in
+          </label>
           <select
             id={`assess-skill-${candidateId}`}
             value={selectedSkillId}
@@ -214,7 +287,7 @@ export default function AssessCandidateAction({ candidateId }: { candidateId: st
             ))}
           </select>
 
-          {selectedSkillId && (
+          {selectedSkillId && selectedJobId && (
             <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, marginTop: 8 }}>
               <p style={{ margin: 0 }}>
                 This verifies the candidate in <strong>{selectedLabel}</strong> across all three levels (Foundational,
@@ -234,7 +307,9 @@ export default function AssessCandidateAction({ candidateId }: { candidateId: st
               </ul>
               <p className="meta" style={{ margin: 0 }}>
                 Free for any level the candidate already holds a verified badge for — you&apos;ll see that before
-                anything is added. Invoiced monthly, settled by bank transfer.
+                anything is added. If you close <strong>{selectedJob?.title ?? 'this position'}</strong> before they
+                start, the request is withdrawn at ₹0; once started, it runs to completion and is charged as above.
+                Invoiced monthly, settled by bank transfer.
               </p>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />I understand
@@ -244,7 +319,7 @@ export default function AssessCandidateAction({ candidateId }: { candidateId: st
           )}
 
           <div className="row" style={{ marginTop: 8 }}>
-            <button type="button" onClick={submit} disabled={busy || !selectedSkillId || !confirmed}>
+            <button type="button" onClick={submit} disabled={busy || !selectedJobId || !selectedSkillId || !confirmed}>
               {busy ? 'Working…' : 'Invite candidate'}
             </button>
             <button type="button" className="btn-secondary" onClick={() => setOpen(false)} disabled={busy}>
@@ -267,9 +342,9 @@ function LegacyRequestRow({ r }: { r: AssessmentRequestView }) {
       <span
         className="ui-badge ui-badge-neutral chip-truncate"
         style={{ alignSelf: 'flex-start', maxWidth: '100%' }}
-        title={`${r.skill.name} (${skillLevelName(r.level!)}) · ${STATUS_LABELS[r.status]}`}
+        title={`${r.skill.name} (${skillLevelName(r.level!)}) · ${statusLabel(r)}`}
       >
-        {r.skill.name} ({skillLevelName(r.level!)}) · {STATUS_LABELS[r.status]}
+        {r.skill.name} ({skillLevelName(r.level!)}) · {statusLabel(r)}
       </span>
     );
   }
@@ -319,9 +394,10 @@ function WholeSkillRequestRow({ r }: { r: AssessmentRequestView }) {
       <span
         className="ui-badge ui-badge-neutral chip-truncate"
         style={{ alignSelf: 'flex-start', maxWidth: '100%' }}
-        title={`${r.skill.name} · ${STATUS_LABELS[r.status]}`}
+        title={`${r.skill.name}${roleSuffix(r)} · ${statusLabel(r)}`}
       >
-        {r.skill.name} · {STATUS_LABELS[r.status]}
+        {r.skill.name}
+        {roleSuffix(r)} · {statusLabel(r)}
       </span>
     );
   }
@@ -330,8 +406,9 @@ function WholeSkillRequestRow({ r }: { r: AssessmentRequestView }) {
     <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4, padding: 10 }}>
       <div className="row" style={{ margin: 0, alignItems: 'center', gap: 8 }}>
         <strong>{r.skill.name}</strong>
+        {r.job && <span className="meta" style={{ margin: 0 }}>{r.job.title}</span>}
         <span className="meta" style={{ margin: 0 }}>
-          {r.status === 'COMPLETED' ? 'Settled' : STATUS_LABELS[r.status]}
+          {r.status === 'COMPLETED' ? 'Settled' : statusLabel(r)}
         </span>
       </div>
       <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -352,3 +429,4 @@ function WholeSkillRequestRow({ r }: { r: AssessmentRequestView }) {
     </div>
   );
 }
+

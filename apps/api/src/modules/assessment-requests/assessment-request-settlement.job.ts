@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { AssessmentRequestStatus } from '@prisma/client';
+import { AssessmentRequestStatus, JobStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssessmentRequestsService } from './assessment-requests.service';
 
@@ -23,6 +23,12 @@ const SETTLEMENT_LOOKBACK_DAYS = 14;
  * weeks; maybeSettleWholeSkill (which this delegates to) re-checks "all
  * three attempted" first regardless, so a request that happens to complete
  * right at the deadline still settles at the COMPLETE tier, not PARTIAL.
+ *
+ * Also the hourly backstop for job-linked withdrawals (2026-10-21): any
+ * not-yet-started request whose job has since closed is withdrawn here
+ * even if nobody reads it — see AssessmentRequestsService.withdrawForClosedJob.
+ * Lives here rather than in AssessmentRequestsExpiryJob because this job
+ * already depends on the service (that one deliberately doesn't).
  */
 @Injectable()
 export class AssessmentRequestSettlementJob {
@@ -58,5 +64,16 @@ export class AssessmentRequestSettlementJob {
         this.logger.error(`Unexpected error settling AssessmentRequest ${request.id}: ${(err as Error).message}`);
       });
     }
+
+    const orphaned = await this.prisma.assessmentRequest.findMany({
+      where: { status: AssessmentRequestStatus.ACCRUED_PENDING_START, job: { status: JobStatus.CLOSED } },
+      select: { id: true },
+    });
+    for (const { id } of orphaned) {
+      await this.requests.withdrawForClosedJob(id).catch((err) => {
+        this.logger.error(`Unexpected error withdrawing AssessmentRequest ${id} for a closed job: ${(err as Error).message}`);
+      });
+    }
   }
 }
+

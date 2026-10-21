@@ -64,6 +64,12 @@ export interface EmployerInviteSignal {
   submitted?: boolean;
   skill: { name: string };
   organization: { name: string };
+  /** The role this invite is for (job-linked invites, 2026-10-21); null on older invites. */
+  jobTitle?: string | null;
+  /** That role has since been closed by the employer. */
+  jobClosed?: boolean;
+  /** Why an EXPIRED_UNBILLED invite ended — 'JOB_CLOSED' means withdrawn because the role closed. */
+  exclusionReason?: string | null;
 }
 
 export interface MatchedJobSignal {
@@ -307,17 +313,34 @@ function employerInviteStep(sel: SelectedEmployerInvite, now: Date): CopilotStep
   const id = `invite:${invite.id}`;
   const org = invite.organization.name;
   const skill = invite.skill.name;
+  // Job-linked invites (2026-10-21) name the role; older ones don't have one.
+  const forRole = invite.jobTitle ? ` for the ${invite.jobTitle} role` : '';
+  const closedNote = invite.jobTitle ? `The ${invite.jobTitle} role has closed` : 'This role has closed';
   const moreLink =
     moreCount > 0
       ? { label: `${moreCount} more request${moreCount === 1 ? '' : 's'}`, href: '/assessments', target: 'assessments' as const }
       : undefined;
 
+  if (expired && invite.exclusionReason === 'JOB_CLOSED') {
+    return {
+      id,
+      eyebrow: 'Role closed',
+      message: invite.jobTitle
+        ? `${org} closed the ${invite.jobTitle} role, so their request to verify ${invite.skill.name} was withdrawn — nothing for you to do.`
+        : `${org} closed this role, so their request to verify ${invite.skill.name} was withdrawn — nothing for you to do.`,
+      cta: nav('View matches', 'jobs_matched', '/jobs?tab=matched'),
+    };
+  }
+
   if (expired) {
     return {
       id,
       eyebrow: 'Assessment expired',
-      message: `${possessive(org)} request to verify ${skill} expired before you started it.`,
-      cta: nav('Request a new invite', 'assessments', '/assessments'),
+      message: `${possessive(org)} request to verify ${skill}${forRole} expired before you started it.`,
+      // A new invite only makes sense while the role is still open.
+      cta: invite.jobClosed
+        ? nav('View matches', 'jobs_matched', '/jobs?tab=matched')
+        : nav('Request a new invite', 'assessments', '/assessments'),
     };
   }
 
@@ -327,9 +350,14 @@ function employerInviteStep(sel: SelectedEmployerInvite, now: Date): CopilotStep
       id,
       eyebrow: started ? 'Assessment in progress' : 'Assessment requested',
       message: started
-        ? `Continue verifying ${skill} for ${org} — pick up any level you haven't finished.`
-        : `${org} asked you to verify ${skill} — three levels, any order.`,
-      meta: invite.expiresAt && !started ? `start one within ${expiresInDays(invite.expiresAt, now)} days` : undefined,
+        ? `Continue verifying ${skill} for ${invite.jobTitle ? `${possessive(org)} ${invite.jobTitle} role` : org} — pick up any level you haven't finished.`
+        : `${org} asked you to verify ${skill}${forRole} — three levels, any order.`,
+      meta:
+        started && invite.jobClosed
+          ? `${closedNote} — you can still finish; your result and any badge are yours to keep.`
+          : invite.expiresAt && !started
+            ? `start one within ${expiresInDays(invite.expiresAt, now)} days`
+            : undefined,
       cta: nav(started ? 'Continue assessment' : 'Start assessment', 'assessments', '/assessments'),
       moreLink,
     };

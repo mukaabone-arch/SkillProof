@@ -34,7 +34,7 @@ export class EmployerAssessmentRequestsController {
   @Post()
   @Roles(Role.EMPLOYER_ADMIN)
   create(@Req() req: OrgScopedRequest, @Body() dto: InitiateAssessmentRequestDto) {
-    return this.svc.create(req.orgId, req.user.sub, dto.candidateId, dto.skillId);
+    return this.svc.create(req.orgId, req.user.sub, dto.candidateId, dto.skillId, dto.jobId);
   }
 
   @Get()
@@ -47,3 +47,4 @@ export class EmployerAssessmentRequestsController {
     return this.svc.getForEmployer(req.orgId, id);
   }
 }
+

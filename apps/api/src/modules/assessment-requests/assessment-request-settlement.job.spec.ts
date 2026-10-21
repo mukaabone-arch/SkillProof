@@ -11,6 +11,11 @@ function fakePrisma(rows: any[]) {
   function matches(row: any, where: any): boolean {
     if (!where) return true;
     for (const [key, cond] of Object.entries(where)) {
+      // Relation filter, e.g. { job: { status: 'CLOSED' } } — rows carry their job inline here.
+      if (key === 'job' && cond && typeof cond === 'object') {
+        if (!row.job || !matches(row.job, cond)) return false;
+        continue;
+      }
       if (cond === null) {
         if (row[key] !== null) return false;
       } else if (cond && typeof cond === 'object' && !Array.isArray(cond)) {
@@ -36,7 +41,10 @@ function dueRequest(overrides: Record<string, any> = {}): Record<string, any> {
 
 function makeJob(rows: any[]) {
   const prisma = fakePrisma(rows);
-  const requests = { maybeSettleWholeSkill: jest.fn(async () => undefined) };
+  const requests = {
+    maybeSettleWholeSkill: jest.fn(async () => undefined),
+    withdrawForClosedJob: jest.fn(async () => undefined),
+  };
   const job = new AssessmentRequestSettlementJob(prisma as any, requests as any);
   return { job, prisma, requests };
 }
@@ -83,6 +91,7 @@ describe('AssessmentRequestSettlementJob', () => {
     const prisma = fakePrisma(rows);
     const requests = {
       maybeSettleWholeSkill: jest.fn().mockRejectedValueOnce(new Error('unexpected DB blip')).mockResolvedValueOnce(undefined),
+      withdrawForClosedJob: jest.fn(async () => undefined),
     };
     const job = new AssessmentRequestSettlementJob(prisma as any, requests as any);
 
@@ -96,5 +105,51 @@ describe('AssessmentRequestSettlementJob', () => {
     prisma.assessmentRequest.findMany.mockRejectedValueOnce(new Error('db unavailable'));
 
     await expect(job.run()).resolves.toBeUndefined();
+  });
+
+  describe('job-linked withdrawals (2026-10-21)', () => {
+    it('withdraws a not-yet-started request whose job has closed', async () => {
+      const rows = [dueRequest({ id: 'req-closed', status: AssessmentRequestStatus.ACCRUED_PENDING_START, job: { status: 'CLOSED' } })];
+      const { job, requests } = makeJob(rows);
+
+      await job.run();
+
+      expect(requests.withdrawForClosedJob).toHaveBeenCalledWith('req-closed');
+      expect(requests.maybeSettleWholeSkill).not.toHaveBeenCalled();
+    });
+
+    it('leaves alone a not-yet-started request whose job is still open, or that has no job', async () => {
+      const rows = [
+        dueRequest({ id: 'req-open', status: AssessmentRequestStatus.ACCRUED_PENDING_START, job: { status: 'LIVE' } }),
+        dueRequest({ id: 'req-nojob', status: AssessmentRequestStatus.ACCRUED_PENDING_START, job: null }),
+      ];
+      const { job, requests } = makeJob(rows);
+
+      await job.run();
+
+      expect(requests.withdrawForClosedJob).not.toHaveBeenCalled();
+    });
+
+    it('never withdraws a started request, even if its job closed', async () => {
+      const rows = [dueRequest({ id: 'req-started', startedAt: new Date(), job: { status: 'CLOSED' } })];
+      const { job, requests } = makeJob(rows);
+
+      await job.run();
+
+      expect(requests.withdrawForClosedJob).not.toHaveBeenCalled();
+    });
+
+    it('one withdrawal failing does not stop the rest', async () => {
+      const rows = [
+        dueRequest({ id: 'a', status: AssessmentRequestStatus.ACCRUED_PENDING_START, job: { status: 'CLOSED' } }),
+        dueRequest({ id: 'b', status: AssessmentRequestStatus.ACCRUED_PENDING_START, job: { status: 'CLOSED' } }),
+      ];
+      const { job, requests } = makeJob(rows);
+      requests.withdrawForClosedJob.mockRejectedValueOnce(new Error('blip'));
+
+      await job.run();
+
+      expect(requests.withdrawForClosedJob).toHaveBeenCalledTimes(2);
+    });
   });
 });

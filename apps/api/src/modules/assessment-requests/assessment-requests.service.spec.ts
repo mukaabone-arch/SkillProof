@@ -15,6 +15,12 @@ function fakePrisma() {
   ];
   const sessions: any[] = [{ id: 'session-1', status: AssessmentSessionStatus.IN_PROGRESS, badge: null }];
   const assessmentBlocks: any[] = [];
+  /** job-1 is org-1's open position; job-closed is org-1's closed one; job-other-org belongs to someone else. */
+  const jobs: any[] = [
+    { id: 'job-1', orgId: 'org-1', title: 'NLP Engineer', status: 'LIVE' },
+    { id: 'job-closed', orgId: 'org-1', title: 'Data Engineer', status: 'CLOSED' },
+    { id: 'job-other-org', orgId: 'org-2', title: 'ML Engineer', status: 'LIVE' },
+  ];
   let nextId = 1;
 
   return {
@@ -22,6 +28,10 @@ function fakePrisma() {
     _levels: levels,
     _attempts: attempts,
     _sessions: sessions,
+    _jobs: jobs,
+    job: {
+      findUnique: jest.fn(async ({ where }: any) => jobs.find((j) => j.id === where.id) ?? null),
+    },
     shortlistEntry: {
       findFirst: jest.fn(async ({ where }: any) =>
         where.orgId === 'org-1' && where.candidateId === 'candidate-1' ? { id: 'entry-1' } : null,
@@ -88,7 +98,7 @@ function fakePrisma() {
         return withIncludes(row, include);
       }),
       findFirst: jest.fn(async ({ where }: any) => requests.find((r) => matches(r, where)) ?? null),
-      findMany: jest.fn(async ({ where }: any = {}) => requests.filter((r) => matches(r, where))),
+      findMany: jest.fn(async ({ where, include }: any = {}) => requests.filter((r) => matches(r, where)).map((r) => withIncludes(r, include))),
       update: jest.fn(async ({ where, data }: any) => {
         const row = requests.find((r) => r.id === where.id);
         Object.assign(row, data);
@@ -134,6 +144,12 @@ function fakePrisma() {
     if (!where) return true;
     if (where.OR) return where.OR.some((clause: any) => matches(row, clause));
     for (const [key, cond] of Object.entries(where)) {
+      // Relation filter, e.g. { job: { status: 'CLOSED' } } — resolved against the jobs table.
+      if (key === 'job' && cond && typeof cond === 'object') {
+        const job = jobs.find((j) => j.id === row.jobId);
+        if (!job || !matches(job, cond)) return false;
+        continue;
+      }
       if (cond && typeof cond === 'object' && !Array.isArray(cond)) {
         if ('lt' in (cond as any) && !(row[key] < (cond as any).lt)) return false;
         if ('gt' in (cond as any) && !(row[key] > (cond as any).gt)) return false;
@@ -154,6 +170,7 @@ function fakePrisma() {
     if (include.candidateProfile) resolved.candidateProfile = { id: 'candidate-1', userId: 'user-candidate-1', fullName: 'Jordan Lee' };
     if (include.requestedByUser) resolved.requestedByUser = { id: 'user-employer-1' };
     if (include.levels) resolved.levels = levels.filter((l) => l.assessmentRequestId === row.id);
+    if (include.job) resolved.job = jobs.find((j) => j.id === row.jobId) ?? null;
     if (include.badge) {
       resolved.badge = row.badgeId
         ? { id: row.badgeId, verifyHash: `hash-${row.badgeId}`, level: 'L2', expiresAt: new Date('2027-01-01') }
@@ -194,7 +211,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
   describe('create', () => {
     it('rejects a candidate not on the org shortlist (IDOR guard)', async () => {
       const { service } = makeService();
-      await expect(service.create('org-1', 'user-employer-1', 'candidate-not-shortlisted', 'skill-1')).rejects.toThrow(
+      await expect(service.create('org-1', 'user-employer-1', 'candidate-not-shortlisted', 'skill-1', 'job-1')).rejects.toThrow(
         'This candidate is not on your shortlist.',
       );
     });
@@ -202,7 +219,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
     it('creates a whole-skill request with three level children and accrues NOTHING — no Transaction, no amount', async () => {
       const { service, prisma, transactions } = makeService();
 
-      const result = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const result = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
 
       expect(result.alreadyBadged).toBe(false);
       expect(transactions.recordSystemTransaction).not.toHaveBeenCalled();
@@ -220,7 +237,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
       const { service, prisma, notifications } = makeService();
       const before = Date.now();
 
-      const result = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const result = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
 
       const row = prisma._requests.find((r: any) => r.id === result.requestId);
       const expectedExpiry = before + 5 * 24 * 60 * 60 * 1000;
@@ -232,7 +249,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
       const badges = { [L1]: { id: 'badge-l1' }, [L2]: { id: 'badge-l2' }, [L3]: { id: 'badge-l3' } };
       const { service, prisma, transactions } = makeService({ badges });
 
-      const result = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const result = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
 
       expect(result.alreadyBadged).toBe(true);
       expect(transactions.recordSystemTransaction).not.toHaveBeenCalled();
@@ -247,7 +264,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
       const badges = { [L1]: { id: 'badge-l1' } };
       const { service, prisma } = makeService({ badges });
 
-      const result = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const result = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
 
       expect(result.alreadyBadged).toBe(false);
       const row = prisma._requests.find((r: any) => r.id === result.requestId);
@@ -264,7 +281,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
       // fallback too — see resolveFormat).
       prisma.assessment.findFirst.mockResolvedValue(null);
       prisma.skill.findUnique.mockResolvedValue(null);
-      await expect(service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1')).rejects.toThrow(
+      await expect(service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1')).rejects.toThrow(
         'This skill has no assessment levels available to request.',
       );
     });
@@ -273,7 +290,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
   describe('startFromRequest', () => {
     it('starting any one level first: claims STARTED + startedAt on the parent, launches that level only', async () => {
       const { service, prisma, assessments } = makeService();
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
 
       const result = await service.startFromRequest(created.requestId, L2, 'user-candidate-1');
 
@@ -288,7 +305,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
 
     it('starting a second, different level after the first: does not re-claim the parent, still launches that level', async () => {
       const { service, prisma, assessments } = makeService();
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
       await service.startFromRequest(created.requestId, L1, 'user-candidate-1');
       const firstStartedAt = prisma._requests.find((r: any) => r.id === created.requestId).startedAt;
 
@@ -302,7 +319,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
 
     it('re-starting the same level is idempotent — no second attempt created', async () => {
       const { service, assessments } = makeService();
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
 
       await service.startFromRequest(created.requestId, L2, 'user-candidate-1');
       const second = await service.startFromRequest(created.requestId, L2, 'user-candidate-1');
@@ -314,7 +331,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
     it('refuses to start a level the candidate already holds a verified badge for', async () => {
       const badges = { [L1]: { id: 'badge-l1' } };
       const { service } = makeService({ badges });
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
 
       await expect(service.startFromRequest(created.requestId, L1, 'user-candidate-1')).rejects.toThrow(
         'You already hold a verified badge at this level.',
@@ -323,7 +340,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
 
     it('blocks starting after the 5-day expiry window', async () => {
       const { service, prisma } = makeService();
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
       await prisma.assessmentRequest.update({ where: { id: created.requestId }, data: { expiresAt: new Date(Date.now() - 1000) } });
 
       await expect(service.startFromRequest(created.requestId, L1, 'user-candidate-1')).rejects.toThrow('This invitation has expired.');
@@ -331,7 +348,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
 
     it('the start-vs-expiry race: once the expiry sweep has claimed a row, starting it is blocked, never both', async () => {
       const { service, prisma, assessments } = makeService();
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
       await prisma.assessmentRequest.updateMany({
         where: { id: created.requestId, status: AssessmentRequestStatus.ACCRUED_PENDING_START },
         data: { status: AssessmentRequestStatus.EXPIRED_UNBILLED },
@@ -343,13 +360,13 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
 
     it('rejects a candidate who does not own the request', async () => {
       const { service } = makeService();
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
       await expect(service.startFromRequest(created.requestId, L1, 'some-other-user')).rejects.toThrow();
     });
 
     it('refuses to start any level once the request has already settled', async () => {
       const { service, prisma } = makeService();
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
       await prisma.assessmentRequest.update({ where: { id: created.requestId }, data: { status: AssessmentRequestStatus.COMPLETED } });
 
       await expect(service.startFromRequest(created.requestId, L2, 'user-candidate-1')).rejects.toThrow('This request has already been settled.');
@@ -365,7 +382,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
 
     it('settles COMPLETE (₹500 base -> ₹590 total) the moment all three levels are attempted — regardless of pass/fail', async () => {
       const { service, prisma, transactions, notifications } = makeService();
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
       await startAllThree(service, created.requestId);
       prisma._attempts[0].status = AttemptStatus.GRADED; // L1: pass
       prisma._attempts[0].badge = { id: 'badge-l1' };
@@ -390,7 +407,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
     it('a pre-existing badge on one level counts as "attempted" toward COMPLETE without a fresh attempt', async () => {
       const badges = { [L3]: { id: 'badge-l3-preexisting' } };
       const { service, prisma, transactions } = makeService({ badges });
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
       await service.startFromRequest(created.requestId, L1, 'user-candidate-1');
       await service.startFromRequest(created.requestId, L2, 'user-candidate-1');
       prisma._attempts[0].status = AttemptStatus.GRADED;
@@ -407,7 +424,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
 
     it('does not settle while some levels are still outstanding and the 14-day deadline has not passed', async () => {
       const { service, prisma, transactions } = makeService();
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
       await service.startFromRequest(created.requestId, L1, 'user-candidate-1');
       prisma._attempts[0].status = AttemptStatus.GRADED;
       prisma._attempts[0].badge = { id: 'badge-l1' };
@@ -421,7 +438,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
 
     it('settles PARTIAL (₹150 base -> ₹177 total) once the 14-day deadline has passed with levels still outstanding', async () => {
       const { service, prisma, transactions } = makeService();
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
       await service.startFromRequest(created.requestId, L1, 'user-candidate-1');
       prisma._attempts[0].status = AttemptStatus.GRADED;
       prisma._attempts[0].badge = { id: 'badge-l1' };
@@ -436,7 +453,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
 
     it('past the deadline, still settles COMPLETE (not PARTIAL) if all three happen to be attempted by then — the deadline is a backstop, not a discount', async () => {
       const { service, prisma, transactions } = makeService();
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
       await startAllThree(service, created.requestId);
       prisma._attempts.forEach((a: any) => {
         a.status = AttemptStatus.GRADED;
@@ -453,7 +470,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
 
     it('settlement is idempotent under a race — settling twice only ever writes one Transaction', async () => {
       const { service, prisma, transactions } = makeService();
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
       await startAllThree(service, created.requestId);
       prisma._attempts.forEach((a: any) => {
         a.status = AttemptStatus.GRADED;
@@ -468,7 +485,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
 
     it('never starting at all still costs nothing — EXPIRED_UNBILLED path is untouched by any of this', async () => {
       const { service, prisma, transactions } = makeService();
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
       await prisma.assessmentRequest.updateMany({
         where: { id: created.requestId, status: AssessmentRequestStatus.ACCRUED_PENDING_START },
         data: { status: AssessmentRequestStatus.EXPIRED_UNBILLED },
@@ -484,7 +501,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
   describe('withEmployerOutcome / withCandidateProgress — per-level breakdown', () => {
     it('the employer sees pass/fail per level, independently', async () => {
       const { service, prisma } = makeService();
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
       await service.startFromRequest(created.requestId, L1, 'user-candidate-1');
       await service.startFromRequest(created.requestId, L2, 'user-candidate-1');
       prisma._attempts[0].status = AttemptStatus.GRADED; // L1 passed
@@ -505,7 +522,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
     it('the candidate sees per-level progress including which are already badged for free', async () => {
       const badges = { [L3]: { id: 'badge-l3' } };
       const { service, prisma } = makeService({ badges });
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
       await service.startFromRequest(created.requestId, L1, 'user-candidate-1');
 
       const [result] = await service.listForCandidate('user-candidate-1');
@@ -521,7 +538,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
   describe('DECIDE 4(b) — integrity blocks do not pause timers, but are surfaced on the employer-facing record', () => {
     it('reports no overlap when the candidate has never been blocked', async () => {
       const { service } = makeService();
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
 
       const result = await service.getForEmployer('org-1', created.requestId);
 
@@ -530,7 +547,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
 
     it('surfaces an AssessmentBlock whose window overlaps the request, with dates only — never reason/triggerAttemptIds', async () => {
       const { service, prisma } = makeService();
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
       const startedAt = new Date(Date.now() - 60 * 60 * 1000);
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
       prisma._assessmentBlocks.push({
@@ -549,7 +566,7 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
 
     it("does not change the settlement job's PARTIAL/COMPLETE base amounts — a block is visible, never silently priced in", async () => {
       const { service, prisma, transactions } = makeService();
-      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1');
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
       prisma._assessmentBlocks.push({
         userId: 'user-candidate-1',
         startedAt: new Date(Date.now() - 60 * 60 * 1000),
@@ -568,6 +585,124 @@ describe('AssessmentRequestsService — whole-skill (2026-09-14 outcome-priced r
         'billing-profile-1',
         expect.objectContaining({ amountPaise: 17700 }), // ₹150 + 18% GST, unaffected by the overlapping block
       );
+    });
+  });
+});
+
+describe('AssessmentRequestsService — job-linked requests (2026-10-21)', () => {
+  function closeJob(prisma: ReturnType<typeof fakePrisma>, jobId = 'job-1') {
+    prisma._jobs.find((j: any) => j.id === jobId).status = 'CLOSED';
+  }
+
+  describe('create', () => {
+    it('requires a job', async () => {
+      const { service } = makeService();
+      await expect(service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1')).rejects.toThrow(
+        'Choose the open position you are assessing this candidate for.',
+      );
+    });
+
+    it("refuses another organization's job", async () => {
+      const { service } = makeService();
+      await expect(service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-other-org')).rejects.toThrow('Job not found');
+    });
+
+    it('refuses a job that is not open', async () => {
+      const { service } = makeService();
+      await expect(service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-closed')).rejects.toThrow(
+        'You can only assess candidates for a position that is currently open.',
+      );
+    });
+
+    it('stores the job on the request and names the role in the invite email', async () => {
+      const { service, prisma, notifications } = makeService();
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
+      expect(prisma._requests.find((r: any) => r.id === created.requestId).jobId).toBe('job-1');
+      expect(notifications.sendEmail).toHaveBeenCalledWith(
+        'user-candidate-1',
+        'ASSESSMENT_REQUEST_INVITE',
+        expect.any(String),
+        expect.stringContaining('for the <strong>NLP Engineer</strong> role'),
+      );
+    });
+  });
+
+  describe('closing the job', () => {
+    it('withdraws a not-yet-started request at ₹0 the next time it is read, and tells the candidate', async () => {
+      const { service, prisma, notifications, transactions } = makeService();
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
+      closeJob(prisma);
+
+      const [result] = await service.listForCandidate('user-candidate-1');
+
+      expect(result.status).toBe(AssessmentRequestStatus.EXPIRED_UNBILLED);
+      expect(result.exclusionReason).toBe('JOB_CLOSED');
+      expect(result.job).toMatchObject({ title: 'NLP Engineer', status: 'CLOSED' });
+      expect(transactions.recordSystemTransaction).not.toHaveBeenCalled();
+      expect(notifications.sendEmail).toHaveBeenLastCalledWith(
+        'user-candidate-1',
+        'ASSESSMENT_REQUEST_EXPIRED',
+        'Acme Inc closed the NLP Engineer role',
+        expect.stringContaining('has been withdrawn'),
+      );
+      void created;
+    });
+
+    it('leaves a request the candidate already started alone — it runs to completion and stays billable', async () => {
+      const { service, prisma } = makeService();
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
+      await service.startFromRequest(created.requestId, L1, 'user-candidate-1');
+      closeJob(prisma);
+
+      const result = await service.getForEmployer('org-1', created.requestId);
+      expect(result.status).toBe(AssessmentRequestStatus.STARTED);
+
+      // ...and the candidate can still start the remaining levels.
+      const next = await service.startFromRequest(created.requestId, L2, 'user-candidate-1');
+      expect(next.attemptId).toBe('attempt-l2');
+    });
+
+    it('a candidate cannot start a request whose job has closed, even before any sweep has run', async () => {
+      const { service, prisma, assessments } = makeService();
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
+      closeJob(prisma);
+
+      await expect(service.startFromRequest(created.requestId, L1, 'user-candidate-1')).rejects.toThrow(
+        'This role has been closed, so this invitation was withdrawn.',
+      );
+      expect(assessments.startAttempt).not.toHaveBeenCalled();
+      expect(prisma._requests.find((r: any) => r.id === created.requestId).status).toBe(AssessmentRequestStatus.EXPIRED_UNBILLED);
+    });
+
+    it('withdrawForClosedJob is idempotent and does nothing while the job is open', async () => {
+      const { service, prisma, notifications } = makeService();
+      const created = await service.create('org-1', 'user-employer-1', 'candidate-1', 'skill-1', 'job-1');
+      const sentAfterInvite = notifications.sendEmail.mock.calls.length;
+
+      await service.withdrawForClosedJob(created.requestId); // job still LIVE
+      expect(prisma._requests.find((r: any) => r.id === created.requestId).status).toBe(AssessmentRequestStatus.ACCRUED_PENDING_START);
+
+      closeJob(prisma);
+      await service.withdrawForClosedJob(created.requestId);
+      await service.withdrawForClosedJob(created.requestId); // second call: already withdrawn
+      expect(notifications.sendEmail).toHaveBeenCalledTimes(sentAfterInvite + 1);
+    });
+
+    it('a request with no job (made before jobs were required) is never withdrawn', async () => {
+      const { service, prisma } = makeService();
+      const row = await prisma.assessmentRequest.create({
+        data: {
+          orgId: 'org-1',
+          requestedByUserId: 'user-employer-1',
+          candidateId: 'candidate-1',
+          skillId: 'skill-1',
+          status: AssessmentRequestStatus.ACCRUED_PENDING_START,
+          expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      await service.withdrawForClosedJob(row.id);
+      expect(prisma._requests.find((r: any) => r.id === row.id).status).toBe(AssessmentRequestStatus.ACCRUED_PENDING_START);
     });
   });
 });
