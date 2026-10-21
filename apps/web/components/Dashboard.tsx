@@ -17,7 +17,7 @@
  * a page *view* of matched jobs isn't persisted anywhere, so it isn't a
  * signal we can honestly compute.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
@@ -312,6 +312,59 @@ export interface CopilotMessage {
   ctaAction?: { kind: 'start' | 'resume'; requestId: string; level: string };
   /** "{n} more requests" — shown when more than one employer invite is pending. */
   moreLink?: { label: string; href: string };
+}
+
+/**
+ * GET /copilot/plan — the same ladder as buildCopilotMessage below, computed
+ * server-side (apps/api/src/modules/copilot/copilot-plan.ts) so web and mobile
+ * stop keeping two copies. steps[0] is guaranteed to equal what
+ * buildCopilotMessage returns (the API's parity spec checks every
+ * combination); steps[1..2] feed the multi-step plan card later.
+ *
+ * Behind NEXT_PUBLIC_COPILOT_PLAN=1 while it beds in. With the flag off, or
+ * if the request fails, the dashboard keeps using buildCopilotMessage — so
+ * the flag can be flipped either way with no visible change. Once it has
+ * been on in production for a while, delete buildCopilotMessage and its
+ * helpers and read the plan only.
+ */
+const COPILOT_PLAN_FROM_API = process.env.NEXT_PUBLIC_COPILOT_PLAN === '1';
+
+type CopilotPlanCta =
+  | { kind: 'navigate'; label: string; target: string; href: string; jobId?: string; sessionId?: string; skillId?: string }
+  | { kind: 'start_assessment_request'; label: string; mode: 'start' | 'resume'; requestId: string; level: string };
+
+interface CopilotPlanStep {
+  id: string;
+  eyebrow: string;
+  message: string;
+  meta?: string;
+  cta?: CopilotPlanCta;
+  moreLink?: { label: string; href: string; target: string };
+}
+
+interface CopilotPlan {
+  steps: CopilotPlanStep[];
+  generatedAt: string;
+}
+
+/** Adapts one plan step to the panel's existing CopilotMessage shape, so the JSX below is unchanged. */
+export function copilotMessageFromPlanStep(step: CopilotPlanStep): CopilotMessage {
+  const msg: CopilotMessage = { eyebrow: step.eyebrow, message: step.message, meta: step.meta };
+  if (step.cta) {
+    msg.ctaLabel = step.cta.label;
+    if (step.cta.kind === 'navigate') msg.ctaHref = step.cta.href;
+    else msg.ctaAction = { kind: step.cta.mode, requestId: step.cta.requestId, level: step.cta.level };
+  }
+  if (step.moreLink) msg.moreLink = { label: step.moreLink.label, href: step.moreLink.href };
+  return msg;
+}
+
+function browserTimeZone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return undefined;
+  }
 }
 
 /** The single employer invite the co-pilot banner should surface, plus how many others are pending. */
@@ -641,6 +694,8 @@ export default function Dashboard({ onLoggedOut }: Props) {
   const [inviteActionError, setInviteActionError] = useState('');
   const [error, setError] = useState('');
   const [linkPromptDismissed, setLinkPromptDismissed] = useState(false);
+  const [copilotPlan, setCopilotPlan] = useState<CopilotPlan | null>(null);
+  const shadowChecked = useRef(false);
 
   // Start (ACCRUED_PENDING_START) or resume (STARTED) an employer-triggered
   // request — same POST either way (idempotent server-side, see
@@ -694,6 +749,15 @@ export default function Dashboard({ onLoggedOut }: Props) {
       .then((m) => {
         setMe(m);
         if (m.role === 'PLATFORM_ADMIN') return;
+        if (COPILOT_PLAN_FROM_API) {
+          // Fired alongside, not inside, the Promise.all below: it must never
+          // block or fail the dashboard — on any error we simply keep the
+          // client-side ladder.
+          const tz = browserTimeZone();
+          api<CopilotPlan>(`/copilot/plan${tz ? `?tz=${encodeURIComponent(tz)}` : ''}`)
+            .then(setCopilotPlan)
+            .catch((e) => console.warn('Dashboard: /copilot/plan unavailable, using client-side co-pilot', e));
+        }
         return Promise.all([
           api<Profile>('/profiles/me'),
           api<Assessment[]>('/assessments'),
@@ -828,7 +892,7 @@ export default function Dashboard({ onLoggedOut }: Props) {
   // "Verify skills" is where they're headed next.
   const hasOutstandingEmployerInvite = !!employerInvite && !employerInvite.expired;
 
-  const copilot = buildCopilotMessage({
+  const localCopilot = buildCopilotMessage({
     hasProfile,
     hasBadge,
     applyGateMet,
@@ -842,6 +906,20 @@ export default function Dashboard({ onLoggedOut }: Props) {
     hasApplied,
     applicationCount: applications.length,
   });
+  const planStep = copilotPlan?.steps[0];
+  const copilot = planStep ? copilotMessageFromPlanStep(planStep) : localCopilot;
+
+  // Shadow check while the flag beds in: in dev, say once if the server and
+  // client ladders disagree. A difference in an interview round's time
+  // format is expected (the server formats in en-IN for your time zone).
+  if (planStep && !shadowChecked.current && process.env.NODE_ENV !== 'production') {
+    shadowChecked.current = true;
+    const strip = (o: CopilotMessage) =>
+      JSON.stringify(Object.entries(o).filter(([, v]) => v !== undefined).sort(([a], [b]) => a.localeCompare(b)));
+    if (strip(copilot) !== strip(localCopilot)) {
+      console.warn('Co-pilot mismatch — server vs client', { server: copilot, client: localCopilot });
+    }
+  }
 
   const statusCounts = applications.reduce<Record<string, number>>((acc, a) => {
     acc[a.status] = (acc[a.status] ?? 0) + 1;

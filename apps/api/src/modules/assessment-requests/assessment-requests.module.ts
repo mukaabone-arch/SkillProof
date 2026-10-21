@@ -38,6 +38,7 @@ import { AssessmentRequestBillingProfileService } from './assessment-request-bil
   // AssessmentRequestsExpiryJob — so AccountService can reuse its excludeOne
   // (atomic claim, start-vs-expiry race guard) when a candidate deactivates
   // or deletes, instead of duplicating that logic.
-  exports: [AssessmentRequestsExpiryJob],
+  exports: [AssessmentRequestsExpiryJob, AssessmentRequestsService],
 })
 export class AssessmentRequestsModule {}
+   

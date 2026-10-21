@@ -34,6 +34,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
 import { NewsModule } from './modules/news/news.module';
 import { PortfolioModule } from './modules/portfolio/portfolio.module';
 import { StorageModule } from './storage/storage.module';
+import { CopilotModule } from './modules/copilot/copilot.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { StorageModule } from './storage/storage.module';
     DocumentsModule,
     NewsModule,
     PortfolioModule,
+    CopilotModule,
   ],
 })
 export class AppModule {}

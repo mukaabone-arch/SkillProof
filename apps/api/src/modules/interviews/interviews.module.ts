@@ -8,5 +8,6 @@ import { InterviewsService } from './interviews.service';
   imports: [AuthModule, NotificationsModule],
   controllers: [InterviewsController],
   providers: [InterviewsService],
+  exports: [InterviewsService],
 })
 export class InterviewsModule {}
