@@ -3942,3 +3942,51 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 }
 .account-menu-icon svg { width: 16px; height: 16px; }
 .account-menu-item:hover .account-menu-icon { border-color: rgba(91, 79, 224, 0.35); }
+
+/* ---- Candidate nav on phones: bottom bar ----
+   At <=760px the header keeps only the logo + account menu and the main
+   sections move to a fixed bottom bar with icon + label. Hidden above that
+   width, where the glass header tiles are used instead. */
+.appnav-bottom { display: none; }
+.account-menu-item--mobile-only { display: none !important; }
+
+@media (max-width: 760px) {
+  .appnav-links { display: flex; }
+  .appnav-links a.nav-glass { display: none; }
+  .account-menu-item--mobile-only { display: flex !important; }
+
+  .appnav-bottom {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    background: rgba(22, 24, 38, 0.92);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    backdrop-filter: blur(14px) saturate(140%);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .appnav-bottom-item {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 2px 0; min-width: 0; text-decoration: none;
+    color: rgba(233, 233, 237, 0.7);
+  }
+  .appnav-bottom-item:hover { text-decoration: none; color: #e9e9ed; }
+  .appnav-bottom-tile {
+    display: grid; place-items: center; width: 34px; height: 30px; border-radius: 10px;
+    border: 1px solid transparent;
+  }
+  .appnav-bottom-tile svg { width: 19px; height: 19px; }
+  .appnav-bottom-label {
+    font-size: 10.5px; line-height: 1.2; max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .appnav-bottom-item.active { color: #ffffff; font-weight: 700; }
+  .appnav-bottom-item.active .appnav-bottom-tile {
+    color: #ffffff;
+    background: linear-gradient(160deg, #7a6cf0 0%, #4c3fb4 100%);
+    border-color: rgba(190, 182, 255, 0.85);
+    box-shadow: 0 4px 14px rgba(76, 63, 180, 0.5);
+  }
+
+  /* Keep page content clear of the fixed bar. */
+  body:has(.appnav-bottom) { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+}

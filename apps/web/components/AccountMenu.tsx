@@ -32,6 +32,8 @@ export interface AccountMenuItem {
   onClick?: () => void;
   /** Optional glass icon shown before the label (see NavGlyphs). */
   icon?: NavGlyphName;
+  /** Only shown on phone widths, e.g. links that live in the header on desktop. */
+  mobileOnly?: boolean;
 }
 
 interface Props {
@@ -94,7 +96,7 @@ export default function AccountMenu({ initials, label, items }: Props) {
                 role="menuitem"
                 target={item.target}
                 rel={item.rel}
-                className="account-menu-item"
+                className={`account-menu-item${item.mobileOnly ? ' account-menu-item--mobile-only' : ''}`}
                 onClick={() => setOpen(false)}
               >
                 {item.icon && (
@@ -109,7 +111,7 @@ export default function AccountMenu({ initials, label, items }: Props) {
                 key={item.label}
                 type="button"
                 role="menuitem"
-                className="account-menu-item"
+                className={`account-menu-item${item.mobileOnly ? ' account-menu-item--mobile-only' : ''}`}
                 onClick={() => {
                   setOpen(false);
                   item.onClick?.();
