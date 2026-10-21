@@ -10,6 +10,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api, logout } from '@/lib/api';
 import { useEntitlements } from '@/lib/entitlements';
 import { initialsFrom } from '@/lib/initials';
@@ -40,6 +41,9 @@ export default function CandidateNav({ onLoggedOut }: Props) {
   const router = useRouter();
   const { tier } = useEntitlements();
   const [fullName, setFullName] = useState<string | null>(null);
+  // The bottom bar is portalled to <body> (see below), which only exists in the browser.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     api<{ fullName: string | null }>('/profiles/me')
@@ -107,25 +111,31 @@ export default function CandidateNav({ onLoggedOut }: Props) {
         </div>
       </div>
 
-      {/* Phones only (see globals.css) — the header links above hide at the same width. */}
-      <nav className="appnav-bottom" aria-label="Main">
-        {BOTTOM_LINKS.map((l) => {
-          const active = pathname === l.href;
-          return (
-            <Link
-              key={l.href}
-              href={l.href}
-              className={`appnav-bottom-item${active ? ' active' : ''}`}
-              aria-current={active ? 'page' : undefined}
-            >
-              <span className="appnav-bottom-tile">
-                <NavGlyph name={l.icon} />
-              </span>
-              <span className="appnav-bottom-label">{l.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
+      {/* Phones only (see globals.css). Portalled straight into <body> so no
+          ancestor with a transform/filter can become its containing block —
+          that made the 'fixed' bar scroll with the page on mobile browsers. */}
+      {mounted &&
+        createPortal(
+          <nav className="appnav-bottom" aria-label="Main">
+            {BOTTOM_LINKS.map((l) => {
+              const active = pathname === l.href;
+              return (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className={`appnav-bottom-item${active ? ' active' : ''}`}
+                  aria-current={active ? 'page' : undefined}
+                >
+                  <span className="appnav-bottom-tile">
+                    <NavGlyph name={l.icon} />
+                  </span>
+                  <span className="appnav-bottom-label">{l.label}</span>
+                </Link>
+              );
+            })}
+          </nav>,
+          document.body,
+        )}
     </>
   );
 }
