@@ -5,7 +5,9 @@
  * (no backend data involved, unlike the other gated surfaces), so the gate
  * here is purely `limits?.interviewPrep`. Free sees the real section
  * titles (a genuine, specific teaser — three named guides exist) with the
- * actual guidance blurred behind the usual upgrade CTA.
+ * actual guidance blurred behind the usual upgrade CTA. For Premium, each
+ * guide is a collapsed row (title + chevron) that expands in place — see
+ * .prep-guide in globals.css.
  */
 import { useEntitlements } from '@/lib/entitlements';
 import { LockedPreview } from './LockedPreview';
@@ -38,12 +40,15 @@ export default function InterviewPrepPanel() {
       <p>Guidance for turning a verified badge into an interview that goes well.</p>
 
       {limits.interviewPrep ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        // Collapsed by default, each guide independent (opening one doesn't
+        // close another). Native <details>, so it's keyboard- and
+        // screen-reader-accessible with no state of its own.
+        <div className="prep-guides">
           {GUIDES.map((g) => (
-            <div key={g.title} className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
-              <strong>{g.title}</strong>
-              <p style={{ margin: 0 }}>{g.body}</p>
-            </div>
+            <details key={g.title} className="prep-guide">
+              <summary>{g.title}</summary>
+              <p>{g.body}</p>
+            </details>
           ))}
         </div>
       ) : (

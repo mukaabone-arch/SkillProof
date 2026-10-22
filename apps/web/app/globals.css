@@ -3998,3 +3998,40 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 @media (max-width: 640px) {
   .appnav .appnav-logo .brand-product-name { display: inline; }
 }
+
+/* Interview prep guides (InterviewPrepPanel) — collapsed rows that expand in
+   place. Native <details>; the chevron rotates when open. */
+.prep-guides { display: flex; flex-direction: column; gap: 10px; }
+.prep-guide {
+  border: 1px solid var(--border, rgba(233, 233, 237, 0.16));
+  border-radius: 10px;
+  background: var(--surface, rgba(255, 255, 255, 0.02));
+}
+.prep-guide summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+.prep-guide summary::-webkit-details-marker { display: none; }
+.prep-guide summary::marker { content: ''; }
+.prep-guide summary::after {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  margin-top: -4px;
+  opacity: 0.7;
+  transition: transform 0.15s ease;
+}
+.prep-guide[open] summary::after { transform: rotate(-135deg); margin-top: 4px; }
+.prep-guide summary:hover { color: var(--indigo); }
+.prep-guide summary:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; border-radius: 10px; }
+.prep-guide p { margin: 0; padding: 0 16px 14px; line-height: 1.55; }
