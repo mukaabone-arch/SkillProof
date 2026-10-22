@@ -10,6 +10,13 @@
  * UI is a thin front-end for — every action here maps 1:1 to one
  * transition, and the API is the source of truth (a stale/duplicate click
  * here just gets a 409, not a broken UI state).
+ *
+ * Errors from a card's own actions (invite, offer, reject, rounds, note,
+ * resume, remove) are shown on that card, right above its buttons — not in
+ * the page-level error at the top, which is usually scrolled out of view by
+ * the time someone clicks something on a long card, so a rejected action
+ * (e.g. "This candidate is not available right now.") looked like the button
+ * simply did nothing. The page-level error is now only for loading the list.
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -168,6 +175,15 @@ export default function EmployerShortlist() {
   const [savingNote, setSavingNote] = useState(false);
 
   const [actionBusyKey, setActionBusyKey] = useState<string | null>(null);
+  /** The last failed action, shown on that entry's own card (see this file's doc comment). */
+  const [cardError, setCardError] = useState<{ entryId: string; message: string } | null>(null);
+
+  function failOn(entryId: string, e: unknown) {
+    setCardError({ entryId, message: (e as Error).message || 'Something went wrong — please try again.' });
+  }
+  function clearCardError() {
+    setCardError(null);
+  }
 
   const [inviteFormId, setInviteFormId] = useState<string | null>(null);
   const [inviteMessageDraft, setInviteMessageDraft] = useState('');
@@ -234,26 +250,26 @@ export default function EmployerShortlist() {
   async function remove(id: string) {
     if (!confirm('Remove this candidate from the shortlist?')) return;
     setRemovingId(id);
-    setError('');
+    clearCardError();
     try {
       await api(`/shortlist/${id}`, { method: 'DELETE' });
       setEntries((prev) => prev.filter((e) => e.id !== id));
     } catch (e) {
-      setError((e as Error).message);
+      failOn(id, e);
     } finally {
       setRemovingId(null);
     }
   }
 
   /** Needs a jobId — resume access is checked against a specific job's applicant list (see GET /jobs/:jobId/applicants/:candidateId/resume), so an entry not tied to any job (general search-sourced) has no route to hit even if hasResume is true. */
-  async function viewResume(jobId: string, candidateId: string) {
+  async function viewResume(entryId: string, jobId: string, candidateId: string) {
     setResumeDownloadingId(candidateId);
-    setError('');
+    clearCardError();
     try {
       const blob = await apiBlob(`/jobs/${jobId}/applicants/${candidateId}/resume`);
       downloadBlob(blob, 'resume.pdf');
     } catch (e) {
-      setError((e as Error).message);
+      failOn(entryId, e);
     } finally {
       setResumeDownloadingId(null);
     }
@@ -266,7 +282,7 @@ export default function EmployerShortlist() {
 
   async function saveNote(id: string) {
     setSavingNote(true);
-    setError('');
+    clearCardError();
     try {
       const updated = await api<ShortlistEntry>(`/shortlist/${id}`, {
         method: 'PATCH',
@@ -275,7 +291,7 @@ export default function EmployerShortlist() {
       replaceEntry(id, { note: updated.note });
       setEditingNoteId(null);
     } catch (e) {
-      setError((e as Error).message);
+      failOn(id, e);
     } finally {
       setSavingNote(false);
     }
@@ -283,7 +299,7 @@ export default function EmployerShortlist() {
 
   async function sendInvite(id: string) {
     setActionBusyKey(`invite-${id}`);
-    setError('');
+    clearCardError();
     try {
       await api(`/shortlist/${id}/invite`, {
         method: 'POST',
@@ -293,7 +309,7 @@ export default function EmployerShortlist() {
       setInviteFormId(null);
       setInviteMessageDraft('');
     } catch (e) {
-      setError((e as Error).message);
+      failOn(id, e);
     } finally {
       setActionBusyKey(null);
     }
@@ -301,12 +317,12 @@ export default function EmployerShortlist() {
 
   async function extendOffer(id: string) {
     setActionBusyKey(`offer-${id}`);
-    setError('');
+    clearCardError();
     try {
       await api(`/shortlist/${id}/offer`, { method: 'POST' });
       replaceEntry(id, { stage: 'OFFER' });
     } catch (e) {
-      setError((e as Error).message);
+      failOn(id, e);
     } finally {
       setActionBusyKey(null);
     }
@@ -315,12 +331,12 @@ export default function EmployerShortlist() {
   async function setOutcome(id: string, outcome: 'HIRED' | 'CLOSED') {
     if (!confirm(`Mark this candidate as ${outcome === 'HIRED' ? 'hired' : 'closed'}? This is the final pipeline outcome.`)) return;
     setActionBusyKey(`outcome-${id}`);
-    setError('');
+    clearCardError();
     try {
       await api(`/shortlist/${id}/outcome`, { method: 'POST', body: JSON.stringify({ outcome }) });
       replaceEntry(id, { stage: outcome });
     } catch (e) {
-      setError((e as Error).message);
+      failOn(id, e);
     } finally {
       setActionBusyKey(null);
     }
@@ -328,7 +344,7 @@ export default function EmployerShortlist() {
 
   async function sendReject(id: string) {
     setActionBusyKey(`reject-${id}`);
-    setError('');
+    clearCardError();
     try {
       await api(`/shortlist/${id}/reject`, {
         method: 'POST',
@@ -338,7 +354,7 @@ export default function EmployerShortlist() {
       setRejectFormId(null);
       setRejectReasonDraft('');
     } catch (e) {
-      setError((e as Error).message);
+      failOn(id, e);
     } finally {
       setActionBusyKey(null);
     }
@@ -353,7 +369,7 @@ export default function EmployerShortlist() {
 
   async function saveNewRound(id: string) {
     setActionBusyKey(`add-round-${id}`);
-    setError('');
+    clearCardError();
     try {
       const round = await api<InterviewRound>(`/shortlist/${id}/rounds`, {
         method: 'POST',
@@ -366,7 +382,7 @@ export default function EmployerShortlist() {
       setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, rounds: [...e.rounds, round] } : e)));
       setAddRoundFormId(null);
     } catch (e) {
-      setError((e as Error).message);
+      failOn(id, e);
     } finally {
       setActionBusyKey(null);
     }
@@ -382,7 +398,7 @@ export default function EmployerShortlist() {
 
   async function saveRoundEdit(entryId: string, roundId: string) {
     setActionBusyKey(`edit-round-${roundId}`);
-    setError('');
+    clearCardError();
     try {
       const updated = await api<InterviewRound>(`/shortlist/${entryId}/rounds/${roundId}`, {
         method: 'PATCH',
@@ -398,7 +414,7 @@ export default function EmployerShortlist() {
       );
       setEditingRoundId(null);
     } catch (e) {
-      setError((e as Error).message);
+      failOn(entryId, e);
     } finally {
       setActionBusyKey(null);
     }
@@ -474,7 +490,7 @@ export default function EmployerShortlist() {
               <button
                 type="button"
                 className="btn-secondary"
-                onClick={() => viewResume(e.job!.id, e.candidateId)}
+                onClick={() => viewResume(e.id, e.job!.id, e.candidateId)}
                 disabled={resumeDownloadingId === e.candidateId}
               >
                 {resumeDownloadingId === e.candidateId ? 'Downloading…' : 'View resume'}
@@ -526,6 +542,27 @@ export default function EmployerShortlist() {
 
           {/* ---- Pipeline ---- */}
           <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--ink-12)' }}>
+            {cardError?.entryId === e.id && (
+              <div
+                role="alert"
+                className="row"
+                style={{
+                  margin: '0 0 10px',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  border: '1px solid var(--error)',
+                  background: 'color-mix(in srgb, var(--error) 8%, transparent)',
+                }}
+              >
+                <span className="error" style={{ margin: 0 }}>{cardError.message}</span>
+                <button type="button" className="btn-link" onClick={clearCardError} aria-label="Dismiss">
+                  Dismiss
+                </button>
+              </div>
+            )}
             {e.stage === 'SHORTLISTED' && (
               inviteFormId === e.id ? (
                 <div className="field">
@@ -548,15 +585,15 @@ export default function EmployerShortlist() {
                 // Reject form (rendered below, shared with every other stage) is
                 // about to take the whole width below this button — leave Invite
                 // on its own line rather than cramming it into a row with a form.
-                <button onClick={() => { setInviteFormId(e.id); setInviteMessageDraft(''); }}>Invite to interview</button>
+                <button onClick={() => { clearCardError(); setInviteFormId(e.id); setInviteMessageDraft(''); }}>Invite to interview</button>
               ) : (
                 // Both are bare trigger buttons with nothing between them, so
                 // without an explicit row they'd sit flush against each other
                 // (inline-block default, no implicit gap) — same fix as the
                 // Shortlisted/Remove pair above.
                 <div className="row" style={{ margin: 0 }}>
-                  <button onClick={() => { setInviteFormId(e.id); setInviteMessageDraft(''); }}>Invite to interview</button>
-                  <button className="btn-danger" onClick={() => { setRejectFormId(e.id); setRejectReasonDraft(''); }}>
+                  <button onClick={() => { clearCardError(); setInviteFormId(e.id); setInviteMessageDraft(''); }}>Invite to interview</button>
+                  <button className="btn-danger" onClick={() => { clearCardError(); setRejectFormId(e.id); setRejectReasonDraft(''); }}>
                     Reject
                   </button>
                 </div>
