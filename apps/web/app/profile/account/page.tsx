@@ -7,6 +7,12 @@
  * belong competing for space with the profile form candidates edit far more
  * often. Linked from /profile, not hidden — see the "must not be
  * obstructed" requirement on delete specifically.
+ *
+ * Every section is a CollapsibleSection: collapsed to one row with a short
+ * status (e.g. "Email and phone added", "1 passkey") so the page scans as a
+ * list. Deactivate/Delete never show a status and start collapsed — reaching
+ * either takes a deliberate tap, then the existing confirmation step.
+ * Collapsed is still one tap from visible, which keeps Delete unobstructed.
  */
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -14,6 +20,8 @@ import Link from 'next/link';
 import { api, logout, type ApiError } from '@/lib/api';
 import CandidateNav from '@/components/CandidateNav';
 import ConsentSettingsLink from '@/components/ConsentSettingsLink';
+import CollapsibleSection from '@/components/CollapsibleSection';
+import { ANALYTICS_CONSENT_CHANGED_EVENT, readAnalyticsConsent } from '@/lib/analyticsConsent';
 import PasskeysSection from '@/components/PasskeysSection';
 import { Badge, Card, ErrorState, LoadingState } from '@/components/ui';
 import { useRequireAuth } from '@/lib/useRequireAuth';
@@ -302,12 +310,21 @@ function LoginMethodsCard() {
     }
   }
 
+  const status = !me
+    ? undefined
+    : me.email && me.phone
+      ? 'Email and phone added'
+      : me.email
+        ? 'Email only — add your phone'
+        : me.phone
+          ? 'Phone only — add your email'
+          : 'Add an email or phone';
+
   return (
-    // scrollMarginTop: CandidateNav's .appnav is sticky at 76px tall — without
-    // this, jumping here from the dashboard nudge (#login-methods) lands the
-    // card right under it, clipped.
-    <Card id="login-methods" elevated style={{ marginBottom: 32, scrollMarginTop: 100 }}>
-      <h2 style={{ marginTop: 0 }}>Login methods</h2>
+    // id="login-methods": the dashboard's "Add your email/phone" nudge links
+    // here — CollapsibleSection opens and scrolls to it (its CSS keeps it clear
+    // of the sticky nav, as scrollMarginTop did before).
+    <CollapsibleSection id="login-methods" title="Login methods" status={status}>
       <p>
         Sign in with either your email or your phone. Adding the one you&apos;re missing keeps everything on this one
         account — badges, history and all — instead of creating a second one.
@@ -400,7 +417,7 @@ function LoginMethodsCard() {
           {error && <ErrorState message={error} />}
         </div>
       )}
-    </Card>
+    </CollapsibleSection>
   );
 }
 
@@ -464,6 +481,16 @@ export default function AccountSettingsPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
+  // Privacy's collapsed status line — read after mount (localStorage), and
+  // kept in step if the consent banner changes it on this same page load.
+  const [analyticsDecision, setAnalyticsDecision] = useState<'granted' | 'denied' | null>(null);
+  useEffect(() => {
+    const read = () => setAnalyticsDecision(readAnalyticsConsent());
+    read();
+    window.addEventListener(ANALYTICS_CONSENT_CHANGED_EVENT, read);
+    return () => window.removeEventListener(ANALYTICS_CONSENT_CHANGED_EVENT, read);
+  }, []);
+
   useEffect(() => {
     if (!ready) return;
     api<AccountStatus>('/account/status')
@@ -525,7 +552,7 @@ export default function AccountSettingsPage() {
         {!status && !loadError && <LoadingState />}
 
         <LoginMethodsCard />
-        <PasskeysSection />
+        <PasskeysSection collapsible />
 
 
         {status && SHOW_DATA_EXPORT_UI && <ExportsCard />}
@@ -541,8 +568,7 @@ export default function AccountSettingsPage() {
 
         {status && !status.deactivated && (
           <>
-            <Card elevated style={{ marginBottom: 32 }}>
-              <h2 style={{ marginTop: 0 }}>Deactivate my account</h2>
+            <CollapsibleSection id="deactivate" title="Deactivate my account">
               <p>
                 Your profile is hidden from employer search and matching, you won&apos;t appear in new match results
                 or get newly shortlisted or invited, and all notification emails stop. Everything else about your
@@ -575,10 +601,9 @@ export default function AccountSettingsPage() {
                   </div>
                 </div>
               )}
-            </Card>
+            </CollapsibleSection>
 
-            <Card style={{ borderColor: 'var(--error)' }}>
-              <h2 style={{ marginTop: 0 }}>Delete my account</h2>
+            <CollapsibleSection id="delete" title="Delete my account" tone="danger">
               <p>
                 This permanently removes your personal data — name, email, phone, photo, resume, and profile
                 details. It cannot be undone. Any verified skill badge you&apos;ve earned stays independently
@@ -625,7 +650,7 @@ export default function AccountSettingsPage() {
                   </div>
                 </div>
               )}
-            </Card>
+            </CollapsibleSection>
           </>
         )}
         {/* The consent banner (Providers -> AnalyticsGate, root layout) is
@@ -635,13 +660,16 @@ export default function AccountSettingsPage() {
             without leaving the portal; DPDP expects withdrawal to be at
             least as easy as giving consent, so it belongs wherever a
             signed-in candidate would actually look for a privacy control. */}
-        <Card style={{ marginBottom: 32 }}>
-          <h2 style={{ marginTop: 0 }}>Privacy</h2>
+        <CollapsibleSection
+          id="privacy"
+          title="Privacy"
+          status={analyticsDecision === 'granted' ? 'Analytics on' : analyticsDecision === 'denied' ? 'Analytics off' : undefined}
+        >
           <p>
             See our <Link href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</Link> for what analytics we collect and why.
           </p>
           <ConsentSettingsLink />
-        </Card>
+        </CollapsibleSection>
       </main>
     </>
   );

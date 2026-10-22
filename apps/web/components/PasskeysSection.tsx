@@ -2,13 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui';
+import CollapsibleSection from '@/components/CollapsibleSection';
 import { addPasskey, apiFor, guessDeviceName, passkeysSupported, type Portal } from '@/lib/passkeys';
 
 type Passkey = { id: string; name: string | null; createdAt: string; lastUsedAt: string | null; backedUp: boolean };
 
 const fmt = (d: string) => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
-export default function PasskeysSection({ portal = 'candidate' }: { portal?: Portal }) {
+/**
+ * `collapsible` renders it as a CollapsibleSection (the candidate account
+ * page); without it, the original always-open card (employer settings).
+ */
+export default function PasskeysSection({ portal = 'candidate', collapsible = false }: { portal?: Portal; collapsible?: boolean }) {
   const api = apiFor(portal);
   const [items, setItems] = useState<Passkey[] | null>(null);
   const [supported, setSupported] = useState(false);
@@ -52,12 +57,12 @@ export default function PasskeysSection({ portal = 'candidate' }: { portal?: Por
     }
   }
 
-  return (
-    <Card style={{ marginBottom: 32 }}>
-      {/* One wrapper so Card's own layout treats this as a single block and everything stacks vertically. */}
+  const status = items === null ? undefined : items.length === 0 ? 'None yet' : `${items.length} passkey${items.length === 1 ? '' : 's'}`;
+
+  const body = (
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
-          <h2 style={{ marginTop: 0, marginBottom: 8 }}>Passkeys</h2>
+          {!collapsible && <h2 style={{ marginTop: 0, marginBottom: 8 }}>Passkeys</h2>}
           <p className="meta" style={{ margin: 0 }}>
             Sign in with your fingerprint, face, or device PIN instead of a code. Passkeys sync across your devices
             through iCloud Keychain or Google Password Manager.
@@ -112,6 +117,18 @@ export default function PasskeysSection({ portal = 'candidate' }: { portal?: Por
           </p>
         )}
       </div>
-    </Card>
+  );
+
+  if (collapsible) {
+    return (
+      <CollapsibleSection id="passkeys" title="Passkeys" status={status}>
+        {body}
+      </CollapsibleSection>
+    );
+  }
+
+  return (
+    // One wrapper (inside body) so Card's own layout treats this as a single block and everything stacks vertically.
+    <Card style={{ marginBottom: 32 }}>{body}</Card>
   );
 }
