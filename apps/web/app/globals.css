@@ -4238,7 +4238,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 @media (max-width: 768px) {
   .lp-hero {
     align-items: flex-start;
-    padding-top: calc(74px + 68vw);
+    padding-top: calc(74px + 76vw);
     background-color: #0c0c18;
     background-size: 100% auto;
     background-position: center top;
