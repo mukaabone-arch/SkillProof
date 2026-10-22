@@ -9,12 +9,22 @@
  * see apps/api's own comment on that distinction). A member still sees the
  * organization info and member list read-only (GET /orgs/me and
  * /orgs/members are shared), just without the edit/action controls.
+ *
+ * Layout (2026-10-22): each area is a CollapsibleSection with a one-line
+ * status (org + verification, seats used, passkeys, analytics), so the page
+ * scans as a list. The verification banner stays a plain, always-visible
+ * card — it's the call to action. Organization starts open until the org is
+ * verified (there's still something to do there). Deactivate sits last,
+ * collapsed, red, with no status — reaching it is deliberate, then the
+ * existing type-the-name confirmation.
  */
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { employerApi } from '@/lib/api';
 import ConsentSettingsLink from '@/components/ConsentSettingsLink';
+import CollapsibleSection from '@/components/CollapsibleSection';
+import { ANALYTICS_CONSENT_CHANGED_EVENT, readAnalyticsConsent } from '@/lib/analyticsConsent';
 import { Badge } from '@/components/ui';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { formatOrgIndustry, OrgIndustry, ORG_INDUSTRY_OPTIONS } from '@/lib/orgIndustry';
@@ -120,6 +130,15 @@ export default function EmployerSettings() {
   // Shared with the employer topbar's own org identity — see that hook's
   // own comment for why this is a blob fetch rather than a plain <img src>.
   const logoUrl = useOrgLogo(org?.organization.hasLogo ?? false);
+
+  // Privacy's collapsed status — read after mount (localStorage), kept in step with the consent banner.
+  const [analyticsDecision, setAnalyticsDecision] = useState<'granted' | 'denied' | null>(null);
+  useEffect(() => {
+    const read = () => setAnalyticsDecision(readAnalyticsConsent());
+    read();
+    window.addEventListener(ANALYTICS_CONSENT_CHANGED_EVENT, read);
+    return () => window.removeEventListener(ANALYTICS_CONSENT_CHANGED_EVENT, read);
+  }, []);
 
   useEffect(() => {
     api<OrgMe>('/orgs/me')
@@ -320,7 +339,13 @@ export default function EmployerSettings() {
       )}
 
       {org && (
-        <div id="organisation" className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 16, marginBottom: 24 }}>
+        <CollapsibleSection
+          id="organisation"
+          title="Organization"
+          status={`${org.organization.name} · ${VERIFICATION_BADGE[org.organization.verificationStatus].label}`}
+          defaultOpen={org.organization.verificationStatus !== 'VERIFIED'}
+        >
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 16 }}>
           <div>
             <div className="meta" style={{ margin: 0 }}>Organization</div>
             <strong>{org.organization.name}</strong>
@@ -423,15 +448,28 @@ export default function EmployerSettings() {
             </p>
           )}
         </div>
+        </CollapsibleSection>
       )}
 
-      <h2 id="team">Team</h2>
+      <CollapsibleSection
+        id="team"
+        title="Team"
+        status={
+          team
+            ? `${team.seatsUsed} of ${team.seatLimit} seats used${
+                team.invitations.length > 0
+                  ? ` · ${team.invitations.length} pending invite${team.invitations.length === 1 ? '' : 's'}`
+                  : ''
+              }`
+            : undefined
+        }
+      >
       {teamError && <p className="error">{teamError}</p>}
       {!teamError && !team && <p className="meta">Loading…</p>}
 
       {team && (
         <>
-          <p className="meta" style={{ marginTop: -4 }}>
+          <p className="meta" style={{ marginTop: 0 }}>
             {team.seatsUsed} of {team.seatLimit} seats used
             {team.seatsRemaining === 0 && ' — at capacity'}.
           </p>
@@ -531,13 +569,32 @@ export default function EmployerSettings() {
           )}
         </>
       )}
+      </CollapsibleSection>
+
+      {/* Personal, not org-wide — every member gets this, not just admins,
+          and it doesn't wait on org/team data to load. The consent banner
+          (Providers -> AnalyticsGate, root layout) is what first records a
+          decision, but it's a one-time prompt — this is the only place to
+          revisit it afterward. It used to exist only in the landing page's
+          own footer (app/page.tsx), unreachable without leaving the portal;
+          DPDP expects withdrawal to be at least as easy as giving consent,
+          so it belongs wherever a signed-in user would actually look for a
+          privacy control. */}
+      <PasskeysSection portal="employer" collapsible />
+      <CollapsibleSection
+        id="privacy"
+        title="Privacy"
+        status={analyticsDecision === 'granted' ? 'Analytics on' : analyticsDecision === 'denied' ? 'Analytics off' : undefined}
+      >
+        <p className="meta" style={{ marginTop: 0 }}>
+          See our <Link href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</Link> for what analytics we collect and why.
+        </p>
+        <ConsentSettingsLink />
+      </CollapsibleSection>
 
       {org && isAdmin && (
-        <div
-          className="card"
-          style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12, borderColor: 'var(--error)', marginTop: 24 }}
-        >
-          <h2 style={{ marginTop: 0 }}>Deactivate organization</h2>
+        <CollapsibleSection id="deactivate" title="Deactivate organization" tone="danger">
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
           <p className="meta" style={{ margin: 0 }}>
             This blocks every team member — not just you — from the employer portal, and unpublishes every live
             job. There is no self-service way to undo this; only MyAmbii support can reactivate an organization.
@@ -597,24 +654,8 @@ export default function EmployerSettings() {
             </div>
           )}
         </div>
+        </CollapsibleSection>
       )}
-      {/* Personal, not org-wide — every member gets this, not just admins,
-          and it doesn't wait on org/team data to load. The consent banner
-          (Providers -> AnalyticsGate, root layout) is what first records a
-          decision, but it's a one-time prompt — this is the only place to
-          revisit it afterward. It used to exist only in the landing page's
-          own footer (app/page.tsx), unreachable without leaving the portal;
-          DPDP expects withdrawal to be at least as easy as giving consent,
-          so it belongs wherever a signed-in user would actually look for a
-          privacy control. */}
-      <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, marginBottom: 24 }}>
-        <strong>Privacy</strong>
-        <p className="meta" style={{ margin: 0 }}>
-        See our <Link href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</Link> for what analytics we collect and why.
-        </p>
-        <ConsentSettingsLink />
-      </div>
-      <PasskeysSection portal="employer" />
     </main>
   );
 }
