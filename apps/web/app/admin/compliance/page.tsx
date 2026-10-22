@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Compliance Center — Privacy Requests. A record-and-audit view over
+ * Privacy Requests. A record-and-audit view over
  * account deactivations/reactivations/deletions that have already
  * executed — never an approval gate. Candidate-initiated deletion and
  * deactivation stay immediate and self-service (erasure is a legal right
@@ -138,7 +138,7 @@ export default function CompliancePrivacyRequestsPage() {
   if (status === 'loading') {
     return (
       <main className="hub">
-        <h1>Compliance Center — Privacy Requests</h1>
+        <h1>Privacy Requests</h1>
         <LoadingState />
       </main>
     );
@@ -147,7 +147,7 @@ export default function CompliancePrivacyRequestsPage() {
   if (status === 'forbidden') {
     return (
       <main className="hub">
-        <h1>Compliance Center — Privacy Requests</h1>
+        <h1>Privacy Requests</h1>
         <p className="error">Admins only — log in with a PLATFORM_ADMIN account to view privacy requests.</p>
       </main>
     );
@@ -157,7 +157,7 @@ export default function CompliancePrivacyRequestsPage() {
 
   return (
       <main className="hub">
-        <h1>Compliance Center — Privacy Requests</h1>
+        <h1>Privacy Requests</h1>
         <p className="hub-subhead">
           A record of account deactivations, reactivations, and deletions that have already executed. This is an
           audit view, not an approval queue — erasure is a candidate&apos;s legal right and nothing here can delay

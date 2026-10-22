@@ -4135,3 +4135,93 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   .collapsible-section-status { order: 3; flex-basis: 100%; text-align: left; white-space: normal; }
   .collapsible-section-body { padding: 0 16px 16px; }
 }
+
+/* ── Admin console: alignment with candidate/employer portals (2026-10-22) ──
+   Scoped to .admin-shell so nothing outside the admin console changes.
+   Appended last on purpose: these override the original admin rules above. */
+
+/* Topbar: account menu on the right, like the other portals. */
+.admin-topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+
+/* Sidebar links: icon tile + label, purple-gradient tile when active. */
+.admin-sidebar a.admin-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  color: var(--ink-60);
+  font-weight: 500;
+}
+.admin-nav-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.admin-sidebar a.admin-nav-item:hover { color: var(--ink); background: rgba(255, 255, 255, 0.04); }
+.admin-sidebar a.admin-nav-item:hover .admin-nav-tile { border-color: rgba(122, 108, 240, 0.45); }
+.admin-sidebar a.admin-nav-item.active { color: var(--ink); background: rgba(122, 108, 240, 0.1); font-weight: 600; }
+.admin-sidebar a.admin-nav-item.active .admin-nav-tile {
+  color: #fff;
+  background: linear-gradient(135deg, #7a6cf0, #4c3fb4);
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(76, 63, 180, 0.45);
+}
+.admin-sidebar a.admin-nav-item:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
+
+/* Group headers: chevron points right when closed, down when open (the
+   icon itself is an up-chevron, hence 90deg / 180deg). */
+.admin-sidebar-group-header .admin-sidebar-group-chevron { transform: rotate(180deg); }
+.admin-sidebar-group-header.is-collapsed .admin-sidebar-group-chevron { transform: rotate(90deg); }
+.admin-sidebar-group-items .admin-nav-item { margin-left: 4px; }
+
+/* Roadmap ("Soon") entries line up with the icon rows. */
+.admin-sidebar-disabled { padding-left: 14px; }
+
+/* Content: start beside the sidebar at the standard page width instead of a
+   narrow column floating in the middle (.hub is the candidate dashboard's
+   centred layout). */
+.admin-content main.hub { max-width: 1120px; margin: 0; padding: 32px 40px 64px; }
+@media (max-width: 860px) {
+  .admin-content main.hub { padding: 24px 16px 48px; }
+}
+
+/* Form fields: dark, card-derived surface with the indigo focus ring used
+   elsewhere, instead of the flat grey browser-default look. */
+.admin-content input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.admin-content select,
+.admin-content textarea {
+  background: color-mix(in srgb, black 22%, var(--card));
+  color: var(--ink);
+  border: 1px solid var(--ink-12);
+  border-radius: 10px;
+  padding: 10px 12px;
+  min-height: 42px;
+  font-size: 0.95rem;
+}
+.admin-content select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a9a8b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+.admin-content input:not([type='checkbox']):not([type='radio']):not([type='file']):focus,
+.admin-content select:focus,
+.admin-content textarea:focus {
+  outline: none;
+  border-color: var(--indigo);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--indigo) 25%, transparent);
+}
+.admin-content input::placeholder,
+.admin-content textarea::placeholder { color: var(--ink-30, rgba(233, 233, 237, 0.35)); }

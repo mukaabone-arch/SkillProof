@@ -14,15 +14,24 @@
  * rather than looking finished at 3 sections out of 15. See the
  * feat/admin-console-shell audit for exactly what each live section is
  * backed by and why the rest have nothing to administer yet.
+ *
+ * Visual alignment (2026-10-22) with the candidate/employer portals: every
+ * link carries an icon tile (AdminGlyphs) with the same purple-gradient
+ * active state; group chevrons point right when closed and down when open;
+ * the per-group counts are gone (they were link counts, not "needs
+ * attention", and read like alerts); Log out lives in the same AccountMenu
+ * the other portals use, so the duplicate sidebar Log out is gone too.
  */
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { logout } from '@/lib/api';
 import BrandLockup from './BrandLockup';
+import AccountMenu from './AccountMenu';
+import AdminGlyph, { type AdminGlyphName } from './AdminGlyphs';
 
 type NavLeaf =
-  | { kind: 'link'; href: string; label: string }
+  | { kind: 'link'; href: string; label: string; icon: AdminGlyphName }
   | { kind: 'disabled'; label: string };
 
 interface NavGroup {
@@ -30,39 +39,39 @@ interface NavGroup {
   items: NavLeaf[];
 }
 
-const TOP_LINK = { href: '/admin/dashboard', label: 'Dashboard' };
+const TOP_LINK = { href: '/admin/dashboard', label: 'Dashboard', icon: 'dashboard' as AdminGlyphName };
 
 const GROUPS: NavGroup[] = [
   {
     label: 'Assessment Management',
     items: [
-      { kind: 'link', href: '/admin/assessments', label: 'Assessment Config' },
-      { kind: 'link', href: '/admin/review', label: 'Session Reviews' },
-      { kind: 'link', href: '/admin/attempts', label: 'Attempt Reviews' },
-      { kind: 'link', href: '/admin/assessment-blocks', label: 'Integrity Blocks' },
-      { kind: 'link', href: '/admin/interview-questions', label: 'Interview Questions' },
+      { kind: 'link', href: '/admin/assessments', label: 'Assessment Config', icon: 'config' },
+      { kind: 'link', href: '/admin/review', label: 'Session Reviews', icon: 'sessionReview' },
+      { kind: 'link', href: '/admin/attempts', label: 'Attempt Reviews', icon: 'attemptReview' },
+      { kind: 'link', href: '/admin/assessment-blocks', label: 'Integrity Blocks', icon: 'integrity' },
+      { kind: 'link', href: '/admin/interview-questions', label: 'Interview Questions', icon: 'questions' },
     ],
   },
   {
     label: 'Compliance Center',
     items: [
-      { kind: 'link', href: '/admin/compliance', label: 'Privacy Requests' },
-      { kind: 'link', href: '/admin/compliance/exports', label: 'Data Exports' },
+      { kind: 'link', href: '/admin/compliance', label: 'Privacy Requests', icon: 'privacy' },
+      { kind: 'link', href: '/admin/compliance/exports', label: 'Data Exports', icon: 'exports' },
     ],
   },
   {
     label: 'Organizations',
-    items: [{ kind: 'link', href: '/admin/orgs', label: 'Verification Requests' }],
+    items: [{ kind: 'link', href: '/admin/orgs', label: 'Verification Requests', icon: 'verification' }],
   },
   {
     label: 'Candidates',
-    items: [{ kind: 'link', href: '/admin/candidates', label: 'Candidate Management' }],
+    items: [{ kind: 'link', href: '/admin/candidates', label: 'Candidate Management', icon: 'candidates' }],
   },
   {
     label: 'Billing',
     items: [
-      { kind: 'link', href: '/admin/billing', label: 'Billing Profiles' },
-      { kind: 'link', href: '/admin/billing/documents', label: 'GST Documents' },
+      { kind: 'link', href: '/admin/billing', label: 'Billing Profiles', icon: 'billingProfiles' },
+      { kind: 'link', href: '/admin/billing/documents', label: 'GST Documents', icon: 'documents' },
     ],
   },
   {
@@ -218,16 +227,22 @@ export default function AdminSidebarShell({ onLoggedOut, children }: Props) {
           <span />
         </button>
         <BrandLockup variant="nav" href="/admin/dashboard" suffix="Admin" />
-        <button type="button" className="appnav-logout" onClick={handleLogout}>Log out</button>
+        <div className="admin-topbar-actions">
+          <AccountMenu label="Platform admin" items={[{ label: 'Log out', onClick: handleLogout, icon: 'logout' }]} />
+        </div>
       </header>
       <div className="admin-body">
         <nav className={mobileOpen ? 'admin-sidebar is-open' : 'admin-sidebar'}>
           <Link
             href={TOP_LINK.href}
-            className={isLinkActive(TOP_LINK.href, pathname) ? 'active' : ''}
+            className={isLinkActive(TOP_LINK.href, pathname) ? 'admin-nav-item active' : 'admin-nav-item'}
+            aria-current={isLinkActive(TOP_LINK.href, pathname) ? 'page' : undefined}
             onClick={() => setMobileOpen(false)}
           >
-            {TOP_LINK.label}
+            <span className="admin-nav-tile">
+              <AdminGlyph name={TOP_LINK.icon} />
+            </span>
+            <span>{TOP_LINK.label}</span>
           </Link>
           {GROUPS.map((group) => {
             const isOpen = expanded[group.label] ?? false;
@@ -243,7 +258,6 @@ export default function AdminSidebarShell({ onLoggedOut, children }: Props) {
                 >
                   <span className="admin-sidebar-section-label">{group.label}</span>
                   <span className="admin-sidebar-group-meta">
-                    {!isOpen && <span className="admin-sidebar-group-count">{group.items.length}</span>}
                     <ChevronIcon />
                   </span>
                 </button>
@@ -261,10 +275,14 @@ export default function AdminSidebarShell({ onLoggedOut, children }: Props) {
                       <Link
                         key={item.href}
                         href={item.href}
-                        className={isLinkActive(item.href, pathname) ? 'active' : ''}
+                        className={isLinkActive(item.href, pathname) ? 'admin-nav-item active' : 'admin-nav-item'}
+                        aria-current={isLinkActive(item.href, pathname) ? 'page' : undefined}
                         onClick={() => setMobileOpen(false)}
                       >
-                        {item.label}
+                        <span className="admin-nav-tile">
+                          <AdminGlyph name={item.icon} />
+                        </span>
+                        <span>{item.label}</span>
                       </Link>
                     ),
                   )}
@@ -272,11 +290,6 @@ export default function AdminSidebarShell({ onLoggedOut, children }: Props) {
               </div>
             );
           })}
-          {/* Duplicate of the topbar's own Log out button — CSS shows exactly
-              one of the two at any width (see .admin-sidebar-logout). */}
-          <button type="button" className="admin-sidebar-logout" onClick={handleLogout}>
-            Log out
-          </button>
         </nav>
         {mobileOpen && (
           <div

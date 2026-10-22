@@ -313,7 +313,7 @@ export default function AdminAssessmentsPage() {
   if (status === 'loading') {
     return (
       <main className="hub">
-        <h1>Admin: Assessments</h1>
+        <h1>Assessment Config</h1>
         <p>Loading…</p>
       </main>
     );
@@ -322,7 +322,7 @@ export default function AdminAssessmentsPage() {
   if (status === 'forbidden') {
     return (
       <main className="hub">
-        <h1>Admin: Assessments</h1>
+        <h1>Assessment Config</h1>
         <p className="error">
           Admins only — log in with a PLATFORM_ADMIN account to manage assessments.
         </p>
@@ -332,8 +332,8 @@ export default function AdminAssessmentsPage() {
 
   return (
       <main className="hub">
-      <h1>Admin: Assessments</h1>
-      <p>Create assessments and MCQ questions without touching seed scripts.</p>
+      <h1>Assessment Config</h1>
+      <p className="hub-subhead">Create assessments and MCQ questions without touching seed scripts.</p>
       {error && <p className="error">{error}</p>}
 
       <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>

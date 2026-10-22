@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Compliance Center — Data Exports. A record of "download my data"
+ * Data Exports. A record of "download my data"
  * requests and their fulfilment, so an admin can see whether exports are
  * being generated and spot failures — never a queue that approves or
  * gates them (same posture as the Privacy Requests page one level up:
@@ -92,7 +92,7 @@ export default function ComplianceDataExportsPage() {
   if (status === 'loading') {
     return (
       <main className="hub">
-        <h1>Compliance Center — Data Exports</h1>
+        <h1>Data Exports</h1>
         <LoadingState />
       </main>
     );
@@ -101,7 +101,7 @@ export default function ComplianceDataExportsPage() {
   if (status === 'forbidden') {
     return (
       <main className="hub">
-        <h1>Compliance Center — Data Exports</h1>
+        <h1>Data Exports</h1>
         <p className="error">Admins only — log in with a PLATFORM_ADMIN account to view export requests.</p>
       </main>
     );
@@ -111,7 +111,7 @@ export default function ComplianceDataExportsPage() {
 
   return (
     <main className="hub">
-      <h1>Compliance Center — Data Exports</h1>
+      <h1>Data Exports</h1>
       <p className="hub-subhead">
         Candidate &quot;download my data&quot; requests and their fulfilment. Content is never shown here — only
         status and timestamps. See <Link href="/admin/compliance">Privacy Requests</Link> for account

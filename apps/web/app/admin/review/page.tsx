@@ -69,7 +69,7 @@ export default function ReviewQueuePage() {
   if (status === 'loading') {
     return (
       <main className="hub">
-        <h1>Admin: Session Reviews</h1>
+        <h1>Session Reviews</h1>
         <LoadingState />
       </main>
     );
@@ -78,7 +78,7 @@ export default function ReviewQueuePage() {
   if (status === 'forbidden') {
     return (
       <main className="hub">
-        <h1>Admin: Session Reviews</h1>
+        <h1>Session Reviews</h1>
         <p className="error">Admins only — log in with a PLATFORM_ADMIN account to review sessions.</p>
       </main>
     );

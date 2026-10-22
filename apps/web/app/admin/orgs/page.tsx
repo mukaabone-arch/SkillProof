@@ -140,7 +140,7 @@ export default function AdminOrgVerificationPage() {
   if (status === 'loading') {
     return (
       <main className="hub">
-        <h1>Organization Verification</h1>
+        <h1>Verification Requests</h1>
         <LoadingState />
       </main>
     );
@@ -149,7 +149,7 @@ export default function AdminOrgVerificationPage() {
   if (status === 'forbidden') {
     return (
       <main className="hub">
-        <h1>Organization Verification</h1>
+        <h1>Verification Requests</h1>
         <p className="error">Admins only — log in with a PLATFORM_ADMIN account to review verification requests.</p>
       </main>
     );
@@ -157,7 +157,7 @@ export default function AdminOrgVerificationPage() {
 
   return (
     <main className="hub">
-      <h1>Organization Verification</h1>
+      <h1>Verification Requests</h1>
       <p className="hub-subhead">
         A verified badge is a signal, not a gate — an org can post jobs, apply, hire, and pay whether or not it&apos;s
         verified. Approving or rejecting a request only changes what candidates and other employers see. Deactivation
