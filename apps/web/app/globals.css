@@ -2920,9 +2920,9 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .lp-hero {
   position: relative; display: flex; align-items: center; overflow: hidden;
   min-height: 90vh; padding: 148px 0 96px;
-  /* Drop the office photo at public/hero-office.jpg. If absent, the scrim
+  /* Drop the office photo at public/hero-office-art.webp. If absent, the scrim
      simply falls onto the dark page bg — still legible, never broken. */
-  background-image: url('/hero-office.jpg');
+  background-image: url('/hero-office-art.webp');
   background-size: cover; background-position: center right; background-repeat: no-repeat;
 }
 /* Scrim — the whole reason white text is legible on the photo.
@@ -3457,7 +3457,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 }
 
 /* ---- Landing hero: mobile art direction (≤768px) ----
-   Swap the landscape photo for a 3:4 portrait crop (hero-mobile-3x4.jpg) shaped
+   Swap the landscape photo for a 3:4 portrait crop (hero-mobile-art.webp) shaped
    for a tall viewport — `cover` barely crops it, so the two subjects stay in
    frame instead of being scaled out of it (the landscape source, at cover,
    loses most of its height on a portrait viewport). Same background-image swap
@@ -3469,7 +3469,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    phones get the portrait crop. */
 @media (max-width: 768px) {
   .lp-hero {
-    background-image: url('/hero-mobile-3x4.jpg');
+    background-image: url('/hero-mobile-art.webp');
     background-position: center top;
   }
   /* Swap to the shorter headline (fits two lines, lifts the text block off the
