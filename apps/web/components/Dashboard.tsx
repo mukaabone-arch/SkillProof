@@ -220,6 +220,23 @@ function expiresInDays(expiresAt: string): number {
   return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
 }
 
+/**
+ * The invite deadline ("start one within N days" / "expires in N days") is the
+ * one meta line with a consequence — miss it and the request lapses — so the
+ * co-pilot card renders it as a chip, not grey small print. Parsed from the
+ * meta string so it works for both the server plan and the local ladder, and
+ * re-worded here so the last two days read naturally ("1 days" never shows).
+ * Anything else (e.g. "Started 2 h ago") falls back to the plain meta line.
+ */
+function copilotDeadline(meta: string): { text: string; urgent: boolean } | null {
+  const m = /\b(?:within|expires in)\s+(\d+)\s+days?\b/i.exec(meta);
+  if (!m) return null;
+  const days = Number(m[1]);
+  if (days <= 0) return { text: 'Expires today — start one now', urgent: true };
+  if (days === 1) return { text: 'Expires tomorrow — start one today', urgent: true };
+  return { text: `Start one within ${days} days`, urgent: days <= 2 };
+}
+
 /** Rolls up past an hour: a multi-day-old assessment rendered as "16285 min ago" reads as a bug. */
 function startedAgo(startedAt: string): string {
   const mins = Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 60_000));
@@ -977,7 +994,21 @@ export default function Dashboard({ onLoggedOut }: Props) {
             {copilot.eyebrow}
           </span>
           <p className="copilot-message">{copilot.message}</p>
-          {copilot.meta && <p className="copilot-meta">{copilot.meta}</p>}
+          {copilot.meta &&
+            (() => {
+              const deadline = copilotDeadline(copilot.meta);
+              return deadline ? (
+                <p className={`copilot-deadline${deadline.urgent ? ' is-urgent' : ''}`}>
+                  <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7v5l3 2" />
+                  </svg>
+                  {deadline.text}
+                </p>
+              ) : (
+                <p className="copilot-meta">{copilot.meta}</p>
+              );
+            })()}
           {copilot.ctaAction ? (
             <button
               type="button"

@@ -4252,3 +4252,23 @@ html:has(.lp-page) { scroll-behavior: smooth; }
       rgba(12, 12, 24, 1) calc(74px + 109vw));
   }
 }
+
+/* ---- Co-pilot card: invite deadline chip ----
+   "Start one within N days" was grey small print under a large headline and
+   got lost. Rendered as a high-contrast chip with a clock between the message
+   and the CTA; amber when ≤2 days are left. */
+.copilot-panel .copilot-deadline {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin: 4px 0 18px; padding: 7px 14px 7px 11px;
+  border-radius: 999px;
+  font-size: 0.95rem; font-weight: 600; line-height: 1.3;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+.copilot-panel .copilot-deadline svg { flex-shrink: 0; }
+.copilot-panel .copilot-deadline.is-urgent {
+  color: #2a1a00;
+  background: #ffc857;
+  border-color: #ffc857;
+}
