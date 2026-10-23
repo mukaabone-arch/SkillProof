@@ -4284,3 +4284,15 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   display: flex;
   align-items: center;
 }
+
+/* ---- Phones: keep account-menu links visible ----
+   The dropdown lives inside .appnav-links, so the phone rule that hides the
+   header's link tiles (moved to the bottom bar) also hid plain links in the
+   menu — Account vanished while Help/Upgrade (mobile-only, !important) and
+   Log out (a <button>) survived. More specific than any `.appnav-links a`
+   rule; the desktop hide for mobile-only items is !important and unaffected. */
+@media (max-width: 760px) {
+  .appnav-links .account-menu-dropdown a.account-menu-item:not(.account-menu-item--mobile-only) {
+    display: flex;
+  }
+}
