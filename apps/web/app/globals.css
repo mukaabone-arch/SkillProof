@@ -4272,3 +4272,15 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   background: #ffc857;
   border-color: #ffc857;
 }
+
+/* ---- Candidate header: account dropdown clears the nav labels ----
+   The dropdown is positioned from .account-menu, which was only as tall as
+   the 32px avatar — centred in a ~70px row of tiles + labels — so it opened
+   over the "Interviews"/"Help" labels. Stretch the wrapper to the row's full
+   height (avatar stays centred) so top: 100% + 8px lands below the labels.
+   Scoped to .appnav; the employer topbar has no labels and is unchanged. */
+.appnav-links > .account-menu {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
