@@ -60,7 +60,6 @@ export default function CandidateNav({ onLoggedOut }: Props) {
   }
 
   const menuItems: AccountMenuItem[] = [
-    { label: 'Profile', href: '/profile', icon: 'profile' },
     { label: 'Account', href: '/profile/account', icon: 'settings' },
     { label: 'Help', href: '/help/candidate', target: 'myambii-help', rel: 'noopener', icon: 'help', mobileOnly: true },
     ...(tier === 'FREE'

@@ -6,7 +6,7 @@
  * theme" comment: restyle the header once, here, and both portals follow;
  * this is the same reasoning applied to a component instead of a token.
  * The control (avatar trigger -> dropdown) is identical in both; only
- * `items` differs (CandidateNav: Profile/Account/Log out; employer
+ * `items` differs (CandidateNav: Account/Log out — Profile is already a nav tab; employer
  * EmployerSidebarShell: Settings/Billing/Team members/Log out).
  *
  * Previously a bare "Log out" button (.appnav-logout) — the single most
