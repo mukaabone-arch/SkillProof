@@ -4,6 +4,7 @@ import { AuthenticatedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { EntitlementGuard } from '../entitlements/entitlement.guard';
+import { AiConsentGuard } from '../auth/ai-consent.guard';
 import { RequiresEntitlement } from '../entitlements/requires-entitlement.decorator';
 import { computeProgress, InterviewSessionsService } from './interview-sessions.service';
 import { InterviewPhaseState } from './interview-orchestrator';
@@ -32,7 +33,7 @@ export class InterviewSessionsController {
   constructor(private readonly svc: InterviewSessionsService) {}
 
   @Post()
-  @UseGuards(EntitlementGuard)
+  @UseGuards(AiConsentGuard, EntitlementGuard)
   @RequiresEntitlement('interviewPrep')
   async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateInterviewSessionDto) {
     const { session, turns } = await this.svc.createSession(req.user.sub, dto.applicationId);
