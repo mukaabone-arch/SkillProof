@@ -22,6 +22,7 @@ enum IdentityProvider {
   PHONE
   GOOGLE
   GITHUB
+  APPLE
 }
 
 /**
@@ -402,6 +403,10 @@ model Identity {
   providerId    String
   email         String?
   emailVerified Boolean          @default(false)
+  /// Sign in with Apple only: refresh token kept solely so account deletion
+  /// can revoke the Apple grant (App Store 5.1.1(v)). Unusable without our
+  /// .p8-signed client secret. Cleared after revocation.
+  providerRefreshToken String?
   createdAt     DateTime         @default(now())
 
   @@unique([provider, providerId])

@@ -13,6 +13,7 @@ import { OrgVerifiedGuard } from './org-verified.guard';
 import { CandidateVerificationGuard } from './candidate-verification.guard';
 import { GoogleOAuthProvider } from './oauth/google-oauth.provider';
 import { GithubOAuthProvider } from './oauth/github-oauth.provider';
+import { AppleOAuthProvider } from './oauth/apple-oauth.provider';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
@@ -38,6 +39,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     CandidateVerificationGuard,
     GoogleOAuthProvider,
     GithubOAuthProvider,
+    AppleOAuthProvider,
     PasskeysService,
   ],
   // CandidateVerificationGuard and OrgActiveGuard must both be exported

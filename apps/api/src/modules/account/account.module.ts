@@ -6,6 +6,7 @@ import { DataExportModule } from '../data-export/data-export.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AccountController } from './account.controller';
 import { AccountService } from './account.service';
+import { AppleOAuthProvider } from '../auth/oauth/apple-oauth.provider';
 
 @Module({
   // AssessmentRequestsModule — for AssessmentRequestsRefundJob, reused
@@ -21,7 +22,9 @@ import { AccountService } from './account.service';
   // untouched (accepted trade-off, see that service's own doc comment).
   imports: [AuthModule, NotificationsModule, AssessmentRequestsModule, DataExportModule, SubscriptionsModule],
   controllers: [AccountController],
-  providers: [AccountService],
+  // AppleOAuthProvider — stateless; registered here (not imported from
+  // AuthModule) so delete() can revoke Sign in with Apple grants.
+  providers: [AccountService, AppleOAuthProvider],
   exports: [AccountService],
 })
 export class AccountModule {}

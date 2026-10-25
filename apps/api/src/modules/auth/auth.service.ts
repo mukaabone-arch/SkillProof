@@ -1,15 +1,5 @@
 import type { User as PasskeyUser } from '@prisma/client';
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  HttpException,
-  HttpStatus,
-  Inject,
-  Injectable,
-  Logger,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, Logger, UnauthorizedException, Optional } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { IdentityProvider, OrgInvitationStatus, Role, User } from '@prisma/client';
 import { createHash, randomBytes } from 'crypto';
@@ -18,6 +8,7 @@ import { InMemoryRateLimiter } from '../../common/ip-rate-limiter';
 import { EMAIL_PROVIDER, EmailProvider } from '../notifications/email-provider.interface';
 import { SMS_PROVIDER, SmsProvider } from '../notifications/sms-provider.interface';
 import { GithubOAuthProvider } from './oauth/github-oauth.provider';
+import { AppleOAuthProvider } from './oauth/apple-oauth.provider';
 import { GoogleOAuthProvider } from './oauth/google-oauth.provider';
 import { ExternalProfile, OAuthCodeExchange } from './oauth/oauth.types';
 import { normalizeEmail } from './normalize-email';
@@ -182,6 +173,9 @@ export class AuthService {
     private readonly github: GithubOAuthProvider,
     @Inject(EMAIL_PROVIDER) private readonly emailProvider: EmailProvider,
     @Inject(SMS_PROVIDER) private readonly smsProvider: SmsProvider,
+    // @Optional so existing specs that construct AuthService positionally
+    // keep compiling; always present in the real Nest container.
+    @Optional() private readonly apple?: AppleOAuthProvider,
   ) {}
 
   async requestOtp(phone: string): Promise<{ message: string }> {
@@ -671,6 +665,49 @@ export class AuthService {
   async loginWithGithub(exchange: OAuthCodeExchange) {
     const profile = await this.github.exchange(exchange);
     return this.loginWithIdentity(IdentityProvider.GITHUB, profile);
+  }
+
+  /**
+   * Sign in with Apple (native iOS). The identity token is verified by
+   * AppleOAuthProvider; the user then goes through the exact same
+   * loginWithIdentity policy as Google/GitHub (existing identity → verified-
+   * email auto-link → new account), so the phone+email verification gate
+   * applies unchanged. The Apple refresh token is stored on the Identity row
+   * only so account deletion can revoke it — see revokeAppleSignIn.
+   */
+  async loginWithApple(identityToken: string, authorizationCode?: string) {
+    if (!this.apple) throw new BadRequestException('Sign in with Apple is not configured');
+    const { profile, refreshToken } = await this.apple.signIn(identityToken, authorizationCode);
+    const result = await this.loginWithIdentity(IdentityProvider.APPLE, profile);
+    if (refreshToken) {
+      await this.prisma.identity
+        .update({
+          where: { provider_providerId: { provider: IdentityProvider.APPLE, providerId: profile.providerId } },
+          data: { providerRefreshToken: refreshToken },
+        })
+        .catch((err) => this.logger.warn(`Could not store Apple refresh token: ${(err as Error).message}`));
+    }
+    return result;
+  }
+
+  /**
+   * Revokes this user's Sign in with Apple grant(s) — call from account
+   * deletion BEFORE identities are removed (App Store guideline 5.1.1(v)
+   * requires it). Best-effort: never throws, so deletion is never blocked by
+   * Apple being unreachable.
+   */
+  async revokeAppleSignIn(userId: string): Promise<void> {
+    if (!this.apple) return;
+    const identities = await this.prisma.identity.findMany({
+      where: { userId, provider: IdentityProvider.APPLE, providerRefreshToken: { not: null } },
+      select: { id: true, providerRefreshToken: true },
+    });
+    for (const i of identities) {
+      await this.apple.revoke(i.providerRefreshToken as string);
+      await this.prisma.identity
+        .update({ where: { id: i.id }, data: { providerRefreshToken: null } })
+        .catch(() => undefined);
+    }
   }
 
   /**

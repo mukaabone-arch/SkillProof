@@ -1,7 +1,8 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import {
   AccountActionType,
   AssessmentRequestStatus,
+  IdentityProvider,
   NotificationStatus,
   NotificationType,
   Prisma,
@@ -15,6 +16,7 @@ import { STORAGE_SERVICE, StorageService } from '../../storage/storage.interface
 import { DeactivateAccountDto, DeleteAccountDto } from './account.dto';
 import { AssessmentRequestsExpiryJob } from '../assessment-requests/assessment-requests-expiry.job';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { AppleOAuthProvider } from '../auth/oauth/apple-oauth.provider';
 
 /** A live pipeline is one an employer is actively waiting on the candidate for — SHORTLISTED alone isn't (the employer hasn't reached out), and the terminal stages need no transition at all. */
 const LIVE_PIPELINE_STAGES: ShortlistStage[] = [ShortlistStage.INVITED, ShortlistStage.INTERVIEWING, ShortlistStage.OFFER];
@@ -29,6 +31,9 @@ export class AccountService {
     private readonly expiryJob: AssessmentRequestsExpiryJob,
     private readonly subscriptions: SubscriptionsService,
     @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
+    // @Optional so existing specs that construct AccountService positionally
+    // keep compiling; always provided by AccountModule.
+    @Optional() private readonly apple?: AppleOAuthProvider,
   ) {}
 
   async getStatus(userId: string) {
@@ -188,6 +193,12 @@ export class AccountService {
     await this.subscriptions.cancelImmediatelyForDeletion(profile.id);
     await this.deleteStoredFiles(profile.id, profile.photoKey, profile.resumeS3Key);
 
+    // Sign in with Apple: revoke the grant BEFORE the transaction below
+    // deletes the Identity rows (and the refresh token stored on them) —
+    // App Store guideline 5.1.1(v). Best-effort, like the subscription
+    // cancel above: Apple being unreachable never blocks erasure.
+    await this.revokeAppleSignIn(userId);
+
     const now = new Date();
     await this.prisma.$transaction([
       this.prisma.candidateProfile.update({
@@ -270,6 +281,20 @@ export class AccountService {
     // candidate deleted their account and is never starting it.
 
     return { deleted: true };
+  }
+
+  /** Revokes every stored Sign in with Apple grant for this user. Never throws — see delete(). */
+  private async revokeAppleSignIn(userId: string): Promise<void> {
+    if (!this.apple) return;
+    const rows = await this.prisma.identity
+      .findMany({
+        where: { userId, provider: IdentityProvider.APPLE, providerRefreshToken: { not: null } },
+        select: { providerRefreshToken: true },
+      })
+      .catch(() => [] as { providerRefreshToken: string | null }[]);
+    for (const r of rows) {
+      if (r.providerRefreshToken) await this.apple.revoke(r.providerRefreshToken);
+    }
   }
 
   /**

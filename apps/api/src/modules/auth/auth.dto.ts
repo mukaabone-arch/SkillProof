@@ -156,3 +156,14 @@ export class PasskeyRegisterVerifyDto extends PasskeyVerifyDto {
   @MaxLength(60)
   name?: string;
 }
+
+/** POST /auth/apple — values from the iOS Sign in with Apple sheet. */
+export class AppleSignInDto {
+  @IsString()
+  identityToken: string;
+
+  /** One-time code; exchanged for the refresh token used to revoke on account deletion. */
+  @IsOptional()
+  @IsString()
+  authorizationCode?: string;
+}

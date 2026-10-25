@@ -10,6 +10,7 @@ import {
   EmployerInviteOtpRequestDto,
   EmployerInviteOtpVerifyDto,
   EmployerRegisterDto,
+  AppleSignInDto,
   OAuthCodeDto,
   RedeemWebSessionDto,
   RequestOtpDto,
@@ -119,6 +120,13 @@ export class AuthController {
   @HttpCode(200)
   loginWithGithub(@Body() dto: OAuthCodeDto) {
     return this.auth.loginWithGithub(dto);
+  }
+
+  /** Native Sign in with Apple — see AuthService.loginWithApple. */
+  @Post('apple')
+  @HttpCode(200)
+  loginWithApple(@Body() dto: AppleSignInDto) {
+    return this.auth.loginWithApple(dto.identityToken, dto.authorizationCode);
   }
 
   /**
