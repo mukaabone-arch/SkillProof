@@ -4,6 +4,7 @@ import { AuthenticatedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { EntitlementGuard } from '../entitlements/entitlement.guard';
+import { AiConsentGuard } from '../auth/ai-consent.guard';
 import { RequiresEntitlement } from '../entitlements/requires-entitlement.decorator';
 import { AssessmentSessionsService, computeProgress, IDLE_TIMEOUT_MINUTES } from './assessment-sessions.service';
 import { LadderState } from './assessor.service';
@@ -60,7 +61,7 @@ export class AssessmentSessionsController {
    * only starting a brand-new session consumes a unit.
    */
   @Post()
-  @UseGuards(EntitlementGuard)
+  @UseGuards(AiConsentGuard, EntitlementGuard)
   @RequiresEntitlement('discussionSessions')
   async create(@Req() req: AuthenticatedRequest) {
     const { session, turns, claimFeedback } = await this.svc.createSession(req.user.sub);

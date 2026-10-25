@@ -9,11 +9,17 @@
  * No CandidateNav — mirrors the MCQ assessment flow's own pre-test screen
  * (apps/web/app/assessments/[id]/page.tsx), which is chrome-free start to
  * finish. Same convention, same reason: one focused thing to do.
+ *
+ * AI consent: this session's answers go to our AI provider, so the start
+ * button is replaced by AiConsentNotice until the candidate has agreed once
+ * (User.aiConsentAt). The API enforces the same rule (AiConsentGuard), and a
+ * 403 AI_CONSENT_REQUIRED from start() falls back to showing the notice.
  */
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, getToken } from '@/lib/api';
+import AiConsentNotice, { isAiConsentRequired } from '@/components/AiConsentNotice';
 
 interface MineSession {
   id: string;
@@ -26,6 +32,8 @@ const SKILL_LEVEL = 'L2';
 export default function DiscussionSetupPage() {
   const router = useRouter();
   const [mine, setMine] = useState<MineSession | null | undefined>(undefined);
+  // undefined = still loading; false = must agree first; true = agreed.
+  const [aiConsented, setAiConsented] = useState<boolean | undefined>(undefined);
   const [error, setError] = useState('');
   const [starting, setStarting] = useState(false);
 
@@ -37,6 +45,10 @@ export default function DiscussionSetupPage() {
     api<MineSession | null>('/assessment-sessions/mine')
       .then(setMine)
       .catch(() => setMine(null));
+    api<{ aiConsentAt: string | null }>('/profiles/me')
+      .then((p) => setAiConsented(Boolean(p.aiConsentAt)))
+      // Unknown → show the notice; agreeing again is harmless (idempotent).
+      .catch(() => setAiConsented(false));
   }, [router]);
 
   async function start() {
@@ -50,7 +62,11 @@ export default function DiscussionSetupPage() {
       const created = await api<{ session: { id: string } }>('/assessment-sessions', { method: 'POST' });
       router.push(`/assessments/discussion/session/${created.session.id}`);
     } catch (e) {
-      setError((e as Error).message);
+      if (isAiConsentRequired(e)) {
+        setAiConsented(false);
+      } else {
+        setError((e as Error).message);
+      }
       setStarting(false);
     }
   }
@@ -66,15 +82,17 @@ export default function DiscussionSetupPage() {
         <ul style={{ margin: 0, paddingLeft: 20 }}>
           <li>You&apos;ll work through a design problem in conversation.</li>
           <li>Work on it alone — reasoning matters more than polish.</li>
-          <li>The session is recorded and reviewed by a person before any badge is issued.</li>
+          <li>Your answers are evaluated by AI, and a person reviews the result before any badge is issued.</li>
           <li>You&apos;ll hear back within a day.</li>
         </ul>
       </div>
 
       {error && <p className="error">{error}</p>}
 
-      {mine === undefined ? (
+      {mine === undefined || aiConsented === undefined ? (
         <p>Loading…</p>
+      ) : !aiConsented ? (
+        <AiConsentNotice onAgreed={() => setAiConsented(true)} />
       ) : (
         <button onClick={start} disabled={starting}>
           {starting ? (resumable ? 'Resuming…' : 'Starting…') : resumable ? 'Resume your session' : 'Start'}

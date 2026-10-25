@@ -51,6 +51,12 @@ export class ProfilesController {
     return this.svc.getMe(req.user.sub);
   }
 
+  /** Records the one-time AI-processing agreement — see ProfilesService.recordAiConsent. */
+  @Post('me/ai-consent')
+  recordAiConsent(@Req() req: AuthenticatedRequest) {
+    return this.svc.recordAiConsent(req.user.sub);
+  }
+
   @Patch('me')
   update(@Req() req: AuthenticatedRequest, @Body() dto: UpdateProfileDto) {
     return this.svc.updateMe(req.user.sub, dto);

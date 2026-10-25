@@ -64,8 +64,28 @@ export class ProfilesService {
   ) {}
 
   async getMe(userId: string) {
-    const [profile, email] = await Promise.all([this.ensureProfile(userId), this.getEmail(userId)]);
-    return { ...withHasPhoto(profile), email };
+    const [profile, user] = await Promise.all([
+      this.ensureProfile(userId),
+      this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true, aiConsentAt: true } }),
+    ]);
+    return { ...withHasPhoto(profile), email: user.email, aiConsentAt: user.aiConsentAt };
+  }
+
+  /**
+   * One-time agreement that assessment/interview-practice answers are
+   * processed by our AI provider — see User.aiConsentAt / AiConsentGuard.
+   * Idempotent: agreeing again keeps the ORIGINAL timestamp, so the record
+   * always shows when consent was first given.
+   */
+  async recordAiConsent(userId: string): Promise<{ aiConsentAt: Date }> {
+    const existing = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { aiConsentAt: true } });
+    if (existing.aiConsentAt) return { aiConsentAt: existing.aiConsentAt };
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { aiConsentAt: new Date() },
+      select: { aiConsentAt: true },
+    });
+    return { aiConsentAt: user.aiConsentAt as Date };
   }
 
   async updateMe(userId: string, dto: UpdateProfileDto) {

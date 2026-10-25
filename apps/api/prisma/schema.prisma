@@ -348,6 +348,13 @@ model User {
   /// dormant for weeks between fresh OTP/OAuth sign-ins.
   lastLoginAt  DateTime?
 
+  /// When this user agreed that their assessment/interview-practice answers
+  /// are processed by our AI provider (Anthropic) — App Store guideline
+  /// 5.1.2(i) requires that disclosure + consent before personal data goes to
+  /// a third-party AI. Set once by POST /profiles/me/ai-consent; enforced by
+  /// AiConsentGuard on session-start endpoints. Null = not yet agreed.
+  aiConsentAt  DateTime?
+
   profile                   CandidateProfile?
   attempts                  Attempt[]
   badges                    Badge[]
