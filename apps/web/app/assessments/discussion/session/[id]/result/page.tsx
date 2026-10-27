@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, getToken } from '@/lib/api';
+import ReportAiContent from '@/components/ReportAiContent';
 import { Badge } from '@/components/ui';
 
 interface ResultClaim {
@@ -207,6 +208,7 @@ export default function DiscussionResultPage() {
               {c.disputed && <Badge variant="warning">{c.disputeResolved ? 'Dispute resolved' : 'Under review'}</Badge>}
             </div>
             <p className="meta">{c.reason}</p>
+            <ReportAiContent sessionId={id} targetType="RESULT_REASON" targetId={c.claimId} />
             {c.gates && c.verdict !== 'DEMONSTRATED' && (
               <p className="meta">Not fully demonstrated — required for the {data.level} badge.</p>
             )}
@@ -262,6 +264,7 @@ export default function DiscussionResultPage() {
             >
               <div className="meta">{t.role}</div>
               <p style={{ margin: '4px 0 12px' }}>{t.content}</p>
+              {t.role === 'ASSESSOR' && <ReportAiContent sessionId={id} targetType="ASSESSOR_TURN" targetId={t.id} />}
             </div>
           ))}
         </details>

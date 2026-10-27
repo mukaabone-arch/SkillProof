@@ -86,6 +86,7 @@ function setup(profile: FakeProfile, requests: Row[], transactionRows: Transacti
     },
     user: { update: jest.fn(async () => undefined) },
     identity: { deleteMany: jest.fn(async () => ({ count: 0 })) },
+    aiContentReport: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
     refreshToken: { deleteMany: jest.fn(async () => ({ count: 0 })) },
     externalCredential: { updateMany: jest.fn(async () => ({ count: 0 })) },
     certification: { updateMany: jest.fn(async () => ({ count: 0 })), findMany: jest.fn(async () => []) },

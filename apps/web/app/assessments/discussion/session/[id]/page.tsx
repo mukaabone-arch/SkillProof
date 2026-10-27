@@ -17,6 +17,7 @@ import { ClipboardEvent, Fragment, KeyboardEvent, useCallback, useEffect, useRef
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, getToken } from '@/lib/api';
+import ReportAiContent from '@/components/ReportAiContent';
 
 interface SessionSummary {
   id: string;
@@ -435,6 +436,7 @@ export default function DiscussionSessionPage() {
           <div className={`discussion-turn discussion-turn-assessor${t.superseded ? ' discussion-turn-superseded' : ''}`}>
             <AssessorLabel />
             <div className="discussion-turn-content">{question}</div>
+            <ReportAiContent sessionId={id} targetType="ASSESSOR_TURN" targetId={t.id} />
             {t.superseded && <div className="meta">re-asked after a connection drop</div>}
           </div>
         </Fragment>
@@ -447,6 +449,7 @@ export default function DiscussionSessionPage() {
       >
         {t.role === 'ASSESSOR' && <AssessorLabel />}
         <div className="discussion-turn-content">{t.content}</div>
+        {t.role === 'ASSESSOR' && <ReportAiContent sessionId={id} targetType="ASSESSOR_TURN" targetId={t.id} />}
         {t.superseded && <div className="meta">re-asked after a connection drop</div>}
       </div>
     );
@@ -508,6 +511,7 @@ export default function DiscussionSessionPage() {
                 </li>
               ))}
             </ul>
+            <ReportAiContent sessionId={id} targetType="LIVE_FEEDBACK" targetId={fb.id} />
             <div className="discussion-feedback-foot">
               <span className="discussion-feedback-ask">Was this explanation helpful?</span>
               <div className="discussion-pills">

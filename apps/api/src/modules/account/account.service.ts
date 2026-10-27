@@ -232,6 +232,9 @@ export class AccountService {
       // actually remove rather than anonymize.
       this.prisma.identity.deleteMany({ where: { userId } }),
       this.prisma.refreshToken.deleteMany({ where: { userId } }),
+      // The only free text a candidate wrote in an AI-content report is their
+      // optional note — cleared like every other piece of their own text.
+      this.prisma.aiContentReport.updateMany({ where: { userId }, data: { note: null } }),
       // External credentials/certifications can carry a name or a personal
       // profile URL (a Credly badge page, a LinkedIn Learning cert link) —
       // same category of personal data as the profile fields above, so the

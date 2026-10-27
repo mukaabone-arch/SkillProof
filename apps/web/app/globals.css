@@ -4296,3 +4296,28 @@ html:has(.lp-page) { scroll-behavior: smooth; }
     display: flex;
   }
 }
+
+/* ---- AI content "Report" control (ReportAiContent.tsx) ----
+   Deliberately quiet: a small text link under each AI response, so it is
+   always available (Google Play AI-Generated Content policy) without
+   competing with the conversation. !important beats the global button
+   styles, same approach as .account-menu-trigger. */
+.ai-report-link {
+  display: inline-flex !important; align-items: center; gap: 5px;
+  margin-top: 6px; padding: 2px 0 !important;
+  background: none !important; border: none !important; box-shadow: none !important;
+  color: var(--ink-60, #8b8aa3) !important; font-size: 0.78rem !important; font-weight: 500 !important;
+  cursor: pointer; width: auto !important; min-height: 0 !important;
+}
+.ai-report-link:hover { color: var(--ink, #e8e6f5) !important; text-decoration: underline; transform: none !important; }
+.ai-report-done { margin: 6px 0 0; font-size: 0.8rem; color: var(--ink-60, #8b8aa3); }
+.ai-report-form {
+  margin-top: 8px; padding: 12px; border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--ink-12, rgba(255, 255, 255, 0.12)); background: rgba(255, 255, 255, 0.03);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.ai-report-form fieldset { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ai-report-form legend { font-weight: 600; font-size: 0.88rem; margin-bottom: 4px; }
+.ai-report-option { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; cursor: pointer; }
+.ai-report-form textarea { width: 100%; font-size: 0.85rem; }
+.ai-report-actions { display: flex; gap: 8px; flex-wrap: wrap; }

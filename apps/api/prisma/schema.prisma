@@ -3287,3 +3287,51 @@ enum AssessmentRequestExclusionReason {
    */
   JOB_CLOSED
 }
+
+/// What a candidate reported — see AiContentReport.
+enum AiContentTarget {
+  ASSESSOR_TURN // an AI interviewer message (SessionTurn, role ASSESSOR)
+  LIVE_FEEDBACK // a live "Reviewer notes" card (LiveClaimFeedback)
+  RESULT_REASON // a claim's reason on the result page (ClaimVerdict.reason)
+}
+
+enum AiContentReportReason {
+  OFFENSIVE
+  HATEFUL
+  SEXUAL
+  DANGEROUS
+  MISLEADING
+  OTHER
+}
+
+enum AiContentReportStatus {
+  OPEN
+  REVIEWED
+}
+
+/// In-app report of AI-generated content (Google Play AI-Generated Content
+/// policy: users must be able to flag offensive AI output without leaving
+/// the app). contentSnapshot is a copy of the reported text taken at report
+/// time, so the review queue never depends on the session still existing in
+/// the same form. userId/sessionId are plain ids (no FK) on purpose — this is
+/// an append-only audit log, and account deletion must not be blocked by it;
+/// AccountService.delete clears `note` (the only free text a candidate wrote).
+model AiContentReport {
+  id              String                @id @default(uuid())
+  userId          String
+  sessionId       String
+  targetType      AiContentTarget
+  targetId        String
+  reason          AiContentReportReason
+  note            String?
+  contentSnapshot String
+  status          AiContentReportStatus @default(OPEN)
+  reviewedAt      DateTime?
+  reviewedById    String?
+  resolutionNote  String?
+  createdAt       DateTime              @default(now())
+
+  @@unique([userId, targetType, targetId])
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+}

@@ -49,6 +49,7 @@ const GROUPS: NavGroup[] = [
       { kind: 'link', href: '/admin/review', label: 'Session Reviews', icon: 'sessionReview' },
       { kind: 'link', href: '/admin/attempts', label: 'Attempt Reviews', icon: 'attemptReview' },
       { kind: 'link', href: '/admin/assessment-blocks', label: 'Integrity Blocks', icon: 'integrity' },
+      { kind: 'link', href: '/admin/ai-reports', label: 'AI Content Reports', icon: 'integrity' },
       { kind: 'link', href: '/admin/interview-questions', label: 'Interview Questions', icon: 'questions' },
     ],
   },
