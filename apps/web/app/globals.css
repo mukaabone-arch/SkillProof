@@ -1863,7 +1863,7 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
    just the visually stiller one. */
 .employer-shell {
   display: flex; flex-direction: column; min-height: 100vh;
-  background: url('/emp_Background.webp') center / cover no-repeat fixed, var(--paper);
+  background: url('/employer-bg.webp') center / cover no-repeat fixed, var(--paper);
   color: var(--ink);
 }
 /* Deliberately dark, on every employer page, regardless of the light
