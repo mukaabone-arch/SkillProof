@@ -471,34 +471,8 @@ function ProfilePageInner() {
           >
 
           <div className="field">
-            <label>Photo</label>
+            <label>Change photo</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              {photoUrl ? (
-                <img
-                  src={photoUrl}
-                  alt="Your profile photo"
-                  style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-                />
-              ) : (
-                <div
-                  aria-hidden="true"
-                  style={{
-                    width: 72,
-                    height: 72,
-                    borderRadius: '50%',
-                    flexShrink: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: 'var(--brand-100)',
-                    color: 'var(--brand-800)',
-                    fontSize: 24,
-                    fontWeight: 600,
-                  }}
-                >
-                  {initialsFrom(form.fullName)}
-                </div>
-              )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 0 }}>
                 <input
                   id="photoFile"
