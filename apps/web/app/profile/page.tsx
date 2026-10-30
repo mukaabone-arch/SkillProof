@@ -11,8 +11,10 @@ import { isSafeReturnTo } from '@/lib/returnTo';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import CertificationsPanel from '@/components/CertificationsPanel';
 import ProfileViewersPanel from '@/components/ProfileViewersPanel';
+import CollapsibleSection from '@/components/CollapsibleSection';
 import { LocationAutocomplete, LocationSuggestion } from '@/components/LocationAutocomplete';
 import { initialsFrom } from '@/lib/initials';
+import PasskeysSection from '@/components/PasskeysSection';
 
 /**
  * Structured role dropdown — display/filter only, mirrors the API's
@@ -193,6 +195,20 @@ function ProfilePageInner() {
   const [review, setReview] = useState<ReviewForm | null>(null);
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
+
+  // One-line statuses for the collapsed Certifications / Profile viewers
+  // headers. Best-effort: on failure the header just shows no status.
+  const [certCount, setCertCount] = useState<number | null>(null);
+  const [viewerCount, setViewerCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!ready) return;
+    api<unknown>('/profiles/me/certifications')
+      .then((r) => setCertCount(Array.isArray(r) ? r.length : null))
+      .catch(() => undefined);
+    api<{ mode: string; count?: number; viewers?: unknown[] }>('/profiles/me/viewers')
+      .then((r) => setViewerCount(r.mode === 'full' ? r.viewers?.length ?? 0 : r.count ?? 0))
+      .catch(() => undefined);
+  }, [ready]);
 
   useEffect(() => {
     if (!ready) return;
@@ -433,14 +449,26 @@ function ProfilePageInner() {
 
       {form && (
         <>
-          <div className="progress-track">
-            <div className="progress-fill" style={{ width: `${completeness}%` }} />
-          </div>
-          <p className="meta" style={{ marginBottom: 24 }}>{completeness}% complete</p>
 
           <div className="profile-columns">
-          <section className="ui-card profile-panel">
-          <h2>Profile details</h2>
+          <CollapsibleSection
+            id="details"
+            defaultOpen={!form.fullName || isSafeReturnTo(returnTo)}
+            title={
+              <span className="profile-summary">
+                {photoUrl ? (
+                  <img src={photoUrl} alt="" className="profile-summary-avatar" />
+                ) : (
+                  <span className="profile-summary-avatar" aria-hidden="true">{initialsFrom(form.fullName)}</span>
+                )}
+                <span className="profile-summary-text">
+                  <span className="profile-summary-name">{form.fullName || 'Add your name'}</span>
+                  {form.headline && <span className="profile-summary-headline">{form.headline}</span>}
+                </span>
+              </span>
+            }
+            status={`${completeness}% complete`}
+          >
 
           <div className="field">
             <label>Photo</label>
@@ -666,11 +694,10 @@ function ProfilePageInner() {
             </button>
             {saved && <p className="ok" style={{ margin: 0 }}>✓ Saved</p>}
           </div>
-          </section>
+          </CollapsibleSection>
 
           <div className="profile-side-col">
-          <section className="ui-card profile-panel">
-          <h2>Resume</h2>
+          <CollapsibleSection id="resume" title="Resume" status={hasResume ? 'Uploaded' : 'Not uploaded'}>
           <p>
             Upload your resume as a PDF, then have AI pull out the highlights. Nothing is saved
             to your profile until you review and confirm it below.
@@ -784,10 +811,9 @@ function ProfilePageInner() {
               </div>
             </div>
           )}
-          </section>
+          </CollapsibleSection>
 
-          <section className="ui-card profile-panel">
-            <h2>Build a resume PDF</h2>
+          <CollapsibleSection id="resume-pdf" title="Build a resume PDF" status="One-page PDF">
             <p>
               Turn your profile and verified badges into a clean, one-page PDF — or upload an
               existing resume and have AI rewrite it. Either way, you review and edit everything
@@ -796,10 +822,9 @@ function ProfilePageInner() {
             <Link href="/resume">
               <button>Build your resume →</button>
             </Link>
-          </section>
+          </CollapsibleSection>
 
-          <section className="ui-card profile-panel">
-            <h2>Your portfolio</h2>
+          <CollapsibleSection id="portfolio" title="Your portfolio" status="Shareable page">
             <p>
               A richer, shareable page — experience, skills, projects, education — built from
               your uploaded resume. Verified badges and self-reported resume content are kept
@@ -808,10 +833,29 @@ function ProfilePageInner() {
             <Link href="/portfolio">
               <button>Review your portfolio →</button>
             </Link>
-          </section>
+          </CollapsibleSection>
 
-          <CertificationsPanel />
-          <ProfileViewersPanel />
+          {/* Both panels render their own card + heading; the CSS for
+              .collapsible-section-body > .profile-panel flattens that inside
+              the section, so the panels themselves stay unchanged. */}
+          <CollapsibleSection
+            id="certifications"
+            title="Certifications"
+            status={certCount === null ? undefined : `${certCount} added`}
+          >
+            <CertificationsPanel />
+          </CollapsibleSection>
+          <CollapsibleSection
+            id="profile-viewers"
+            title="Profile viewers"
+            status={
+              viewerCount === null
+                ? undefined
+                : `${viewerCount} employer${viewerCount === 1 ? '' : 's'} viewed`
+            }
+          >
+            <ProfileViewersPanel />
+          </CollapsibleSection>
           </div>
           </div>
         </>

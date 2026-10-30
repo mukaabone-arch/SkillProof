@@ -21,7 +21,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 interface Props {
   /** Anchor id — also what a #hash deep link opens. */
   id?: string;
-  title: string;
+  /** Usually plain text; the profile page passes photo + name. */
+  title: ReactNode;
   /** One short line shown next to the title while collapsed, e.g. "2 passkeys". */
   status?: ReactNode;
   /** 'danger' keeps the red border (Delete my account) so it still reads as destructive. */

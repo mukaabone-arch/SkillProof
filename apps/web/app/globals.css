@@ -4321,3 +4321,25 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .ai-report-option { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; cursor: pointer; }
 .ai-report-form textarea { width: 100%; font-size: 0.85rem; }
 .ai-report-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---- profile page: every panel is a CollapsibleSection (2026-10) ----
+   Same collapsed-row pattern as /profile/account. The Profile details header
+   carries photo + name + headline; its status is the % complete. */
+.profile-columns .collapsible-section { margin-bottom: 0; }
+.profile-side-col { gap: var(--space-4); }
+/* CertificationsPanel / ProfileViewersPanel bring their own card + h2 —
+   flatten both when nested in a section so there's no card-in-card. */
+.collapsible-section-body > .profile-panel { border: 0; background: none; box-shadow: none; padding: 0; }
+.collapsible-section-body > .profile-panel > h2:first-child { display: none; }
+.profile-summary { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.profile-summary-avatar {
+  width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; object-fit: cover;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--brand-100); color: var(--brand-800); font-size: 16px; font-weight: 600;
+}
+.profile-summary-text { display: flex; flex-direction: column; min-width: 0; }
+.profile-summary-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-summary-headline {
+  font-family: var(--font-body); font-size: var(--text-sm); font-weight: 400; color: var(--ink-60);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
