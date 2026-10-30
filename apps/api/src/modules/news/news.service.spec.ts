@@ -5,8 +5,13 @@ function fakePrisma(items: any[]) {
   return {
     newsItem: {
       findMany: jest.fn(async ({ where, orderBy, take }: any) => {
-        const cutoff = where.publishedAt.gte as Date;
-        const filtered = items.filter((i) => i.publishedAt >= cutoff);
+        // listRecent queries OR: [{ other sources, 30-day window }, { WorkLab, longer window }].
+        const clauses: any[] = where.OR ?? [where];
+        const matches = (i: any, c: any) =>
+          i.publishedAt >= (c.publishedAt.gte as Date) &&
+          (c.source === undefined ||
+            (typeof c.source === 'string' ? i.source === c.source : i.source !== c.source.not));
+        const filtered = items.filter((i) => clauses.some((c) => matches(i, c)));
         filtered.sort((a, b) => (orderBy.publishedAt === 'desc' ? b.publishedAt - a.publishedAt : a.publishedAt - b.publishedAt));
         return filtered.slice(0, take);
       }),

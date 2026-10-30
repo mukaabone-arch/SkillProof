@@ -134,3 +134,21 @@ export const STRIP_ITEM_LIMIT = 6;
  * source that's had a genuinely big week show more than a single item.
  */
 export const MAX_ITEMS_PER_SOURCE = 2;
+
+/**
+ * Microsoft WorkLab — added deliberately despite having NO feed (unlike the
+ * "no feed, excluded" sources above): it's read from its HTML index page
+ * instead (see worklab.parser.ts / NewsFeedRefreshJob.refreshWorkLab). Kept
+ * out of NEWS_SOURCES because it isn't polled through rss-parser.
+ *
+ * It publishes roughly monthly, so on date alone it would almost never
+ * reach the 6-item strip next to daily sources. Instead it gets
+ * WORKLAB_PINNED_SLOTS reserved slots (the newest WorkLab articles), with a
+ * longer window of its own so those slots don't empty between issues.
+ */
+export const WORKLAB_SOURCE_NAME = 'Microsoft WorkLab';
+export const WORKLAB_INDEX_URL = 'https://www.microsoft.com/en-us/worklab/';
+/** Article pages fetched per sweep for new links (each one only once — known links are skipped). */
+export const WORKLAB_FETCH_LIMIT = 8;
+export const WORKLAB_PINNED_SLOTS = 2;
+export const WORKLAB_WINDOW_DAYS = 365;

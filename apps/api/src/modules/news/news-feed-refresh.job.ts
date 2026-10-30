@@ -4,6 +4,12 @@ import { decodeHTML } from 'entities';
 import Parser from 'rss-parser';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FEED_FETCH_TIMEOUT_MS, NEWS_SOURCES, NewsSource, PER_SOURCE_FETCH_LIMIT } from './news.config';
+import {
+  WORKLAB_FETCH_LIMIT,
+  WORKLAB_INDEX_URL,
+  WORKLAB_SOURCE_NAME,
+} from './news.config';
+import { extractWorkLabArticleLinks, parseWorkLabArticle } from './worklab.parser';
 
 /**
  * The only place that ever fetches an external feed — GET /news (see
@@ -41,6 +47,64 @@ export class NewsFeedRefreshJob {
         this.logger.error(`Unexpected error refreshing news source ${source.name}: ${(err as Error).message}`);
       });
     }
+  }
+
+  /**
+   * Microsoft WorkLab has no feed (see WORKLAB_SOURCE_NAME's doc comment),
+   * so: fetch the index page, take the first WORKLAB_FETCH_LIMIT article
+   * links in page order, and fetch only the ones not already stored to read
+   * their title + date. Every 6 hours, not hourly — it publishes about
+   * monthly, and this is someone else's HTML site, not a feed built for
+   * polling. Same isolation as the RSS path: any failure is logged and the
+   * sweep moves on; a layout change just means no new rows, never an error
+   * on the landing page (GET /news only reads the table).
+   */
+  @Cron('15 */6 * * *')
+  async refreshWorkLab(): Promise<void> {
+    let links: string[];
+    try {
+      links = extractWorkLabArticleLinks(await this.fetchText(WORKLAB_INDEX_URL)).slice(0, WORKLAB_FETCH_LIMIT);
+    } catch (err) {
+      this.logger.error(`Failed to fetch WorkLab index: ${(err as Error).message}`);
+      return;
+    }
+    if (links.length === 0) {
+      this.logger.warn('WorkLab index returned no article links — page layout may have changed');
+      return;
+    }
+
+    const known = await this.prisma.newsItem.findMany({
+      where: { source: WORKLAB_SOURCE_NAME, link: { in: links } },
+      select: { link: true },
+    });
+    const knownLinks = new Set(known.map((k) => k.link));
+
+    for (const link of links) {
+      if (knownLinks.has(link)) continue;
+      try {
+        const parsed = parseWorkLabArticle(await this.fetchText(link));
+        if (!parsed) {
+          this.logger.warn(`WorkLab article without a readable title/date, skipped: ${link}`);
+          continue;
+        }
+        await this.prisma.newsItem.upsert({
+          where: { source_link: { source: WORKLAB_SOURCE_NAME, link } },
+          create: { source: WORKLAB_SOURCE_NAME, title: parsed.title, link, publishedAt: parsed.publishedAt },
+          update: { title: parsed.title, publishedAt: parsed.publishedAt, fetchedAt: new Date() },
+        });
+      } catch (err) {
+        this.logger.error(`Failed to refresh WorkLab article ${link}: ${(err as Error).message}`);
+      }
+    }
+  }
+
+  private async fetchText(url: string): Promise<string> {
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(FEED_FETCH_TIMEOUT_MS),
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MyAmbiiNews/1.0; +https://www.myambii.com)' },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.text();
   }
 
   private async refreshOne(source: NewsSource): Promise<void> {

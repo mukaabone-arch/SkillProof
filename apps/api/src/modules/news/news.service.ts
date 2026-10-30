@@ -1,7 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { NewsItem } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CACHE_WINDOW_DAYS, MAX_ITEMS_PER_SOURCE, STRIP_ITEM_LIMIT } from './news.config';
+import {
+  CACHE_WINDOW_DAYS,
+  MAX_ITEMS_PER_SOURCE,
+  STRIP_ITEM_LIMIT,
+  WORKLAB_PINNED_SLOTS,
+  WORKLAB_SOURCE_NAME,
+  WORKLAB_WINDOW_DAYS,
+} from './news.config';
 
 @Injectable()
 export class NewsService {
@@ -37,20 +44,34 @@ export class NewsService {
    */
   async listRecent(): Promise<NewsItem[]> {
     const cutoff = new Date(Date.now() - CACHE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    // WorkLab rows come back under their own, longer window (see
+    // WORKLAB_WINDOW_DAYS); every other source keeps the 30-day one. Still
+    // one query, newest-first.
+    const workLabCutoff = new Date(Date.now() - WORKLAB_WINDOW_DAYS * 24 * 60 * 60 * 1000);
     const candidates = await this.prisma.newsItem.findMany({
-      where: { publishedAt: { gte: cutoff } },
+      where: {
+        OR: [
+          { source: { not: WORKLAB_SOURCE_NAME }, publishedAt: { gte: cutoff } },
+          { source: WORKLAB_SOURCE_NAME, publishedAt: { gte: workLabCutoff } },
+        ],
+      },
       orderBy: { publishedAt: 'desc' },
     });
+
+    // Reserved slots first: the newest WORKLAB_PINNED_SLOTS WorkLab items.
+    const pinned = candidates.filter((i) => i.source === WORKLAB_SOURCE_NAME).slice(0, WORKLAB_PINNED_SLOTS);
+    const remaining = STRIP_ITEM_LIMIT - pinned.length;
 
     const perSourceCount = new Map<string, number>();
     const selected: NewsItem[] = [];
     for (const item of candidates) {
+      if (selected.length >= remaining) break;
+      if (item.source === WORKLAB_SOURCE_NAME) continue;
       const count = perSourceCount.get(item.source) ?? 0;
       if (count >= MAX_ITEMS_PER_SOURCE) continue;
       selected.push(item);
       perSourceCount.set(item.source, count + 1);
-      if (selected.length === STRIP_ITEM_LIMIT) break;
     }
-    return selected;
+    return [...selected, ...pinned].sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime());
   }
 }
