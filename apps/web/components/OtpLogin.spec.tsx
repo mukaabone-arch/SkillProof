@@ -125,10 +125,10 @@ describe('OtpLogin — beta promo ribbon', () => {
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
   });
 
-  it('renders nothing when an employer token is present', () => {
+  it('still renders when only an employer token is present', () => {
     employerApi.setTokens('emp-access-token', 'emp-refresh-token');
     render(<OtpLogin onLoggedIn={jest.fn()} />);
-    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    expect(screen.getByRole('note')).toBeInTheDocument();
   });
 });
 

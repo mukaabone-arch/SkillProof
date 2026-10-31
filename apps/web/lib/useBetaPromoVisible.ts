@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { getToken, employerApi } from '@/lib/api';
+import { getToken } from '@/lib/api';
 import { isBetaPromoActive } from '@/lib/betaPromo';
 
 /**
@@ -38,7 +38,7 @@ export function useBetaPromoVisible(): boolean {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const signedOut = !getToken() && !employerApi.getToken();
+    const signedOut = !getToken();
     setVisible(isBetaPromoActive() && signedOut);
   }, [pathname]);
 

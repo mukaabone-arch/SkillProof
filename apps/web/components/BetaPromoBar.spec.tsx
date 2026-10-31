@@ -146,13 +146,13 @@ describe('BetaPromoBar — signed-in visitors', () => {
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
   });
 
-  it('hides for a signed-in employer, even on an allowed path', async () => {
+  it('still shows for a signed-in employer (the offer is for candidates; only a candidate login hides it)', async () => {
     // Uses the default '/faq' pathname, not '/employer' — '/employer' is no
     // longer in the allow-list at all (see BetaPromoBar.tsx), so testing on
     // it would exercise the path gate, not the token check this test is for.
     employerApi.setTokens('emp-access-token', 'emp-refresh-token');
     render(<BetaPromoBar />);
-    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    expect(screen.getByRole('note')).toBeInTheDocument();
   });
 
   it('renders for an anonymous visitor on the same path', () => {
@@ -183,10 +183,10 @@ describe('BetaPromoScroll — the landing/candidate-login ribbon', () => {
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
   });
 
-  it('hides for a signed-in employer', () => {
+  it('still shows for a signed-in employer — only a candidate login hides it', () => {
     employerApi.setTokens('emp-access-token', 'emp-refresh-token');
     render(<BetaPromoScroll />);
-    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    expect(screen.getByRole('note')).toBeInTheDocument();
   });
 
   it('has no path allow-list of its own — it renders the same way regardless of route', () => {
