@@ -15,6 +15,7 @@
  */
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useEntitlements } from '@/lib/entitlements';
 import { ErrorState, LoadingState } from '@/components/ui';
@@ -38,6 +39,7 @@ interface Prep {
   toProbe: { skillId: string; skillName: string; requiredLevel: Level; isRequired: boolean; candidateLevel: Level | null; hasSkillCheck: boolean }[];
   questions: { id: string; text: string; whatToLookFor: string; followUp: string | null }[];
   checklist: string[];
+  applicationId: string | null;
 }
 
 const CHECKLIST: { key: string; label: string }[] = [
@@ -60,6 +62,23 @@ export default function InterviewPrepPlan({ interviewId }: { interviewId: string
   const [prep, setPrep] = useState<Prep | null>(null);
   const [error, setError] = useState('');
   const [done, setDone] = useState<string[]>([]);
+  const router = useRouter();
+  const [starting, setStarting] = useState(false);
+
+  async function startPractice(applicationId: string | null) {
+    setStarting(true);
+    setError('');
+    try {
+      const r = await api<{ session: { id: string } }>('/interview-sessions', {
+        method: 'POST',
+        body: JSON.stringify(applicationId ? { applicationId } : {}),
+      });
+      router.push(`/interviews/practice/${r.session.id}`);
+    } catch (e) {
+      setError((e as Error).message);
+      setStarting(false);
+    }
+  }
 
   useEffect(() => {
     api<Prep>(`/interviews/${interviewId}/prep`)
@@ -82,8 +101,7 @@ export default function InterviewPrepPlan({ interviewId }: { interviewId: string
     }
   }
 
-  if (error) return <ErrorState message={error} />;
-  if (!prep) return <LoadingState />;
+  if (!prep) return error ? <ErrorState message={error} /> : <LoadingState />;
 
   const required = [...prep.proven, ...prep.toProbe].filter((s) => s.isRequired);
   const provenRequired = prep.proven.filter((s) => s.isRequired).length;
@@ -94,6 +112,7 @@ export default function InterviewPrepPlan({ interviewId }: { interviewId: string
 
   return (
     <div className="prep-plan">
+      {error && <ErrorState message={error} />}
       <div className="prep-plan-head">
         <div className="prep-ring" style={{ ['--pct' as string]: `${pct}%` }} aria-hidden="true">
           <span>{pct}%</span>
@@ -134,21 +153,22 @@ export default function InterviewPrepPlan({ interviewId }: { interviewId: string
       {prep.toProbe.length > 0 && (
         <section className="prep-sec">
           <h3><span className="prep-dot prep-dot-warn" />They&apos;ll probe these<span className="meta">{prep.toProbe.length} not yet verified</span></h3>
+          <p className="meta prep-probe-tip">
+            Expect questions on each of these. Have a real example ready; if you haven&apos;t used one in production, say so
+            plainly and explain how you&apos;d approach it. Verifying one before the interview is the strongest answer.
+          </p>
           {prep.toProbe.map((s) => (
-            <div key={s.skillId} className="prep-row">
+            <div key={s.skillId} className="prep-row prep-row-compact">
               <div className="prep-skill">
                 {s.skillName}{' '}
                 <span className="ui-badge ui-badge-warning">
-                  {s.isRequired ? 'Required' : 'Nice to have'} · {s.candidateLevel ? `you have ${s.candidateLevel}, needs ${s.requiredLevel}` : 'not verified'}
+                  {s.isRequired ? 'Required' : 'Nice to have'}
+                  {s.candidateLevel ? ` · you have ${s.candidateLevel}, needs ${s.requiredLevel}` : ''}
                 </span>
               </div>
-              <p className="meta">
-                Be ready with a real example. If you haven&apos;t used it in production, say so plainly and explain how you&apos;d
-                approach it.
-              </p>
               {s.hasSkillCheck && (
-                <Link href="/assessments" className="btn btn-primary prep-cta">
-                  Take the skill check
+                <Link href="/assessments" className="prep-link">
+                  Skill check →
                 </Link>
               )}
             </div>
@@ -194,6 +214,25 @@ export default function InterviewPrepPlan({ interviewId }: { interviewId: string
               </LockedPreview>
             </div>
           )}
+        </section>
+      )}
+
+      {limits && (
+        <section className="prep-sec prep-practice">
+          <div className="prep-row">
+            <div className="prep-skill">Practice this interview</div>
+            <p className="meta">
+              A 15–20 minute mock interview with questions like the ones above, then written feedback on each answer.
+              Practice only — never shown to employers.
+            </p>
+            {limits.interviewPrep ? (
+              <button className="prep-cta" onClick={() => startPractice(prep.applicationId)} disabled={starting}>
+                {starting ? 'Starting…' : 'Start practice interview'}
+              </button>
+            ) : (
+              <Link href="/upgrade" className="btn btn-primary prep-cta">Upgrade to practice</Link>
+            )}
+          </div>
         </section>
       )}
 

@@ -159,6 +159,12 @@ export class InterviewsService {
       followUp: q.followUpProbes[0] ?? null,
     }));
 
+    // The mock interview grounds itself in an Application, not a shortlist
+    // entry — pass the candidate's own application for this job, if any.
+    const application = entry.jobId
+      ? await this.prisma.application.findFirst({ where: { jobId: entry.jobId, candidateProfileId: profile.id }, select: { id: true } })
+      : null;
+
     const progress = await this.prisma.interviewPrepProgress.findUnique({ where: { shortlistEntryId: entry.id } });
     const allowed = PREP_CHECKLIST_KEYS as readonly string[];
 
@@ -181,6 +187,7 @@ export class InterviewsService {
       toProbe,
       questions,
       checklist: (progress?.done ?? []).filter((k) => allowed.includes(k)),
+      applicationId: application?.id ?? null,
     };
   }
 

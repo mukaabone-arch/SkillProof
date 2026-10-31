@@ -4372,3 +4372,29 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .prep-check { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-weight: 400; cursor: pointer; }
 .prep-check input { width: auto; }
 @media (max-width: 600px) { .prep-kv { grid-template-columns: 1fr; } }
+.prep-probe-tip { margin: 0; padding: 10px 14px 4px; }
+.prep-row-compact { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; }
+.prep-link { font-weight: 600; font-size: var(--text-sm); white-space: nowrap; color: var(--indigo); }
+
+/* ---- mock interview (practice) — /interviews/practice/[id] (2026-10) ---- */
+.prep-practice { border-color: var(--indigo); }
+.mock-page { padding-bottom: 48px; }
+.mock-top { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin: 16px 0 20px; }
+.mock-progress { flex: 1; min-width: 120px; max-width: 260px; height: 6px; border-radius: 99px; background: var(--ink-12); overflow: hidden; margin-left: auto; }
+.mock-progress span { display: block; height: 100%; background: var(--indigo); }
+.mock-thread { display: flex; flex-direction: column; gap: 14px; }
+.mock-turn { max-width: 760px; padding: 14px 16px; border-radius: var(--radius-lg); border: 1px solid var(--ink-12); }
+.mock-turn p { margin: 6px 0 0; white-space: pre-wrap; }
+.mock-turn-coach { background: var(--card); }
+.mock-turn-you { align-self: flex-end; background: var(--paper-2); }
+.mock-label { display: flex; align-items: center; gap: 8px; font-size: var(--text-xs); font-weight: 600; color: var(--ink-60); text-transform: uppercase; letter-spacing: .06em; }
+.mock-mark { width: 20px; height: 20px; border-radius: 50%; background: var(--brand-50); color: var(--indigo); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; }
+.mock-superseded { opacity: .55; text-decoration: line-through; }
+.mock-compose { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+.mock-compose textarea { width: 100%; resize: vertical; }
+.mock-note { flex-direction: column; align-items: flex-start; gap: 12px; margin-top: 20px; }
+.mock-answer { margin-bottom: 16px; }
+.mock-answer h2 { font-size: var(--text-lg); margin: 8px 0; }
+.mock-answer h3 { font-size: var(--text-sm); margin: 14px 0 4px; color: var(--ink-60); text-transform: uppercase; letter-spacing: .06em; }
+.mock-star { margin-top: 12px; padding: 8px 12px; border-radius: var(--radius-md); background: var(--paper-2); }
+.mock-transcript summary { cursor: pointer; font-weight: 600; }
