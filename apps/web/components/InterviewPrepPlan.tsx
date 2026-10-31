@@ -20,6 +20,7 @@ import { api } from '@/lib/api';
 import { useEntitlements } from '@/lib/entitlements';
 import { ErrorState, LoadingState } from '@/components/ui';
 import { LockedPreview } from './LockedPreview';
+import AiConsentNotice, { isAiConsentRequired } from './AiConsentNotice';
 
 type Level = 'L1' | 'L2' | 'L3' | 'L4';
 
@@ -64,10 +65,12 @@ export default function InterviewPrepPlan({ interviewId }: { interviewId: string
   const [done, setDone] = useState<string[]>([]);
   const router = useRouter();
   const [starting, setStarting] = useState(false);
+  const [needsConsent, setNeedsConsent] = useState(false);
+  const [practiceError, setPracticeError] = useState('');
 
   async function startPractice(applicationId: string | null) {
     setStarting(true);
-    setError('');
+    setPracticeError('');
     try {
       const r = await api<{ session: { id: string } }>('/interview-sessions', {
         method: 'POST',
@@ -75,7 +78,8 @@ export default function InterviewPrepPlan({ interviewId }: { interviewId: string
       });
       router.push(`/interviews/practice/${r.session.id}`);
     } catch (e) {
-      setError((e as Error).message);
+      if (isAiConsentRequired(e)) setNeedsConsent(true);
+      else setPracticeError((e as Error).message);
       setStarting(false);
     }
   }
@@ -225,13 +229,22 @@ export default function InterviewPrepPlan({ interviewId }: { interviewId: string
               A 15–20 minute mock interview with questions like the ones above, then written feedback on each answer.
               Practice only — never shown to employers.
             </p>
-            {limits.interviewPrep ? (
+            {practiceError && <ErrorState message={practiceError} />}
+            {needsConsent && (
+              <AiConsentNotice
+                onAgreed={() => {
+                  setNeedsConsent(false);
+                  startPractice(prep.applicationId);
+                }}
+              />
+            )}
+            {limits.interviewPrep && !needsConsent ? (
               <button className="prep-cta" onClick={() => startPractice(prep.applicationId)} disabled={starting}>
                 {starting ? 'Starting…' : 'Start practice interview'}
               </button>
-            ) : (
+            ) : !limits.interviewPrep ? (
               <Link href="/upgrade" className="btn btn-primary prep-cta">Upgrade to practice</Link>
-            )}
+            ) : null}
           </div>
         </section>
       )}
