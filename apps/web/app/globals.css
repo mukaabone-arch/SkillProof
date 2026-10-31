@@ -4343,3 +4343,32 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   font-family: var(--font-body); font-size: var(--text-sm); font-weight: 400; color: var(--ink-60);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+
+/* ---- candidate interviews: per-interview prep plan (InterviewPrepPlan, 2026-10) ---- */
+.interview-next-step { margin: 4px 0 0; padding: 10px 12px; border-radius: var(--radius-md); background: var(--paper-2); color: var(--ink-60); font-size: var(--text-sm); }
+.interview-prep-toggle { align-self: flex-start; margin-top: 8px; }
+.prep-plan { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.prep-plan-head { display: flex; align-items: center; gap: 14px; }
+.prep-ring {
+  width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0;
+  background: conic-gradient(var(--indigo) 0 var(--pct, 0%), var(--ink-12) var(--pct, 0%) 100%);
+  display: flex; align-items: center; justify-content: center;
+}
+.prep-ring span { width: 40px; height: 40px; border-radius: 50%; background: var(--card); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+.prep-sec { border: 1px solid var(--ink-12); border-radius: var(--radius-md); overflow: hidden; }
+.prep-sec h3 { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 14px; font-size: var(--text-base); background: var(--paper-2); }
+.prep-sec h3 .meta { margin-left: auto; font-weight: 400; font-size: var(--text-xs); }
+.prep-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-30); flex-shrink: 0; }
+.prep-dot-ok { background: var(--success); }
+.prep-dot-warn { background: var(--warning); }
+.prep-dot-brand { background: var(--indigo); }
+.prep-row { padding: 12px 14px; border-top: 1px solid var(--ink-12); }
+.prep-sec h3 + .prep-row { border-top: 0; }
+.prep-row p { margin: 6px 0 0; }
+.prep-skill { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-weight: 600; }
+.prep-cta { display: inline-block; margin-top: 10px; }
+.prep-kv { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 6px 12px; color: var(--ink-60); }
+.prep-kv b { color: var(--ink); font-weight: 500; }
+.prep-check { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-weight: 400; cursor: pointer; }
+.prep-check input { width: auto; }
+@media (max-width: 600px) { .prep-kv { grid-template-columns: 1fr; } }

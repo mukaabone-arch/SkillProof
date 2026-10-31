@@ -1,9 +1,10 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { NotificationType, Prisma, ShortlistStage } from '@prisma/client';
+import { InterviewQuestionCategory, NotificationType, Prisma, ShortlistStage } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { assertTransition } from '../shortlist/pipeline-transitions';
 import { RespondInviteDto, RespondOfferDto } from './interviews.dto';
+import { PREP_CHECKLIST_KEYS, buildSkillPlan, formatPlace, jsonStrings, stablePick } from './interview-prep';
 
 /**
  * Candidate-facing view — deliberately narrower than
@@ -85,6 +86,116 @@ export class InterviewsService {
     return { id, candidateResponse: dto.response };
   }
 
+  /**
+   * The per-interview prep plan (web: InterviewPrepPlan). Built only from
+   * data the candidate already owns or is shown elsewhere — the job's skills
+   * and description, their own live badges and discussion-format coaching
+   * notes, and the admin-curated behavioral question bank. Nothing is
+   * generated here.
+   */
+  async getPrep(userId: string, id: string) {
+    const { entry, profile } = await this.getOwnedEntry(userId, id);
+
+    const job = entry.jobId
+      ? await this.prisma.job.findUnique({
+          where: { id: entry.jobId },
+          include: { skills: { include: { skill: { select: { name: true } } } } },
+        })
+      : null;
+    const jobSkills = (job?.skills ?? []).map((s) => ({
+      skillId: s.skillId,
+      skillName: s.skill.name,
+      requiredLevel: s.requiredLevel,
+      isRequired: s.isRequired,
+    }));
+    const skillIds = jobSkills.map((s) => s.skillId);
+
+    const badges = skillIds.length
+      ? await this.prisma.badge.findMany({
+          where: { userId, skillId: { in: skillIds }, revokedAt: null, expiresAt: { gt: new Date() } },
+          select: { skillId: true, level: true, sessionId: true },
+        })
+      : [];
+
+    const sessionIds = badges.map((b) => b.sessionId).filter((s): s is string => !!s);
+    const feedback = sessionIds.length
+      ? await this.prisma.liveClaimFeedback.findMany({
+          where: { sessionId: { in: sessionIds } },
+          orderBy: { createdAt: 'asc' },
+          select: { sessionId: true, strengths: true, gaps: true },
+        })
+      : [];
+    const coaching = new Map<string, { strengths: string[]; gaps: string[] }>();
+    for (const f of feedback) {
+      const c = coaching.get(f.sessionId) ?? { strengths: [], gaps: [] };
+      c.strengths = [...c.strengths, ...jsonStrings(f.strengths, 2)].slice(0, 2);
+      c.gaps = [...c.gaps, ...jsonStrings(f.gaps, 1)].slice(0, 1);
+      coaching.set(f.sessionId, c);
+    }
+
+    const checks = skillIds.length
+      ? await this.prisma.assessment.findMany({ where: { skillId: { in: skillIds } }, select: { skillId: true } })
+      : [];
+    const { proven, toProbe } = buildSkillPlan(jobSkills, badges, coaching, new Set(checks.map((c) => c.skillId)));
+
+    const bank = await this.prisma.interviewQuestion.findMany({
+      where: {
+        active: true,
+        category: {
+          in: [
+            InterviewQuestionCategory.PROBLEM_SOLVING,
+            InterviewQuestionCategory.TEAMWORK,
+            InterviewQuestionCategory.COMMUNICATION,
+            InterviewQuestionCategory.MOTIVATION,
+          ],
+        },
+      },
+      select: { id: true, text: true, whatToLookFor: true, followUpProbes: true },
+    });
+    const questions = stablePick(bank, entry.id, 3).map((q) => ({
+      id: q.id,
+      text: q.text,
+      whatToLookFor: q.whatToLookFor,
+      followUp: q.followUpProbes[0] ?? null,
+    }));
+
+    const progress = await this.prisma.interviewPrepProgress.findUnique({ where: { shortlistEntryId: entry.id } });
+    const allowed = PREP_CHECKLIST_KEYS as readonly string[];
+
+    return {
+      id: entry.id,
+      orgName: entry.organization.name,
+      jobTitle: entry.job?.title ?? null,
+      stage: entry.stage,
+      job: job
+        ? {
+            location: formatPlace(job),
+            remote: job.remote,
+            experienceMin: job.experienceMin,
+            experienceMax: job.experienceMax,
+            descriptionExcerpt: excerpt(job.description, 220),
+          }
+        : null,
+      candidate: { yearsOfExp: profile.yearsOfExp, location: formatPlace(profile) },
+      proven,
+      toProbe,
+      questions,
+      checklist: (progress?.done ?? []).filter((k) => allowed.includes(k)),
+    };
+  }
+
+  async updatePrepChecklist(userId: string, id: string, done: string[]) {
+    await this.getOwnedEntry(userId, id);
+    const allowed = PREP_CHECKLIST_KEYS as readonly string[];
+    const clean = [...new Set(done)].filter((k) => allowed.includes(k));
+    await this.prisma.interviewPrepProgress.upsert({
+      where: { shortlistEntryId: id },
+      create: { shortlistEntryId: id, done: clean },
+      update: { done: clean },
+    });
+    return { checklist: clean };
+  }
+
   private present(entry: MineEntry) {
     const currentRound = entry.rounds[0];
     return {
@@ -127,6 +238,15 @@ export class InterviewsService {
 
     return { entry, profile };
   }
+}
+
+/** First sentence-ish of the job description, cut at a word boundary. */
+function excerpt(text: string | null | undefined, max: number): string | null {
+  const t = (text ?? '').replace(/\s+/g, ' ').trim();
+  if (!t) return null;
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  return cut.slice(0, cut.lastIndexOf(' ') > 0 ? cut.lastIndexOf(' ') : max) + '…';
 }
 
 function candidateLabel(fullName: string | null): string {

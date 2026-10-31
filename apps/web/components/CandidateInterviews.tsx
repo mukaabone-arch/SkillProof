@@ -12,6 +12,15 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui';
+import InterviewPrepPlan from './InterviewPrepPlan';
+
+/** Shown under the stage label so a shortlist or invite never reads as a dead end. */
+const NEXT_STEP: Partial<Record<Stage, string>> = {
+  SHORTLISTED: "What happens next: if they'd like to talk, they'll send an interview invite — you'll get an email and see it here.",
+  INVITED: 'What happens next: accept below, and the employer will schedule your first round.',
+};
+
+const PREP_STAGES: Stage[] = ['SHORTLISTED', 'INVITED', 'INTERVIEWING'];
 
 type Stage = 'SHORTLISTED' | 'INVITED' | 'INTERVIEWING' | 'OFFER' | 'HIRED' | 'DECLINED' | 'REJECTED' | 'CLOSED';
 type RoundStatus = 'SCHEDULED' | 'COMPLETED' | 'PASSED' | 'FAILED';
@@ -58,6 +67,7 @@ export default function CandidateInterviews() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionBusyId, setActionBusyId] = useState<string | null>(null);
+  const [prepOpenId, setPrepOpenId] = useState<string | null>(null);
 
   useEffect(() => {
     load();
@@ -122,6 +132,18 @@ export default function CandidateInterviews() {
             <span className="meta">{STAGE_LABELS[i.stage]}</span>
           </div>
           {i.job && <div className="meta">{i.job.title}</div>}
+          {NEXT_STEP[i.stage] && <p className="interview-next-step">{NEXT_STEP[i.stage]}</p>}
+          {i.job && PREP_STAGES.includes(i.stage) && (
+            <button
+              type="button"
+              className="btn-secondary interview-prep-toggle"
+              aria-expanded={prepOpenId === i.id}
+              onClick={() => setPrepOpenId(prepOpenId === i.id ? null : i.id)}
+            >
+              {prepOpenId === i.id ? 'Hide prep plan' : 'Prepare for this interview'}
+            </button>
+          )}
+          {prepOpenId === i.id && <InterviewPrepPlan interviewId={i.id} />}
 
           {i.stage === 'INVITED' && (
             <div style={{ marginTop: 4 }}>

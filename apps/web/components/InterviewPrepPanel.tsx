@@ -36,8 +36,8 @@ export default function InterviewPrepPanel() {
 
   return (
     <section className="ui-card profile-panel">
-      <h2>Interview prep</h2>
-      <p>Guidance for turning a verified badge into an interview that goes well.</p>
+      <h2>General interview tips</h2>
+      <p>For any interview — open a card on the left for a plan built for that role.</p>
 
       {limits.interviewPrep ? (
         // Collapsed by default, each guide independent (opening one doesn't

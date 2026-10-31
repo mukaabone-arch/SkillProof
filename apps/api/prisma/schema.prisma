@@ -2049,6 +2049,8 @@ model ShortlistEntry {
   preUnavailableStage ShortlistStage?
 
   rounds InterviewRound[]
+  /** Candidate-only prep checklist — a separate table so no employer include ever returns it. */
+  prepProgress InterviewPrepProgress?
 
   @@unique([orgId, candidateId, jobId])
   @@index([orgId, stage])
@@ -3334,4 +3336,18 @@ model AiContentReport {
   @@unique([userId, targetType, targetId])
   @@index([status, createdAt])
   @@index([userId, createdAt])
+}
+
+/**
+ * The candidate's own "Before the interview" checklist on the per-interview
+ * prep plan (GET /interviews/:id/prep). Its own table rather than a column
+ * on ShortlistEntry so it can never leak into an employer-side include of
+ * that row. `done` holds keys from PREP_CHECKLIST_KEYS (interview-prep.ts);
+ * unknown keys are dropped on write.
+ */
+model InterviewPrepProgress {
+  shortlistEntryId String         @id
+  shortlistEntry   ShortlistEntry @relation(fields: [shortlistEntryId], references: [id], onDelete: Cascade)
+  done             String[]       @default([])
+  updatedAt        DateTime       @updatedAt
 }
