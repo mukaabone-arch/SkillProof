@@ -3295,6 +3295,7 @@ enum AiContentTarget {
   ASSESSOR_TURN // an AI interviewer message (SessionTurn, role ASSESSOR)
   LIVE_FEEDBACK // a live "Reviewer notes" card (LiveClaimFeedback)
   RESULT_REASON // a claim's reason on the result page (ClaimVerdict.reason)
+  MOCK_INTERVIEW_FEEDBACK // practice-interview feedback on one answer (InterviewAnswerFeedback); sessionId is an InterviewSession
 }
 
 enum AiContentReportReason {

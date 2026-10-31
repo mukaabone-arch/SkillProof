@@ -425,6 +425,7 @@ export class InterviewSessionsService {
       sessionId: session.id,
       completedAt: session.completedAt,
       answers: session.feedback.map((f: InterviewAnswerFeedback & { question: { text: string; category: InterviewQuestionCategory } | null }) => ({
+        id: f.id,
         questionId: f.questionId,
         questionText: f.question?.text ?? null,
         category: f.question?.category ?? null,

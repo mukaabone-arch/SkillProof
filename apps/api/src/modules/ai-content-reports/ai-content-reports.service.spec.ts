@@ -94,3 +94,26 @@ describe('AiContentReportsService', () => {
     expect(r).toMatchObject({ status: 'REVIEWED', reviewedById: 'admin1', resolutionNote: 'checked' });
   });
 });
+
+describe('AiContentReportsService — practice interview feedback', () => {
+  it('checks the interview session owner and snapshots that feedback', async () => {
+    const { prisma, created } = makePrisma({
+      interviewSession: { findUnique: jest.fn().mockResolvedValue({ userId: 'u1' }) },
+      interviewAnswerFeedback: {
+        findFirst: jest.fn().mockResolvedValue({ summary: 'Clear', strengths: ['s'], improvements: ['i'], missingStarElement: null }),
+      },
+    });
+    await new AiContentReportsService(prisma).create('u1', {
+      ...base, targetType: AiContentTarget.MOCK_INTERVIEW_FEEDBACK, targetId: 'fb1',
+    });
+    expect(prisma.assessmentSession.findUnique).not.toHaveBeenCalled();
+    expect(JSON.parse(created[0].contentSnapshot)).toMatchObject({ summary: 'Clear' });
+  });
+
+  it("404s on someone else's practice session", async () => {
+    const { prisma } = makePrisma({ interviewSession: { findUnique: jest.fn().mockResolvedValue({ userId: 'other' }) } });
+    await expect(
+      new AiContentReportsService(prisma).create('u1', { ...base, targetType: AiContentTarget.MOCK_INTERVIEW_FEEDBACK, targetId: 'fb1' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});

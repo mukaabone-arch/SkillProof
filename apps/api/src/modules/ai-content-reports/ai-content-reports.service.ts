@@ -38,10 +38,12 @@ export class AiContentReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(userId: string, input: CreateReportInput) {
-    const session = await this.prisma.assessmentSession.findUnique({
-      where: { id: input.sessionId },
-      select: { userId: true },
-    });
+    // Practice-interview feedback hangs off an InterviewSession; every other
+    // target off an AssessmentSession. Same ownership rule either way.
+    const session =
+      input.targetType === AiContentTarget.MOCK_INTERVIEW_FEEDBACK
+        ? await this.prisma.interviewSession.findUnique({ where: { id: input.sessionId }, select: { userId: true } })
+        : await this.prisma.assessmentSession.findUnique({ where: { id: input.sessionId }, select: { userId: true } });
     // Same 404 for "not yours" and "doesn't exist" — never confirm another
     // user's session id.
     if (!session || session.userId !== userId) throw new NotFoundException('Session not found.');
@@ -121,6 +123,14 @@ export class AiContentReportsService {
         });
         if (!verdict) throw notFound();
         return verdict.reason;
+      }
+      case AiContentTarget.MOCK_INTERVIEW_FEEDBACK: {
+        const fb = await this.prisma.interviewAnswerFeedback.findFirst({
+          where: { id: targetId, sessionId },
+          select: { summary: true, strengths: true, improvements: true, missingStarElement: true },
+        });
+        if (!fb) throw notFound();
+        return JSON.stringify(fb);
       }
       default:
         throw notFound();

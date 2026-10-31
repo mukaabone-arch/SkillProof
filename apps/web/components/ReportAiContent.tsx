@@ -11,7 +11,7 @@
 import { FormEvent, useState } from 'react';
 import { api } from '@/lib/api';
 
-export type AiContentTarget = 'ASSESSOR_TURN' | 'LIVE_FEEDBACK' | 'RESULT_REASON';
+export type AiContentTarget = 'ASSESSOR_TURN' | 'LIVE_FEEDBACK' | 'RESULT_REASON' | 'MOCK_INTERVIEW_FEEDBACK';
 
 const REASONS: [string, string][] = [
   ['OFFENSIVE', 'Offensive or harmful'],

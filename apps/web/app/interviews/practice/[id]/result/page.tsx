@@ -13,11 +13,13 @@ import { api } from '@/lib/api';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import CandidateNav from '@/components/CandidateNav';
 import { ErrorState, LoadingState } from '@/components/ui';
+import ReportAiContent from '@/components/ReportAiContent';
 
 interface Result {
   sessionId: string;
   completedAt: string | null;
   answers: {
+    id: string;
     questionId: string | null;
     questionText: string | null;
     category: string | null;
@@ -57,8 +59,8 @@ export default function PracticeResultPage() {
         {error && <ErrorState message={error} />}
         {!result && !error && <LoadingState />}
 
-        {result?.answers.map((a, i) => (
-          <section key={a.questionId ?? i} className="ui-card mock-answer">
+        {result?.answers.map((a) => (
+          <section key={a.id} className="ui-card mock-answer">
             {a.category && <span className="eyebrow">{titleCase(a.category)}</span>}
             {a.questionText && <h2>{a.questionText}</h2>}
             <p>{a.summary}</p>
@@ -77,6 +79,7 @@ export default function PracticeResultPage() {
             {a.missingStarElement && (
               <p className="mock-star">Missing from your answer: <strong>{titleCase(a.missingStarElement)}</strong></p>
             )}
+            <ReportAiContent sessionId={result.sessionId} targetType="MOCK_INTERVIEW_FEEDBACK" targetId={a.id} />
           </section>
         ))}
 

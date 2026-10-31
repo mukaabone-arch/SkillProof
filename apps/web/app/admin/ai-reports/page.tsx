@@ -13,7 +13,7 @@ import { api } from '@/lib/api';
 interface Report {
   id: string;
   sessionId: string;
-  targetType: 'ASSESSOR_TURN' | 'LIVE_FEEDBACK' | 'RESULT_REASON';
+  targetType: 'ASSESSOR_TURN' | 'LIVE_FEEDBACK' | 'RESULT_REASON' | 'MOCK_INTERVIEW_FEEDBACK';
   targetId: string;
   reason: string;
   note: string | null;
@@ -28,6 +28,7 @@ const TARGET_LABEL: Record<Report['targetType'], string> = {
   ASSESSOR_TURN: 'AI interviewer message',
   LIVE_FEEDBACK: 'Live reviewer notes',
   RESULT_REASON: 'Result reason',
+  MOCK_INTERVIEW_FEEDBACK: 'Practice interview feedback',
 };
 
 const REASON_LABEL: Record<string, string> = {
@@ -41,7 +42,7 @@ const REASON_LABEL: Record<string, string> = {
 
 /** LIVE_FEEDBACK snapshots are JSON — show them readably. */
 function prettySnapshot(r: Report): string {
-  if (r.targetType !== 'LIVE_FEEDBACK') return r.contentSnapshot;
+  if (r.targetType !== 'LIVE_FEEDBACK' && r.targetType !== 'MOCK_INTERVIEW_FEEDBACK') return r.contentSnapshot;
   try {
     return JSON.stringify(JSON.parse(r.contentSnapshot), null, 2);
   } catch {
@@ -127,7 +128,8 @@ export default function AdminAiReportsPage() {
             </p>
           )}
           <div className="row" style={{ gap: 8, margin: 0 }}>
-            <Link href={`/admin/review/${r.sessionId}`}>Open session</Link>
+            {/* Practice interviews have no admin review case to open. */}
+            {r.targetType !== 'MOCK_INTERVIEW_FEEDBACK' && <Link href={`/admin/review/${r.sessionId}`}>Open session</Link>}
             {r.status === 'OPEN' && (
               <button type="button" onClick={() => markReviewed(r.id)} disabled={busy === r.id}>
                 {busy === r.id ? 'Saving…' : 'Mark reviewed'}
