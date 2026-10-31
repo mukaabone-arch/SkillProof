@@ -4,7 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { assertTransition } from '../shortlist/pipeline-transitions';
 import { RespondInviteDto, RespondOfferDto } from './interviews.dto';
-import { PREP_CHECKLIST_KEYS, buildSkillPlan, formatPlace, jsonStrings, stablePick } from './interview-prep';
+import { PREP_CHECKLIST_KEYS, buildSkillPlan, formatPlace, jsonStrings, quotableLine, stablePick } from './interview-prep';
 
 /**
  * Candidate-facing view — deliberately narrower than
@@ -179,7 +179,7 @@ export class InterviewsService {
             remote: job.remote,
             experienceMin: job.experienceMin,
             experienceMax: job.experienceMax,
-            descriptionExcerpt: excerpt(job.description, 220),
+            descriptionExcerpt: quotableLine(job.description, 220),
           }
         : null,
       candidate: { yearsOfExp: profile.yearsOfExp, location: formatPlace(profile) },
@@ -245,15 +245,6 @@ export class InterviewsService {
 
     return { entry, profile };
   }
-}
-
-/** First sentence-ish of the job description, cut at a word boundary. */
-function excerpt(text: string | null | undefined, max: number): string | null {
-  const t = (text ?? '').replace(/\s+/g, ' ').trim();
-  if (!t) return null;
-  if (t.length <= max) return t;
-  const cut = t.slice(0, max);
-  return cut.slice(0, cut.lastIndexOf(' ') > 0 ? cut.lastIndexOf(' ') : max) + '…';
 }
 
 function candidateLabel(fullName: string | null): string {

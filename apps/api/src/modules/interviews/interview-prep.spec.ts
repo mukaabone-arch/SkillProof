@@ -1,4 +1,4 @@
-import { buildSkillPlan, jsonStrings, stablePick } from './interview-prep';
+import { buildSkillPlan, jsonStrings, quotableLine, stablePick } from './interview-prep';
 
 describe('buildSkillPlan', () => {
   const skills = [
@@ -41,5 +41,22 @@ describe('stablePick', () => {
     const items = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id }));
     expect(stablePick(items, 'entry-1', 3)).toEqual(stablePick(items, 'entry-1', 3));
     expect(stablePick(items, 'entry-1', 3)).toHaveLength(3);
+  });
+});
+
+describe('quotableLine', () => {
+  it('skips headings and bullet glyphs and keeps the first real line', () => {
+    expect(
+      quotableLine('Key Responsibilities- • Designing, building, and deploying AI-powered tools for the firm. • Working with Claude', 220),
+    ).toBe('Designing, building, and deploying AI-powered tools for the firm.');
+    expect(quotableLine('About us\nRequirements:\n- 3+ years of Python experience building production ML systems', 220)).toBe(
+      '3+ years of Python experience building production ML systems',
+    );
+  });
+
+  it('cuts long lines at a word boundary and returns null for nothing quotable', () => {
+    expect(quotableLine('Own the evaluation pipeline for every LLM feature we ship to customers', 30)).toBe('Own the evaluation pipeline…');
+    expect(quotableLine('Short', 220)).toBeNull();
+    expect(quotableLine('', 220)).toBeNull();
   });
 });

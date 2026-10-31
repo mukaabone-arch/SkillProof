@@ -117,3 +117,49 @@ export function formatPlace(p: {
   if (p.locationCity) return [p.locationCity, p.locationRegion, p.locationCountry].filter(Boolean).join(', ');
   return p.locationLegacy || null;
 }
+
+/**
+ * One quotable line from the job description for the prep plan's "From the
+ * job post": the first real responsibility or requirement, never a section
+ * heading or a bullet glyph. Job posts are pasted free text (e.g. "Key
+ * Responsibilities- • Designing, building…"), so: break on line breaks and
+ * bullet characters, strip list markers and "Heading:"/"Heading-" prefixes,
+ * skip heading-like pieces, keep the first piece that reads like a sentence
+ * (its first sentence, if it has several), and cut at a word boundary.
+ */
+export function quotableLine(text: string | null | undefined, max: number): string | null {
+  const raw = (text ?? '').replace(/\r/g, '');
+  if (!raw.trim()) return null;
+
+  const pieces = raw
+    .replace(/[•●▪◦‣∙·]/g, '\n')
+    .split(/\n+/)
+    .map((p) =>
+      p
+        .replace(/\s+/g, ' ')
+        .trim()
+        // list markers: "-", "*", "1.", "a)", "(2)"
+        .replace(/^(?:[-–—*]+|\(?\d{1,2}[.)]|\(?[a-z][.)])\s*/i, '')
+        // "Key Responsibilities -" / "Requirements:" prefix on the same line as real text
+        .replace(/^[A-Z][A-Za-z &/]{2,40}\s?[:\-–—]\s+(?=\S)/, '')
+        .trim(),
+    )
+    .filter(Boolean);
+
+  const isHeading = (p: string) =>
+    /[:\-–—]$/.test(p) || (p.split(' ').length <= 4 && !/[.,;]/.test(p));
+
+  const pick = pieces.find((p) => !isHeading(p) && p.split(' ').length >= 5);
+  if (!pick) return null;
+
+  // First sentence only, when there's a full one of reasonable length.
+  const sentence = /^(.{40,}?[.!?])\s/.exec(pick + ' ');
+  let line = (sentence ? sentence[1] : pick).replace(/[\s,;:\-–—]+$/, '');
+
+  if (line.length > max) {
+    const cut = line.slice(0, max);
+    const at = cut.lastIndexOf(' ');
+    line = (at > 0 ? cut.slice(0, at) : cut).replace(/[\s,;:\-–—]+$/, '') + '…';
+  }
+  return line;
+}
