@@ -105,12 +105,9 @@ export default function LandingPage() {
               </a>
               <span className="lp-cta-caption">Hire on proven skills, not keywords</span>
             </div>
-            <div className="lp-cta-block">
-              <a className="lp-btn lp-btn-secondary" href={STAFFING_HREF}>
-                I&apos;m a recruiter
-              </a>
-              <span className="lp-cta-caption">Find available, verified talent for your clients</span>
-            </div>
+            <p className="lp-cta-alt">
+              Recruiter? <a href={STAFFING_HREF}>Find available, verified talent for your clients →</a>
+            </p>
           </div>
         </div>
       </section>
