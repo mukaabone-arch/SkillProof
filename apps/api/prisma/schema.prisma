@@ -286,6 +286,10 @@ enum NotificationType {
    * comment.
    */
   ORG_REACTIVATED
+  /** Candidate: a staffing company asked whether they're available (StaffingService.createRequest). */
+  STAFFING_AVAILABILITY_REQUEST
+  /** Staffing company: the candidate answered an availability request. */
+  STAFFING_REQUEST_RESPONSE
 }
 
 enum NotificationChannel {
@@ -382,6 +386,7 @@ model User {
   orgsDeactivated           Organization[]      @relation("OrgDeactivatedBy")
   assessmentBlocks          AssessmentBlock[]   @relation("AssessmentBlockUser")
   assessmentBlocksLifted    AssessmentBlock[]   @relation("AssessmentBlockLiftedBy")
+  staffingRequestsMade StaffingAvailabilityRequest[] @relation("StaffingRequestRequestedBy")
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
@@ -599,6 +604,11 @@ model Organization {
   invitations        OrgInvitation[]
   adminAccessLogs    AdminAccessLog[]
   billingProfile     BillingProfile?
+
+  /** EMPLOYER hires for itself; STAFFING places candidates with its own clients (StaffingModule). Chosen at setup, locked once VERIFIED. */
+  type OrgType @default(EMPLOYER)
+  staffingRequests StaffingAvailabilityRequest[]
+  staffingBlocks   StaffingBlock[]
 }
 
 model OrgMember {
@@ -834,6 +844,25 @@ model CandidateProfile {
   adminAccessLogEntries AdminAccessLog[]
   billingProfile        BillingProfile?
   portfolio             CandidatePortfolio?
+
+  /**
+   * Staffing companies (StaffingModule). Off by default — while true, verified
+   * STAFFING orgs can find this candidate anonymised (no name/photo/headline/
+   * contact) as long as availabilityConfirmedAt is within AVAILABILITY_FRESH_DAYS.
+   * Contact details are shared only with a company whose request they accept.
+   */
+  openToStaffing          Boolean             @default(false)
+  availabilityStatus      AvailabilityStatus?
+  availableFrom           DateTime?
+  noticePeriodDays        Int?
+  workTypes               WorkType[]          @default([])
+  /** Whole rupees, not paise — a candidate's own rough expectation, never invoiced. */
+  expectedRateMinInr      Int?
+  expectedRateMaxInr      Int?
+  expectedRateUnit        RateUnit?
+  availabilityConfirmedAt DateTime?
+  staffingRequests        StaffingAvailabilityRequest[]
+  staffingBlocks          StaffingBlock[]
 }
 
 /**
@@ -3351,4 +3380,99 @@ model InterviewPrepProgress {
   shortlistEntry   ShortlistEntry @relation(fields: [shortlistEntryId], references: [id], onDelete: Cascade)
   done             String[]       @default([])
   updatedAt        DateTime       @updatedAt
+}
+
+// ---- Staffing companies (Phase 1, 2026-11) ----
+
+/**
+ * EMPLOYER hires for itself (jobs, applicants, shortlist). STAFFING places
+ * candidates with its own clients and only ever sees opted-in candidates,
+ * anonymised until a candidate accepts a request — see StaffingModule.
+ * OrgVerifiedGuard refuses STAFFING orgs on every employer route by default
+ * (see AllowOrgTypes), so the full-name employer search is unreachable to them.
+ */
+enum OrgType {
+  EMPLOYER
+  STAFFING
+}
+
+/** Candidate-set; see CandidateProfile.availabilityStatus. */
+enum AvailabilityStatus {
+  AVAILABLE_NOW
+  AVAILABLE_FROM // see CandidateProfile.availableFrom
+  NOTICE_PERIOD // see CandidateProfile.noticePeriodDays
+  NOT_LOOKING
+}
+
+enum WorkType {
+  PERMANENT
+  CONTRACT
+  CONTRACT_TO_HIRE
+}
+
+enum RateUnit {
+  ANNUAL
+  MONTHLY
+  DAILY
+  HOURLY
+}
+
+/**
+ * EXPIRED is never stored — a PENDING row past expiresAt reads as expired
+ * (see effectiveStatus in staffing.util.ts), so no sweep job is needed.
+ */
+enum StaffingRequestStatus {
+  PENDING
+  AVAILABLE
+  CONDITIONAL
+  NOT_NOW
+  WITHDRAWN
+}
+
+/**
+ * One staffing company asking one opted-in candidate "are you available for
+ * this?". Contact details are revealed to the company only once status is
+ * AVAILABLE or CONDITIONAL, and only while the candidate is still visible
+ * (candidateVisibilityFilter) — read live from the profile, never copied here.
+ */
+model StaffingAvailabilityRequest {
+  id                String                @id @default(uuid())
+  orgId             String
+  organization      Organization          @relation(fields: [orgId], references: [id])
+  requestedByUserId String
+  requestedByUser   User                  @relation("StaffingRequestRequestedBy", fields: [requestedByUserId], references: [id])
+  candidateId       String
+  candidateProfile  CandidateProfile      @relation(fields: [candidateId], references: [id])
+  roleTitle         String
+  summary           String
+  workType          WorkType
+  rateMinInr        Int?
+  rateMaxInr        Int?
+  rateUnit          RateUnit?
+  location          String?
+  remote            Boolean               @default(false)
+  /** Optional — staffing companies often can't name the client yet. */
+  clientName        String?
+  clientIndustry    String?
+  status            StaffingRequestStatus @default(PENDING)
+  candidateMessage  String?
+  respondedAt       DateTime?
+  expiresAt         DateTime
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  @@index([candidateId, createdAt])
+  @@index([orgId, createdAt])
+}
+
+/** A candidate's "don't show me requests from this company again". The company is also hidden from them in search. */
+model StaffingBlock {
+  id               String           @id @default(uuid())
+  candidateId      String
+  candidateProfile CandidateProfile @relation(fields: [candidateId], references: [id])
+  orgId            String
+  organization     Organization     @relation(fields: [orgId], references: [id])
+  createdAt        DateTime         @default(now())
+
+  @@unique([candidateId, orgId])
 }

@@ -68,6 +68,14 @@ const SECTIONS: { href: string; label: string; icon: NavGlyphName }[] = [
   { href: '/employer/settings', label: 'Settings', icon: 'settings' },
 ];
 
+/** Staffing companies (Organization.type STAFFING) — see StaffingModule on the API side. */
+const STAFFING_SECTIONS: { href: string; label: string; icon: NavGlyphName }[] = [
+  { href: '/employer/talent', label: 'Find talent', icon: 'search' },
+  { href: '/employer/requests', label: 'Availability requests', icon: 'applicants' },
+  { href: '/employer/billing', label: 'Billing', icon: 'billing' },
+  { href: '/employer/settings', label: 'Settings', icon: 'settings' },
+];
+
 /** Minimal shape this shell needs for the topbar identity — a subset of app/employer/layout.tsx's own OrgMeOrganization. */
 export interface EmployerOrgIdentity {
   name: string;
@@ -76,16 +84,19 @@ export interface EmployerOrgIdentity {
 
 interface Props {
   verified: boolean;
+  /** STAFFING orgs get STAFFING_SECTIONS and no "Post a job". */
+  orgType?: 'EMPLOYER' | 'STAFFING';
   org: EmployerOrgIdentity | null;
   onLoggedOut: () => void;
   children: React.ReactNode;
 }
 
-export default function EmployerSidebarShell({ verified, org, onLoggedOut, children }: Props) {
+export default function EmployerSidebarShell({ verified, org, orgType = 'EMPLOYER', onLoggedOut, children }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const sections = verified ? SECTIONS : SECTIONS.filter((s) => s.href === '/employer/settings');
+  const menu = orgType === 'STAFFING' ? STAFFING_SECTIONS : SECTIONS;
+  const sections = verified ? menu : menu.filter((s) => s.href === '/employer/settings');
   const logoUrl = useOrgLogo(org?.hasLogo ?? false);
 
   async function handleLogout() {
@@ -128,10 +139,12 @@ export default function EmployerSidebarShell({ verified, org, onLoggedOut, child
               surface in the portal depends on a job existing. ?new=1 is read
               by EmployerJobs on mount (see that file's own comment) the same
               way the dashboard's existing ?openApplicants deep link works. */}
-          <Link href="/employer/jobs?new=1" className="btn btn-primary employer-post-job">
-            <span aria-hidden="true">+</span>
-            <span className="employer-post-job-label">Post a job</span>
-          </Link>
+          {orgType !== 'STAFFING' && (
+            <Link href="/employer/jobs?new=1" className="btn btn-primary employer-post-job">
+              <span aria-hidden="true">+</span>
+              <span className="employer-post-job-label">Post a job</span>
+            </Link>
+          )}
           <AccountMenu
             label={org?.name ?? 'Account'}
             items={[

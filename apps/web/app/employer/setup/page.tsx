@@ -31,7 +31,7 @@ import { isIndustryComplete, isOrgSetupComplete, OrgReadinessFields } from '@/li
 const { api } = employerApi;
 
 interface OrgMe {
-  organization: OrgReadinessFields & { verificationStatus: 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED' };
+  organization: OrgReadinessFields & { verificationStatus: 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED'; type?: 'EMPLOYER' | 'STAFFING' };
 }
 
 type SetupField = 'logo' | 'industry' | 'website';
@@ -66,6 +66,17 @@ export default function EmployerSetupPage() {
     }
   }
 
+  async function saveType(type: 'EMPLOYER' | 'STAFFING') {
+    if (!organization || organization.type === type) return;
+    setError('');
+    try {
+      await api('/orgs/me', { method: 'PATCH', body: JSON.stringify({ type }) });
+      setOrganization({ ...organization, type });
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
   const done: Record<SetupField, boolean> = organization
     ? { logo: organization.hasLogo, industry: isIndustryComplete(organization), website: !!organization.website }
     : { logo: false, industry: false, website: false };
@@ -78,6 +89,21 @@ export default function EmployerSetupPage() {
 
       {error && <p className="error">{error}</p>}
       {!organization && !error && <p className="meta">Loading…</p>}
+
+      {organization && organization.verificationStatus !== 'VERIFIED' && (
+        <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10, marginTop: 16 }}>
+          <h2 style={{ margin: 0 }}>What kind of organisation are you?</h2>
+          <label className="staffing-type">
+            <input type="radio" name="orgType" checked={(organization.type ?? 'EMPLOYER') === 'EMPLOYER'} onChange={() => saveType('EMPLOYER')} />
+            <span><strong>Employer</strong> — we hire for our own company: post jobs, review applicants, shortlist.</span>
+          </label>
+          <label className="staffing-type">
+            <input type="radio" name="orgType" checked={organization.type === 'STAFFING'} onChange={() => saveType('STAFFING')} />
+            <span><strong>Staffing or recruitment company</strong> — we place candidates with our clients: find opted-in candidates by verified skills and availability.</span>
+          </label>
+          <p className="meta" style={{ margin: 0 }}>This decides which portal you get, and can&apos;t be changed after verification.</p>
+        </div>
+      )}
 
       {organization && (
         <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12, marginTop: 16 }}>

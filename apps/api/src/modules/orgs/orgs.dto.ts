@@ -1,4 +1,4 @@
-import { OrgIndustry } from '@prisma/client';
+import { OrgIndustry, OrgType } from '@prisma/client';
 import { IsEnum, IsNotEmpty, IsOptional, IsString, IsUrl, MaxLength, ValidateIf } from 'class-validator';
 
 export class UpdateOrgDto {
@@ -22,6 +22,11 @@ export class UpdateOrgDto {
   @IsUrl()
   @MaxLength(255)
   website?: string;
+
+  /** Employer or staffing company — chosen at setup, can't change once VERIFIED (see OrgsService.update). */
+  @IsOptional()
+  @IsEnum(OrgType)
+  type?: OrgType;
 }
 
 /**

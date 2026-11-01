@@ -4398,3 +4398,29 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .mock-answer h3 { font-size: var(--text-sm); margin: 14px 0 4px; color: var(--ink-60); text-transform: uppercase; letter-spacing: .06em; }
 .mock-star { margin-top: 12px; padding: 8px 12px; border-radius: var(--radius-md); background: var(--paper-2); }
 .mock-transcript summary { cursor: pointer; font-weight: 600; }
+
+/* ---- staffing companies (Phase 1, 2026-11) ---- */
+.staffing-stale { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 12px; margin-bottom: 12px; border-radius: var(--radius-md); background: color-mix(in srgb, var(--warning) 14%, var(--card)); }
+.staffing-checks { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.staffing-checks label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
+.staffing-rate { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.staffing-rate > input, .staffing-rate > select { flex: 1 1 120px; min-width: 0; }
+.staffing-inbox { margin-bottom: 24px; }
+.staffing-inbox h2 { font-size: var(--text-lg); margin-bottom: 4px; }
+.staffing-request { flex-direction: column; align-items: stretch; gap: 4px; border-color: var(--indigo); }
+.staffing-facts, .staffing-skills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.staffing-facts span { font-size: var(--text-xs); padding: 3px 9px; border-radius: 99px; background: var(--paper-2); color: var(--ink-60); }
+.staffing-past summary { cursor: pointer; color: var(--ink-60); margin-top: 8px; }
+.staffing-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; align-items: end; margin-bottom: 16px; }
+.staffing-filters .field { margin: 0; }
+.staffing-filters-go button { width: 100%; }
+.staffing-talent { flex-direction: column; align-items: stretch; gap: 4px; margin-bottom: 12px; }
+.staffing-avail { font-size: var(--text-sm); font-weight: 600; color: var(--success); }
+.staffing-request-form { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--ink-12); display: flex; flex-direction: column; gap: 8px; }
+.staffing-request-form .field { margin: 0; }
+.staffing-contact { margin-top: 8px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--paper-2); display: flex; flex-direction: column; gap: 2px; }
+.staffing-status { font-size: var(--text-xs); font-weight: 600; padding: 3px 10px; border-radius: 99px; background: var(--paper-2); color: var(--ink-60); }
+.staffing-status-available, .staffing-status-conditional { background: color-mix(in srgb, var(--success) 16%, var(--card)); color: var(--success); }
+.staffing-status-pending { background: var(--brand-50); color: var(--indigo); }
+.staffing-type { display: flex; align-items: flex-start; gap: 10px; font-weight: 400; padding: 10px 12px; border: 1px solid var(--ink-12); border-radius: var(--radius-md); cursor: pointer; }
+.staffing-type input { width: auto; margin-top: 3px; }

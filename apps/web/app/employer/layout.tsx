@@ -54,12 +54,17 @@ import { isOrgSetupComplete, OrgReadinessFields } from '@/lib/orgReadiness';
 const { getToken, api } = employerApi;
 
 const SETUP_EXEMPT_PATHS = ['/employer/setup', '/employer/settings'];
+/** Sections that belong to one org type only — the API refuses the other type regardless (OrgVerifiedGuard / AllowOrgTypes). */
+const EMPLOYER_ONLY_PATHS = ['/employer/dashboard', '/employer/jobs', '/employer/candidates', '/employer/applicants', '/employer/shortlist'];
+const STAFFING_ONLY_PATHS = ['/employer/talent', '/employer/requests'];
+const isUnder = (pathname: string, paths: string[]) => paths.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 const DEACTIVATED_EXEMPT_PATHS = ['/employer/deactivated'];
 
 type VerificationStatus = 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
 
 interface OrgMeOrganization extends OrgReadinessFields {
   name: string;
+  type?: 'EMPLOYER' | 'STAFFING';
   deactivatedAt: string | null;
   verificationStatus: VerificationStatus;
 }
@@ -95,6 +100,7 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
   // fetch below rather than a second request. Stays null (identity block
   // just doesn't render) until this resolves.
   const [org, setOrg] = useState<EmployerOrgIdentity | null>(null);
+  const [orgType, setOrgType] = useState<'EMPLOYER' | 'STAFFING'>('EMPLOYER');
 
   useEffect(() => {
     if (pathname === '/employer') {
@@ -116,6 +122,8 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
         if (cancelled) return;
         setVerificationStatus(organization.verificationStatus);
         setOrg({ name: organization.name, hasLogo: organization.hasLogo });
+        const type = organization.type ?? 'EMPLOYER';
+        setOrgType(type);
         if (organization.deactivatedAt) {
           router.replace('/employer/deactivated');
           return;
@@ -132,6 +140,16 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
           router.replace('/employer/settings');
           return;
         }
+        // Each org type has its own sections (the API refuses the other type's
+        // routes regardless — OrgVerifiedGuard / AllowOrgTypes).
+        if (type === 'STAFFING' && isUnder(pathname, EMPLOYER_ONLY_PATHS)) {
+          router.replace('/employer/talent');
+          return;
+        }
+        if (type === 'EMPLOYER' && isUnder(pathname, STAFFING_ONLY_PATHS)) {
+          router.replace('/employer/dashboard');
+          return;
+        }
         setReady(true);
       })
       // Best-effort — this is UX convenience, not the real gate (see this
@@ -145,8 +163,18 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
     };
   }, [pathname, router]);
 
+  // Instant on every in-app navigation (the effect above re-checks only after
+  // /orgs/me returns): never render the other org type's page, even briefly.
+  const wrongSection =
+    ready &&
+    ((orgType === 'STAFFING' && isUnder(pathname, EMPLOYER_ONLY_PATHS)) ||
+      (orgType === 'EMPLOYER' && isUnder(pathname, STAFFING_ONLY_PATHS)));
+  useEffect(() => {
+    if (wrongSection) router.replace(orgType === 'STAFFING' ? '/employer/talent' : '/employer/dashboard');
+  }, [wrongSection, orgType, router]);
+
   if (pathname === '/employer') return <>{children}</>;
-  if (!ready) return null;
+  if (!ready || wrongSection) return null;
   // /employer/deactivated is a standalone locked-state screen (its own
   // logout button, no self-service action beyond that) — same reasoning as
   // the bare /employer render above, just reached after the auth/ready gate
@@ -162,6 +190,7 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
     <EmployerSidebarShell
       verified={verificationStatus === 'VERIFIED'}
       org={org}
+      orgType={orgType}
       onLoggedOut={() => router.replace('/employer')}
     >
       {children}

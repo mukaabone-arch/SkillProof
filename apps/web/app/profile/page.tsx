@@ -12,6 +12,7 @@ import { useRequireAuth } from '@/lib/useRequireAuth';
 import CertificationsPanel from '@/components/CertificationsPanel';
 import ProfileViewersPanel from '@/components/ProfileViewersPanel';
 import CollapsibleSection from '@/components/CollapsibleSection';
+import StaffingAvailabilityPanel from '@/components/StaffingAvailabilityPanel';
 import { LocationAutocomplete, LocationSuggestion } from '@/components/LocationAutocomplete';
 import { initialsFrom } from '@/lib/initials';
 import PasskeysSection from '@/components/PasskeysSection';
@@ -830,6 +831,7 @@ function ProfilePageInner() {
           >
             <ProfileViewersPanel />
           </CollapsibleSection>
+          <StaffingAvailabilityPanel />
           </div>
           </div>
         </>

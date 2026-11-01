@@ -34,6 +34,13 @@ export class OrgsService {
   ) {}
 
   async update(orgId: string, userId: string, dto: UpdateOrgDto) {
+    if (dto.type !== undefined) {
+      const current = await this.prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { type: true, verificationStatus: true } });
+      // The admin approved this org as one type; switching after that would change what it can see.
+      if (dto.type !== current.type && current.verificationStatus === OrgVerificationStatus.VERIFIED) {
+        throw new BadRequestException("The organisation type can't be changed after verification. Please contact support.");
+      }
+    }
     const updated = await this.prisma.organization.update({ where: { id: orgId }, data: dto });
     await this.maybeAutoSubmitForVerification(updated, userId);
     return withHasLogo(updated);

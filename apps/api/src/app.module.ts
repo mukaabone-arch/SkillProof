@@ -36,6 +36,7 @@ import { PortfolioModule } from './modules/portfolio/portfolio.module';
 import { StorageModule } from './storage/storage.module';
 import { CopilotModule } from './modules/copilot/copilot.module';
 import { AiContentReportsModule } from './modules/ai-content-reports/ai-content-reports.module';
+import { StaffingModule } from './modules/staffing/staffing.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { AiContentReportsModule } from './modules/ai-content-reports/ai-content-
     PortfolioModule,
     CopilotModule,
     AiContentReportsModule,
+    StaffingModule,
   ],
 })
 export class AppModule {}
