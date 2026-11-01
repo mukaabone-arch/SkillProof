@@ -292,6 +292,12 @@ enum NotificationType {
   STAFFING_REQUEST_RESPONSE
   /** Candidate: their staffing availability is about to go stale (StaffingAvailabilityReminderJob). */
   STAFFING_AVAILABILITY_REMINDER
+  /** Candidate: a staffing company asks to submit them to a named client. */
+  STAFFING_SUBMISSION_CONSENT
+  /** Staffing company: the candidate approved, declined or withdrew a submission. */
+  STAFFING_SUBMISSION_DECISION
+  /** Candidate: a submission moved on (interviewing, offer, placed, not selected, withdrawn). */
+  STAFFING_SUBMISSION_STATUS
 }
 
 enum NotificationChannel {
@@ -389,6 +395,7 @@ model User {
   assessmentBlocks          AssessmentBlock[]   @relation("AssessmentBlockUser")
   assessmentBlocksLifted    AssessmentBlock[]   @relation("AssessmentBlockLiftedBy")
   staffingRequestsMade StaffingAvailabilityRequest[] @relation("StaffingRequestRequestedBy")
+  staffingSubmissionsCreated StaffingSubmission[] @relation("StaffingSubmissionCreatedBy")
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
@@ -611,6 +618,8 @@ model Organization {
   type OrgType @default(EMPLOYER)
   staffingRequests StaffingAvailabilityRequest[]
   staffingBlocks   StaffingBlock[]
+  staffingClients     StaffingClient[]
+  staffingSubmissions StaffingSubmission[]
 }
 
 model OrgMember {
@@ -867,6 +876,7 @@ model CandidateProfile {
   availabilityReminderSentAt DateTime?
   staffingRequests        StaffingAvailabilityRequest[]
   staffingBlocks          StaffingBlock[]
+  staffingSubmissions StaffingSubmission[]
 }
 
 /**
@@ -3479,4 +3489,76 @@ model StaffingBlock {
   createdAt        DateTime         @default(now())
 
   @@unique([candidateId, orgId])
+}
+
+// ---- Staffing companies, Phase 2a: clients, representation, submissions (2026-11) ----
+
+/**
+ * PENDING_CONSENT → (candidate) SUBMITTED | DECLINED; then the staffing
+ * company moves it SUBMITTED → INTERVIEWING → OFFER → PLACED, or to
+ * NOT_SELECTED; either side can WITHDRAW before PLACED. EXPIRED is never
+ * stored — a PENDING_CONSENT row past consentExpiresAt reads as expired.
+ */
+enum StaffingSubmissionStatus {
+  PENDING_CONSENT
+  DECLINED
+  SUBMITTED
+  INTERVIEWING
+  OFFER
+  PLACED
+  NOT_SELECTED
+  WITHDRAWN
+}
+
+/** A staffing company's own client list. nameKey/domain are the normalised forms used to spot the same client across companies. */
+model StaffingClient {
+  id           String               @id @default(uuid())
+  orgId        String
+  organization Organization         @relation(fields: [orgId], references: [id])
+  name         String
+  nameKey      String
+  industry     String?
+  website      String?
+  domain       String?
+  archivedAt   DateTime?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  submissions  StaffingSubmission[]
+
+  @@unique([orgId, nameKey])
+  @@index([nameKey])
+  @@index([domain])
+}
+
+/**
+ * A staffing company putting one candidate forward to one client for one
+ * role — and, once the candidate consents, the record that this company
+ * represents them there (see isRepresentationActive). clientNameKey/
+ * clientDomain are copied from the client at creation so the cross-company
+ * no-double-submission check never depends on a later client edit.
+ */
+model StaffingSubmission {
+  id                 String                   @id @default(uuid())
+  orgId              String
+  organization       Organization             @relation(fields: [orgId], references: [id])
+  clientId           String
+  client             StaffingClient           @relation(fields: [clientId], references: [id])
+  candidateId        String
+  candidateProfile   CandidateProfile         @relation(fields: [candidateId], references: [id])
+  createdByUserId    String
+  createdByUser      User                     @relation("StaffingSubmissionCreatedBy", fields: [createdByUserId], references: [id])
+  roleTitle          String
+  clientNameKey      String
+  clientDomain       String?
+  status             StaffingSubmissionStatus @default(PENDING_CONSENT)
+  consentExpiresAt   DateTime
+  consentedAt        DateTime?
+  statusUpdatedAt    DateTime                 @default(now())
+  candidateNote      String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  @@index([candidateId, clientNameKey])
+  @@index([candidateId, clientDomain])
+  @@index([orgId, createdAt])
 }

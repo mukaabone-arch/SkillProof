@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { STORAGE_SERVICE, StorageService } from '../../storage/storage.interface';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { effectiveStatus } from '../staffing/staffing.util';
+import { effectiveSubmissionStatus } from '../staffing/staffing-representation.util';
 
 const FILE_MIME_BY_EXTENSION: Record<string, string> = {
   '.pdf': 'application/pdf',
@@ -66,7 +67,7 @@ export class DataExportBuilderService {
    * same rule as hiringPipelineHistory.
    */
   private async buildStaffing(profile: CandidateProfile) {
-    const [requests, blocks] = await Promise.all([
+    const [requests, blocks, submissions] = await Promise.all([
       this.prisma.staffingAvailabilityRequest.findMany({
         where: { candidateId: profile.id },
         orderBy: { createdAt: 'asc' },
@@ -76,6 +77,11 @@ export class DataExportBuilderService {
         where: { candidateId: profile.id },
         orderBy: { createdAt: 'asc' },
         include: { organization: { select: { name: true } } },
+      }),
+      this.prisma.staffingSubmission.findMany({
+        where: { candidateId: profile.id },
+        orderBy: { createdAt: 'asc' },
+        include: { organization: { select: { name: true } }, client: { select: { name: true } } },
       }),
     ]);
     return {
@@ -107,6 +113,16 @@ export class DataExportBuilderService {
         respondedAt: r.respondedAt,
       })),
       blockedCompanies: blocks.map((b) => ({ company: b.organization.name, blockedAt: b.createdAt })),
+      submissions: submissions.map((x) => ({
+        company: x.organization.name,
+        client: x.client.name,
+        roleTitle: x.roleTitle,
+        status: effectiveSubmissionStatus(x),
+        approvedAt: x.consentedAt,
+        lastUpdatedAt: x.statusUpdatedAt,
+        yourNote: x.candidateNote,
+        createdAt: x.createdAt,
+      })),
     };
   }
 

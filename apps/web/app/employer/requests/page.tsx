@@ -9,12 +9,14 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { employerApi } from '@/lib/api';
+import StaffingSubmitToClient from '@/components/StaffingSubmitToClient';
 import { REQUEST_STATUS_LABEL, ROLE_TITLE_LABEL, RequestStatus, WORK_TYPE_LABEL, WorkType } from '@/lib/staffing';
 
 const { api } = employerApi;
 
 interface OrgRequest {
   id: string;
+  candidateId: string;
   ref: string;
   roleTitle: string;
   workType: WorkType;
@@ -110,6 +112,7 @@ export default function StaffingRequestsPage() {
               {r.contact.githubUrl && <div><a href={r.contact.githubUrl} target="_blank" rel="noopener noreferrer">GitHub</a></div>}
             </div>
           )}
+          {r.contact && <StaffingSubmitToClient candidateId={r.candidateId} defaultRole={r.roleTitle} />}
           {r.status === 'PENDING' && (
             <div className="row" style={{ margin: '8px 0 0', justifyContent: 'space-between' }}>
               <span className="meta">Expires {new Date(r.expiresAt).toLocaleString()}</span>

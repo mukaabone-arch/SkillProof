@@ -72,6 +72,8 @@ const SECTIONS: { href: string; label: string; icon: NavGlyphName }[] = [
 const STAFFING_SECTIONS: { href: string; label: string; icon: NavGlyphName }[] = [
   { href: '/employer/talent', label: 'Find talent', icon: 'search' },
   { href: '/employer/requests', label: 'Availability requests', icon: 'applicants' },
+  { href: '/employer/submissions', label: 'Submissions', icon: 'shortlist' },
+  { href: '/employer/clients', label: 'Clients', icon: 'postings' },
   { href: '/employer/billing', label: 'Billing', icon: 'billing' },
   { href: '/employer/settings', label: 'Settings', icon: 'settings' },
 ];

@@ -4424,3 +4424,5 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .staffing-status-pending { background: var(--brand-50); color: var(--indigo); }
 .staffing-type { display: flex; align-items: flex-start; gap: 10px; font-weight: 400; padding: 10px 12px; border: 1px solid var(--ink-12); border-radius: var(--radius-md); cursor: pointer; }
 .staffing-type input { width: auto; margin-top: 3px; }
+.staffing-submission-row { justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 0; padding: 10px 0; border-top: 1px solid var(--ink-12); }
+.staffing-status-other { background: var(--paper-2); color: var(--ink-60); }

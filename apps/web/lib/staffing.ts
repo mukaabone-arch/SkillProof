@@ -82,3 +82,44 @@ export function daysAgo(iso: string | null): number | null {
   if (!iso) return null;
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
 }
+
+// ---- Phase 2a: submissions ----
+
+export type SubmissionStatus =
+  | 'PENDING_CONSENT'
+  | 'DECLINED'
+  | 'SUBMITTED'
+  | 'INTERVIEWING'
+  | 'OFFER'
+  | 'PLACED'
+  | 'NOT_SELECTED'
+  | 'WITHDRAWN'
+  | 'EXPIRED';
+
+export const SUBMISSION_STATUS_LABEL: Record<SubmissionStatus, string> = {
+  PENDING_CONSENT: 'Waiting for candidate approval',
+  DECLINED: 'Candidate declined',
+  SUBMITTED: 'Submitted to client',
+  INTERVIEWING: 'Interviewing',
+  OFFER: 'Offer',
+  PLACED: 'Placed',
+  NOT_SELECTED: 'Not selected',
+  WITHDRAWN: 'Withdrawn',
+  EXPIRED: 'Approval expired',
+};
+
+/** Next steps the staffing company can take from each status (mirrors the API's orgCanMove). */
+export const SUBMISSION_NEXT: Partial<Record<SubmissionStatus, SubmissionStatus[]>> = {
+  PENDING_CONSENT: ['WITHDRAWN'],
+  SUBMITTED: ['INTERVIEWING', 'NOT_SELECTED', 'WITHDRAWN'],
+  INTERVIEWING: ['OFFER', 'NOT_SELECTED', 'WITHDRAWN'],
+  OFFER: ['PLACED', 'NOT_SELECTED', 'WITHDRAWN'],
+};
+
+export const SUBMISSION_ACTION_LABEL: Partial<Record<SubmissionStatus, string>> = {
+  INTERVIEWING: 'Mark interviewing',
+  OFFER: 'Mark offer',
+  PLACED: 'Mark placed',
+  NOT_SELECTED: 'Not selected',
+  WITHDRAWN: 'Withdraw',
+};
