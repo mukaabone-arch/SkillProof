@@ -4478,3 +4478,22 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .lp-nav.is-open .lp-biz-item { padding: 10px 0; }
 .lp-cta-alt { flex-basis: 100%; margin: 4px 0 0; font-size: 0.95rem; color: rgba(255, 255, 255, 0.85); }
 .lp-cta-alt a { color: #fff; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---- Landing header: Candidate matches the business items ---- */
+.lp-biz-icon-c { background: #2f7f62; }
+.lp-cand-link { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
+.lp-cand-link:hover { text-decoration: none; }
+.lp-cand-link:hover .lp-biz-title { text-decoration: underline; }
+.lp-cand-link .lp-biz-icon { width: 28px; height: 28px; border-radius: 8px; font-size: 0.78rem; }
+.lp-cand-link .lp-biz-title { font-weight: 500; }
+.lp-cand-desc { display: none; }
+/* Phone ☰ menu: every row (Candidate, Employer, Recruiter) is the same shape, inset from the edge. */
+.lp-nav.is-open .lp-cand-link {
+  display: flex; align-items: flex-start; gap: 12px; padding: 10px 20px; opacity: 1; color: #f3f3f8;
+}
+.lp-nav.is-open .lp-cand-link .lp-biz-icon { width: 34px; height: 34px; border-radius: 9px; font-size: 0.85rem; }
+.lp-nav.is-open .lp-cand-link .lp-biz-title { font-weight: 600; }
+.lp-nav.is-open .lp-cand-desc { display: block; }
+.lp-nav.is-open .lp-biz { width: 100%; }
+.lp-nav.is-open .lp-biz-heading { padding: 0 20px; }
+.lp-nav.is-open .lp-biz-item { padding: 10px 20px; }

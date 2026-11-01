@@ -83,8 +83,12 @@ export default function LandingHeader({ candidateHref, employerHref, staffingHre
         </button>
 
         <nav id="lp-primary-nav" className={`lp-nav${menuOpen ? ' is-open' : ''}`} aria-label="Primary">
-          <a href={candidateHref} className="lp-nav-link" onClick={closeAll}>
-            Candidate
+          <a href={candidateHref} className="lp-nav-link lp-cand-link" onClick={closeAll}>
+            <span className="lp-biz-icon lp-biz-icon-c" aria-hidden="true">C</span>
+            <span>
+              <span className="lp-biz-title">Candidate</span>
+              <span className="lp-biz-desc lp-cand-desc">Prove your AI skills and get hired</span>
+            </span>
           </a>
 
           <div className="lp-biz" ref={bizRef}>
