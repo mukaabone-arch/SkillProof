@@ -286,3 +286,29 @@ You need at least one verified skill. Claimed-but-unverified skills aren't enoug
 
 **Do I lose an application if something goes wrong?**
 No. Failed submissions are credited back automatically.
+
+## Recruiters {#recruiters}
+
+Recruiters and staffing companies place candidates with their clients. You choose whether they can find you.
+
+### Turning it on {#recruiters-opt-in}
+
+Turn on **Open to recruiters** in your profile and fill in your availability: when you can start, contract or permanent, and expected rate. Verified recruiters can then find you by your verified skills. They see your skills and availability, **not** your name or contact details.
+
+Confirm your availability at least every **30 days** to stay visible. We remind you by email (and in the app) before it lapses. Turn the switch off any time to stop appearing.
+
+### Availability checks {#recruiters-requests}
+
+A recruiter can ask whether you're available for a specific role. You'll see it in **Interviews** on the website and in the app.
+
+- Answer **Available** to share your name, email and phone with that recruiter, or **Not now**.
+- Requests expire after **48 hours**.
+- You can choose not to be contacted by that recruiter again.
+
+### Submissions to a client {#recruiters-submissions}
+
+After you've been in touch, a recruiter may ask to put you forward to a named client. Nothing happens unless you approve, and you have **72 hours** to decide.
+
+If you approve, that recruiter represents you to that client, and no other recruiter can submit you there. You can follow the status (interviewing, offer, placed) under **Interviews**, and you can withdraw.
+
+A recruiter can't submit you to a company whose hiring process you're already in on MyAmbii, for example a job you applied to directly.

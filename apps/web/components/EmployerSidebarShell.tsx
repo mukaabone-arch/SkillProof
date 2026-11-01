@@ -183,7 +183,7 @@ export default function EmployerSidebarShell({ verified, org, orgType = 'EMPLOYE
               tab (never this one) — see HelpGuidePage.tsx's own doc comment
               on why the help pages carry no way back into the app. */}
           <Link
-            href="/help/employer"
+            href={orgType === 'STAFFING' ? '/help/recruiter' : '/help/employer'}
             target="myambii-help"
             rel="noopener"
             className="side-glass"

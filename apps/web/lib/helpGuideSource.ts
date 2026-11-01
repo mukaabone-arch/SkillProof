@@ -43,7 +43,7 @@ function parseSections(markdown: string): HelpSection[] {
  * data source called once per request for a statically-generated page, not
  * a hot path; simplicity here matters more than shaving a filesystem read.
  */
-export function loadHelpGuide(filename: 'candidate-guide.md' | 'employer-guide.md'): HelpGuideSource {
+export function loadHelpGuide(filename: 'candidate-guide.md' | 'employer-guide.md' | 'recruiter-guide.md'): HelpGuideSource {
   const filePath = path.join(process.cwd(), '..', '..', 'docs', filename);
   const raw = fs.readFileSync(filePath, 'utf8');
   const firstHeadingIndex = raw.indexOf('\n## ');

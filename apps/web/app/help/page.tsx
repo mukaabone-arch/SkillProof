@@ -32,5 +32,6 @@ export default function HelpIndexPage({
 }) {
   if (searchParams.audience === 'employers') redirect('/help/employer');
   if (searchParams.audience === 'candidates') redirect('/help/candidate');
+  if (searchParams.audience === 'recruiters') redirect('/help/recruiter');
   permanentRedirect('/help/candidate');
 }
