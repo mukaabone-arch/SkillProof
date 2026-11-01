@@ -67,7 +67,7 @@ export class StaffingService {
   async confirmAvailability(userId: string) {
     const p = await this.prisma.candidateProfile.findUnique({ where: { userId }, select: { openToStaffing: true } });
     if (!p) throw new NotFoundException('Profile not found');
-    if (!p.openToStaffing) throw new BadRequestException('Turn on "Open to staffing companies" first.');
+    if (!p.openToStaffing) throw new BadRequestException('Turn on "Open to recruiters" first.');
     await this.prisma.candidateProfile.update({ where: { userId }, data: { availabilityConfirmedAt: new Date() } });
     return this.getAvailability(userId);
   }
@@ -313,7 +313,7 @@ export class StaffingService {
       candidate.userId,
       NotificationType.STAFFING_AVAILABILITY_REQUEST,
       `${r.organization.name} asked if you're available: ${r.roleTitle}`,
-      `<p><strong>${esc(r.organization.name)}</strong>, a verified staffing company, wants to know if you're available for <strong>${esc(r.roleTitle)}</strong>.</p>` +
+      `<p><strong>${esc(r.organization.name)}</strong>, a verified recruiter, wants to know if you're available for <strong>${esc(r.roleTitle)}</strong>.</p>` +
         `<p>They can't see your name or contact details unless you say yes. Please answer within ${REQUEST_TTL_HOURS} hours.</p>` +
         `<p><a href="${WEB_BASE_URL}/interviews">See the request</a></p>`,
     );

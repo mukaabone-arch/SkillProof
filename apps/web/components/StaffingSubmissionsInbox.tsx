@@ -61,7 +61,7 @@ export default function StaffingSubmissionsInbox() {
 
   return (
     <section className="staffing-inbox">
-      <h2>Through staffing companies</h2>
+      <h2>Through recruiters</h2>
       {error && <ErrorState message={error} />}
 
       {pending.map((s) => (
@@ -72,7 +72,7 @@ export default function StaffingSubmissionsInbox() {
             {s.clientIndustry ? ` · ${s.clientIndustry}` : ''} · decide by {new Date(s.consentExpiresAt).toLocaleString()}
           </div>
           <p className="meta" style={{ margin: '6px 0' }}>
-            If you approve, {s.orgName} represents you to {s.clientName}, and no other staffing company can submit you there
+            If you approve, {s.orgName} represents you to {s.clientName}, and no other recruiter can submit you there
             while it lasts.
           </p>
           <div className="row" style={{ margin: 0, flexWrap: 'wrap' }}>

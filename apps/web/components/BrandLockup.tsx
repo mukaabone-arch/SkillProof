@@ -38,7 +38,7 @@ interface Props {
   ariaLabel?: string;
   /** nav: "MyAmbii Admin" inline. hero: "MyAmbii" / "Employers" stacked.
    *  Omitted renders plain "MyAmbii". */
-  suffix?: 'Admin' | 'Employers';
+  suffix?: 'Admin' | 'Employers' | 'Recruiter';
   onClick?: () => void;
 }
 

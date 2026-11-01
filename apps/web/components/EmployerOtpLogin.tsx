@@ -29,6 +29,7 @@
  * had a button here) but is likewise not linked to from this screen.
  */
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { employerApi } from '@/lib/api';
 import { trackLogin, trackSignUp } from '@/lib/analyticsEvents';
 import BrandLockup from './BrandLockup';
@@ -61,11 +62,34 @@ const EMPLOYER_MESSAGES: AuthMessage[] = [
   },
 ];
 
+/** Staffing/recruitment companies — the /staffing entry. */
+const STAFFING_MESSAGES: AuthMessage[] = [
+  {
+    headline: 'Find people who are actually available',
+    support: 'Every candidate you see has opted in to recruiters and confirmed their availability in the last 30 days.',
+  },
+  {
+    headline: 'Verified skills, not keyword CVs',
+    support: 'Search by verified AI skills and levels, start date, contract or permanent, and expected rate.',
+  },
+  {
+    headline: 'Contact details when they say yes',
+    support: 'Send an availability check for a role; name, email and phone are shared the moment the candidate accepts.',
+  },
+  {
+    headline: 'No double submissions',
+    support: 'Once a candidate approves you for a client, no other recruiter can submit them there.',
+  },
+];
+
 interface Props {
   onLoggedIn: () => void;
+  /** 'staffing' = the /staffing entry: staffing wording, and a brand-new org is created as a staffing company. */
+  variant?: 'employer' | 'staffing';
 }
 
-export default function EmployerOtpLogin({ onLoggedIn }: Props) {
+export default function EmployerOtpLogin({ onLoggedIn, variant = 'employer' }: Props) {
+  const staffing = variant === 'staffing';
   const [orgName, setOrgName] = useState('');
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
@@ -108,6 +132,11 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
         },
       );
       setTokens(res.accessToken, res.refreshToken);
+      if (res.isNewUser && staffing) {
+        // New org from the staffing entry: set its type now so setup doesn't ask.
+        // Best-effort — if this fails, setup still offers the choice.
+        await api('/orgs/me', { method: 'PATCH', body: JSON.stringify({ type: 'STAFFING' }) }).catch(() => undefined);
+      }
       if (res.isNewUser) trackSignUp('email_otp', 'employer');
       else trackLogin('email_otp', 'employer');
       onLoggedIn();
@@ -150,14 +179,14 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
   return (
     <main className="auth-split">
       <div className="auth-split-visual">
-        <AuthMessageRotator messages={EMPLOYER_MESSAGES} />
+        <AuthMessageRotator messages={staffing ? STAFFING_MESSAGES : EMPLOYER_MESSAGES} />
       </div>
       <div className="auth-split-panel">
         <h1 className="auth-split-headline">Global AI Talent Hub</h1>
         <div className="auth-split-card">
-          <BrandLockup variant="hero" href="/" ariaLabel="MyAmbii home" suffix="Employers" />
+          <BrandLockup variant="hero" href="/" ariaLabel="MyAmbii home" suffix={staffing ? 'Recruiter' : 'Employers'} />
           <p className="auth-subtitle" style={{ marginBottom: 4 }}>
-            Hire on proven skills, not keywords.
+            {staffing ? 'Place available, verified AI talent with your clients.' : 'Hire on proven skills, not keywords.'}
           </p>
           <p className="meta" style={{ marginBottom: 20 }}>
             Sign in or sign up with your work email to get started.
@@ -171,11 +200,11 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
                   id="orgName"
                   value={orgName}
                   onChange={(e) => setOrgName(e.target.value)}
-                  placeholder="Acme Inc."
+                  placeholder={staffing ? 'Acme Talent Pvt Ltd' : 'Acme Inc.'}
                   maxLength={160}
                 />
                 <p className="meta" style={{ margin: 0 }}>
-                  Only needed when creating a new organisation — returning employers can leave this blank.
+                  Only needed when creating a new organisation — if you already have an account, leave this blank.
                 </p>
               </div>
               <div className="field">
@@ -248,6 +277,13 @@ export default function EmployerOtpLogin({ onLoggedIn }: Props) {
           )}
 
           {error && <p className="error">{error}</p>}
+          <p className="meta auth-switch">
+            {staffing ? (
+              <>Hiring for your own company? <Link href="/employer">Employer sign-in →</Link></>
+            ) : (
+              <>Recruiter? <Link href="/staffing">Sign in here →</Link></>
+            )}
+          </p>
         </div>
         <LegalAcceptanceNote />
       </div>

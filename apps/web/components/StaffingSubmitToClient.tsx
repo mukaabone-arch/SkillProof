@@ -81,7 +81,7 @@ export default function StaffingSubmitToClient({ candidateId, defaultRole }: { c
           </div>
           <p className="meta" style={{ margin: 0 }}>
             The candidate sees the client&apos;s name and must approve within 72 hours. Once approved, you represent them
-            to this client and no other staffing company can submit them there.
+            to this client and no other recruiter can submit them there.
           </p>
         </>
       )}

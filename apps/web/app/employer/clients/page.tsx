@@ -66,7 +66,7 @@ export default function StaffingClientsPage() {
       <h1>Clients</h1>
       <p>
         The companies you place candidates with. Add the website where you can — it&apos;s how MyAmbii recognises the same
-        client across staffing companies, so a candidate is never submitted to one client twice.
+        client across recruiters, so a candidate is never submitted to one client twice.
       </p>
 
       <form className="card staffing-filters" onSubmit={add}>

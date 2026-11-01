@@ -51,7 +51,7 @@ export class StaffingAvailabilityReminderJob {
           NotificationType.STAFFING_AVAILABILITY_REMINDER,
           'Still available? Confirm in one tap',
           renderNotificationEmail(
-            `<p>You're open to staffing companies on MyAmbii. To keep showing up in their searches, please confirm your availability is still accurate.</p>` +
+            `<p>You're open to recruiters on MyAmbii. To keep showing up in their searches, please confirm your availability is still accurate.</p>` +
               `<p>If nothing has changed, it takes one tap. If you're not looking any more, you can turn it off there too.</p>`,
             { label: 'Confirm availability', url: `${WEB_BASE_URL}/profile#staffing` },
           ),
@@ -62,7 +62,7 @@ export class StaffingAvailabilityReminderJob {
         this.logger.error(`Availability reminder failed for profile ${c.id}: ${(err as Error).message}`);
       }
     }
-    if (sent) this.logger.log(`Sent ${sent} staffing availability reminder(s)`);
+    if (sent) this.logger.log(`Sent ${sent} recruiter availability reminder(s)`);
     return sent;
   }
 }

@@ -99,7 +99,7 @@ export default function EmployerSetupPage() {
           </label>
           <label className="staffing-type">
             <input type="radio" name="orgType" checked={organization.type === 'STAFFING'} onChange={() => saveType('STAFFING')} />
-            <span><strong>Staffing or recruitment company</strong> — we place candidates with our clients: find opted-in candidates by verified skills and availability.</span>
+            <span><strong>Recruiter</strong> — we place candidates with our clients: find opted-in candidates by verified skills and availability.</span>
           </label>
           <p className="meta" style={{ margin: 0 }}>This decides which portal you get, and can&apos;t be changed after verification.</p>
         </div>

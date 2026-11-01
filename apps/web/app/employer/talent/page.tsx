@@ -149,7 +149,7 @@ export default function TalentPage() {
     <main className="container-wide">
       <h1>Find talent</h1>
       <p>
-        Candidates who&apos;ve opted in to staffing companies and confirmed their availability in the last 30 days. Names and
+        Candidates who&apos;ve opted in to recruiters and confirmed their availability in the last 30 days. Names and
         contact details are shared once a candidate accepts your request — see{' '}
         <Link href="/employer/requests">Availability requests</Link>.
       </p>

@@ -74,9 +74,9 @@ export default function StaffingRequestsInbox() {
 
   return (
     <section className="staffing-inbox">
-      <h2>Staffing availability requests</h2>
+      <h2>Recruiter availability requests</h2>
       <p className="meta">
-        Verified staffing companies asking whether you&apos;re available for a client role. They see your name and contact
+        Verified recruiters asking whether you&apos;re available for a client role. They see your name and contact
         details only if you say yes.
       </p>
       {error && <ErrorState message={error} />}

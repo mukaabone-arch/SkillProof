@@ -24,9 +24,11 @@ interface Props {
   candidateHref: string;
   /** Employer sign-in target. */
   employerHref: string;
+  /** Staffing-company sign-in target (/staffing). */
+  staffingHref: string;
 }
 
-export default function LandingHeader({ candidateHref, employerHref }: Props) {
+export default function LandingHeader({ candidateHref, employerHref, staffingHref }: Props) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -59,6 +61,9 @@ export default function LandingHeader({ candidateHref, employerHref }: Props) {
           </a>
           <a href={employerHref} className="lp-nav-link" onClick={() => setMenuOpen(false)}>
             Employer
+          </a>
+          <a href={staffingHref} className="lp-nav-link" onClick={() => setMenuOpen(false)}>
+            Recruiter
           </a>
         </nav>
       </div>

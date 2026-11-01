@@ -188,7 +188,7 @@ export default function AdminOrgVerificationPage() {
           <select id="filterType" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as 'ALL' | 'EMPLOYER' | 'STAFFING')}>
             <option value="ALL">All types</option>
             <option value="EMPLOYER">Employers</option>
-            <option value="STAFFING">Staffing companies</option>
+            <option value="STAFFING">Recruiters</option>
           </select>
         </div>
       </div>
@@ -203,7 +203,7 @@ export default function AdminOrgVerificationPage() {
                 <div className="row" style={{ margin: 0, alignItems: 'center' }}>
                   <strong>{row.name}</strong>
                   <span className="meta" style={{ margin: 0 }}>{row.code}</span>
-                  <Badge variant="neutral">{row.type === 'STAFFING' ? 'Staffing company' : 'Employer'}</Badge>
+                  <Badge variant="neutral">{row.type === 'STAFFING' ? 'Recruiter' : 'Employer'}</Badge>
                   <Badge variant={STATUS_BADGE[row.verificationStatus].variant}>
                     {STATUS_BADGE[row.verificationStatus].label}
                   </Badge>

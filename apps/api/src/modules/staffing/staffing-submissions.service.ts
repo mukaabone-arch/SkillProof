@@ -163,7 +163,7 @@ export class StaffingSubmissionsService {
       NotificationType.STAFFING_SUBMISSION_CONSENT,
       `${sub.organization.name} wants to put you forward to ${client.name}`,
       `<p><strong>${esc(sub.organization.name)}</strong> would like to submit you to <strong>${esc(client.name)}</strong> for <strong>${esc(sub.roleTitle)}</strong>.</p>` +
-        `<p>They'll only do this if you approve. While they represent you there, no other staffing company can submit you to ${esc(client.name)}. Please decide within ${CONSENT_TTL_HOURS} hours.</p>` +
+        `<p>They'll only do this if you approve. While they represent you there, no other recruiter can submit you to ${esc(client.name)}. Please decide within ${CONSENT_TTL_HOURS} hours.</p>` +
         `<p><a href="${WEB_BASE_URL}/interviews">Review the request</a></p>`,
     );
     return { id: sub.id, status: sub.status, consentExpiresAt: sub.consentExpiresAt };
@@ -322,8 +322,8 @@ export class StaffingSubmissionsService {
     if (others.some((s) => isRepresentationActive(s, now))) {
       throw new ConflictException(
         forCandidate
-          ? "You're already represented to this client by another staffing company, so this one can't submit you there."
-          : 'This candidate is already represented to this client by another staffing company.',
+          ? "You're already represented to this client by another recruiter, so this one can't submit you there."
+          : 'This candidate is already represented to this client by another recruiter.',
       );
     }
 
@@ -342,7 +342,7 @@ export class StaffingSubmissionsService {
     if (direct.some((o) => sameClient(key, { nameKey: normaliseClientName(o.name), domain: normaliseDomain(o.website) }))) {
       throw new ConflictException(
         forCandidate
-          ? "You're already in this company's own hiring process on MyAmbii, so a staffing company can't submit you there."
+          ? "You're already in this company's own hiring process on MyAmbii, so a recruiter can't submit you there."
           : "This candidate is already in this company's own hiring process on MyAmbii, so they can't be submitted there.",
       );
     }

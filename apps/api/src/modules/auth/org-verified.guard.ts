@@ -53,8 +53,8 @@ export class OrgVerifiedGuard implements CanActivate {
         orgType: type,
         message:
           type === OrgType.STAFFING
-            ? 'This part of the portal is for employers hiring for their own company. Staffing companies use Find talent instead.'
-            : 'This part of the portal is for staffing companies.',
+            ? 'This part of the portal is for employers hiring for their own company. Recruiters use Find talent instead.'
+            : 'This part of the portal is for recruiters.',
       });
     }
 

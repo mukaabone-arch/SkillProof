@@ -23,6 +23,7 @@ import BetaPromoScroll from '@/components/BetaPromoScroll';
 const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_ORIGIN ?? '';
 const CANDIDATE_HREF = `${APP_ORIGIN}/candidate`;
 const EMPLOYER_HREF = `${APP_ORIGIN}/employer`;
+const STAFFING_HREF = `${APP_ORIGIN}/staffing`;
 
 export const metadata: Metadata = {
   alternates: { canonical: '/' },
@@ -68,7 +69,7 @@ const EMPLOYER_POINTS = [
 export default function LandingPage() {
   return (
     <>
-      <LandingHeader candidateHref={CANDIDATE_HREF} employerHref={EMPLOYER_HREF} />
+      <LandingHeader candidateHref={CANDIDATE_HREF} employerHref={EMPLOYER_HREF} staffingHref={STAFFING_HREF} />
       <main className="lp-page" id="top">
       {/* ---------- Hero ---------- */}
       <section className="lp-hero" aria-labelledby="lp-hero-heading">
@@ -103,6 +104,12 @@ export default function LandingPage() {
                 Hire on proven skills
               </a>
               <span className="lp-cta-caption">Hire on proven skills, not keywords</span>
+            </div>
+            <div className="lp-cta-block">
+              <a className="lp-btn lp-btn-secondary" href={STAFFING_HREF}>
+                I&apos;m a recruiter
+              </a>
+              <span className="lp-cta-caption">Find available, verified talent for your clients</span>
             </div>
           </div>
         </div>

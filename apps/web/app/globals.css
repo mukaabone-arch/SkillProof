@@ -4426,3 +4426,4 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .staffing-type input { width: auto; margin-top: 3px; }
 .staffing-submission-row { justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 0; padding: 10px 0; border-top: 1px solid var(--ink-12); }
 .staffing-status-other { background: var(--paper-2); color: var(--ink-60); }
+.auth-switch { margin: 16px 0 0; text-align: center; }

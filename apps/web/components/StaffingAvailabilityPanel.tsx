@@ -138,9 +138,9 @@ export default function StaffingAvailabilityPanel() {
     setForm((f) => ({ ...f, workTypes: f.workTypes.includes(w) ? f.workTypes.filter((x) => x !== w) : [...f.workTypes, w] }));
 
   return (
-    <CollapsibleSection id="staffing" title="Staffing companies" status={status}>
+    <CollapsibleSection id="staffing" title="Recruiters" status={status}>
       <p>
-        Let verified staffing and recruitment companies find you for client roles. They see your verified skills,
+        Let verified recruiters find you for client roles. They see your verified skills,
         experience, city and availability — <strong>not</strong> your name, photo or contact details. Those are shared only
         with a company whose request you accept.
       </p>
@@ -151,8 +151,8 @@ export default function StaffingAvailabilityPanel() {
           {a.openToStaffing && !a.fresh && (
             <div className="staffing-stale">
               <span>
-                Your availability was last confirmed {daysAgo(a.availabilityConfirmedAt) ?? '–'} days ago, so staffing
-                companies can&apos;t see you right now.
+                Your availability was last confirmed {daysAgo(a.availabilityConfirmedAt) ?? '–'} days ago, so recruiters
+                can&apos;t see you right now.
               </span>
               <button type="button" onClick={confirm}>Still accurate — confirm</button>
             </div>
@@ -166,7 +166,7 @@ export default function StaffingAvailabilityPanel() {
                 checked={form.openToStaffing}
                 onChange={(e) => setForm({ ...form, openToStaffing: e.target.checked })}
               />
-              Open to staffing companies
+              Open to recruiters
             </label>
           </div>
 
