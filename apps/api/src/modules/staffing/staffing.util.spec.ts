@@ -1,5 +1,5 @@
 import { AvailabilityStatus, RateUnit, StaffingRequestStatus, WorkType } from '@prisma/client';
-import { candidateRef, effectiveStatus, isAvailabilityFresh, normaliseAvailability, revealsContact } from './staffing.util';
+import { candidateRef, effectiveStatus, isAvailabilityFresh, normaliseAvailability, reminderDue, revealsContact } from './staffing.util';
 
 const NOW = new Date('2026-11-01T10:00:00Z');
 
@@ -70,5 +70,19 @@ describe('freshness and refs', () => {
   });
   it('makes a short stable ref', () => {
     expect(candidateRef('ab12cd34-0000-4000-8000-000000000000')).toBe('C-AB12CD');
+  });
+});
+
+describe('reminderDue', () => {
+  const day = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000);
+  it('waits until four days before availability goes stale', () => {
+    expect(reminderDue(day(20), null, NOW)).toBe(false);
+    expect(reminderDue(day(27), null, NOW)).toBe(true);
+    expect(reminderDue(day(40), null, NOW)).toBe(true);
+  });
+  it('sends once per confirmation', () => {
+    expect(reminderDue(day(27), day(1), NOW)).toBe(false);
+    expect(reminderDue(day(27), day(30), NOW)).toBe(true);
+    expect(reminderDue(null, null, NOW)).toBe(false);
   });
 });

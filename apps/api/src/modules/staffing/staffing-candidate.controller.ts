@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { AuthenticatedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -20,6 +20,12 @@ export class StaffingCandidateController {
 
   @Put('availability')
   updateAvailability(@Req() req: AuthenticatedRequest, @Body() dto: UpdateAvailabilityDto) {
+    return this.svc.updateAvailability(req.user.sub, dto);
+  }
+
+  /** Same as PUT — the mobile app's ApiClient has no put(). */
+  @Patch('availability')
+  patchAvailability(@Req() req: AuthenticatedRequest, @Body() dto: UpdateAvailabilityDto) {
     return this.svc.updateAvailability(req.user.sub, dto);
   }
 

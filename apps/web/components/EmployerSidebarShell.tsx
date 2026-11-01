@@ -97,6 +97,7 @@ export default function EmployerSidebarShell({ verified, org, orgType = 'EMPLOYE
   const [mobileOpen, setMobileOpen] = useState(false);
   const menu = orgType === 'STAFFING' ? STAFFING_SECTIONS : SECTIONS;
   const sections = verified ? menu : menu.filter((s) => s.href === '/employer/settings');
+  const homeHref = orgType === 'STAFFING' ? '/employer/talent' : '/employer/dashboard';
   const logoUrl = useOrgLogo(org?.hasLogo ?? false);
 
   async function handleLogout() {
@@ -120,14 +121,14 @@ export default function EmployerSidebarShell({ verified, org, orgType = 'EMPLOYE
             <span />
             <span />
           </button>
-          <BrandLockup variant="nav" href="/employer/dashboard" />
+          <BrandLockup variant="nav" href={homeHref} />
           {org && (
             <>
               <span className="employer-topbar-divider" aria-hidden="true" />
               {/* Multi-tenant seats mean "MyAmbii" alone doesn't say which org
                   a member is in — this shares the brand band rather than
                   owning it (see this file's own doc comment). */}
-              <Link href="/employer/dashboard" className="employer-org-identity">
+              <Link href={homeHref} className="employer-org-identity">
                 <OrgMark name={org.name} logoUrl={logoUrl} size={28} />
                 <span className="employer-org-name">{org.name}</span>
               </Link>

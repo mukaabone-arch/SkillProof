@@ -5,10 +5,11 @@ import { ProfileViewsModule } from '../profile-views/profile-views.module';
 import { StaffingCandidateController } from './staffing-candidate.controller';
 import { StaffingOrgController } from './staffing-org.controller';
 import { StaffingService } from './staffing.service';
+import { StaffingAvailabilityReminderJob } from './staffing-availability-reminder.job';
 
 @Module({
   imports: [NotificationsModule, AuthModule, ProfileViewsModule],
   controllers: [StaffingCandidateController, StaffingOrgController],
-  providers: [StaffingService],
+  providers: [StaffingService, StaffingAvailabilityReminderJob],
 })
 export class StaffingModule {}

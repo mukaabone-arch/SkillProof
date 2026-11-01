@@ -1,9 +1,10 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { extname } from 'path';
-import { RagL2Claim } from '@prisma/client';
+import { CandidateProfile, RagL2Claim } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { STORAGE_SERVICE, StorageService } from '../../storage/storage.interface';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { effectiveStatus } from '../staffing/staffing.util';
 
 const FILE_MIME_BY_EXTENSION: Record<string, string> = {
   '.pdf': 'application/pdf',
@@ -56,6 +57,58 @@ export class DataExportBuilderService {
     private readonly entitlements: EntitlementsService,
     @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
   ) {}
+
+  /**
+   * Staffing companies (StaffingModule): the candidate's opt-in and
+   * availability, every availability request they received (who asked, for
+   * what, and how they answered) and the companies they blocked. Company
+   * internals beyond the name and what the request itself said are left out,
+   * same rule as hiringPipelineHistory.
+   */
+  private async buildStaffing(profile: CandidateProfile) {
+    const [requests, blocks] = await Promise.all([
+      this.prisma.staffingAvailabilityRequest.findMany({
+        where: { candidateId: profile.id },
+        orderBy: { createdAt: 'asc' },
+        include: { organization: { select: { name: true } } },
+      }),
+      this.prisma.staffingBlock.findMany({
+        where: { candidateId: profile.id },
+        orderBy: { createdAt: 'asc' },
+        include: { organization: { select: { name: true } } },
+      }),
+    ]);
+    return {
+      openToStaffing: profile.openToStaffing,
+      availabilityStatus: profile.availabilityStatus,
+      availableFrom: profile.availableFrom,
+      noticePeriodDays: profile.noticePeriodDays,
+      workTypes: profile.workTypes,
+      expectedRateMinInr: profile.expectedRateMinInr,
+      expectedRateMaxInr: profile.expectedRateMaxInr,
+      expectedRateUnit: profile.expectedRateUnit,
+      availabilityConfirmedAt: profile.availabilityConfirmedAt,
+      availabilityRequests: requests.map((r) => ({
+        company: r.organization.name,
+        roleTitle: r.roleTitle,
+        summary: r.summary,
+        workType: r.workType,
+        rateMinInr: r.rateMinInr,
+        rateMaxInr: r.rateMaxInr,
+        rateUnit: r.rateUnit,
+        location: r.location,
+        remote: r.remote,
+        clientName: r.clientName,
+        clientIndustry: r.clientIndustry,
+        status: effectiveStatus(r),
+        yourMessage: r.candidateMessage,
+        receivedAt: r.createdAt,
+        expiresAt: r.expiresAt,
+        respondedAt: r.respondedAt,
+      })),
+      blockedCompanies: blocks.map((b) => ({ company: b.organization.name, blockedAt: b.createdAt })),
+    };
+  }
 
   async build(candidateProfileId: string): Promise<Record<string, unknown>> {
     const profile = await this.prisma.candidateProfile.findUnique({ where: { id: candidateProfileId } });
@@ -145,6 +198,7 @@ export class DataExportBuilderService {
           createdAt: a.createdAt,
         })),
       },
+      staffing: await this.buildStaffing(profile),
       profile: {
         fullName: profile.fullName,
         headline: profile.headline,

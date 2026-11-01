@@ -101,3 +101,18 @@ export function availableWithinWhere(days: number, now = new Date()): Prisma.Can
 export function candidateRef(profileId: string): string {
   return 'C-' + profileId.replace(/-/g, '').slice(0, 6).toUpperCase();
 }
+
+/** Remind this many days before availability goes stale. */
+export const REMINDER_LEAD_DAYS = 4;
+
+/**
+ * One reminder per confirmation: due once availability is within
+ * REMINDER_LEAD_DAYS of going stale (or already stale), and no reminder has
+ * been sent since it was last confirmed.
+ */
+export function reminderDue(confirmedAt: Date | null, reminderSentAt: Date | null, now = new Date()): boolean {
+  if (!confirmedAt) return false;
+  const ageDays = (now.getTime() - confirmedAt.getTime()) / (24 * 60 * 60 * 1000);
+  if (ageDays < AVAILABILITY_FRESH_DAYS - REMINDER_LEAD_DAYS) return false;
+  return !reminderSentAt || reminderSentAt.getTime() < confirmedAt.getTime();
+}

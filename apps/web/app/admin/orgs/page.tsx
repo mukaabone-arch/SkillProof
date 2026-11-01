@@ -20,6 +20,8 @@ interface OrgRow {
   id: string;
   name: string;
   code: string;
+  /** Employer or staffing company — see Organization.type. */
+  type?: 'EMPLOYER' | 'STAFFING';
   industry: OrgIndustry | null;
   industryOther: string | null;
   website: string | null;
@@ -56,6 +58,7 @@ export default function AdminOrgVerificationPage() {
   const [rows, setRows] = useState<OrgRow[]>([]);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<StatusFilter>('PENDING');
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'EMPLOYER' | 'STAFFING'>('ALL');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -137,6 +140,8 @@ export default function AdminOrgVerificationPage() {
     }
   }
 
+  const shownRows = typeFilter === 'ALL' ? rows : rows.filter((r) => (r.type ?? 'EMPLOYER') === typeFilter);
+
   if (status === 'loading') {
     return (
       <main className="hub">
@@ -178,18 +183,27 @@ export default function AdminOrgVerificationPage() {
             <option value="UNVERIFIED">Not verified</option>
           </select>
         </div>
+        <div className="field" style={{ minWidth: 180, margin: 0 }}>
+          <label htmlFor="filterType">Type</label>
+          <select id="filterType" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as 'ALL' | 'EMPLOYER' | 'STAFFING')}>
+            <option value="ALL">All types</option>
+            <option value="EMPLOYER">Employers</option>
+            <option value="STAFFING">Staffing companies</option>
+          </select>
+        </div>
       </div>
 
-      {rows.length === 0 ? (
+      {shownRows.length === 0 ? (
         <EmptyState message="No organizations match this filter." />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {rows.map((row) => (
+          {shownRows.map((row) => (
             <div key={row.id} className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
               <div className="row" style={{ justifyContent: 'space-between', margin: 0, flexWrap: 'wrap' }}>
                 <div className="row" style={{ margin: 0, alignItems: 'center' }}>
                   <strong>{row.name}</strong>
                   <span className="meta" style={{ margin: 0 }}>{row.code}</span>
+                  <Badge variant="neutral">{row.type === 'STAFFING' ? 'Staffing company' : 'Employer'}</Badge>
                   <Badge variant={STATUS_BADGE[row.verificationStatus].variant}>
                     {STATUS_BADGE[row.verificationStatus].label}
                   </Badge>

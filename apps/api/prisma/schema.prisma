@@ -290,6 +290,8 @@ enum NotificationType {
   STAFFING_AVAILABILITY_REQUEST
   /** Staffing company: the candidate answered an availability request. */
   STAFFING_REQUEST_RESPONSE
+  /** Candidate: their staffing availability is about to go stale (StaffingAvailabilityReminderJob). */
+  STAFFING_AVAILABILITY_REMINDER
 }
 
 enum NotificationChannel {
@@ -861,6 +863,8 @@ model CandidateProfile {
   expectedRateMaxInr      Int?
   expectedRateUnit        RateUnit?
   availabilityConfirmedAt DateTime?
+  /** Last staffing reminder email; compared with availabilityConfirmedAt (see reminderDue). */
+  availabilityReminderSentAt DateTime?
   staffingRequests        StaffingAvailabilityRequest[]
   staffingBlocks          StaffingBlock[]
 }
