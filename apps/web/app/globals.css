@@ -4525,3 +4525,8 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 @media (min-width: 769px) {
   .lp-footer-links { column-gap: 16px; align-content: flex-start; align-self: flex-start; }
 }
+
+/* App launch ribbon: store links on their own line, bold, visibly links. */
+.beta-promo-links { display: block; margin-top: 4px; font-weight: 700; }
+.beta-promo-links a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.beta-promo-links a:hover { opacity: 0.85; }
