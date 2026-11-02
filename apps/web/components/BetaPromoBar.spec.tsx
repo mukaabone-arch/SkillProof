@@ -55,7 +55,7 @@ describe('BetaPromoBar — date cutoff', () => {
   });
 
   it('renders in the last second before the cutoff instant', () => {
-    jest.useFakeTimers().setSystemTime(new Date('2026-11-30T23:59:59+05:30'));
+    jest.useFakeTimers().setSystemTime(new Date('2027-01-31T23:59:59+05:30'));
     render(<BetaPromoBar />);
     expect(screen.getByRole('note')).toBeInTheDocument();
   });
@@ -73,14 +73,14 @@ describe('BetaPromoBar — date cutoff', () => {
   });
 
   it('uses the IST cutoff, not a UTC one: 20:00 UTC on 30 Nov is still labelled "the 30th" in UTC, but IST (UTC+5:30) is already past the 23:59:59 IST cutoff (18:29:59 UTC) by then', () => {
-    jest.useFakeTimers().setSystemTime(new Date('2026-11-30T20:00:00Z'));
+    jest.useFakeTimers().setSystemTime(new Date('2027-01-31T20:00:00Z'));
     const { container } = render(<BetaPromoBar />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it('still renders for an IST evening moment on the 30th, even though the equivalent UTC clock reading is earlier that same UTC day', () => {
-    // 2026-11-30T15:00:00Z = 2026-11-30T20:30:00+05:30 — well within the window.
-    jest.useFakeTimers().setSystemTime(new Date('2026-11-30T15:00:00Z'));
+    // 2027-01-31T15:00:00Z = 2027-01-31T20:30:00+05:30 — well within the window.
+    jest.useFakeTimers().setSystemTime(new Date('2027-01-31T15:00:00Z'));
     render(<BetaPromoBar />);
     expect(screen.getByRole('note')).toBeInTheDocument();
   });
@@ -93,9 +93,9 @@ describe('BetaPromoBar — copy', () => {
 
   it('matches the required copy exactly, with the date read from BETA_FREE_UNTIL', () => {
     render(<BetaPromoBar />);
-    expect(BETA_FREE_UNTIL.toISOString()).toBe('2026-11-30T18:29:59.000Z');
+    expect(BETA_FREE_UNTIL.toISOString()).toBe('2027-01-31T18:29:59.000Z');
     expect(screen.getByRole('note')).toHaveTextContent(
-      'Candidates: Be among the first to prove your AI skills and apply for jobs — Free until 30 November 2026',
+      'Candidates: Be among the first to prove your AI skills and apply for jobs — Free until 31 January 2027',
     );
   });
 });
@@ -205,10 +205,10 @@ describe('BetaPromoScroll — the landing/candidate-login ribbon', () => {
     // leading em dash before "Free" (see BetaPromoScroll.tsx's own doc
     // comment — orphaned punctuation once the date is forced onto its own
     // line). Same date, same "Candidates: Be among the first..." lead.
-    expect(barText).toContain('30 November 2026');
+    expect(barText).toContain('31 January 2027');
     expect(screen.getByRole('note')).toHaveTextContent(
       'Candidates: Be among the first to prove your AI skills and apply for jobs',
     );
-    expect(screen.getByRole('note')).toHaveTextContent('Free until 30 November 2026');
+    expect(screen.getByRole('note')).toHaveTextContent('MyAmbii is now on your phone');
   });
 });

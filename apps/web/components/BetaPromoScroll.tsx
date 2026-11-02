@@ -18,7 +18,7 @@
  * component knowing anything about either page's layout.
  *
  * The date line deliberately drops the thin bar's leading em dash
- * ("— Free until 30 November 2026" on the bar) — see globals.css's own
+ * ("— Free until 31 January 2027" on the bar) — see globals.css's own
  * `.beta-promo-scroll .beta-promo-date` comment: this component's date
  * always renders on its own line (a deterministic break, not a
  * width-triggered wrap), and an em dash is an inline joiner that reads as
