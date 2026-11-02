@@ -4497,3 +4497,31 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .lp-nav.is-open .lp-biz { width: 100%; }
 .lp-nav.is-open .lp-biz-heading { padding: 0 20px; }
 .lp-nav.is-open .lp-biz-item { padding: 10px 20px; }
+
+/* Footer: flAIr future Intelligence mark (colours from the brand image) + one company line. */
+.lp-footer-flair {
+  display: inline-block; margin-top: 14px; padding: 8px 14px; border-radius: 4px;
+  background: #0A0A0B; color: #fff; font-family: var(--font-body);
+  font-weight: 700; font-size: 1.05rem; letter-spacing: -0.01em; line-height: 1.2;
+}
+.lp-flair-ai { color: #7C3AED; }
+.lp-flair-int { color: #22C55E; }
+.lp-footer-company { color: #9C97E6; font-weight: 500; margin-top: 8px; }
+
+/* .lp-footer-fix — badge on its own line under the logo; links share the row
+   and wrap within their own column instead of dropping below the brand block. */
+.lp-footer-flair { display: block; width: fit-content; margin-top: 12px; }
+.lp-footer-company { font-size: 0.85rem; }
+@media (min-width: 769px) {
+  .lp-footer-inner { flex-wrap: nowrap; }
+  .lp-footer-brand { flex: 0 0 auto; }
+  .lp-footer-links { flex: 1 1 0; min-width: 0; justify-content: flex-end; row-gap: 12px; }
+}
+
+/* .lp-footer-fix2 — badge sits close to the company line; links stay on one
+   line where they fit, and a wrapped line stays directly under the first. */
+.lp-footer-flair { margin-bottom: 0; }
+.lp-footer-company { margin-top: 6px; }
+@media (min-width: 769px) {
+  .lp-footer-links { column-gap: 16px; align-content: flex-start; align-self: flex-start; }
+}

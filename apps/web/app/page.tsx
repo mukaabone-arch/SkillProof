@@ -199,8 +199,11 @@ export default function LandingPage() {
             <div className="lp-footer-lockup">
               <BrandLockup variant="hero" />
             </div>
-            <p className="lp-footer-company">Mukaab Technologies Private Limited</p>
-            <p className="lp-footer-copy">© {new Date().getFullYear()} Mukaab Technologies Private Limited</p>
+            <p className="lp-footer-flair" aria-label="flAIr future Intelligence">
+              fl<span className="lp-flair-ai">AI</span>r future <span className="lp-flair-int">Intelligence</span>
+            </p>
+            <p className="lp-footer-company">A product of Mukaab Technologies Private Ltd.</p>
+            <p className="lp-footer-copy">© {new Date().getFullYear()} MyAmbii. All rights reserved.</p>
           </div>
           <nav className="lp-footer-links" aria-label="Footer">
             <a href="#about">About Us</a>
