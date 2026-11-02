@@ -4546,7 +4546,7 @@ p:has(+ .staffing-filters) { max-width: 72ch; }
   position: absolute; left: 0; right: 0; top: 100%; margin-top: 8px; white-space: nowrap;
 }
 @media (min-width: 1100px) {
-  .staffing-filters {
+  .staffing-filters:has(#f-city) {
     grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(120px, 160px);
     column-gap: 16px; padding-bottom: 52px;
   }
@@ -4580,3 +4580,10 @@ p:has(+ .staffing-filters) { max-width: 72ch; }
   background: var(--paper-2); color: var(--ink); font-weight: 700; font-size: 0.85rem;
 }
 .staffing-empty-cta { align-self: flex-start; font-weight: 600; }
+
+/* Clients: the add-client form shares .staffing-filters with Find talent but
+   has three fields, not five — compact card at the same width as the list cards. */
+.staffing-filters:not(:has(#f-city)) { max-width: 820px; }
+@media (min-width: 900px) {
+  .staffing-filters:not(:has(#f-city)) { grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(110px, 140px); }
+}
