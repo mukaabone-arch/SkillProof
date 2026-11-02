@@ -8,6 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import StaffingEmptyState from '@/components/StaffingEmptyState';
 import { employerApi } from '@/lib/api';
 import StaffingSubmitToClient from '@/components/StaffingSubmitToClient';
 import { REQUEST_STATUS_LABEL, ROLE_TITLE_LABEL, RequestStatus, WORK_TYPE_LABEL, WorkType } from '@/lib/staffing';
@@ -81,7 +82,18 @@ export default function StaffingRequestsPage() {
       </div>
       {error && <p className="error">{error}</p>}
       {rows === null && !error && <p className="meta">Loading…</p>}
-      {rows && shown.length === 0 && <p className="meta">Nothing here yet.</p>}
+      {rows && rows.length === 0 && (
+        <StaffingEmptyState
+          title="No availability checks yet"
+          steps={[
+            'Search Find talent for candidates with the verified skills your client needs.',
+            'Send an availability check for the role — the candidate has 48 hours to reply.',
+            'When they say yes, their name, email and phone appear here.',
+          ]}
+          cta={{ href: '/employer/talent', label: 'Find talent →' }}
+        />
+      )}
+      {rows && rows.length > 0 && shown.length === 0 && <p className="meta">Nothing in this tab right now.</p>}
 
       {shown.map((r) => (
         <div key={r.id} className="card staffing-talent">

@@ -8,6 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import StaffingEmptyState from '@/components/StaffingEmptyState';
 import { employerApi } from '@/lib/api';
 import { SUBMISSION_ACTION_LABEL, SUBMISSION_NEXT, SUBMISSION_STATUS_LABEL, SubmissionStatus } from '@/lib/staffing';
 
@@ -76,7 +77,20 @@ export default function StaffingSubmissionsPage() {
       </div>
       {error && <p className="error">{error}</p>}
       {rows === null && !error && <p className="meta">Loading…</p>}
-      {rows && shown.length === 0 && <p className="meta">Nothing here yet.</p>}
+      {rows && rows.length === 0 && (
+        <StaffingEmptyState
+          title="No submissions yet"
+          steps={[
+            'Find a candidate in Find talent and send them an availability check.',
+            'When they say they\'re available, open their card in Availability requests and choose Submit to a client.',
+            'They approve within 72 hours — then you represent them to that client, and no other recruiter can submit them there.',
+          ]}
+          cta={{ href: '/employer/requests', label: 'Go to Availability requests →' }}
+        />
+      )}
+      {rows && rows.length > 0 && shown.length === 0 && (
+        <p className="meta">Nothing in progress. Choose All to see earlier submissions.</p>
+      )}
 
       {shown.map((s) => (
         <div key={s.id} className="card staffing-talent">

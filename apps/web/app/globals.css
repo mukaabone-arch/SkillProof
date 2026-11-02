@@ -4567,3 +4567,16 @@ p:has(+ .staffing-filters) { max-width: 72ch; }
    ~1500px apart. Scoped to the portal shell — the candidate profile uses
    CollapsibleSection in its own two-column layout. */
 .employer-shell .collapsible-section { max-width: 820px; }
+
+/* ---- Recruiter pages: readable intro, spacing, empty states ---- */
+.employer-shell main > h1 + p { max-width: 72ch; }
+.employer-shell main > h1 + p + .row { margin-bottom: 20px; }
+.staffing-empty { max-width: 820px; flex-direction: column; align-items: stretch; gap: 16px; padding: 28px; }
+.staffing-empty-title { margin: 0; font-size: 1.25rem; }
+.staffing-empty-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.staffing-empty-steps li { display: flex; gap: 12px; align-items: flex-start; color: var(--ink-60); line-height: 1.45; }
+.staffing-empty-num {
+  flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--paper-2); color: var(--ink); font-weight: 700; font-size: 0.85rem;
+}
+.staffing-empty-cta { align-self: flex-start; font-weight: 600; }
