@@ -4530,3 +4530,40 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .beta-promo-links { display: block; margin-top: 4px; font-weight: 700; }
 .beta-promo-links a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .beta-promo-links a:hover { opacity: 0.85; }
+
+/* ---- Find talent: one aligned filter row ----
+   City carried its "open to remote" checkbox inside the same field, so that
+   column was taller and pushed its label above the others. Pin the checkbox
+   under the City input so all six controls share one baseline, give inputs,
+   selects and the button one height, and keep the intro to a readable width. */
+p:has(+ .staffing-filters) { max-width: 72ch; }
+.staffing-filters select,
+.staffing-filters input:not([type='checkbox']),
+.staffing-filters-go button { height: 48px; box-sizing: border-box; }
+.staffing-filters-go button { padding-top: 0; padding-bottom: 0; }
+.staffing-filters .field:has(#f-city) { position: relative; }
+.staffing-filters .field:has(#f-city) > label.meta {
+  position: absolute; left: 0; right: 0; top: 100%; margin-top: 8px; white-space: nowrap;
+}
+@media (min-width: 1100px) {
+  .staffing-filters {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(120px, 160px);
+    column-gap: 16px; padding-bottom: 52px;
+  }
+}
+@media (max-width: 1099px) {
+  .staffing-filters .field:has(#f-city) > label.meta { position: static; margin-top: 0; white-space: normal; }
+}
+
+/* ---- Recruiter list cards (Find talent, Requests, Submissions, Clients) ----
+   Full-width cards put a short title ~1500px from its status badge on wide
+   screens. Cap them at a comfortable reading width, aligned left with the
+   page heading and tabs; the request form inside a Find talent card still
+   has room at this width. */
+.staffing-talent { max-width: 820px; }
+
+/* Portal Settings (employer + recruiter): same reading-width cap as the
+   recruiter list cards, so a section's title and its status/chevron aren't
+   ~1500px apart. Scoped to the portal shell — the candidate profile uses
+   CollapsibleSection in its own two-column layout. */
+.employer-shell .collapsible-section { max-width: 820px; }
