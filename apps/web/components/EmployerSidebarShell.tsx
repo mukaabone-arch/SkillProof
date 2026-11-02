@@ -74,7 +74,8 @@ const STAFFING_SECTIONS: { href: string; label: string; icon: NavGlyphName }[] =
   { href: '/employer/requests', label: 'Availability requests', icon: 'applicants' },
   { href: '/employer/submissions', label: 'Submissions', icon: 'shortlist' },
   { href: '/employer/clients', label: 'Clients', icon: 'postings' },
-  { href: '/employer/billing', label: 'Billing', icon: 'billing' },
+  // Billing returns with recruiter subscription plans (Phase 2b); the current
+  // billing page is employers' assessment-charge documents only.
   { href: '/employer/settings', label: 'Settings', icon: 'settings' },
 ];
 
