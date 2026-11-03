@@ -9,7 +9,7 @@
  * `.lp-header` in globals.css.
  *
  * Nav: "Candidate" is a direct link (most traffic, one click); employers and
- * recruiters share a "For business" disclosure menu, each with a one-line
+ * recruiters share a "For Business" disclosure menu, each with a one-line
  * description so the two business doors aren't confused. The menu opens on
  * click (works on touch), closes on Esc / outside click / picking an item.
  * Below the phone breakpoint the whole nav collapses into the ☰ menu; inside
@@ -99,10 +99,10 @@ export default function LandingHeader({ candidateHref, employerHref, staffingHre
               aria-controls="lp-biz-menu"
               onClick={() => setBizOpen((v) => !v)}
             >
-              For business <span className="lp-biz-chev" aria-hidden="true" />
+              For Business <span className="lp-biz-chev" aria-hidden="true" />
             </button>
             <div id="lp-biz-menu" className={`lp-biz-menu${bizOpen ? ' is-open' : ''}`}>
-              <p className="lp-biz-heading">For business</p>
+              <p className="lp-biz-heading">For Business</p>
               <a href={employerHref} className="lp-biz-item" onClick={closeAll}>
                 <span className="lp-biz-icon lp-biz-icon-e" aria-hidden="true">E</span>
                 <span>
