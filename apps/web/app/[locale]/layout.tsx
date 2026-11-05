@@ -6,6 +6,7 @@ import '../globals.css';
 import Providers from '@/components/Providers';
 import { isRtl, routing } from '@/i18n/routing';
 import { SITE_ORIGIN } from '@/lib/localeMetadata';
+import { MESSAGE_FORMATS } from '@/lib/formatLocale';
 
 /**
  * CookieYes banner, per deployment: each regional site registers its own
@@ -64,7 +65,7 @@ export default async function LocaleLayout({
         />
       </head>
       <body>
-        <NextIntlClientProvider locale={locale} messages={messages}>
+        <NextIntlClientProvider locale={locale} messages={messages} formats={MESSAGE_FORMATS}>
           <Providers>{children}</Providers>
         </NextIntlClientProvider>
       </body>

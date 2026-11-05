@@ -44,3 +44,13 @@ confirms them, then runs `npm run i18n:sync`.
    main, so its Arabic was redone too.
 9. Footer: company line and copyright changed on main (footer.company,
    footer.copy).
+
+## Counts: plural forms and digits (house rule)
+
+- Any message that takes a count uses ICU plural syntax with the Arabic
+  categories (zero/one/two/few/many/other), as employerDashboard.jobMeta,
+  employerDashboard.avgDays and employerMatches.experienceYears do. A bare
+  "{days} يوم" cannot inflect. lib/arabicPlurals.spec.tsx pins the forms.
+- Write numbers as `{n, number, latn}`, never `#`: Western digits on every
+  browser, matching the DECISION in lib/formatLocale.ts (dates and future
+  SAR/AED prices go through intlTag() for the same reason).
