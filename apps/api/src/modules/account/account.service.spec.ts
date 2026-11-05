@@ -137,6 +137,7 @@ function fakePrisma(seed: {
     identity: { deleteMany: jest.fn(async () => ({ count: 0 })) },
     aiContentReport: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
     refreshToken: { deleteMany: jest.fn(async () => ({ count: 0 })) },
+    deviceToken: { deleteMany: jest.fn(async () => ({ count: 0 })) },
     externalCredential: { updateMany: jest.fn(async () => ({ count: 0 })) },
     certification: {
       updateMany: jest.fn(async () => ({ count: 0 })),
