@@ -54,3 +54,13 @@ confirms them, then runs `npm run i18n:sync`.
 - Write numbers as `{n, number, latn}`, never `#`: Western digits on every
   browser, matching the DECISION in lib/formatLocale.ts (dates and future
   SAR/AED prices go through intlTag() for the same reason).
+
+## Review of 2026-11-05 (experts)
+
+The 91 dashboard / shell / applicant-card / talent-match drafts were reviewed
+and approved as written. That answers questions 1–4 above as **keep the
+current wording**: المتقدم for candidate, عملي for Practitioner, اعتذر for the
+declined stage, متمكّن for Advanced. 89 of the 91 are fingerprinted in
+ar.sources.json. employerDashboard.avgDays and employerMatches.experienceYears
+are not: their Arabic was rewritten into plural forms after the review copy
+was made, so they go into the next review with the new keys.
