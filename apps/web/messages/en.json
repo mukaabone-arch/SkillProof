@@ -1,0 +1,232 @@
+{
+  "meta": {
+    "landing": {
+      "title": "MyAmbii — Hire on proven AI skills, not keywords",
+      "description": "MyAmbii verifies real AI ability through assessments, not keyword matching. Candidates get matched to roles that want their proven skills; employers hire on evidence."
+    }
+  },
+  "header": {
+    "home": "MyAmbii home",
+    "primaryNav": "Primary",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "candidate": "Candidate",
+    "employer": "Employer",
+    "candidateDesc": "Prove your AI skills and get hired",
+    "forBusiness": "For Business",
+    "employerDesc": "Hire for your own company on verified skills",
+    "recruiter": "Recruiter",
+    "recruiterDesc": "Place available, verified talent with your clients"
+  },
+  "locale": {
+    "label": "Language",
+    "en": "English",
+    "ar": "العربية"
+  },
+  "promo": {
+    "lead": "Candidates: Be among the first to prove your AI skills and apply for jobs",
+    "until": "— Free until {date}",
+    "app": {
+      "text": "<strong>New:</strong> MyAmbii is now on your phone. Prove your AI skills and apply for jobs on the go",
+      "getApp": "Get the app: <play>Google Play</play>"
+    }
+  },
+  "consent": {
+    "banner": {
+      "label": "Cookie consent",
+      "body": "We'd like to use Google Analytics to understand how MyAmbii is used. Nothing is tracked unless you accept, and you can change your mind at any time.",
+      "privacy": "Privacy Policy",
+      "accept": "Accept",
+      "decline": "Decline"
+    },
+    "settings": {
+      "on": "Analytics: on — change",
+      "off": "Analytics: off — change"
+    }
+  },
+  "landing": {
+    "hero": {
+      "eyebrow": "Verified AI talent",
+      "titleLg": "Where proven AI skill meets the companies hiring for it",
+      "titleSm": "Proven AI skill, meet the companies hiring",
+      "sub": "MyAmbii turns real ability into verified proof — assessments, not keyword matching. Candidates get matched on evidence; employers hire on it.",
+      "candidateCta": "Prove your skills",
+      "candidateCaption": "Prove your AI skills, get matched to roles that want them",
+      "employerCta": "Hire on proven skills",
+      "employerCaption": "Hire on proven skills, not keywords",
+      "recruiterLine": "Recruiter? <link>Find available, verified talent for your clients →</link>"
+    },
+    "platform": {
+      "eyebrow": "The platform",
+      "title": "Everything a proven candidate needs — and nothing that wastes an employer's time",
+      "items": {
+        "proof": "Proof, not promises",
+        "copilot": "A co-pilot for your next move",
+        "direct": "Talk directly to companies hiring",
+        "apply": "Apply in minutes, not hours"
+      }
+    },
+    "how": {
+      "eyebrow": "How verification works",
+      "title": "From claim to proof",
+      "steps": {
+        "assess": "Take a rigorous assessment",
+        "verified": "Verified, not self-claimed",
+        "matched": "Get matched, verifiably"
+      }
+    },
+    "employers": {
+      "eyebrow": "For employers",
+      "title": "Stop screening keywords. Start reading proof.",
+      "points": {
+        "evidence": "Hire on evidence, not claims",
+        "doers": "See who can actually do the work",
+        "oneplace": "One place from shortlist to hire"
+      },
+      "cta": "Go to the employer portal"
+    },
+    "news": {
+      "eyebrow": "Live from the field",
+      "title": "What's moving in AI"
+    },
+    "about": {
+      "eyebrow": "About Us",
+      "title": "Built to make AI skill legible",
+      "body": "MyAmbii is a product built on the <strong>flAIr future Intelligence</strong> platform by <strong>Mukaab Technologies Private Limited</strong>. We believe hiring for AI should rest on demonstrated ability rather than keywords on a résumé — so we verify skills through real assessments, with select skills confirmed through a recorded conversation reviewed by a person, and give employers evidence they can check."
+    }
+  },
+  "footer": {
+    "label": "Footer",
+    "about": "About Us",
+    "contact": "Contact",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service",
+    "refunds": "Refund Policy",
+    "delete": "Delete Account",
+    "faq": "FAQs",
+    "copy": "© {year} MyAmbii. All rights reserved.",
+    "company": "A product of Mukaab Technologies Private Ltd."
+  },
+  "employerShell": {
+    "toggleNav": "Toggle navigation menu",
+    "logout": "Log out",
+    "help": "Help",
+    "nav": {
+      "dashboard": "Dashboard",
+      "jobs": "Job Postings",
+      "candidates": "Find Candidates",
+      "applicants": "Applicants",
+      "shortlist": "Shortlist",
+      "billing": "Billing",
+      "settings": "Settings",
+      "talent": "Find talent",
+      "requests": "Availability requests",
+      "submissions": "Submissions",
+      "clients": "Clients"
+    },
+    "postJob": "Post a job",
+    "account": "Account",
+    "teamMembers": "Team members"
+  },
+  "employerDashboard": {
+    "title": "Dashboard",
+    "subtitle": "Your hiring at a glance.",
+    "inviteTitle": "Invite your team",
+    "inviteBody": "Bring colleagues in to help manage hiring — entirely optional.",
+    "inviteAction": "Invite team →",
+    "dismiss": "Dismiss",
+    "loading": "Loading…",
+    "kpiActive": "Active Jobs",
+    "kpiActiveSub": "Currently live",
+    "kpiApplicants": "Total Applicants",
+    "kpiApplicantsSub": "All-time, across every job",
+    "kpiThisMonth": "New Applicants This Month",
+    "kpiThisMonthSub": "Since the 1st of this month",
+    "kpiHire": "Avg. Time to Hire",
+    "kpiHireSub": "Shortlisted → hired",
+    "kpiHireEmpty": "Not enough data yet — this fills in once a candidate is marked Hired.",
+    "avgDays": "{days}d",
+    "recentJobs": "Recent job postings",
+    "viewAll": "View all",
+    "noJobs": "No jobs posted yet.",
+    "postFirstJob": "Post your first job",
+    "recentApplicants": "Recent applicants",
+    "noApplicants": "No applicants yet — candidates will appear here once they apply.",
+    "appliedFor": "Applied for {job}",
+    "jobMeta": "{count, plural, one {{count} applicant} other {{count} applicants}} · posted {date}",
+    "jobStatus": {
+      "DRAFT": "Draft",
+      "LIVE": "Live",
+      "CLOSED": "Closed"
+    },
+    "pipeline": "Pipeline",
+    "pipelineHint": "Click any stage to see who's in it.",
+    "role": "Role",
+    "allRoles": "All roles",
+    "stage": {
+      "shortlisted": "Shortlisted",
+      "interviewPending": "Interview pending",
+      "interviewing": "Interviewing",
+      "offersOut": "Offers out",
+      "hired": "Hired"
+    },
+    "pipelineSummary": "{total} total in pipeline · {declined} declined · {rejected} rejected · {closed} closed",
+    "pipelineSummaryForJob": "{total} total in pipeline for {job} · {declined} declined · {rejected} rejected · {closed} closed"
+  },
+  "applicantCard": {
+    "candidate": "Candidate",
+    "otherRole": "Other",
+    "verifiedSkills": "MyAmbii-Verified Skills",
+    "verifiedByDiscussion": "Verified by discussion",
+    "verifiedByTest": "Verified by test",
+    "skillWithLevel": "{skill} ({level})",
+    "roles": {
+      "AI_ENGINEER": "AI Engineer",
+      "ML_ENGINEER": "ML Engineer",
+      "PROMPT_ENGINEER": "Prompt Engineer",
+      "DATA_SCIENTIST": "Data Scientist",
+      "MLOPS_ENGINEER": "MLOps Engineer",
+      "NLP_ENGINEER": "NLP Engineer",
+      "COMPUTER_VISION_ENGINEER": "Computer Vision Engineer",
+      "RESEARCH_ENGINEER": "Research Engineer",
+      "DATA_ENGINEER": "Data Engineer",
+      "AI_PRODUCT_MANAGER": "AI Product Manager",
+      "OTHER": "Other"
+    },
+    "levels": {
+      "L1": "Foundational",
+      "L2": "Practitioner",
+      "L3": "Advanced",
+      "L4": "Expert"
+    }
+  },
+  "employerMatches": {
+    "title": "Talent match",
+    "backToJobs": "Back to Job Postings",
+    "scoring": "Scoring candidates…",
+    "loadError": "Could not load matches.",
+    "funnel": {
+      "considered": "Considered",
+      "relevant": "Relevant",
+      "verifiedMatch": "Verified match",
+      "strongMatch": "Strong match"
+    },
+    "noMatches": "No candidates match this job yet.",
+    "unmatched": "These required skills currently have no verified candidates on the platform: {skills}. That's the most direct lever here — broadening the required level, marking a skill optional, or waiting for candidates to earn that badge will all change this number.",
+    "candidates": "Candidates",
+    "candidate": "Candidate",
+    "columns": {
+      "match": "Match",
+      "verifiedSkills": "Verified skills",
+      "experience": "Experience"
+    },
+    "experienceYears": "{years} yrs (self-reported)",
+    "experienceNotShared": "Not shared",
+    "bands": {
+      "strong": "Strong match",
+      "good": "Good match",
+      "partial": "Partial match",
+      "none": "Not yet a match"
+    }
+  }
+}

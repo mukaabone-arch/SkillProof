@@ -41,7 +41,8 @@
  * this never blocks or redirects for them.
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { usePathname } from '@/i18n/navigation';
 import { api, getToken, logout } from './api';
 import { onCandidateVerificationIncomplete } from './candidateVerificationBus';
 import { onCandidateTokenChange } from './tokenChangeBus';

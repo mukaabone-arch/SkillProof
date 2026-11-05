@@ -10,7 +10,9 @@
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useLocale, useTranslations } from 'next-intl';
 import { employerApi } from '@/lib/api';
+import { intlTag } from '@/lib/formatLocale';
 import { EmptyState } from '@/components/ui';
 import ApplicantCard, { type ApplicantCardData } from './ApplicantCard';
 
@@ -74,17 +76,18 @@ interface DashboardSummary {
   invitedTeam: boolean;
 }
 
-const KPI_CARDS: { key: keyof DashboardSummary['kpis']; label: string; stage: string }[] = [
-  { key: 'shortlisted', label: 'Shortlisted', stage: 'SHORTLISTED' },
-  { key: 'interviewPending', label: 'Interview pending', stage: 'INVITED' },
-  { key: 'interviewing', label: 'Interviewing', stage: 'INTERVIEWING' },
-  { key: 'offersOut', label: 'Offers out', stage: 'OFFER' },
-  { key: 'hired', label: 'Hired', stage: 'HIRED' },
+/** `stage` is the ShortlistStage the card links to; `labelKey` names its entry under employerDashboard.stage. */
+const KPI_CARDS: { key: keyof DashboardSummary['kpis']; labelKey: string; stage: string }[] = [
+  { key: 'shortlisted', labelKey: 'shortlisted', stage: 'SHORTLISTED' },
+  { key: 'interviewPending', labelKey: 'interviewPending', stage: 'INVITED' },
+  { key: 'interviewing', labelKey: 'interviewing', stage: 'INTERVIEWING' },
+  { key: 'offersOut', labelKey: 'offersOut', stage: 'OFFER' },
+  { key: 'hired', labelKey: 'hired', stage: 'HIRED' },
 ];
 
-const JOB_STATUS_LABEL: Record<RecentJob['status'], string> = { DRAFT: 'Draft', LIVE: 'Live', CLOSED: 'Closed' };
-
 export default function EmployerDashboard() {
+  const t = useTranslations('employerDashboard');
+  const locale = useLocale();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobFilter, setJobFilter] = useState('');
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -133,54 +136,54 @@ export default function EmployerDashboard() {
 
   return (
     <main className="container-wide">
-      <h1>Dashboard</h1>
-      <p>Your hiring at a glance.</p>
+      <h1>{t('title')}</h1>
+      <p>{t('subtitle')}</p>
 
       {error && <p className="error">{error}</p>}
-      {loading && <p className="meta">Loading…</p>}
+      {loading && <p className="meta">{t('loading')}</p>}
 
       {!loading && summary && (
         <>
           {!summary.invitedTeam && !teamNudgeDismissed && (
             <div className="card status-card-flag" style={{ justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
               <div>
-                <strong>Invite your team</strong>
-                <p className="meta" style={{ margin: 0 }}>Bring colleagues in to help manage hiring — entirely optional.</p>
+                <strong>{t('inviteTitle')}</strong>
+                <p className="meta" style={{ margin: 0 }}>{t('inviteBody')}</p>
               </div>
               <div className="row" style={{ margin: 0, alignItems: 'center', gap: 8 }}>
                 <Link href="/employer/settings#team">
-                  <button className="btn-secondary">Invite team →</button>
+                  <button className="btn-secondary">{t('inviteAction')}</button>
                 </Link>
-                <button className="btn-secondary" onClick={dismissTeamNudge}>Dismiss</button>
+                <button className="btn-secondary" onClick={dismissTeamNudge}>{t('dismiss')}</button>
               </div>
             </div>
           )}
 
           <div className="dashboard-overview-grid">
             <Link href="/employer/jobs" className="status-card">
-              <div className="status-card-label">Active Jobs</div>
+              <div className="status-card-label">{t('kpiActive')}</div>
               <div className="status-stat">{summary.activeJobs}</div>
-              <p className="meta" style={{ margin: 0 }}>Currently live</p>
+              <p className="meta" style={{ margin: 0 }}>{t('kpiActiveSub')}</p>
             </Link>
             <Link href="/employer/applicants" className="status-card">
-              <div className="status-card-label">Total Applicants</div>
+              <div className="status-card-label">{t('kpiApplicants')}</div>
               <div className="status-stat">{summary.totalApplicants}</div>
-              <p className="meta" style={{ margin: 0 }}>All-time, across every job</p>
+              <p className="meta" style={{ margin: 0 }}>{t('kpiApplicantsSub')}</p>
             </Link>
             <Link href="/employer/applicants" className="status-card">
-              <div className="status-card-label">New Applicants This Month</div>
+              <div className="status-card-label">{t('kpiThisMonth')}</div>
               <div className="status-stat">{summary.applicantsThisMonth}</div>
-              <p className="meta" style={{ margin: 0 }}>Since the 1st of this month</p>
+              <p className="meta" style={{ margin: 0 }}>{t('kpiThisMonthSub')}</p>
             </Link>
             <div className="status-card">
-              <div className="status-card-label">Avg. Time to Hire</div>
+              <div className="status-card-label">{t('kpiHire')}</div>
               {summary.avgTimeToHireDays !== null ? (
                 <>
-                  <div className="status-stat">{summary.avgTimeToHireDays}d</div>
-                  <p className="meta" style={{ margin: 0 }}>Shortlisted → hired</p>
+                  <div className="status-stat">{t('avgDays', { days: summary.avgTimeToHireDays })}</div>
+                  <p className="meta" style={{ margin: 0 }}>{t('kpiHireSub')}</p>
                 </>
               ) : (
-                <p className="meta" style={{ margin: 0 }}>Not enough data yet — this fills in once a candidate is marked Hired.</p>
+                <p className="meta" style={{ margin: 0 }}>{t('kpiHireEmpty')}</p>
               )}
             </div>
           </div>
@@ -188,11 +191,11 @@ export default function EmployerDashboard() {
           <div className="dashboard-recent-grid">
             <section className="card" style={{ flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start', gap: 0 }}>
               <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
-                <h2 style={{ margin: 0 }}>Recent job postings</h2>
-                <Link href="/employer/jobs">View all</Link>
+                <h2 style={{ margin: 0 }}>{t('recentJobs')}</h2>
+                <Link href="/employer/jobs">{t('viewAll')}</Link>
               </div>
               {summary.recentJobs.length === 0 ? (
-                <EmptyState message="No jobs posted yet." actionLabel="Post your first job" actionHref="/employer/jobs" />
+                <EmptyState message={t('noJobs')} actionLabel={t('postFirstJob')} actionHref="/employer/jobs" />
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
                   {summary.recentJobs.map((j) => (
@@ -204,10 +207,10 @@ export default function EmployerDashboard() {
                     >
                       <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
                         <strong>{j.title}</strong>
-                        <span className="meta" style={{ margin: 0 }}>{JOB_STATUS_LABEL[j.status]}</span>
+                        <span className="meta" style={{ margin: 0 }}>{t(`jobStatus.${j.status}`)}</span>
                       </div>
                       <span className="meta" style={{ margin: 0 }}>
-                        {j.applicantCount} applicant{j.applicantCount === 1 ? '' : 's'} · posted {new Date(j.createdAt).toLocaleDateString()}
+                        {t('jobMeta', { count: j.applicantCount, date: new Date(j.createdAt).toLocaleDateString(intlTag(locale)) })}
                       </span>
                     </Link>
                   ))}
@@ -217,11 +220,11 @@ export default function EmployerDashboard() {
 
             <section className="card" style={{ flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start', gap: 0 }}>
               <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
-                <h2 style={{ margin: 0 }}>Recent applicants</h2>
-                <Link href="/employer/applicants">View all</Link>
+                <h2 style={{ margin: 0 }}>{t('recentApplicants')}</h2>
+                <Link href="/employer/applicants">{t('viewAll')}</Link>
               </div>
               {summary.recentApplicants.length === 0 ? (
-                <EmptyState message="No applicants yet — candidates will appear here once they apply." />
+                <EmptyState message={t('noApplicants')} />
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
                   {summary.recentApplicants.map((a) => (
@@ -231,7 +234,7 @@ export default function EmployerDashboard() {
                       compact
                       footer={
                         <Link href={`/employer/jobs?openApplicants=${a.jobId}`} className="meta" style={{ margin: 0 }}>
-                          Applied for {a.jobTitle}
+                          {t('appliedFor', { job: a.jobTitle })}
                         </Link>
                       }
                     />
@@ -241,14 +244,14 @@ export default function EmployerDashboard() {
             </section>
           </div>
 
-          <h2 style={{ marginTop: 32 }}>Pipeline</h2>
-          <p className="meta" style={{ marginTop: -8 }}>Click any stage to see who&apos;s in it.</p>
+          <h2 style={{ marginTop: 32 }}>{t('pipeline')}</h2>
+          <p className="meta" style={{ marginTop: -8 }}>{t('pipelineHint')}</p>
 
           {jobs.length > 0 && (
             <div className="field" style={{ maxWidth: 320 }}>
-              <label htmlFor="dashboardJobFilter">Role</label>
+              <label htmlFor="dashboardJobFilter">{t('role')}</label>
               <select id="dashboardJobFilter" value={jobFilter} onChange={(e) => setJobFilter(e.target.value)}>
-                <option value="">All roles</option>
+                <option value="">{t('allRoles')}</option>
                 {jobs.map((j) => (
                   <option key={j.id} value={j.id}>{j.title}</option>
                 ))}
@@ -271,7 +274,7 @@ export default function EmployerDashboard() {
               const count = summary.kpis[card.key];
               return (
                 <Link key={card.key} href={shortlistHref(card.stage)} className="status-card">
-                  <div className="status-card-label">{card.label}</div>
+                  <div className="status-card-label">{t(`stage.${card.labelKey}`)}</div>
                   <div className="status-stat">{count}</div>
                   <div className="progress-track">
                     <div className="progress-fill" style={{ width: `${(count / maxKpi) * 100}%` }} />
@@ -282,8 +285,9 @@ export default function EmployerDashboard() {
           </div>
 
           <p className="meta" style={{ marginTop: 16 }}>
-            {summary.total} total in pipeline{summary.jobTitle ? ` for ${summary.jobTitle}` : ''} ·{' '}
-            {summary.other.declined} declined · {summary.other.rejected} rejected · {summary.other.closed} closed
+            {summary.jobTitle
+              ? t('pipelineSummaryForJob', { total: summary.total, job: summary.jobTitle, declined: summary.other.declined, rejected: summary.other.rejected, closed: summary.other.closed })
+              : t('pipelineSummary', { total: summary.total, declined: summary.other.declined, rejected: summary.other.rejected, closed: summary.other.closed })}
           </p>
         </>
       )}

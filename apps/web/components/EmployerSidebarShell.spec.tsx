@@ -4,10 +4,12 @@
  * blob fetch are stubbed.
  */
 import '@testing-library/jest-dom';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { renderWithIntl as render } from '@/test-utils/renderWithIntl';
 import EmployerSidebarShell, { type EmployerOrgIdentity } from './EmployerSidebarShell';
 
 jest.mock('next/navigation', () => ({
+  useParams: () => ({}),
   usePathname: () => '/employer/dashboard',
   useRouter: () => ({ replace: jest.fn() }),
 }));

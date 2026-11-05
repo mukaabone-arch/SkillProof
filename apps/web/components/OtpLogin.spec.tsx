@@ -4,7 +4,8 @@
  * lib/api.ts is the real module.
  */
 import '@testing-library/jest-dom';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { renderWithIntl as render } from '@/test-utils/renderWithIntl';
 import { clearTokens, setTokens, employerApi } from '@/lib/api';
 import OtpLogin from './OtpLogin';
 import EmployerOtpLogin from './EmployerOtpLogin';
@@ -114,9 +115,7 @@ describe('OtpLogin — sign_up vs. login analytics', () => {
 describe('OtpLogin — beta promo ribbon', () => {
   it('renders BetaPromoScroll for an anonymous visitor', () => {
     render(<OtpLogin onLoggedIn={jest.fn()} />);
-    expect(screen.getByRole('note')).toHaveTextContent(
-      'Candidates: Be among the first to prove your AI skills and apply for jobs',
-    );
+    expect(screen.getByRole('note')).toHaveTextContent('MyAmbii is now on your phone');
   });
 
   it('renders nothing when a candidate token is present', () => {

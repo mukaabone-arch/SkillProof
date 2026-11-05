@@ -3,12 +3,14 @@
  * only `fetch`, next/navigation, and the anchor-click download are stubbed.
  */
 import '@testing-library/jest-dom';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { renderWithIntl as render } from '@/test-utils/renderWithIntl';
 import ResumePage from './page';
 import { EntitlementsProvider } from '@/lib/entitlements';
 import { RESUME_SKILLS_MAX, RESUME_SKILL_MAX_LENGTH } from '@/lib/resumeLimits';
 
 jest.mock('next/navigation', () => ({
+  useParams: () => ({}),
   usePathname: () => '/resume',
   useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
 }));

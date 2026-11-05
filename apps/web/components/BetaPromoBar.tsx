@@ -43,7 +43,8 @@
  * BetaPromoScroll in-page instead (the landing page's hero, OtpLogin.tsx's
  * split panel) rather than this bar.
  */
-import { usePathname } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
+import { usePathname } from '@/i18n/navigation';
 import { useBetaPromoVisible } from '@/lib/useBetaPromoVisible';
 import { BETA_FREE_UNTIL, formatBetaPromoDate } from '@/lib/betaPromo';
 
@@ -56,6 +57,10 @@ function isAllowedPath(pathname: string): boolean {
 }
 
 export default function BetaPromoBar() {
+  const t = useTranslations('promo');
+  const locale = useLocale();
+  // next-intl's usePathname: the path with any locale prefix stripped, so
+  // '/ar/faq' matches the same allow-list entry as '/faq'.
   const pathname = usePathname() ?? '';
   const visible = useBetaPromoVisible();
 
@@ -64,8 +69,8 @@ export default function BetaPromoBar() {
 
   return (
     <div className="beta-promo-bar" role="note">
-      <span>Candidates: Be among the first to prove your AI skills and apply for jobs</span>{' '}
-      <span className="beta-promo-date">— Free until {formatBetaPromoDate(BETA_FREE_UNTIL)}</span>
+      <span>{t('lead')}</span>{' '}
+      <span className="beta-promo-date">{t('until', { date: formatBetaPromoDate(BETA_FREE_UNTIL, locale) })}</span>
     </div>
   );
 }

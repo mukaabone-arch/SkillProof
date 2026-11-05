@@ -19,7 +19,9 @@
  * page's actual job (conversion).
  */
 import { useEffect, useState } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
 import { api } from '@/lib/api';
+import { intlTag } from '@/lib/formatLocale';
 
 interface NewsItemView {
   id: string;
@@ -30,6 +32,8 @@ interface NewsItemView {
 }
 
 export default function NewsStrip() {
+  const t = useTranslations('landing.news');
+  const locale = useLocale();
   // null = not loaded yet (or failed) -> render nothing, same as an empty
   // result. There is deliberately no separate loading state rendered
   // anywhere below — see this component's own doc comment.
@@ -56,9 +60,9 @@ export default function NewsStrip() {
   return (
     <section className="lp-section" aria-labelledby="lp-news-heading">
       <div className="lp-container">
-        <p className="lp-section-eyebrow">Live from the field</p>
+        <p className="lp-section-eyebrow">{t('eyebrow')}</p>
         <h2 id="lp-news-heading" className="lp-section-title">
-          What&apos;s moving in AI
+          {t('title')}
         </h2>
         <div className="lp-news-card">
           <ul className="lp-news-strip">
@@ -68,7 +72,7 @@ export default function NewsStrip() {
                   {item.title}
                 </a>
                 <span className="lp-news-item-meta">
-                  {item.source} · {new Date(item.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  {item.source} · {new Date(item.publishedAt).toLocaleDateString(intlTag(locale), { month: 'short', day: 'numeric' })}
                 </span>
               </li>
             ))}

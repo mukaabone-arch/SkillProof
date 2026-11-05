@@ -7,7 +7,8 @@
  * mocked, EntitlementsProvider is the real module.
  */
 import '@testing-library/jest-dom';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderWithIntl as render } from '@/test-utils/renderWithIntl';
 import JobDetailPage from './page';
 import { EntitlementsProvider } from '@/lib/entitlements';
 

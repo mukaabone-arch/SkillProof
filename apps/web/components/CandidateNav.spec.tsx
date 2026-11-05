@@ -3,11 +3,13 @@
  * only `fetch` and next/navigation are mocked; EntitlementsProvider is real.
  */
 import '@testing-library/jest-dom';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithIntl as render } from '@/test-utils/renderWithIntl';
 import CandidateNav from './CandidateNav';
 import { EntitlementsProvider } from '@/lib/entitlements';
 
 jest.mock('next/navigation', () => ({
+  useParams: () => ({}),
   usePathname: () => '/candidate',
   useRouter: () => ({ replace: jest.fn() }),
 }));

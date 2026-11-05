@@ -16,7 +16,9 @@
  * it (.lp-nav.is-open) the business items are shown expanded, no second tap.
  */
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import BrandLockup from '@/components/BrandLockup';
+import LocaleSwitcher from '@/components/LocaleSwitcher';
 
 interface Props {
   /** Candidate sign-in target (see the landing page's own constant + report). */
@@ -28,6 +30,7 @@ interface Props {
 }
 
 export default function LandingHeader({ candidateHref, employerHref, staffingHref }: Props) {
+  const t = useTranslations('header');
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [bizOpen, setBizOpen] = useState(false);
@@ -69,25 +72,25 @@ export default function LandingHeader({ candidateHref, employerHref, staffingHre
   return (
     <header className={`lp-header${scrolled ? ' is-scrolled' : ''}`}>
       <div className="lp-header-inner">
-        <BrandLockup variant="hero" href="/" ariaLabel="MyAmbii home" onClick={closeAll} />
+        <BrandLockup variant="hero" href="/" ariaLabel={t('home')} onClick={closeAll} />
 
         <button
           type="button"
           className="lp-menu-btn"
           aria-expanded={menuOpen}
           aria-controls="lp-primary-nav"
-          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          aria-label={menuOpen ? t('closeMenu') : t('openMenu')}
           onClick={() => setMenuOpen((v) => !v)}
         >
           <span className="lp-menu-icon" aria-hidden="true">{menuOpen ? '✕' : '☰'}</span>
         </button>
 
-        <nav id="lp-primary-nav" className={`lp-nav${menuOpen ? ' is-open' : ''}`} aria-label="Primary">
+        <nav id="lp-primary-nav" className={`lp-nav${menuOpen ? ' is-open' : ''}`} aria-label={t('primaryNav')}>
           <a href={candidateHref} className="lp-nav-link lp-cand-link" onClick={closeAll}>
             <span className="lp-biz-icon lp-biz-icon-c" aria-hidden="true">C</span>
             <span>
-              <span className="lp-biz-title">Candidate</span>
-              <span className="lp-biz-desc lp-cand-desc">Prove your AI skills and get hired</span>
+              <span className="lp-biz-title">{t('candidate')}</span>
+              <span className="lp-biz-desc lp-cand-desc">{t('candidateDesc')}</span>
             </span>
           </a>
 
@@ -99,26 +102,27 @@ export default function LandingHeader({ candidateHref, employerHref, staffingHre
               aria-controls="lp-biz-menu"
               onClick={() => setBizOpen((v) => !v)}
             >
-              For Business <span className="lp-biz-chev" aria-hidden="true" />
+              {t('forBusiness')} <span className="lp-biz-chev" aria-hidden="true" />
             </button>
             <div id="lp-biz-menu" className={`lp-biz-menu${bizOpen ? ' is-open' : ''}`}>
-              <p className="lp-biz-heading">For Business</p>
+              <p className="lp-biz-heading">{t('forBusiness')}</p>
               <a href={employerHref} className="lp-biz-item" onClick={closeAll}>
                 <span className="lp-biz-icon lp-biz-icon-e" aria-hidden="true">E</span>
                 <span>
-                  <span className="lp-biz-title">Employer</span>
-                  <span className="lp-biz-desc">Hire for your own company on verified skills</span>
+                  <span className="lp-biz-title">{t('employer')}</span>
+                  <span className="lp-biz-desc">{t('employerDesc')}</span>
                 </span>
               </a>
               <a href={staffingHref} className="lp-biz-item" onClick={closeAll}>
                 <span className="lp-biz-icon lp-biz-icon-r" aria-hidden="true">R</span>
                 <span>
-                  <span className="lp-biz-title">Recruiter</span>
-                  <span className="lp-biz-desc">Place available, verified talent with your clients</span>
+                  <span className="lp-biz-title">{t('recruiter')}</span>
+                  <span className="lp-biz-desc">{t('recruiterDesc')}</span>
                 </span>
               </a>
             </div>
           </div>
+          <LocaleSwitcher className="lp-nav-link" />
         </nav>
       </div>
     </header>

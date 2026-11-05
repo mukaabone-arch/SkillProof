@@ -46,7 +46,8 @@
  * all instead of every request just 403ing.
  */
 import { useEffect, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { usePathname } from '@/i18n/navigation';
 import { employerApi } from '@/lib/api';
 import EmployerSidebarShell, { EmployerOrgIdentity } from '@/components/EmployerSidebarShell';
 import { isOrgSetupComplete, OrgReadinessFields } from '@/lib/orgReadiness';

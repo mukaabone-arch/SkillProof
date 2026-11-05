@@ -8,9 +8,10 @@
  * Help (and Upgrade for FREE) live in the account menu on phones instead.
  */
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { usePathname } from '@/i18n/navigation';
 import { api, logout } from '@/lib/api';
 import { useEntitlements } from '@/lib/entitlements';
 import { initialsFrom } from '@/lib/initials';

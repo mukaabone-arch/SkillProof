@@ -2,7 +2,8 @@
 
 /** Persistent nav for the PLATFORM_ADMIN console — parallel to CandidateNav, scoped to admin-only pages. */
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { usePathname } from '@/i18n/navigation';
 import { logout } from '@/lib/api';
 import BrandLockup from './BrandLockup';
 

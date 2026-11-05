@@ -291,8 +291,8 @@ main { max-width: 640px; margin: 0 auto; padding: 64px 24px; }
 }
 main.container-reading, main.container-standard, main.container-wide {
   max-width: none;
-  padding-left: 0;
-  padding-right: 0;
+  padding-inline-start: 0;
+  padding-inline-end: 0;
 }
 main.container-reading  { width: min(100% - (var(--container-gutter) * 2), var(--container-reading)); }
 main.container-standard { width: min(100% - (var(--container-gutter) * 2), var(--container-standard)); }
@@ -363,8 +363,8 @@ main.container-wide     { width: min(100% - (var(--container-gutter) * 2), var(-
    the box with equal space on both sides in every case above. */
 main.employer-content-narrow {
   max-width: none;
-  padding-left: 0;
-  padding-right: 0;
+  padding-inline-start: 0;
+  padding-inline-end: 0;
   width: clamp(min(var(--container-reading), 100%), 75%, var(--container-standard));
 }
 /* Below the sidebar's own collapse point (.employer-sidebar's 860px
@@ -529,7 +529,7 @@ a.btn:hover { text-decoration: none; }
    items don't shrink below their content size by default. */
 .chip-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; display: inline-block; }
 
-.card.empty-state { text-align: left; color: var(--ink-60); flex-direction: column; align-items: flex-start; }
+.card.empty-state { text-align: start; color: var(--ink-60); flex-direction: column; align-items: flex-start; }
 .empty-state-action { margin-top: var(--space-3); }
 .loading-state { display: flex; align-items: center; gap: var(--space-3); color: var(--ink-60); font-size: var(--text-sm); padding: var(--space-5) 0; }
 /* Full-page role-resolution loading state (app/page.tsx, app/employer/page.tsx)
@@ -1566,7 +1566,7 @@ main.auth.auth-gradient {
 .assessment-category { margin-bottom: 16px; }
 .assessment-category-header {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
-  width: 100%; text-align: left; background: var(--card); color: var(--ink);
+  width: 100%; text-align: start; background: var(--card); color: var(--ink);
   border: 1px solid var(--gray-100); border-radius: 12px; padding: 14px 18px;
   font-weight: 600; font-size: 1rem; cursor: pointer;
 }
@@ -1580,7 +1580,7 @@ main.auth.auth-gradient {
 /* The per-skill-card "N levels behind you" toggle — plain text, not a
    filled button, since it's revealing detail rather than starting anything. */
 .assessment-earned-summary {
-  display: block; width: 100%; text-align: left; background: transparent !important; color: var(--accent-800);
+  display: block; width: 100%; text-align: start; background: transparent !important; color: var(--accent-800);
   border: none; border-radius: 6px; padding: 6px 0 10px; margin: 0; font-weight: 500; font-size: 0.9rem; cursor: pointer;
 }
 .assessment-earned-summary:hover { text-decoration: underline; transform: none; }
@@ -1724,8 +1724,8 @@ body:has(main.container-reading) .appnav-inner,
 body:has(main.container-standard) .appnav-inner,
 body:has(main.container-wide) .appnav-inner {
   max-width: none;
-  padding-left: 0;
-  padding-right: 0;
+  padding-inline-start: 0;
+  padding-inline-end: 0;
 }
 body:has(main.container-reading) .appnav-inner  { width: min(100% - (var(--container-gutter) * 2), var(--container-wide)); }
 body:has(main.container-standard) .appnav-inner { width: min(100% - (var(--container-gutter) * 2), var(--container-wide)); }
@@ -1746,7 +1746,7 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
    24px gutter/gap; below ~350px it isn't. Tightened here rather than by
    shrinking the logo or the button. */
 @media (max-width: 350px) {
-  .appnav-inner { padding-left: 4px; padding-right: 4px; gap: 8px; }
+  .appnav-inner { padding-inline-start: 4px; padding-inline-end: 4px; gap: 8px; }
   body:has(main.container-reading) .appnav-inner,
   body:has(main.container-standard) .appnav-inner,
   body:has(main.container-wide) .appnav-inner {
@@ -1933,7 +1933,7 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
 .employer-sidebar {
   flex-shrink: 0; width: 220px; padding: var(--space-5) var(--space-3);
   display: flex; flex-direction: column; gap: 2px;
-  border-right: 1px solid var(--ink-12); background: var(--surface-sidebar);
+  border-inline-end: 1px solid var(--ink-12); background: var(--surface-sidebar);
 }
 .employer-sidebar a {
   display: block; padding: 10px 14px; border-radius: var(--radius-md);
@@ -1963,7 +1963,7 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
   .employer-nav-toggle { display: flex; }
   .employer-org-name { display: none; }
   .employer-sidebar {
-    position: fixed; top: 76px; bottom: 0; left: 0; z-index: 60; width: 260px;
+    position: fixed; top: 76px; bottom: 0; inset-inline-start: 0; z-index: 60; width: 260px;
     transform: translateX(-100%); transition: transform 0.18s ease;
     box-shadow: 4px 0 16px rgba(0, 0, 0, 0.35); overflow-y: auto;
   }
@@ -2090,7 +2090,7 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
   display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-5);
   background: rgba(22, 24, 38, 0.85); backdrop-filter: blur(10px); border-bottom: 1px solid var(--ink-12);
 }
-.admin-topbar .appnav-logout { margin-left: auto; }
+.admin-topbar .appnav-logout { margin-inline-start: auto; }
 .admin-nav-toggle {
   display: none; flex-direction: column; justify-content: center; gap: 4px;
   width: 32px; height: 32px; padding: 0; background: transparent !important; border: none !important;
@@ -2100,7 +2100,7 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
 .admin-sidebar {
   flex-shrink: 0; width: 220px; padding: var(--space-5) var(--space-3);
   display: flex; flex-direction: column; gap: 2px;
-  border-right: 1px solid var(--ink-12); background: var(--card);
+  border-inline-end: 1px solid var(--ink-12); background: var(--card);
 }
 .admin-sidebar a {
   display: block; padding: 10px 14px; border-radius: var(--radius-md);
@@ -2112,7 +2112,7 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
 .admin-sidebar-group-header {
   display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
   padding: 14px 14px 4px; margin: 0; background: transparent; border: none; cursor: pointer;
-  font: inherit; text-align: left; border-radius: var(--radius-md);
+  font: inherit; text-align: start; border-radius: var(--radius-md);
 }
 .admin-sidebar-group:first-child .admin-sidebar-group-header { padding-top: 0; }
 .admin-sidebar-group-header:hover .admin-sidebar-section-label { color: var(--ink-60); }
@@ -2161,7 +2161,7 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
 @media (max-width: 860px) {
   .admin-nav-toggle { display: flex; }
   .admin-sidebar {
-    position: fixed; top: 76px; bottom: 0; left: 0; z-index: 60; width: 260px;
+    position: fixed; top: 76px; bottom: 0; inset-inline-start: 0; z-index: 60; width: 260px;
     transform: translateX(-100%); transition: transform 0.18s ease;
     box-shadow: 4px 0 16px rgba(0, 0, 0, 0.35); overflow-y: auto;
   }
@@ -2177,10 +2177,10 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
 @media (max-width: 480px) {
   .admin-topbar .appnav-logout { display: none; }
   .admin-sidebar-logout {
-    display: block; width: 100%; text-align: left;
+    display: block; width: 100%; text-align: start;
     padding: 10px 14px; margin-top: var(--space-3); border-top: 1px solid var(--ink-12);
     font-size: 0.92rem; font-weight: 500; color: var(--ink-60);
-    background: transparent; border-left: none; border-right: none; border-bottom: none; border-radius: 0;
+    background: transparent; border-inline-start: none; border-inline-end: none; border-bottom: none; border-radius: 0;
     cursor: pointer;
   }
   .admin-sidebar-logout:hover { color: var(--ink); background: color-mix(in srgb, var(--brand-600) 12%, var(--card)); }
@@ -2195,7 +2195,7 @@ body:has(main.container-wide) .appnav-inner     { width: min(100% - (var(--conta
 .segmented-progress { display: flex; margin-bottom: var(--space-7); }
 .segmented-progress-step { flex: 1; position: relative; text-align: center; }
 .segmented-progress-track {
-  position: absolute; top: 9.5px; left: 50%; width: 100%; height: 3px;
+  position: absolute; top: 9.5px; inset-inline-start: 50%; width: 100%; height: 3px;
   background: var(--ink-12); z-index: 0;
 }
 .segmented-progress-track.done { background: var(--indigo); }
@@ -2355,7 +2355,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .status-card:hover { border-color: var(--brand-50); transform: translateY(-2px); text-decoration: none; }
 /* A card that needs the candidate's attention (e.g. no verified skill yet) gets a lit left rule —
    matches the "needs attention" treatment on the Verified Skills card in the Nocturne dashboard import. */
-.status-card-flag { border-left: 3px solid var(--brand-400); }
+.status-card-flag { border-inline-start: 3px solid var(--brand-400); }
 .status-stat { font-family: var(--font-display); font-weight: 700; font-size: 2rem; letter-spacing: -0.02em; color: var(--indigo); line-height: 1; margin-bottom: 6px; }
 .status-stat.verified { color: var(--success); }
 /* Kicker label. Contrast fix: originally colored like the Nocturne design's own .card-kicker
@@ -2474,7 +2474,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
    wide, so centers sit at 10% and 90%), vertically centered on the 34px
    circles. overflow:hidden clips the fill's rounded ends cleanly. */
 .fstrip-line {
-  position: absolute; top: 17px; left: 10%; right: 10%; height: 3px;
+  position: absolute; top: 17px; inset-inline: 10%; height: 3px;
   transform: translateY(-50%); border-radius: var(--radius-full);
   background: var(--ink-12); overflow: hidden; z-index: 0;
 }
@@ -2535,7 +2535,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 /* ---- session review slice (admin/review) ---- */
 .review-claim-card { margin-bottom: 16px; }
 .review-span-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.review-span blockquote { margin: 0 0 4px; padding-left: 10px; border-left: 3px solid var(--ink-12); color: var(--ink); font-style: italic; }
+.review-span blockquote { margin: 0 0 4px; padding-inline-start: 10px; border-inline-start: 3px solid var(--ink-12); color: var(--ink); font-style: italic; }
 .review-verdict-panel { border-top: 1px solid var(--ink-12); padding-top: 12px; margin-top: 4px; }
 .review-verdict-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 .review-verdict-buttons .btn { min-width: 0; padding: 8px 12px; font-size: 0.85rem; }
@@ -2545,7 +2545,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .review-reveal-disagree { background: color-mix(in srgb, var(--warning) 18%, var(--card)); padding: 12px; border-top: none; }
 .review-model-block { margin-top: 8px; }
 .interruption-banner { background: var(--paper-2); border: 1px solid var(--ink-12); border-radius: 10px; padding: 12px 16px; margin-bottom: var(--space-6); font-size: 0.9rem; }
-.interruption-banner ul { margin: 6px 0 0; padding-left: 18px; }
+.interruption-banner ul { margin: 6px 0 0; padding-inline-start: 18px; }
 .review-decision-panel { margin-top: var(--space-6); }
 .review-clear-claims { margin-top: var(--space-4); }
 .review-clear-claims summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
@@ -2558,7 +2558,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
    apps/web/design-refs/assessment-window-mockup.html: a real chat thread
    (asymmetric bubbles) between the topbar/brief and a bottom-pinned
    composer, with full-width gradient reviewer cards inline in the thread. */
-.discussion-entry-card { border-left: 3px solid var(--indigo); }
+.discussion-entry-card { border-inline-start: 3px solid var(--indigo); }
 
 .discussion-session {
   --dc-bg: #0B0C10; --dc-card: #14161D; --dc-card2: #181B24; --dc-border: #262A35;
@@ -2601,7 +2601,7 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
    transform/filter) so it reads as the whole page's progress, not one
    column's. The 3px top padding on .discussion-session above reserves
    space so the topbar row doesn't render underneath it. */
-.discussion-progress { position: fixed; top: 0; left: 0; right: 0; height: 3px; background: var(--dc-border); z-index: 20; }
+.discussion-progress { position: fixed; top: 0; inset-inline: 0; height: 3px; background: var(--dc-border); z-index: 20; }
 .discussion-progress > i { display: block; height: 100%; background: var(--dc-indigo); transition: width 0.4s ease; }
 
 .discussion-topbar {
@@ -2681,9 +2681,9 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
    rule instead of a filled background so it reads as scene-setting, never
    as either party "speaking". */
 .discussion-system-note {
-  align-self: flex-start; max-width: min(80%, 65ch); text-align: left;
+  align-self: flex-start; max-width: min(80%, 65ch); text-align: start;
   font-size: 0.78rem; line-height: 1.5; color: var(--dc-text2);
-  padding: 2px 0 2px 14px; border-left: 2px solid var(--dc-border); white-space: pre-wrap;
+  padding: 2px 0; padding-inline-start: 14px; border-inline-start: 2px solid var(--dc-border); white-space: pre-wrap;
 }
 .discussion-typing { display: flex; flex-direction: column; align-items: flex-start; }
 .discussion-typing-dots { display: flex; align-items: center; gap: 8px; }
@@ -2820,11 +2820,11 @@ main.hub h2 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 0; }
 .location-suggestions {
   background: var(--card); border: 1px solid var(--gray-100); border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
-  position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px; z-index: 20;
+  position: absolute; top: 100%; inset-inline: 0; margin-top: 4px; z-index: 20;
   max-height: 240px; overflow-y: auto; padding: 4px;
 }
 .location-suggestion {
-  display: block; width: 100%; text-align: left; background: transparent; color: var(--ink);
+  display: block; width: 100%; text-align: start; background: transparent; color: var(--ink);
   border: none; border-radius: var(--radius-sm); padding: 8px 10px; font-weight: 400; cursor: pointer;
 }
 .location-suggestion:hover, .location-suggestion:focus-visible { background: var(--gray-50); transform: none; }
@@ -2870,7 +2870,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    directly with no wrapper and .lp-hero's padding-top is back to a flat
    value with no :has() override. */
 .lp-header {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  position: fixed; top: 0; inset-inline: 0; z-index: 100;
   /* Translucent so the photo shows through (~22% at rest); a dark tint (not a
      light one) because the links are near-white — over the bright left of the
      photo, --ink text on this tint clears ~7.5:1 worst-case (pure-white pixel
@@ -3140,7 +3140,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   display: inline-block; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em;
   text-transform: uppercase; color: var(--warning);
   border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
-  border-radius: var(--radius-full); padding: 2px 9px; margin-right: 8px;
+  border-radius: var(--radius-full); padding: 2px 9px; margin-inline-end: 8px;
 }
 
 /* ---- FAQ (native <details>) ---- */
@@ -3261,8 +3261,8 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .lp-legal-body > h2:first-child { margin-top: 0; }
 .lp-legal-body h3 { font-family: var(--font-display); font-weight: 700; color: var(--ink); font-size: 1.05rem; line-height: 1.3; margin: 26px 0 10px; }
 .lp-legal-body p { margin: 0 0 16px; }
-.lp-legal-body ul, .lp-legal-body ol { margin: 0 0 16px; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; }
-.lp-legal-body li { padding-left: 4px; }
+.lp-legal-body ul, .lp-legal-body ol { margin: 0 0 16px; padding-inline-start: 22px; display: flex; flex-direction: column; gap: 10px; }
+.lp-legal-body li { padding-inline-start: 4px; }
 .lp-legal-body li > ol, .lp-legal-body li > ul { margin: 10px 0 0; }
 .lp-legal-body a { color: var(--brand-400); }
 .lp-legal-body a:hover { color: var(--brand-600); }
@@ -3277,7 +3277,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    confirmed at 390px, see PR notes. */
 .lp-legal-table-wrap { overflow-x: auto; margin: 0 0 16px; border: 1px solid var(--ink-12); border-radius: var(--radius-md); }
 .lp-legal-table { width: 100%; min-width: 560px; border-collapse: collapse; }
-.lp-legal-table th, .lp-legal-table td { text-align: left; vertical-align: top; padding: 12px 16px; font-size: 0.92rem; line-height: 1.55; border-bottom: 1px solid var(--ink-12); }
+.lp-legal-table th, .lp-legal-table td { text-align: start; vertical-align: top; padding: 12px 16px; font-size: 0.92rem; line-height: 1.55; border-bottom: 1px solid var(--ink-12); }
 .lp-legal-table th { font-family: var(--font-body); font-weight: 600; color: var(--ink); background: var(--card); white-space: nowrap; }
 .lp-legal-table tr:last-child td { border-bottom: none; }
 
@@ -3289,7 +3289,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    table itself. */
 .admin-table-wrap { overflow-x: auto; border: 1px solid var(--ink-12); border-radius: var(--radius-md); }
 .admin-table { width: 100%; min-width: 760px; border-collapse: collapse; }
-.admin-table th, .admin-table td { text-align: left; vertical-align: middle; padding: 10px 14px; font-size: 0.88rem; border-bottom: 1px solid var(--ink-12); white-space: nowrap; }
+.admin-table th, .admin-table td { text-align: start; vertical-align: middle; padding: 10px 14px; font-size: 0.88rem; border-bottom: 1px solid var(--ink-12); white-space: nowrap; }
 .admin-table th { font-weight: 600; color: var(--ink); background: var(--card); }
 .admin-table tr:last-child td { border-bottom: none; }
 .admin-table-sort-btn { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: inherit; cursor: pointer; }
@@ -3371,7 +3371,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 /* Honeypot: removed from view and the tab order without display:none (some
    bots skip display:none fields) — off-screen but still submittable. */
 .lp-hp {
-  position: absolute; left: -9999px; width: 1px; height: 1px;
+  position: absolute; inset-inline-start: -9999px; width: 1px; height: 1px;
   overflow: hidden; opacity: 0;
 }
 
@@ -3537,7 +3537,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 @media (max-width: 860px) {
   .lp-menu-btn { display: inline-flex; }
   .lp-nav {
-    position: absolute; top: calc(100% + 1px); right: 0; left: 0;
+    position: absolute; top: calc(100% + 1px); inset-inline: 0;
     flex-direction: column; align-items: stretch; gap: 0;
     background: rgba(18, 20, 32, 0.97);
     backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
@@ -3567,8 +3567,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 /* ---- Cookie consent banner (AnalyticsGate/ConsentBanner) ---- */
 .consent-banner {
   position: fixed;
-  left: 16px;
-  right: 16px;
+  inset-inline: 16px;
   bottom: 16px;
   z-index: 200;
   max-width: 520px;
@@ -3803,7 +3802,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .portfolio-entry-org { color: var(--indigo); font-weight: 600; margin: 0 0 var(--space-2); }
 .portfolio-entry-description { color: var(--ink-60); margin: var(--space-2) 0; }
 .portfolio-date-pill { margin-bottom: var(--space-3); }
-.portfolio-bullets { margin: var(--space-3) 0 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; }
+.portfolio-bullets { margin: var(--space-3) 0 0; padding-inline-start: 1.2em; display: flex; flex-direction: column; gap: 8px; }
 .portfolio-bullets li { color: var(--ink-60); }
 .portfolio-subsection-title { font-size: var(--text-sm); text-transform: uppercase; letter-spacing: 0.04em; color: var(--gray-600); margin: 0 0 var(--space-3); }
 .portfolio-skill-group { margin-bottom: var(--space-4); }
@@ -4445,7 +4444,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 }
 .lp-biz-btn.is-open .lp-biz-chev { transform: rotate(225deg); margin-top: 3px; }
 .lp-biz-menu {
-  display: none; position: absolute; right: 0; top: calc(100% + 10px); z-index: 60;
+  display: none; position: absolute; inset-inline-end: 0; top: calc(100% + 10px); z-index: 60;
   width: 320px; padding: 8px; border-radius: 14px;
   background: #17172a; border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
@@ -4587,3 +4586,117 @@ p:has(+ .staffing-filters) { max-width: 72ch; }
 @media (min-width: 900px) {
   .staffing-filters:not(:has(#f-city)) { grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(110px, 140px); }
 }
+
+/* =====================================================================
+   Locale: Arabic / RTL  (html[lang='ar'] dir='rtl' — see app/[locale]/layout.tsx)
+   Everything above is written in logical properties, so flex/grid rows,
+   text alignment, insets, borders and padding already flip with `dir`.
+   What follows is only what does NOT flip by itself.
+   ===================================================================== */
+
+/* Arabic face, bound behind the two font roles. IBM Plex Sans Arabic carries
+   Latin glyphs, so Latin terms inside Arabic sentences stay in one family.
+   Only this face is loaded for `ar` (see the layout's <head>). */
+:root[lang='ar'] {
+  --font-display: 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  --font-body: 'IBM Plex Sans Arabic', system-ui, sans-serif;
+}
+
+/* Any non-zero letter-spacing breaks Arabic's cursive joining (letters render
+   disconnected) — the page's negative/positive tracking on headings and
+   eyebrows must be off for Arabic, wherever it was set. The wordmark is Latin
+   and keeps its own tracking. */
+:root[lang='ar'] * { letter-spacing: normal !important; }
+:root[lang='ar'] .brand-product-name { letter-spacing: -0.01em !important; }
+
+/* Arabic ascenders/descenders and marks need more vertical room than the
+   1.05–1.12 the Latin display sizes use; tight leading clips them. */
+:root[lang='ar'] h1, :root[lang='ar'] h2, :root[lang='ar'] h3 { line-height: 1.35; }
+:root[lang='ar'] .lp-hero-title,
+:root[lang='ar'] .lp-hero-title-sm { line-height: 1.3; }
+:root[lang='ar'] .lp-section-title { line-height: 1.35; }
+:root[lang='ar'] .lp-card-title,
+:root[lang='ar'] .lp-step-title { line-height: 1.4; }
+:root[lang='ar'] .lp-hero-sub,
+:root[lang='ar'] .lp-prose-body { line-height: 1.8; }
+/* Arabic runs ~20–25% longer than the English for the same content, so the
+   measure caps that were tuned in `ch` for Latin get more room. */
+:root[lang='ar'] .lp-hero-inner > * { max-width: 680px; }
+/* …except the promo ribbon, which keeps its own width cap (see
+   .lp-hero-inner > .beta-promo-scroll) — 680px would let its fixed 420px
+   width run off a phone screen. */
+:root[lang='ar'] .lp-hero-inner > .beta-promo-scroll { max-width: min(90%, 460px); }
+:root[lang='ar'] .lp-section-title { max-width: 28ch; }
+
+/* Lavender card gradients: the text-free zone was engineered to sit on the
+   LEFT (text side in LTR) with every ellipse anchored off the right edge —
+   that is what keeps --ink text above AA (see the tokens' own comments).
+   Under RTL the text sits on the right, so the whole recipe is mirrored:
+   x positions -> 100 - x, linear angle 115deg -> 245deg. */
+:root[dir='rtl'] {
+  --lp-lavender-bg:
+    radial-gradient(ellipse 65% 90% at 0% -20%, color-mix(in srgb, var(--lavender-light) 65%, transparent) 0%, transparent 62%),
+    radial-gradient(ellipse 60% 85% at -12% 55%, color-mix(in srgb, var(--lavender-mid) 55%, transparent) 0%, transparent 58%),
+    radial-gradient(ellipse 85% 100% at -2% 118%, color-mix(in srgb, var(--brand-600) 50%, transparent) 0%, transparent 62%),
+    linear-gradient(245deg, var(--brand-900) 0%, var(--card) 48%, var(--card) 100%);
+  --lp-news-lavender-bg:
+    radial-gradient(ellipse 75% 70% at 96% -12%, color-mix(in srgb, var(--lavender-light) 24%, transparent) 0%, transparent 65%),
+    radial-gradient(ellipse 70% 65% at 0% 108%, color-mix(in srgb, var(--lavender-mid) 22%, transparent) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 55% at 45% 45%, color-mix(in srgb, var(--brand-600) 16%, transparent) 0%, transparent 55%),
+    linear-gradient(245deg, var(--brand-900) 0%, var(--card) 55%, var(--card) 100%);
+}
+
+/* ---- Arabic hero: flat field as the base, photograph from 1200px ----
+   The base case is the brand field: it always carries the Arabic column, at
+   every width. The photograph is an enhancement above 1200px only.
+
+   Why not below 1200: the photo is sized by height (auto 100%), so its share
+   of the viewport grows as the screen shrinks — about 56% of a 1440×810 hero,
+   67% at 1024. At 1024 the 680px Arabic column covers most of it, so the
+   picture is 90% hidden. Narrowing the column to fit would make the headline
+   run to four lines. A wider source (2560×1440, sized by width) would behave
+   the other way and is the real fix if this becomes a product.
+
+   Above 1200px: opaque across the right (where .lp-hero-inner > * sits at
+   680px) and feathers to transparent before reaching the figures, so the
+   picture is never washed and the two surfaces meet instead of overlapping.
+
+   --brand-900 rather than --gray-50 for the field: a lighter, warmer shade
+   than the near-black page, and the same stop the landing-page card
+   gradients open on. #fff reads 14.3:1 on it, --gray-600 9.6:1. */
+:root[lang='ar'] .lp-hero {
+  background-image: none;
+  background-color: var(--brand-900);
+}
+@media (min-width: 1200px) {
+  :root[lang='ar'] .lp-hero {
+    background-image:
+      linear-gradient(to left,
+        var(--brand-900) 0%,
+        var(--brand-900) 46%,
+        color-mix(in srgb, var(--brand-900) 85%, transparent) 53%,
+        color-mix(in srgb, var(--brand-900) 40%, transparent) 57%,
+        transparent 61%),
+      url('/hero-riyadh-table.jpg');
+    background-size: 100% 100%, auto 100%;
+    background-position: center, left center;
+    background-repeat: no-repeat, no-repeat;
+  }
+}
+:root[lang='ar'] .lp-hero-scrim { display: none; }
+/* The CTA captions are longer in Arabic; the 260px English cap wraps the
+   secondary button's label onto two lines. */
+:root[lang='ar'] .lp-cta-block { max-width: 310px; }
+
+/* Off-canvas sidebars slide in from the inline-start edge, which is the right
+   edge under RTL; the sign of the translate must follow. */
+@media (max-width: 860px) {
+  :root[dir='rtl'] .employer-sidebar,
+  :root[dir='rtl'] .admin-sidebar { transform: translateX(100%); box-shadow: -4px 0 16px rgba(0, 0, 0, 0.35); }
+  :root[dir='rtl'] .employer-sidebar.is-open,
+  :root[dir='rtl'] .admin-sidebar.is-open { transform: translateX(0); }
+}
+
+/* Headlines from the news API are English; keep them LTR-isolated inside an
+   RTL page so their punctuation doesn't migrate to the wrong end. */
+.lp-news-item-title { unicode-bidi: plaintext; }

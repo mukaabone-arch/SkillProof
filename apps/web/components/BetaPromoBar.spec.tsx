@@ -19,7 +19,8 @@
  * convention (most components have none at all).
  */
 import '@testing-library/jest-dom';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderWithIntl as render } from '../test-utils/renderWithIntl';
 import BetaPromoBar from './BetaPromoBar';
 import BetaPromoScroll from './BetaPromoScroll';
 import { setTokens, clearTokens, employerApi } from '@/lib/api';
@@ -34,6 +35,7 @@ let pathname = '/faq';
 
 jest.mock('next/navigation', () => ({
   usePathname: () => pathname,
+  useParams: () => ({}),
 }));
 
 beforeEach(() => {
@@ -61,13 +63,13 @@ describe('BetaPromoBar — date cutoff', () => {
   });
 
   it('returns null one second after the cutoff instant', () => {
-    jest.useFakeTimers().setSystemTime(new Date('2026-12-01T00:00:00+05:30'));
+    jest.useFakeTimers().setSystemTime(new Date('2027-02-01T00:00:00+05:30'));
     const { container } = render(<BetaPromoBar />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it('returns null well after the cutoff', () => {
-    jest.useFakeTimers().setSystemTime(new Date('2026-12-15T00:00:00+05:30'));
+    jest.useFakeTimers().setSystemTime(new Date('2027-02-15T00:00:00+05:30'));
     const { container } = render(<BetaPromoBar />);
     expect(container).toBeEmptyDOMElement();
   });
@@ -172,7 +174,7 @@ describe('BetaPromoScroll — the landing/candidate-login ribbon', () => {
   });
 
   it('returns null once the offer is over (same cutoff as the bar, via the shared hook)', () => {
-    jest.useFakeTimers().setSystemTime(new Date('2026-12-01T00:00:00+05:30'));
+    jest.useFakeTimers().setSystemTime(new Date('2027-02-01T00:00:00+05:30'));
     const { container } = render(<BetaPromoScroll />);
     expect(container).toBeEmptyDOMElement();
   });
@@ -204,11 +206,8 @@ describe('BetaPromoScroll — the landing/candidate-login ribbon', () => {
     // Not an exact string match: the ribbon deliberately drops the bar's
     // leading em dash before "Free" (see BetaPromoScroll.tsx's own doc
     // comment — orphaned punctuation once the date is forced onto its own
-    // line). Same date, same "Candidates: Be among the first..." lead.
+    // line). Same visibility source; the ribbon now carries the app launch notice.
     expect(barText).toContain('31 January 2027');
-    expect(screen.getByRole('note')).toHaveTextContent(
-      'Candidates: Be among the first to prove your AI skills and apply for jobs',
-    );
     expect(screen.getByRole('note')).toHaveTextContent('MyAmbii is now on your phone');
   });
 });

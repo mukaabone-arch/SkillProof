@@ -59,20 +59,30 @@
  * .beta-promo-date` is `white-space: nowrap`, so it can never wrap at any
  * width in the first place.
  */
+import { useTranslations } from 'next-intl';
 import { useBetaPromoVisible } from '@/lib/useBetaPromoVisible';
 
 /** Mobile app launch notice (replaced the beta "free until" message, 2026-11). */
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.flairfuture.myambii';
 
 export default function BetaPromoScroll() {
+  const t = useTranslations('promo.app');
   const visible = useBetaPromoVisible();
 
   if (!visible) return null;
 
   return (
     <div className="beta-promo-scroll" role="note">
-      <span><strong>New:</strong> MyAmbii is now on your phone. Prove your AI skills and apply for jobs on the go</span>{' '}
-      <span className="beta-promo-links">Get the app: <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">Google Play</a></span>
+      <span>{t.rich('text', { strong: (chunks) => <strong>{chunks}</strong> })}</span>{' '}
+      <span className="beta-promo-links">
+        {t.rich('getApp', {
+          play: (chunks) => (
+            <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">
+              {chunks}
+            </a>
+          ),
+        })}
+      </span>
     </div>
   );
 }

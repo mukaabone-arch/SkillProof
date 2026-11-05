@@ -12,9 +12,9 @@
  * list vs. a read-only dashboard preview).
  */
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { Badge } from '@/components/ui';
 import { matchBand, MATCH_BAND_LABELS, MATCH_BAND_VARIANTS } from '@/lib/matchBand';
-import { skillLevelName } from '@/lib/skillLevels';
 import CandidateAvatar from './CandidateAvatar';
 
 export type CredentialIssuer = 'CREDLY' | 'AWS' | 'GOOGLE' | 'AZURE' | 'NVIDIA' | 'DATABRICKS' | 'IBM' | 'OTHER';
@@ -142,16 +142,19 @@ interface Props {
 }
 
 export default function ApplicantCard({ applicant: a, headerActions, resumeAction, footer, compact = false }: Props) {
+  // Only the compact (dashboard preview) path is translated so far; the full
+  // card's own strings still render in English until their screens are localised.
+  const t = useTranslations('applicantCard');
   return (
     <div className="card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
       <div className="row" style={{ justifyContent: 'space-between', margin: 0, alignItems: 'flex-start' }}>
         <div className="row" style={{ margin: 0, alignItems: 'center' }}>
           <CandidateAvatar profileId={a.profileId} fullName={a.fullName} hasPhoto={a.hasPhoto} size={44} />
           <div>
-            <strong>{a.fullName || 'Candidate'}</strong>
+            <strong>{a.fullName || t('candidate')}</strong>
             {a.roleTitle && (
               <div className="meta" style={{ margin: 0 }}>
-                {a.roleTitle === 'OTHER' ? a.roleTitleOther || 'Other' : ROLE_TITLE_LABELS[a.roleTitle]}
+                {a.roleTitle === 'OTHER' ? a.roleTitleOther || t('otherRole') : t(`roles.${a.roleTitle}`)}
               </div>
             )}
           </div>
@@ -190,13 +193,13 @@ export default function ApplicantCard({ applicant: a, headerActions, resumeActio
       {a.verifiedSkills.length > 0 && (
         <div style={{ marginTop: 4 }}>
           <div className="meta" style={{ margin: 0, marginBottom: 4 }}>
-            MyAmbii-Verified Skills
+            {t('verifiedSkills')}
           </div>
           <div className="row" style={{ flexWrap: 'wrap', margin: 0 }}>
             {a.verifiedSkills.map((s) => (
               <Link key={s.skillId} href={`/badges/${s.verifyHash}`}>
-                <Badge variant="verified" title={s.verifiedBy === 'DISCUSSION' ? 'Verified by discussion' : 'Verified by test'}>
-                  {s.skillName} ({skillLevelName(s.level)}) {s.verifiedBy === 'DISCUSSION' ? '💬' : ''}
+                <Badge variant="verified" title={s.verifiedBy === 'DISCUSSION' ? t('verifiedByDiscussion') : t('verifiedByTest')}>
+                  {t('skillWithLevel', { skill: s.skillName, level: t(`levels.${s.level}`) })} {s.verifiedBy === 'DISCUSSION' ? '💬' : ''}
                 </Badge>
               </Link>
             ))}
