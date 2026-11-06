@@ -28,7 +28,7 @@
     "until": "— مجانًا حتى {date}",
     "app": {
       "text": "<strong>جديد:</strong> MyAmbii الآن على هاتفك. أثبت مهاراتك في الذكاء الاصطناعي وتقدّم للوظائف أينما كنت",
-      "getApp": "حمّل التطبيق: <play>Google Play</play>"
+      "getApp": "حمّل التطبيق: <play>Google Play</play> · <ios>App Store</ios>"
     }
   },
   "consent": {

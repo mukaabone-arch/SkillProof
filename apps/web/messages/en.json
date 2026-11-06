@@ -28,7 +28,7 @@
     "until": "— Free until {date}",
     "app": {
       "text": "<strong>New:</strong> MyAmbii is now on your phone. Prove your AI skills and apply for jobs on the go",
-      "getApp": "Get the app: <play>Google Play</play>"
+      "getApp": "Get the app: <play>Google Play</play> · <ios>App Store</ios>"
     }
   },
   "consent": {

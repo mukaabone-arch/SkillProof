@@ -64,6 +64,7 @@ import { useBetaPromoVisible } from '@/lib/useBetaPromoVisible';
 
 /** Mobile app launch notice (replaced the beta "free until" message, 2026-11). */
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.flairfuture.myambii';
+const APP_STORE_URL = 'https://apps.apple.com/in/app/myambii/id6826762205';
 
 export default function BetaPromoScroll() {
   const t = useTranslations('promo.app');
@@ -78,6 +79,11 @@ export default function BetaPromoScroll() {
         {t.rich('getApp', {
           play: (chunks) => (
             <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">
+              {chunks}
+            </a>
+          ),
+          ios: (chunks) => (
+            <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer">
               {chunks}
             </a>
           ),
