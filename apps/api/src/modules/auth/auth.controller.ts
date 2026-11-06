@@ -273,7 +273,7 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(200)
-  logout(@Body() body: { refreshToken: string }) {
-    return this.auth.logout(body?.refreshToken);
+  logout(@Body() body: { refreshToken: string; deviceToken?: string }) {
+    return this.auth.logout(body?.refreshToken, body?.deviceToken);
   }
 }

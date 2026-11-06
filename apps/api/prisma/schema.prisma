@@ -396,6 +396,33 @@ model User {
   assessmentBlocksLifted    AssessmentBlock[]   @relation("AssessmentBlockLiftedBy")
   staffingRequestsMade StaffingAvailabilityRequest[] @relation("StaffingRequestRequestedBy")
   staffingSubmissionsCreated StaffingSubmission[] @relation("StaffingSubmissionCreatedBy")
+  deviceTokens              DeviceToken[]
+}
+
+// ---------- Push notifications (FCM) ----------
+
+/**
+ * One row per app install that can receive push (see DevicesService). A
+ * token identifies a DEVICE, not a person: `token` is unique globally, not
+ * per user, so registering it again under a different account MOVES the
+ * row (upsert on token) — candidate B signing in on candidate A's old phone
+ * must never keep receiving A's notifications. Every sign-out path deletes
+ * the row (AuthService.logout with a deviceToken, account deletion; a merged
+ * duplicate account cascades). Phase 1 only stores tokens; nothing sends yet.
+ */
+model DeviceToken {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String   @unique
+  /// "android" | "ios"
+  platform   String
+  /// App version that registered it — useful when a payload change breaks an old client.
+  appVersion String?
+  lastSeenAt DateTime @updatedAt
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------

@@ -1485,8 +1485,19 @@ export class AuthService {
     return this.issueTokens(stored.user.id, stored.user.role, false);
   }
 
-  /** Revoke a refresh token on logout. */
-  async logout(rawRefreshToken: string) {
+  /**
+   * Revoke a refresh token on logout, and forget this install's push token
+   * when the app sends it. Unauthenticated on purpose (it must work after
+   * the access token is gone — a rejected refresh, a forced sign-out), so
+   * the push token is removed by value alone: holding the device's own FCM
+   * token is the proof. Without this, the next account to sign in on the
+   * phone is covered by DevicesService.register's upsert, but a phone left
+   * signed out would keep receiving the previous account's notifications.
+   */
+  async logout(rawRefreshToken: string, deviceToken?: string) {
+    if (typeof deviceToken === 'string' && deviceToken.length > 0 && deviceToken.length <= 4096) {
+      await this.prisma.deviceToken.deleteMany({ where: { token: deviceToken } }).catch(() => undefined);
+    }
     if (!rawRefreshToken) return { ok: true };
     const tokenHash = this.hashToken(rawRefreshToken);
     await this.prisma.refreshToken
