@@ -63,6 +63,7 @@ import { useBetaPromoVisible } from '@/lib/useBetaPromoVisible';
 
 /** Mobile app launch notice (replaced the beta "free until" message, 2026-11). */
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.flairfuture.myambii';
+const APP_STORE_URL = 'https://apps.apple.com/in/app/myambii/id6826762205';
 
 export default function BetaPromoScroll() {
   const visible = useBetaPromoVisible();
@@ -72,7 +73,7 @@ export default function BetaPromoScroll() {
   return (
     <div className="beta-promo-scroll" role="note">
       <span><strong>New:</strong> MyAmbii is now on your phone. Prove your AI skills and apply for jobs on the go</span>{' '}
-      <span className="beta-promo-links">Get the app: <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">Google Play</a></span>
+      <span className="beta-promo-links">Get the app: <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">Google Play</a>{' · '}<a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer">App Store</a></span>
     </div>
   );
 }
