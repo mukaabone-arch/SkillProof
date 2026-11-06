@@ -16,7 +16,10 @@
     "forBusiness": "للشركات",
     "employerDesc": "وظّف لشركتك بناءً على مهارات موثّقة",
     "recruiter": "جهة توظيف",
-    "recruiterDesc": "قدّم لعملائك مواهب متاحة وموثّقة"
+    "recruiterDesc": "قدّم لعملائك مواهب متاحة وموثّقة",
+    "candidateBadge": "م",
+    "employerBadge": "ص",
+    "recruiterBadge": "ج"
   },
   "locale": {
     "label": "اللغة",

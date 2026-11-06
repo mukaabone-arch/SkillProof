@@ -16,7 +16,10 @@
     "forBusiness": "For Business",
     "employerDesc": "Hire for your own company on verified skills",
     "recruiter": "Recruiter",
-    "recruiterDesc": "Place available, verified talent with your clients"
+    "recruiterDesc": "Place available, verified talent with your clients",
+    "candidateBadge": "C",
+    "employerBadge": "E",
+    "recruiterBadge": "R"
   },
   "locale": {
     "label": "Language",

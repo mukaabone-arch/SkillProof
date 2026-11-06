@@ -87,7 +87,7 @@ export default function LandingHeader({ candidateHref, employerHref, staffingHre
 
         <nav id="lp-primary-nav" className={`lp-nav${menuOpen ? ' is-open' : ''}`} aria-label={t('primaryNav')}>
           <a href={candidateHref} className="lp-nav-link lp-cand-link" onClick={closeAll}>
-            <span className="lp-biz-icon lp-biz-icon-c" aria-hidden="true">C</span>
+            <span className="lp-biz-icon lp-biz-icon-c" aria-hidden="true">{t('candidateBadge')}</span>
             <span>
               <span className="lp-biz-title">{t('candidate')}</span>
               <span className="lp-biz-desc lp-cand-desc">{t('candidateDesc')}</span>
@@ -107,14 +107,14 @@ export default function LandingHeader({ candidateHref, employerHref, staffingHre
             <div id="lp-biz-menu" className={`lp-biz-menu${bizOpen ? ' is-open' : ''}`}>
               <p className="lp-biz-heading">{t('forBusiness')}</p>
               <a href={employerHref} className="lp-biz-item" onClick={closeAll}>
-                <span className="lp-biz-icon lp-biz-icon-e" aria-hidden="true">E</span>
+                <span className="lp-biz-icon lp-biz-icon-e" aria-hidden="true">{t('employerBadge')}</span>
                 <span>
                   <span className="lp-biz-title">{t('employer')}</span>
                   <span className="lp-biz-desc">{t('employerDesc')}</span>
                 </span>
               </a>
               <a href={staffingHref} className="lp-biz-item" onClick={closeAll}>
-                <span className="lp-biz-icon lp-biz-icon-r" aria-hidden="true">R</span>
+                <span className="lp-biz-icon lp-biz-icon-r" aria-hidden="true">{t('recruiterBadge')}</span>
                 <span>
                   <span className="lp-biz-title">{t('recruiter')}</span>
                   <span className="lp-biz-desc">{t('recruiterDesc')}</span>

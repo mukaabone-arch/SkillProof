@@ -64,3 +64,9 @@ declined stage, متمكّن for Advanced. 89 of the 91 are fingerprinted in
 ar.sources.json. employerDashboard.avgDays and employerMatches.experienceYears
 are not: their Arabic was rewritten into plural forms after the review copy
 was made, so they go into the next review with the new keys.
+
+10. **Menu badges** (header.candidateBadge / employerBadge / recruiterBadge):
+    the one-letter tiles beside Candidate / Employer / Recruiter. Arabic uses
+    the first letter of each word after the article: م (المتقدم), ص (صاحب
+    العمل), ج (جهة توظيف). If the reviewer changes those words, change the
+    letters with them.
