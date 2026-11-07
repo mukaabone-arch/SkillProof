@@ -88,8 +88,8 @@ export default function LandingPage() {
             <span className="lp-hero-title-sm">Proven AI skill, meet the companies hiring</span>
           </h1>
           <p className="lp-hero-sub">
-            MyAmbii turns real ability into verified proof — assessments, not keyword
-            matching. Candidates get matched on evidence; employers hire on it.
+            A global talent platform where AI skills are proven, not claimed —
+            connecting verified professionals to the companies hiring for them.
           </p>
 
           <div className="lp-hero-ctas">
