@@ -36,7 +36,7 @@ const FAQS = [
   },
   {
     q: 'Is MyAmbii free for candidates?',
-    a: "Yes. Creating a profile, browsing and applying to jobs, and taking assessments to earn verified badges are all free, within monthly limits. Premium removes those limits and is coming this year — pricing will be shown before you're asked to pay anything.",
+    a: "Yes. Creating a profile, browsing and applying to jobs, and taking assessments to earn verified badges are all free, within monthly limits. Premium removes those limits and is coming in early 2027 — pricing will be shown before you're asked to pay anything.",
   },
   {
     q: 'How long does verification take?',

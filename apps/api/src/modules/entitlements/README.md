@@ -44,7 +44,7 @@ field is safe.
   "freeSkillLock": { "skillId": "...", "skillName": "LLM Evaluation" }, // or null
   // Mirrors isCandidatePremiumEnabled() — independent of `tier`. The
   // /upgrade page's sole signal for whether to show live checkout or the
-  // "coming this year" notice; not itself an entitlement, just plumbing
+  // "coming in early 2027" notice; not itself an entitlement, just plumbing
   // for that one page.
   "premiumEnabled": false
 }

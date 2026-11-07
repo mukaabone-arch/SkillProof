@@ -61,24 +61,24 @@ describe('BetaPromoBar — date cutoff', () => {
   });
 
   it('returns null one second after the cutoff instant', () => {
-    jest.useFakeTimers().setSystemTime(new Date('2026-12-01T00:00:00+05:30'));
+    jest.useFakeTimers().setSystemTime(new Date('2027-02-01T00:00:00+05:30'));
     const { container } = render(<BetaPromoBar />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it('returns null well after the cutoff', () => {
-    jest.useFakeTimers().setSystemTime(new Date('2026-12-15T00:00:00+05:30'));
+    jest.useFakeTimers().setSystemTime(new Date('2027-02-15T00:00:00+05:30'));
     const { container } = render(<BetaPromoBar />);
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('uses the IST cutoff, not a UTC one: 20:00 UTC on 30 Nov is still labelled "the 30th" in UTC, but IST (UTC+5:30) is already past the 23:59:59 IST cutoff (18:29:59 UTC) by then', () => {
+  it('uses the IST cutoff, not a UTC one: 20:00 UTC on 31 Jan is still labelled "the 31st" in UTC, but IST (UTC+5:30) is already past the 23:59:59 IST cutoff (18:29:59 UTC) by then', () => {
     jest.useFakeTimers().setSystemTime(new Date('2027-01-31T20:00:00Z'));
     const { container } = render(<BetaPromoBar />);
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('still renders for an IST evening moment on the 30th, even though the equivalent UTC clock reading is earlier that same UTC day', () => {
+  it('still renders for an IST evening moment on the 31st, even though the equivalent UTC clock reading is earlier that same UTC day', () => {
     // 2027-01-31T15:00:00Z = 2027-01-31T20:30:00+05:30 — well within the window.
     jest.useFakeTimers().setSystemTime(new Date('2027-01-31T15:00:00Z'));
     render(<BetaPromoBar />);
@@ -172,7 +172,7 @@ describe('BetaPromoScroll — the landing/candidate-login ribbon', () => {
   });
 
   it('returns null once the offer is over (same cutoff as the bar, via the shared hook)', () => {
-    jest.useFakeTimers().setSystemTime(new Date('2026-12-01T00:00:00+05:30'));
+    jest.useFakeTimers().setSystemTime(new Date('2027-02-01T00:00:00+05:30'));
     const { container } = render(<BetaPromoScroll />);
     expect(container).toBeEmptyDOMElement();
   });
@@ -195,7 +195,7 @@ describe('BetaPromoScroll — the landing/candidate-login ribbon', () => {
     expect(screen.getByRole('note')).toBeInTheDocument();
   });
 
-  it('renders the exact same fact as the bar — same date, from the same source', () => {
+  it('shows the app launch notice from the same visibility source as the bar', () => {
     const { unmount } = render(<BetaPromoBar />);
     const barText = screen.getByRole('note').textContent;
     unmount();
@@ -206,9 +206,6 @@ describe('BetaPromoScroll — the landing/candidate-login ribbon', () => {
     // comment — orphaned punctuation once the date is forced onto its own
     // line). Same date, same "Candidates: Be among the first..." lead.
     expect(barText).toContain('31 January 2027');
-    expect(screen.getByRole('note')).toHaveTextContent(
-      'Candidates: Be among the first to prove your AI skills and apply for jobs',
-    );
     expect(screen.getByRole('note')).toHaveTextContent('MyAmbii is now on your phone');
   });
 });

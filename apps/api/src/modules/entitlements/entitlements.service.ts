@@ -46,7 +46,7 @@ export interface EntitlementsResponse {
   /**
    * Mirrors isCandidatePremiumEnabled() — the /upgrade page's sole signal
    * for whether to show the live pricing/checkout UI or the "coming in
-   * November" notice. Independent of `tier`: an internal test account
+   * early 2027" notice. Independent of `tier`: an internal test account
    * still resolves to PREMIUM through the normal path above regardless of
    * this flag (see SubscriptionsService.initiateCheckout, the only thing
    * the flag actually gates) — this field exists so the *candidate-facing*
@@ -310,8 +310,8 @@ export class EntitlementsService {
     if (priorCount === 0) return { attemptNumber };
 
     // null = unlimited (see PlanLimits.retakesPerSkillLifetime's own doc
-    // comment) — currently FREE and PREMIUM both temporarily, until 14 Nov
-    // 2026. Skip the cap query/check entirely rather than doing arithmetic
+    // comment) — currently FREE and PREMIUM both temporarily, until 31 Jan 2027
+    // (moved with the Premium launch). Skip the cap query/check entirely rather than doing arithmetic
     // against a null limit; cooldown (below) is an orthogonal concept and
     // still applies independently of whether the lifetime cap is active.
     if (retakesPerSkillLifetime != null) {

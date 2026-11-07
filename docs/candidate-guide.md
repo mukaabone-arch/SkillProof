@@ -120,7 +120,7 @@ Sometimes a session is marked as not having given you a fair chance to show what
 
 There's no waiting period between attempts.
 
-On the free plan the standing limit is **two attempts at each skill and level** — your first, plus one retake — but that's temporarily lifted to unlimited attempts until skill purchases launch later this year. The count is per level, so passing Foundational (L1) and moving on to Practitioner (L2) starts fresh. If a badge expires, the counter effectively resets and only attempts after that expiry count.
+On the free plan the standing limit is **two attempts at each skill and level** — your first, plus one retake — but that's temporarily lifted to unlimited attempts until skill purchases launch in early 2027. The count is per level, so passing Foundational (L1) and moving on to Practitioner (L2) starts fresh. If a badge expires, the counter effectively resets and only attempts after that expiry count.
 
 ### Before you take your first test {#free-skill-lock}
 
@@ -252,15 +252,15 @@ What the free plan includes:
 - Verified skills and badges
 - Job matching
 - **10 job applications a month**
-- **Unlimited attempts per skill and level right now** — a temporary allowance until skill purchases launch later this year; the standing limit is two attempts
+- **Unlimited attempts per skill and level right now** — a temporary allowance until skill purchases launch in early 2027; the standing limit is two attempts
 - **Self-started multiple-choice assessments limited to one skill**, set by your first attempt
 - **One live discussion session a month** — a limited-time launch allowance, not a permanent part of the free plan (see below)
 
 Assessments an employer requests are outside all of these.
 
-A paid plan is coming this year. We'll share what's in it and what it costs before anything goes live.
+A paid plan is coming in early 2027. We'll share what's in it and what it costs before anything goes live.
 
-The one-a-month discussion-session allowance above runs through November 2026 as a launch-window offer. After that, it may no longer be included on the free plan — nothing to do now, just don't assume it's permanent.
+The one-a-month discussion-session allowance above runs through January 2027 as a launch-window offer. After that, it may no longer be included on the free plan — nothing to do now, just don't assume it's permanent.
 
 ---
 
