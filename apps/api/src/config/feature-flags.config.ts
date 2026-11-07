@@ -9,8 +9,9 @@
  */
 
 /**
- * Candidate premium subscriptions — target launch 14 November 2026 (internal
- * only; public copy says "November," never the exact date — see the
+ * Candidate premium subscriptions — target launch 31 January 2027 (moved
+ * from 14 November 2026 on 2026-11-07; internal only — public copy says
+ * "early 2027", never the exact date — see the
  * candidate /upgrade page). Default OFF (unset, or anything other than the
  * literal string 'true', is OFF) so a fresh environment never ships premium
  * live by omission.

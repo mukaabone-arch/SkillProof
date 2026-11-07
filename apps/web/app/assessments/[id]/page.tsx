@@ -51,7 +51,7 @@ interface StartIssueBody {
  *    date to give — see the next point). Its size normally only changes by
  *    tier (1 on Free, 3 on Premium), so "upgrade" helps if there's headroom
  *    under the higher cap — except right now, when it's temporarily null
- *    (unlimited) on both tiers until 14 Nov 2026, so this branch can't even
+ *    (unlimited) on both tiers until 31 Jan 2027, so this branch can't even
  *    be reached today (see plans.config.ts's own comment on why). The cap
  *    isn't permanent even once restored: it resets, but only when a badge
  *    the candidate held at this exact level later expires — not by waiting

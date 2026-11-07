@@ -25,7 +25,7 @@ export interface PlanLimits {
   /** AI discussion-session (conversational assessor) starts allowed per month — separate metric/quota from assessmentsPerMonth (MCQ). See plans.config.ts. */
   discussionSessionsPerMonth: number | null;
   retakeCooldownDays: number;
-  /** null = unlimited — temporarily true on both tiers until 14 Nov 2026. See plans.config.ts's own comment. */
+  /** null = unlimited — temporarily true on both tiers until 31 Jan 2027. See plans.config.ts's own comment. */
   retakesPerSkillLifetime: number | null;
   /** When true (FREE today), self-serve MCQ attempts are locked to a single skill for life — see freeSkillLock below. */
   singleSkillRestriction: boolean;
@@ -85,7 +85,7 @@ export interface EntitlementsResponse {
     discussionSessions: UsageEntry;
   };
   freeSkillLock: FreeSkillLock;
-  /** Mirrors the server's candidatePremiumEnabled flag — independent of `tier` (see apps/api's entitlements README). The /upgrade page's sole signal for live checkout vs. the "coming this year" notice. */
+  /** Mirrors the server's candidatePremiumEnabled flag — independent of `tier` (see apps/api's entitlements README). The /upgrade page's sole signal for live checkout vs. the "coming in early 2027" notice. */
   premiumEnabled: boolean;
   applyGate: ApplyGate;
 }

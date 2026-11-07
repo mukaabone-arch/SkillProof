@@ -8,7 +8,7 @@
  * server-side.
  *
  * Pre-launch (plans.premiumEnabled false), a candidate who isn't already
- * Premium sees the "coming this year" notice instead of any of that —
+ * Premium sees the "coming in early 2027" notice instead of any of that —
  * see renderComingSoonNotice below. Already-Premium candidates (internal
  * test accounts, ahead of launch) keep seeing the real comparison/checkout/
  * account-management page regardless of the flag, since that's the whole
@@ -93,7 +93,7 @@ const FEATURE_ROWS: { label: string; format: (l: PlanLimits) => string }[] = [
   },
   {
     label: 'Retakes per level',
-    // null = temporarily unlimited (interim window ahead of the 14 Nov
+    // null = temporarily unlimited (interim window ahead of the 31 Jan 2027
     // skill-purchase launch — see plans.config.ts) on both tiers today.
     format: (l) =>
       l.retakesPerSkillLifetime === null
@@ -294,7 +294,7 @@ export default function UpgradePage() {
       {loggedIn && <CandidateNav />}
       {showComingSoonNotice ? (
         <main className="container-reading">
-          <h1>Premium is coming this year</h1>
+          <h1>Premium is coming in early 2027</h1>
           <p>
             Premium adds full details on who viewed your profile, AI discussion sessions, and unlimited job
             applications. The free plan keeps verified skills, badges, job matches, and 10 applications a month.
