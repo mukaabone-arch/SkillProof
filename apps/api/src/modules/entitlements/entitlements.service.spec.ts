@@ -1,7 +1,7 @@
 import { AttemptStatus, SkillLevel, Subscription, SubscriptionStatus, SubscriptionTier } from '@prisma/client';
 import { EntitlementsService, periodStartOf, nextPeriodStartOf, resolveEffectiveTier } from './entitlements.service';
 import { EntitlementLimitException } from './entitlements.errors';
-import { AI_DISCUSSION_PROMO_LAUNCH_DATE, isAiDiscussionPromoActive, PLANS } from '../../config/plans.config';
+import { AI_DISCUSSION_PROMO_ENDS_AT, AI_DISCUSSION_PROMO_LAUNCH_DATE, isAiDiscussionPromoActive, PLANS } from '../../config/plans.config';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -135,18 +135,20 @@ describe('isAiDiscussionPromoActive', () => {
     expect(isAiDiscussionPromoActive(new Date('2026-01-01T00:00:00.000Z'))).toBe(false);
   });
 
-  it('is true one day before the 3-month cutoff', () => {
-    const oneDayBeforeEnd = new Date('2026-11-23T00:00:00.000Z');
-    expect(isAiDiscussionPromoActive(oneDayBeforeEnd)).toBe(true);
+  it('is still true on 24 Nov 2026 — the old 3-month cutoff no longer applies (promo moved with Premium to 31 Jan 2027)', () => {
+    expect(isAiDiscussionPromoActive(new Date('2026-11-24T00:00:00.000Z'))).toBe(true);
   });
 
-  it('is false exactly at the 3-month cutoff — the window is a half-open [launch, launch+3mo) interval', () => {
-    const exactCutoff = new Date('2026-11-24T00:00:00.000Z');
-    expect(isAiDiscussionPromoActive(exactCutoff)).toBe(false);
+  it('is true on the last evening of 31 Jan 2027 (IST)', () => {
+    expect(isAiDiscussionPromoActive(new Date('2027-01-31T23:59:59+05:30'))).toBe(true);
+  });
+
+  it('is false exactly at the cutoff — the window is half-open [launch, ends)', () => {
+    expect(isAiDiscussionPromoActive(AI_DISCUSSION_PROMO_ENDS_AT)).toBe(false);
   });
 
   it('is false one second after the cutoff', () => {
-    const justAfter = new Date('2026-11-24T00:00:01.000Z');
+    const justAfter = new Date(AI_DISCUSSION_PROMO_ENDS_AT.getTime() + 1000);
     expect(isAiDiscussionPromoActive(justAfter)).toBe(false);
   });
 
@@ -362,7 +364,7 @@ describe('EntitlementsService.checkAndIncrement', () => {
     });
 
     it('FREE, during the promo window: 1/month — blocks on the 2nd', async () => {
-      jest.useFakeTimers({ now: new Date('2026-09-15T00:00:00.000Z') }); // between launch and the 3-month cutoff
+      jest.useFakeTimers({ now: new Date('2026-09-15T00:00:00.000Z') }); // during the promo window
       const { prisma } = fakePrisma();
       prisma.subscription.findUnique.mockResolvedValue(
         fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
@@ -386,7 +388,7 @@ describe('EntitlementsService.checkAndIncrement', () => {
       // (not assumed) before adding checkAndIncrement's upfront
       // `limit <= 0` short-circuit. Without that guard, this exact test
       // would incorrectly pass on attempt #1.
-      jest.useFakeTimers({ now: new Date('2026-12-01T00:00:00.000Z') }); // after the 3-month cutoff
+      jest.useFakeTimers({ now: new Date('2027-02-15T00:00:00.000Z') }); // after the promo cutoff (31 Jan 2027)
       const { prisma } = fakePrisma();
       prisma.subscription.findUnique.mockResolvedValue(
         fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
@@ -399,7 +401,7 @@ describe('EntitlementsService.checkAndIncrement', () => {
     });
 
     it('a limit: 0 breach never touches UsageCounter at all — no row is created', async () => {
-      jest.useFakeTimers({ now: new Date('2026-12-01T00:00:00.000Z') });
+      jest.useFakeTimers({ now: new Date('2027-02-15T00:00:00.000Z') });
       const { prisma, usageCounterRows } = fakePrisma();
       prisma.subscription.findUnique.mockResolvedValue(
         fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
@@ -433,7 +435,7 @@ describe('EntitlementsService.getEntitlements', () => {
   });
 
   it("reflects a FREE candidate's discussionSessionsPerMonth dropping to 0 once the promo ends, with no code change needed beyond the clock", async () => {
-    jest.useFakeTimers({ now: new Date('2027-01-01T00:00:00.000Z') }); // well after the cutoff
+    jest.useFakeTimers({ now: new Date('2027-03-01T00:00:00.000Z') }); // well after the cutoff
     const { prisma } = fakePrisma();
     prisma.subscription.findUnique.mockResolvedValue(
       fakeSubscription({ tier: SubscriptionTier.FREE, status: SubscriptionStatus.ACTIVE }),
@@ -467,7 +469,7 @@ describe('EntitlementsService.getEntitlements', () => {
 describe('EntitlementsService.checkRetakeEligibility', () => {
   // retakesPerSkillLifetime is temporarily null (unlimited) on both tiers in
   // the real PLANS config — see plans.config.ts's own comment on why (the
-  // interim window ahead of the 14 Nov skill-purchase launch). These tests
+  // interim window ahead of the 31 Jan 2027 skill-purchase launch). These tests
   // exercise the cap-ENFORCEMENT mechanism itself, which still matters once
   // that window ends, so they pin the pre-interim values (FREE 1, PREMIUM 3)
   // for their own duration rather than depending on today's temporary

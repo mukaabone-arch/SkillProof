@@ -112,13 +112,19 @@ export interface PlanLimits {
  * three months later, never after.
  */
 export const AI_DISCUSSION_PROMO_LAUNCH_DATE = new Date('2026-08-24T00:00:00.000Z');
-const AI_DISCUSSION_PROMO_MONTHS = 3;
+/**
+ * End of the promo (exclusive): 1 Feb 2027 00:00 IST, i.e. through 31 Jan
+ * 2027. Was "launch + 3 months" (24 Nov 2026); extended when the Premium
+ * launch moved to 31 Jan 2027 (decided 2026-11-07), so FREE candidates keep
+ * one discussion session a month until Premium — the paid path to more —
+ * actually exists. Move this together with the Premium launch, never alone.
+ */
+export const AI_DISCUSSION_PROMO_ENDS_AT = new Date('2027-01-31T18:30:00.000Z');
 
 /**
  * True from AI_DISCUSSION_PROMO_LAUNCH_DATE (inclusive) up to (not
- * including) the same UTC calendar day+time three months later —
- * [2026-08-24T00:00:00.000Z, 2026-11-24T00:00:00.000Z) for the launch date
- * above. Both boundaries matter: without the lower one, deploying this
+ * including) AI_DISCUSSION_PROMO_ENDS_AT —
+ * [2026-08-24T00:00:00.000Z, 2027-01-31T18:30:00.000Z). Both boundaries matter: without the lower one, deploying this
  * code ahead of the actual launch would let FREE candidates start getting
  * discussion sessions before the promo is meant to be live — if launch
  * slips, AI_DISCUSSION_PROMO_LAUNCH_DATE gets moved deliberately, not
@@ -128,9 +134,7 @@ const AI_DISCUSSION_PROMO_MONTHS = 3;
  * resolveEffectiveTier(subscription, now) in entitlements.service.ts.
  */
 export function isAiDiscussionPromoActive(now: Date = new Date()): boolean {
-  const promoEndsAt = new Date(AI_DISCUSSION_PROMO_LAUNCH_DATE);
-  promoEndsAt.setUTCMonth(promoEndsAt.getUTCMonth() + AI_DISCUSSION_PROMO_MONTHS);
-  return now >= AI_DISCUSSION_PROMO_LAUNCH_DATE && now < promoEndsAt;
+  return now >= AI_DISCUSSION_PROMO_LAUNCH_DATE && now < AI_DISCUSSION_PROMO_ENDS_AT;
 }
 
 /**
@@ -138,12 +142,12 @@ export function isAiDiscussionPromoActive(now: Date = new Date()): boolean {
  * below — a single, deliberate exception to the field's normal per-tier cap
  * (see PlanLimits.retakesPerSkillLifetime's own doc comment). Rationale:
  * the L1-L3-of-one-skill apply gate (CandidateJobsService, apply-gate.config.ts)
- * ships before the ₹500 skill-purchase escape hatch does (target 14 Nov
- * 2026) — without this, a candidate (or an internal/test Premium account,
+ * ships before the ₹500 skill-purchase escape hatch does (target 31 Jan
+ * 2027, moved with the Premium launch) — without this, a candidate (or an internal/test Premium account,
  * used for demos) who exhausts their normal retake cap mid-skill would have
- * no way to ever finish the gate and apply to anything, for up to 8 weeks,
- * with genuinely no path forward. Revert BOTH values together on 14 Nov
- * 2026 — FREE back to 1, PREMIUM back to 3 — in the same edit, so one can't
+ * no way to ever finish the gate and apply to anything, until then,
+ * with genuinely no path forward. Revert BOTH values together on 31 Jan
+ * 2027 — FREE back to 1, PREMIUM back to 3 — in the same edit, so one can't
  * get restored while the other is forgotten.
  */
 export const PLANS: Record<SubscriptionTier, PlanLimits> = {
@@ -164,7 +168,7 @@ export const PLANS: Record<SubscriptionTier, PlanLimits> = {
       return isAiDiscussionPromoActive() ? 1 : 0;
     },
     retakeCooldownDays: 0,
-    retakesPerSkillLifetime: null, // TEMPORARY until 14 Nov 2026 — see the shared comment above PLANS. Revert to 1.
+    retakesPerSkillLifetime: null, // TEMPORARY until 31 Jan 2027 — see the shared comment above PLANS. Revert to 1.
     singleSkillRestriction: true,
     applicationsPerMonth: 10,
     profileViewers: 'count_only',
@@ -182,7 +186,7 @@ export const PLANS: Record<SubscriptionTier, PlanLimits> = {
     // window, it's the plain ongoing entitlement.
     discussionSessionsPerMonth: 2,
     retakeCooldownDays: 0,
-    retakesPerSkillLifetime: null, // TEMPORARY until 14 Nov 2026 — see the shared comment above PLANS. Revert to 3.
+    retakesPerSkillLifetime: null, // TEMPORARY until 31 Jan 2027 — see the shared comment above PLANS. Revert to 3.
     singleSkillRestriction: false,
     applicationsPerMonth: null,
     profileViewers: 'full',
