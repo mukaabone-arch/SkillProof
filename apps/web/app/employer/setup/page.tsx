@@ -27,6 +27,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { employerApi } from '@/lib/api';
 import { isIndustryComplete, isOrgSetupComplete, OrgReadinessFields } from '@/lib/orgReadiness';
+import { emitOrgTypeChange } from '@/lib/orgTypeBus';
 
 const { api } = employerApi;
 
@@ -72,6 +73,7 @@ export default function EmployerSetupPage() {
     try {
       await api('/orgs/me', { method: 'PATCH', body: JSON.stringify({ type }) });
       setOrganization({ ...organization, type });
+      emitOrgTypeChange(type);
     } catch (e) {
       setError((e as Error).message);
     }

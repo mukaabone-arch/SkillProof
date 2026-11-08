@@ -50,6 +50,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { employerApi } from '@/lib/api';
 import EmployerSidebarShell, { EmployerOrgIdentity } from '@/components/EmployerSidebarShell';
 import { isOrgSetupComplete, OrgReadinessFields } from '@/lib/orgReadiness';
+import { onOrgTypeChange } from '@/lib/orgTypeBus';
 
 const { getToken, api } = employerApi;
 
@@ -101,6 +102,8 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
   // just doesn't render) until this resolves.
   const [org, setOrg] = useState<EmployerOrgIdentity | null>(null);
   const [orgType, setOrgType] = useState<'EMPLOYER' | 'STAFFING'>('EMPLOYER');
+  // The setup page can change the type without a navigation — see orgTypeBus.ts.
+  useEffect(() => onOrgTypeChange(setOrgType), []);
 
   useEffect(() => {
     if (pathname === '/employer') {
