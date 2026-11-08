@@ -9,9 +9,9 @@
  * the text for the admin queue (/admin/ai-reports).
  */
 import { FormEvent, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, employerApi } from '@/lib/api';
 
-export type AiContentTarget = 'ASSESSOR_TURN' | 'LIVE_FEEDBACK' | 'RESULT_REASON' | 'MOCK_INTERVIEW_FEEDBACK';
+export type AiContentTarget = 'ASSESSOR_TURN' | 'LIVE_FEEDBACK' | 'RESULT_REASON' | 'MOCK_INTERVIEW_FEEDBACK' | 'HELP_ANSWER';
 
 const REASONS: [string, string][] = [
   ['OFFENSIVE', 'Offensive or harmful'],
@@ -35,9 +35,11 @@ interface Props {
   sessionId: string;
   targetType: AiContentTarget;
   targetId: string;
+  /** Which signed-in client sends the report — employer pages use the employer session (help assistant answers). */
+  client?: 'candidate' | 'employer';
 }
 
-export default function ReportAiContent({ sessionId, targetType, targetId }: Props) {
+export default function ReportAiContent({ sessionId, targetType, targetId, client = 'candidate' }: Props) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
@@ -54,7 +56,7 @@ export default function ReportAiContent({ sessionId, targetType, targetId }: Pro
     setSending(true);
     setError('');
     try {
-      await api('/ai-content-reports', {
+      await (client === 'employer' ? employerApi.api : api)('/ai-content-reports', {
         method: 'POST',
         body: JSON.stringify({ sessionId, targetType, targetId, reason, ...(note.trim() ? { note: note.trim() } : {}) }),
       });

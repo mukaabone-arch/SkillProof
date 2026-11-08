@@ -234,6 +234,9 @@ export class AccountService {
       this.prisma.refreshToken.deleteMany({ where: { userId } }),
       // Push tokens: a deleted account must never notify any phone again.
       this.prisma.deviceToken.deleteMany({ where: { userId } }),
+      // Help assistant questions are the user's own free text (kept 90 days
+      // otherwise — see HelpAssistantService).
+      this.prisma.helpQuestion.deleteMany({ where: { userId } }),
       // The only free text a candidate wrote in an AI-content report is their
       // optional note — cleared like every other piece of their own text.
       this.prisma.aiContentReport.updateMany({ where: { userId }, data: { note: null } }),

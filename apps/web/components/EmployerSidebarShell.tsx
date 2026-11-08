@@ -37,9 +37,12 @@
  * filter runs, and is never itself filtered — it's not part of the
  * portal-proper gate at all (it's a public, no-sign-in-required route, see
  * app/help/employer/page.tsx), so an org stuck on Settings still needs a way to it.
- * Opens in its own named tab (target="myambii-help") rather than
- * navigating this shell away — the help pages are meant to stand alone,
- * not be reached by leaving the portal.
+ * A plain click opens the Ask MyAmbii assistant (HelpAssistant, 2026-11)
+ * in a side panel, answering from the employer or recruiter guide by org
+ * type; a modified click still opens the guide itself in its own named tab
+ * (target="myambii-help"), never navigating this shell away. The panel is
+ * rendered at shell level, not inside the sidebar, so the sidebar's mobile
+ * slide-in can't trap it, and so it picks up this shell's light theme.
  *
  * Log out moved from a bare topbar button into the account menu below
  * (2026-10) — see AccountMenu's own doc comment. The sidebar used to carry
@@ -57,6 +60,7 @@ import BrandLockup from './BrandLockup';
 import OrgMark from './OrgMark';
 import AccountMenu from './AccountMenu';
 import NavGlyph, { type NavGlyphName } from './NavGlyphs';
+import HelpAssistant from './help/HelpAssistant';
 
 const SECTIONS: { href: string; label: string; icon: NavGlyphName }[] = [
   { href: '/employer/dashboard', label: 'Dashboard', icon: 'dashboard' },
@@ -98,6 +102,7 @@ export default function EmployerSidebarShell({ verified, org, orgType = 'EMPLOYE
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const menu = orgType === 'STAFFING' ? STAFFING_SECTIONS : SECTIONS;
   const sections = verified ? menu : menu.filter((s) => s.href === '/employer/settings');
   const homeHref = orgType === 'STAFFING' ? '/employer/talent' : '/employer/dashboard';
@@ -180,15 +185,19 @@ export default function EmployerSidebarShell({ verified, org, orgType = 'EMPLOYE
             );
           })}
           {/* Ungated — see this file's own doc comment on why Help sits
-              outside the `verified` filter above. Opens in its own named
-              tab (never this one) — see HelpGuidePage.tsx's own doc comment
-              on why the help pages carry no way back into the app. */}
+              outside the `verified` filter above, and on the assistant panel
+              a plain click opens. */}
           <Link
             href={orgType === 'STAFFING' ? '/help/recruiter' : '/help/employer'}
             target="myambii-help"
             rel="noopener"
             className="side-glass"
-            onClick={() => setMobileOpen(false)}
+            onClick={(e) => {
+              setMobileOpen(false);
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+              e.preventDefault();
+              setHelpOpen(true);
+            }}
           >
             <span className="nav-glass-tile">
               <NavGlyph name="help" />
@@ -205,6 +214,12 @@ export default function EmployerSidebarShell({ verified, org, orgType = 'EMPLOYE
         )}
         <div className="employer-content">{children}</div>
       </div>
+      <HelpAssistant
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        audience={orgType === 'STAFFING' ? 'recruiter' : 'employer'}
+        client="employer"
+      />
     </div>
   );
 }

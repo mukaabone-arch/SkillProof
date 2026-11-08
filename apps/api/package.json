@@ -11,7 +11,9 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "ts-node prisma/seed.ts",
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "jest"
+    "test": "jest",
+    "help:sync": "ts-node scripts/sync-help-guides.ts",
+    "help:eval": "ts-node scripts/help-eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

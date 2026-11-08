@@ -397,6 +397,7 @@ model User {
   staffingRequestsMade StaffingAvailabilityRequest[] @relation("StaffingRequestRequestedBy")
   staffingSubmissionsCreated StaffingSubmission[] @relation("StaffingSubmissionCreatedBy")
   deviceTokens              DeviceToken[]
+  helpQuestions             HelpQuestion[]
 }
 
 // ---------- Push notifications (FCM) ----------
@@ -423,6 +424,39 @@ model DeviceToken {
   createdAt  DateTime @default(now())
 
   @@index([userId])
+}
+
+
+// ---------- Help assistant ----------
+
+enum HelpAudience {
+  CANDIDATE
+  EMPLOYER
+  RECRUITER
+}
+
+/// One question to the in-app help assistant and the answer it gave. Kept
+/// for 90 days (HelpRetentionJob) so answers can be reported
+/// (AiContentTarget.HELP_ANSWER) and so uncovered questions show where the
+/// guides need more detail. `question` is the user's own free text: it is
+/// deleted with the account (AccountService.delete) and never logged.
+model HelpQuestion {
+  id         String       @id @default(uuid())
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  audience   HelpAudience
+  /// "web" | "android" | "ios"
+  platform   String
+  question   String
+  answer     String
+  /// false when the guide didn't cover the question (the assistant said so instead of answering)
+  covered    Boolean
+  /// Guide section ids ({#id} anchors) the answer was based on
+  sectionIds String[]
+  createdAt  DateTime     @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
@@ -3366,6 +3400,7 @@ enum AiContentTarget {
   LIVE_FEEDBACK // a live "Reviewer notes" card (LiveClaimFeedback)
   RESULT_REASON // a claim's reason on the result page (ClaimVerdict.reason)
   MOCK_INTERVIEW_FEEDBACK // practice-interview feedback on one answer (InterviewAnswerFeedback); sessionId is an InterviewSession
+  HELP_ANSWER // a help assistant answer (HelpQuestion); sessionId and targetId are both the HelpQuestion id
 }
 
 enum AiContentReportReason {
