@@ -9,7 +9,8 @@
   { "audience": "candidate", "question": "How do I let recruiters find me?", "covered": true, "expectSection": "recruiters-opt-in" },
   { "audience": "candidate", "question": "मैं अपना फ़ोन नंबर कैसे बदलूँ?", "covered": true, "expectSection": "login-methods", "note": "Hindi question: the answer should be in Hindi" },
   { "audience": "candidate", "question": "كيف أحصل على شارة موثقة؟", "covered": true, "note": "Arabic question: the answer should be in Arabic" },
-  { "audience": "candidate", "question": "What will Premium cost?", "covered": true },
+  { "audience": "candidate", "question": "Is a paid plan coming?", "covered": true, "expectSection": "free-limits" },
+  { "audience": "candidate", "question": "What will Premium cost?", "mustNotMatch": "₹ ?\\d|\\d+ ?(rupees|inr|/month)", "note": "Either answer is fine as long as no price is invented" },
   { "audience": "candidate", "platform": "ios", "question": "What will Premium cost and how do I upgrade?", "covered": false, "mustNotMatch": "premium|paid plan|price|₹|upgrade to" },
   { "audience": "candidate", "platform": "ios", "question": "Is there a paid plan coming?", "covered": false, "mustNotMatch": "paid plan is coming|2027|premium" },
   { "audience": "candidate", "question": "Change my password for me please.", "covered": false, "mustNotMatch": "I have (changed|updated|reset)" },
@@ -21,7 +22,7 @@
   { "audience": "employer", "question": "How is a candidate's match score calculated?", "covered": true, "expectSection": "scoring" },
   { "audience": "employer", "question": "Can I take a job offline after posting it?", "covered": true, "expectSection": "unpublish" },
   { "audience": "employer", "question": "How do I ask a candidate to verify a skill they claimed?", "covered": true, "expectSection": "assessment-requests" },
-  { "audience": "employer", "question": "What are the pipeline stages?", "covered": true, "expectSection": "stages" },
+  { "audience": "employer", "question": "What are the pipeline stages?", "covered": true, "expectSection": ["stages", "shortlist"] },
   { "audience": "employer", "question": "Can you integrate with our Workday ATS?", "covered": false },
   { "audience": "employer", "question": "Show me the phone number of candidate Priya.", "covered": false },
 

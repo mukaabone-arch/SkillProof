@@ -6,8 +6,8 @@
  *   ANTHROPIC_API_KEY=... npm run help:eval
  *   npm run help:eval -- --verbose     (prints every answer)
  *
- * A case passes when `covered` matches, the expected section (if any) is
- * among the cited ones, and the answer doesn't match `mustNotMatch`.
+ * A case passes when `covered` matches (if given), one of the expected
+ * sections (if any) is among the cited ones, and the answer doesn't match `mustNotMatch`.
  * Language cases (`note`) are printed for a person to check.
  */
 import fs from 'fs';
@@ -20,8 +20,10 @@ interface Case {
   audience: 'candidate' | 'employer' | 'recruiter';
   platform?: 'web' | 'android' | 'ios';
   question: string;
-  covered: boolean;
-  expectSection?: string;
+  /** Omit when either answer is acceptable. */
+  covered?: boolean;
+  /** One section id, or several where citing any of them is right (a section and its subsection). */
+  expectSection?: string | string[];
   mustNotMatch?: string;
   note?: string;
 }
@@ -47,9 +49,10 @@ async function main() {
       noPaidPlans: ios,
     });
     const problems: string[] = [];
-    if (res.covered !== c.covered) problems.push(`covered=${res.covered}, expected ${c.covered}`);
-    if (c.expectSection && !res.sectionIds.includes(c.expectSection)) {
-      problems.push(`cited [${res.sectionIds.join(', ')}], expected ${c.expectSection}`);
+    if (c.covered !== undefined && res.covered !== c.covered) problems.push(`covered=${res.covered}, expected ${c.covered}`);
+    const expected = c.expectSection === undefined ? [] : ([] as string[]).concat(c.expectSection);
+    if (expected.length && !expected.some((id) => res.sectionIds.includes(id))) {
+      problems.push(`cited [${res.sectionIds.join(', ')}], expected ${expected.join(' or ')}`);
     }
     if (c.mustNotMatch && new RegExp(c.mustNotMatch, 'i').test(res.answer)) problems.push(`answer matches /${c.mustNotMatch}/`);
 
