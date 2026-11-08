@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { HelpAudience, OrgType, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -75,13 +75,23 @@ export class HelpAssistantService {
     const noPaidPlans = platform === 'ios';
     const guide = HELP_GUIDES[audience];
 
-    const result = await this.llm.answerHelpQuestion({
-      audience,
-      guide: noPaidPlans ? withoutPaidPlanMentions(guide.markdown) : guide.markdown,
-      sectionIds: guide.sections.map((s) => s.id),
-      history,
-      noPaidPlans,
-    });
+    let result: Awaited<ReturnType<LlmService['answerHelpQuestion']>>;
+    try {
+      result = await this.llm.answerHelpQuestion({
+        audience,
+        guide: noPaidPlans ? withoutPaidPlanMentions(guide.markdown) : guide.markdown,
+        sectionIds: guide.sections.map((s) => s.id),
+        history,
+        noPaidPlans,
+      });
+    } catch (err) {
+      // LlmService's errors carry the provider's raw message (status codes,
+      // "invalid x-api-key"); that's for our logs, not for the person asking.
+      this.logger.error(`Help assistant answer failed: ${(err as Error).message}`);
+      throw new ServiceUnavailableException(
+        "The help assistant isn't available right now. Please try again in a few minutes, or open the full guide.",
+      );
+    }
 
     const saved = await this.prisma.helpQuestion.create({
       data: {

@@ -97,6 +97,15 @@ describe('HelpAssistantService', () => {
     await expect(svc.ask('u9', Role.CANDIDATE, ask('Mine'))).resolves.toBeDefined();
   });
 
+  it("hides the AI provider's error from the user and stores nothing", async () => {
+    const { svc, llm, created } = setup();
+    llm.answerHelpQuestion.mockRejectedValueOnce(new Error('Anthropic API error: 401 invalid x-api-key'));
+    const err = (await svc.ask('u1', Role.CANDIDATE, ask('Hello?')).catch((e: Error) => e)) as Error;
+    expect(err.message).toMatch(/isn't available right now/);
+    expect(err.message).not.toMatch(/x-api-key|Anthropic/);
+    expect(created).toHaveLength(0);
+  });
+
   it('purges questions older than the retention window', async () => {
     const { svc, prisma } = setup();
     await svc.purgeOld();
