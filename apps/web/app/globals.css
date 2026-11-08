@@ -4587,3 +4587,120 @@ p:has(+ .staffing-filters) { max-width: 72ch; }
 @media (min-width: 900px) {
   .staffing-filters:not(:has(#f-city)) { grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(110px, 140px); }
 }
+
+/* ---------- Ask MyAmbii help assistant (components/help/HelpAssistant.tsx) ----------
+   Built only from theme tokens, so it is dark on candidate pages and picks
+   up .employer-shell[data-theme="light"] when rendered inside the employer
+   and recruiter portal. Right-hand panel on desktop, full screen on phones. */
+.help-ai-root { position: fixed; inset: 0; z-index: 1000; }
+.help-ai-scrim { position: absolute; inset: 0; background: rgba(10, 11, 20, 0.45); }
+.help-ai-panel {
+  position: absolute; top: 0; right: 0; bottom: 0;
+  width: min(440px, 100vw);
+  display: flex; flex-direction: column;
+  background: var(--card); color: var(--gray-900);
+  border-left: 1px solid var(--gray-100);
+  box-shadow: var(--shadow-lg);
+  font-family: var(--font-body);
+}
+.help-ai-header {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 18px 20px 14px; border-bottom: 1px solid var(--gray-100);
+}
+.help-ai-header h2 { margin: 0; font-family: var(--font-display); font-size: 1.15rem; color: var(--gray-900); }
+.help-ai-header p { margin: 2px 0 0; font-size: var(--text-sm); color: var(--gray-600); }
+.help-ai-header-actions { display: flex; align-items: center; gap: 6px; }
+.help-ai-root button.help-ai-text-btn { white-space: nowrap; }
+.help-ai-root button.help-ai-text-btn,
+.help-ai-root button.help-ai-close {
+  background: transparent; color: var(--gray-600); border: none; box-shadow: none;
+  padding: 6px 8px; border-radius: var(--radius-sm); font-size: var(--text-sm); font-weight: 500;
+}
+.help-ai-root button.help-ai-close { font-size: 1.5rem; line-height: 1; padding: 2px 10px 6px; }
+.help-ai-root button.help-ai-text-btn:hover:not(:disabled),
+.help-ai-root button.help-ai-close:hover:not(:disabled) {
+  background: var(--gray-100); color: var(--gray-900); transform: none;
+}
+
+.help-ai-consent { padding: 24px 20px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+.help-ai-consent h3 { margin: 0; font-size: 1rem; color: var(--gray-900); }
+.help-ai-consent p { margin: 0; font-size: 0.92rem; line-height: 1.55; color: var(--gray-600); }
+.help-ai-root button.help-ai-primary { align-self: flex-start; margin-top: 4px; }
+.help-ai-guide-link { font-size: var(--text-sm); color: var(--brand-400); }
+
+.help-ai-messages {
+  flex: 1; overflow-y: auto; padding: 16px 20px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.help-ai-welcome p { margin: 0 0 10px; color: var(--gray-600); font-size: 0.92rem; }
+.help-ai-starters { display: flex; flex-direction: column; gap: 8px; }
+.help-ai-root button.help-ai-chip {
+  text-align: left; white-space: normal;
+  background: color-mix(in srgb, var(--brand-600) 10%, transparent);
+  color: var(--gray-900); border: 1px solid color-mix(in srgb, var(--brand-600) 30%, transparent);
+  border-radius: var(--radius-md); padding: 10px 12px; font-size: 0.9rem; font-weight: 500; box-shadow: none;
+}
+.help-ai-root button.help-ai-chip:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--brand-600) 18%, transparent); transform: none;
+}
+
+.help-ai-msg { max-width: 88%; font-size: 0.93rem; line-height: 1.55; overflow-wrap: anywhere; }
+.help-ai-msg-user {
+  align-self: flex-end; white-space: pre-wrap;
+  background: var(--brand-600); color: #fff;
+  padding: 9px 13px; border-radius: 14px 14px 4px 14px;
+}
+.help-ai-msg-bot {
+  align-self: flex-start;
+  background: color-mix(in srgb, var(--gray-100) 45%, transparent);
+  border: 1px solid var(--gray-100);
+  padding: 10px 13px; border-radius: 14px 14px 14px 4px;
+}
+.help-ai-answer { white-space: pre-wrap; color: var(--gray-900); }
+.help-ai-sources {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin-top: 10px; font-size: 0.8rem; color: var(--gray-600);
+}
+.help-ai-sources a {
+  color: var(--brand-400); text-decoration: none;
+  border: 1px solid color-mix(in srgb, var(--brand-400) 45%, transparent);
+  border-radius: var(--radius-full); padding: 2px 9px;
+}
+.help-ai-sources a:hover { text-decoration: underline; }
+.help-ai-msg-bot .ai-report-link { margin-top: 6px; }
+
+.help-ai-typing { display: flex; gap: 5px; padding: 14px 16px; }
+.help-ai-typing > span:not(.sr-only) {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--gray-600);
+  animation: help-ai-dot 1.2s infinite ease-in-out;
+}
+.help-ai-typing > span:nth-child(2) { animation-delay: 0.15s; }
+.help-ai-typing > span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes help-ai-dot { 0%, 80%, 100% { opacity: 0.25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .help-ai-typing > span { animation: none; opacity: 0.6; } }
+
+.help-ai-compose { border-top: 1px solid var(--gray-100); padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
+.help-ai-error { margin: 0 0 8px; font-size: var(--text-sm); color: var(--error); }
+.help-ai-input-row { display: flex; align-items: flex-end; gap: 8px; }
+.help-ai-input-row textarea {
+  flex: 1; resize: none; min-height: 44px; max-height: 140px; field-sizing: content;
+  padding: 11px 12px; font: inherit; font-size: 0.93rem;
+  color: var(--gray-900); background: transparent;
+  border: 1px solid var(--gray-100); border-radius: var(--radius-md);
+}
+.help-ai-input-row textarea:focus { outline: 2px solid color-mix(in srgb, var(--brand-600) 55%, transparent); outline-offset: 0; }
+.help-ai-root button.help-ai-send {
+  width: 44px; height: 44px; padding: 0; flex-shrink: 0;
+  display: grid; place-items: center; border-radius: var(--radius-md);
+}
+.help-ai-footnote { margin: 8px 0 0; font-size: 0.78rem; color: var(--gray-600); }
+.help-ai-footnote a { color: var(--brand-400); }
+
+@media (max-width: 760px) {
+  .help-ai-panel { width: 100vw; border-left: none; }
+  .help-ai-msg { max-width: 94%; }
+}
+.help-ai-root .sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}

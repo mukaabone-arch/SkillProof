@@ -3,7 +3,7 @@
  * only `fetch` and next/navigation are mocked; EntitlementsProvider is real.
  */
 import '@testing-library/jest-dom';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import CandidateNav from './CandidateNav';
 import { EntitlementsProvider } from '@/lib/entitlements';
 
@@ -49,24 +49,37 @@ beforeEach(() => {
 });
 
 describe('CandidateNav', () => {
+  // The header row; the phone bottom bar (portalled into <body>) repeats the main links.
+  const header = () => document.querySelector('.appnav') as HTMLElement;
+
   it('renders its seven nav items (six links + Upgrade on the free tier) alongside the account control', async () => {
     renderNav();
 
     await waitFor(() => expect(screen.getByRole('link', { name: 'Upgrade' })).toBeInTheDocument());
     for (const label of ['Dashboard', 'Profile', 'Assessments', 'Jobs', 'Interviews', 'Help']) {
-      expect(screen.getByRole('link', { name: label })).toBeInTheDocument();
+      expect(within(header()).getByRole('link', { name: label })).toBeInTheDocument();
     }
     expect(screen.getByRole('button', { name: /menu/ })).toBeInTheDocument();
   });
 
-  it("the account menu contains Profile, Account and Log out, under the candidate's own name", async () => {
+  it("the account menu contains Account, Help and Log out, under the candidate's own name", async () => {
     renderNav();
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Jordan Lee menu' })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Jordan Lee menu' }));
 
-    expect(screen.getByRole('menuitem', { name: 'Profile' })).toHaveAttribute('href', '/profile');
     expect(screen.getByRole('menuitem', { name: 'Account' })).toHaveAttribute('href', '/profile/account');
+    expect(screen.getByRole('menuitem', { name: 'Help' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Log out' })).toBeInTheDocument();
+  });
+
+  it('Help opens the assistant panel instead of leaving the page; the link still points at the guide', async () => {
+    renderNav();
+
+    const help = within(header()).getByRole('link', { name: 'Help' });
+    expect(help).toHaveAttribute('href', '/help/candidate');
+    fireEvent.click(help);
+
+    expect(await screen.findByRole('dialog', { name: 'Ask MyAmbii' })).toBeInTheDocument();
   });
 });

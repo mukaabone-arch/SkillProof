@@ -6,6 +6,10 @@
  * menu, and the main sections move to a fixed bottom bar with icon + label —
  * seven tiles don't fit across a phone, and icon-only tiles were guesswork.
  * Help (and Upgrade for FREE) live in the account menu on phones instead.
+ *
+ * Help opens the Ask MyAmbii assistant (HelpAssistant) in a side panel. The
+ * desktop tile is still a real link to /help/candidate, so a middle-click or
+ * Ctrl/Cmd-click opens the full guide in a new tab as before.
  */
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -17,6 +21,7 @@ import { initialsFrom } from '@/lib/initials';
 import BrandLockup from './BrandLockup';
 import AccountMenu, { type AccountMenuItem } from './AccountMenu';
 import NavGlyph, { type NavGlyphName } from './NavGlyphs';
+import HelpAssistant from './help/HelpAssistant';
 
 const LINKS: { href: string; label: string; icon: NavGlyphName; newTab?: boolean }[] = [
   { href: '/candidate', label: 'Dashboard', icon: 'dashboard' },
@@ -24,8 +29,8 @@ const LINKS: { href: string; label: string; icon: NavGlyphName; newTab?: boolean
   { href: '/assessments', label: 'Assessments', icon: 'assessments' },
   { href: '/jobs', label: 'Jobs', icon: 'jobs' },
   { href: '/interviews', label: 'Interviews', icon: 'interviews' },
-  // Opens in its own named tab, never this one — see HelpGuidePage.tsx's
-  // own doc comment on why the help pages carry no way back into the app.
+  // Opens the help assistant (see the file comment); the href is the
+  // modified-click fallback, in its own named tab like the guides always were.
   { href: '/help/candidate', label: 'Help', icon: 'help', newTab: true },
 ];
 
@@ -41,6 +46,7 @@ export default function CandidateNav({ onLoggedOut }: Props) {
   const router = useRouter();
   const { tier } = useEntitlements();
   const [fullName, setFullName] = useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
   // The bottom bar is portalled to <body> (see below), which only exists in the browser.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -61,7 +67,7 @@ export default function CandidateNav({ onLoggedOut }: Props) {
 
   const menuItems: AccountMenuItem[] = [
     { label: 'Account', href: '/profile/account', icon: 'settings' },
-    { label: 'Help', href: '/help/candidate', target: 'myambii-help', rel: 'noopener', icon: 'help', mobileOnly: true },
+    { label: 'Help', onClick: () => setHelpOpen(true), icon: 'help', mobileOnly: true },
     ...(tier === 'FREE'
       ? [{ label: 'Upgrade', href: '/upgrade', icon: 'upgrade' as NavGlyphName, mobileOnly: true }]
       : []),
@@ -85,6 +91,16 @@ export default function CandidateNav({ onLoggedOut }: Props) {
                   className={`nav-glass${active ? ' active' : ''}`}
                   aria-current={active ? 'page' : undefined}
                   title={l.label}
+                  onClick={
+                    l.newTab
+                      ? (e) => {
+                          // Plain click opens the assistant; modified clicks keep the link behaviour.
+                          if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                          e.preventDefault();
+                          setHelpOpen(true);
+                        }
+                      : undefined
+                  }
                 >
                   <span className="nav-glass-tile">
                     <NavGlyph name={l.icon} />
@@ -109,6 +125,8 @@ export default function CandidateNav({ onLoggedOut }: Props) {
           </div>
         </div>
       </div>
+
+      <HelpAssistant open={helpOpen} onClose={() => setHelpOpen(false)} audience="candidate" client="candidate" portal />
 
       {/* Phones only (see globals.css). Portalled straight into <body> so no
           ancestor with a transform/filter can become its containing block —

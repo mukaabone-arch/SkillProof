@@ -38,6 +38,7 @@ import { CopilotModule } from './modules/copilot/copilot.module';
 import { AiContentReportsModule } from './modules/ai-content-reports/ai-content-reports.module';
 import { StaffingModule } from './modules/staffing/staffing.module';
 import { DevicesModule } from './modules/devices/devices.module';
+import { HelpAssistantModule } from './modules/help-assistant/help-assistant.module';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { DevicesModule } from './modules/devices/devices.module';
     AiContentReportsModule,
     StaffingModule,
     DevicesModule,
+    HelpAssistantModule,
   ],
 })
 export class AppModule {}

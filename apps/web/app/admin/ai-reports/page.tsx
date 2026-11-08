@@ -13,7 +13,7 @@ import { api } from '@/lib/api';
 interface Report {
   id: string;
   sessionId: string;
-  targetType: 'ASSESSOR_TURN' | 'LIVE_FEEDBACK' | 'RESULT_REASON' | 'MOCK_INTERVIEW_FEEDBACK';
+  targetType: 'ASSESSOR_TURN' | 'LIVE_FEEDBACK' | 'RESULT_REASON' | 'MOCK_INTERVIEW_FEEDBACK' | 'HELP_ANSWER';
   targetId: string;
   reason: string;
   note: string | null;
@@ -29,6 +29,7 @@ const TARGET_LABEL: Record<Report['targetType'], string> = {
   LIVE_FEEDBACK: 'Live reviewer notes',
   RESULT_REASON: 'Result reason',
   MOCK_INTERVIEW_FEEDBACK: 'Practice interview feedback',
+  HELP_ANSWER: 'Help assistant answer',
 };
 
 const REASON_LABEL: Record<string, string> = {
@@ -128,8 +129,8 @@ export default function AdminAiReportsPage() {
             </p>
           )}
           <div className="row" style={{ gap: 8, margin: 0 }}>
-            {/* Practice interviews have no admin review case to open. */}
-            {r.targetType !== 'MOCK_INTERVIEW_FEEDBACK' && <Link href={`/admin/review/${r.sessionId}`}>Open session</Link>}
+            {/* Practice interviews and help answers have no admin review case to open. */}
+            {r.targetType !== 'MOCK_INTERVIEW_FEEDBACK' && r.targetType !== 'HELP_ANSWER' && <Link href={`/admin/review/${r.sessionId}`}>Open session</Link>}
             {r.status === 'OPEN' && (
               <button type="button" onClick={() => markReviewed(r.id)} disabled={busy === r.id}>
                 {busy === r.id ? 'Saving…' : 'Mark reviewed'}

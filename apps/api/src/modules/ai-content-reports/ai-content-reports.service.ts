@@ -28,6 +28,7 @@ export interface CreateReportInput {
  *  - ASSESSOR_TURN: an AI interviewer message
  *  - LIVE_FEEDBACK: a live "Reviewer notes" card
  *  - RESULT_REASON: a claim's reason on the result page
+ *  - HELP_ANSWER: a help assistant answer (any signed-in role, not only candidates)
  * The reported text is snapshotted at report time for the admin queue.
  * One report per user per item (a second tap returns the first report).
  */
@@ -43,7 +44,9 @@ export class AiContentReportsService {
     const session =
       input.targetType === AiContentTarget.MOCK_INTERVIEW_FEEDBACK
         ? await this.prisma.interviewSession.findUnique({ where: { id: input.sessionId }, select: { userId: true } })
-        : await this.prisma.assessmentSession.findUnique({ where: { id: input.sessionId }, select: { userId: true } });
+        : input.targetType === AiContentTarget.HELP_ANSWER
+          ? await this.prisma.helpQuestion.findUnique({ where: { id: input.sessionId }, select: { userId: true } })
+          : await this.prisma.assessmentSession.findUnique({ where: { id: input.sessionId }, select: { userId: true } });
     // Same 404 for "not yours" and "doesn't exist" — never confirm another
     // user's session id.
     if (!session || session.userId !== userId) throw new NotFoundException('Session not found.');
@@ -131,6 +134,13 @@ export class AiContentReportsService {
         });
         if (!fb) throw notFound();
         return JSON.stringify(fb);
+      }
+      case AiContentTarget.HELP_ANSWER: {
+        // One answer per HelpQuestion, so the target is the question itself.
+        if (targetId !== sessionId) throw notFound();
+        const q = await this.prisma.helpQuestion.findUnique({ where: { id: sessionId }, select: { answer: true } });
+        if (!q) throw notFound();
+        return q.answer;
       }
       default:
         throw notFound();
