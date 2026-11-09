@@ -22,6 +22,7 @@ import BrandLockup from './BrandLockup';
 import AccountMenu, { type AccountMenuItem } from './AccountMenu';
 import NavGlyph, { type NavGlyphName } from './NavGlyphs';
 import HelpAssistant from './help/HelpAssistant';
+import { SIGNED_OUT_URL } from '@/lib/signedOut';
 
 const LINKS: { href: string; label: string; icon: NavGlyphName; newTab?: boolean }[] = [
   { href: '/candidate', label: 'Dashboard', icon: 'dashboard' },
@@ -57,12 +58,13 @@ export default function CandidateNav({ onLoggedOut }: Props) {
       .catch(() => undefined);
   }, []);
 
-  // Navigate explicitly so logout always lands on the login screen, from any
-  // tab, on any route; tokens are cleared (awaited) first.
+  // Navigate explicitly so logout always lands on the landing page (with a
+  // "You've signed out" note), from any tab, on any route; tokens are
+  // cleared (awaited) first.
   async function handleLogout() {
     await logout();
     onLoggedOut?.();
-    router.replace('/candidate');
+    router.replace(SIGNED_OUT_URL);
   }
 
   const menuItems: AccountMenuItem[] = [

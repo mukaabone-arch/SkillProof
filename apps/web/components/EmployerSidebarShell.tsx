@@ -61,6 +61,7 @@ import OrgMark from './OrgMark';
 import AccountMenu from './AccountMenu';
 import NavGlyph, { type NavGlyphName } from './NavGlyphs';
 import HelpAssistant from './help/HelpAssistant';
+import { SIGNED_OUT_URL } from '@/lib/signedOut';
 
 const SECTIONS: { href: string; label: string; icon: NavGlyphName }[] = [
   { href: '/employer/dashboard', label: 'Dashboard', icon: 'dashboard' },
@@ -111,7 +112,7 @@ export default function EmployerSidebarShell({ verified, org, orgType = 'EMPLOYE
   async function handleLogout() {
     await employerApi.logout();
     onLoggedOut();
-    router.replace('/employer');
+    router.replace(SIGNED_OUT_URL);
   }
 
   return (

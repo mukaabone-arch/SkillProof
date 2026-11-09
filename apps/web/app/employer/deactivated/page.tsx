@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { employerApi } from '@/lib/api';
+import { SIGNED_OUT_URL } from '@/lib/signedOut';
 
 const { api, logout } = employerApi;
 
@@ -45,7 +46,7 @@ export default function EmployerDeactivatedPage() {
   async function handleLogout() {
     setLoggingOut(true);
     await logout();
-    router.replace('/employer');
+    router.replace(SIGNED_OUT_URL);
   }
 
   return (

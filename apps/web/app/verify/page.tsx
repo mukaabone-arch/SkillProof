@@ -29,6 +29,7 @@ import { useRequireAuth } from '@/lib/useRequireAuth';
 import { useCandidateVerification } from '@/lib/candidateVerification';
 import { useEntitlements } from '@/lib/entitlements';
 import { trackVerificationComplete } from '@/lib/analyticsEvents';
+import { SIGNED_OUT_URL } from '@/lib/signedOut';
 
 interface Me {
   role: string;
@@ -152,7 +153,7 @@ export default function VerifyPage() {
   async function handleLogout() {
     setLoggingOut(true);
     await logout();
-    router.replace('/candidate');
+    router.replace(SIGNED_OUT_URL);
   }
 
   if (!ready) return null;

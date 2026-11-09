@@ -4,6 +4,7 @@ import NewsStrip from '@/components/landing/NewsStrip';
 import ConsentSettingsLink from '@/components/ConsentSettingsLink';
 import BrandLockup from '@/components/BrandLockup';
 import BetaPromoScroll from '@/components/BetaPromoScroll';
+import SignedOutNotice from '@/components/SignedOutNotice';
 
 /**
  * Marketing landing page — served at the domain root ("/"). The candidate
@@ -69,6 +70,7 @@ const EMPLOYER_POINTS = [
 export default function LandingPage() {
   return (
     <>
+      <SignedOutNotice />
       <LandingHeader candidateHref={CANDIDATE_HREF} employerHref={EMPLOYER_HREF} staffingHref={STAFFING_HREF} />
       <main className="lp-page" id="top">
       {/* ---------- Hero ---------- */}

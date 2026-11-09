@@ -14,6 +14,7 @@ import { isSafeReturnTo } from '@/lib/returnTo';
 import OtpLogin from '@/components/OtpLogin';
 import Dashboard from '@/components/Dashboard';
 import ReactivatePrompt from '@/components/ReactivatePrompt';
+import { SIGNED_OUT_URL } from '@/lib/signedOut';
 
 interface Me {
   role: string;
@@ -145,7 +146,7 @@ function RedirectingPlaceholder() {
   async function handleLogout() {
     setLoggingOut(true);
     await logout();
-    window.location.href = '/candidate';
+    window.location.href = SIGNED_OUT_URL;
   }
 
   return (

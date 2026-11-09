@@ -7,9 +7,10 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import CandidateNav from './CandidateNav';
 import { EntitlementsProvider } from '@/lib/entitlements';
 
+const replace = jest.fn();
 jest.mock('next/navigation', () => ({
   usePathname: () => '/candidate',
-  useRouter: () => ({ replace: jest.fn() }),
+  useRouter: () => ({ replace }),
 }));
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -71,6 +72,17 @@ describe('CandidateNav', () => {
     expect(screen.getByRole('menuitem', { name: 'Account' })).toHaveAttribute('href', '/profile/account');
     expect(screen.getByRole('menuitem', { name: 'Help' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Log out' })).toBeInTheDocument();
+  });
+
+  it('Log out lands on the landing page with the signed-out note', async () => {
+    renderNav();
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Jordan Lee menu' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Jordan Lee menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Log out' }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/?signedOut=1'));
+    expect(localStorage.getItem('sp_token')).toBeNull();
   });
 
   it('Help opens the assistant panel instead of leaving the page; the link still points at the guide', async () => {

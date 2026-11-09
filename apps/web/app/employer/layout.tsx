@@ -51,6 +51,7 @@ import { employerApi } from '@/lib/api';
 import EmployerSidebarShell, { EmployerOrgIdentity } from '@/components/EmployerSidebarShell';
 import { isOrgSetupComplete, OrgReadinessFields } from '@/lib/orgReadiness';
 import { onOrgTypeChange } from '@/lib/orgTypeBus';
+import { SIGNED_OUT_URL } from '@/lib/signedOut';
 
 const { getToken, api } = employerApi;
 
@@ -194,7 +195,7 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
       verified={verificationStatus === 'VERIFIED'}
       org={org}
       orgType={orgType}
-      onLoggedOut={() => router.replace('/employer')}
+      onLoggedOut={() => router.replace(SIGNED_OUT_URL)}
     >
       {children}
     </EmployerSidebarShell>

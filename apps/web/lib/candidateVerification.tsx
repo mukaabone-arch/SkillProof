@@ -45,6 +45,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { api, getToken, logout } from './api';
 import { onCandidateVerificationIncomplete } from './candidateVerificationBus';
 import { onCandidateTokenChange } from './tokenChangeBus';
+import { SIGNED_OUT_URL } from './signedOut';
 
 interface Me {
   role: string;
@@ -246,7 +247,7 @@ function VerificationRedirectPlaceholder() {
   async function handleLogout() {
     setLoggingOut(true);
     await logout();
-    window.location.href = '/candidate';
+    window.location.href = SIGNED_OUT_URL;
   }
 
   return (
