@@ -44,6 +44,17 @@ export function mentionsPaidPlans(text: string): boolean {
   return PAID_PLAN_RE.test(text);
 }
 
+/**
+ * Last line of defence on iOS: an answer that still names paid plans (the
+ * model sometimes echoes "Premium" while declining) is replaced outright.
+ */
+export const IOS_PAID_PLAN_REPLY =
+  "That isn't something I can help with here. Ask me about using MyAmbii: assessments, badges, jobs, interviews or your account.";
+
+export function iosSafeAnswer(answer: { answer: string; covered: boolean; sectionIds: string[] }) {
+  return mentionsPaidPlans(answer.answer) ? { answer: IOS_PAID_PLAN_REPLY, covered: false, sectionIds: [] } : answer;
+}
+
 export function withoutPaidPlanMentions(markdown: string): string {
   return markdown
     .split('\n')

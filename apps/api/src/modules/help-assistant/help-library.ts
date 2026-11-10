@@ -67,8 +67,10 @@ export function normalizeQuestion(text: string): string {
 
 /** A match must be at least this similar (cosine, 0–1)… */
 export const MATCH_THRESHOLD = 0.72;
-/** …and this much better than the best different entry, or it's too close to call. */
+/** …and this much better than the best different entry, or it's too close to call… */
 export const MATCH_MARGIN = 0.06;
+/** …and the phrasing must contain at least this share of the question's (weighted) words. */
+export const MIN_COVERAGE = 0.75;
 
 interface Phrasing {
   entry: HelpLibraryEntry;
@@ -85,12 +87,15 @@ export interface LibraryMatch {
 export class HelpLibraryMatcher {
   private readonly phrasings: Phrasing[] = [];
   private readonly idf = new Map<string, number>();
+  /** Weight of a word the library never uses — rarer than any word it does. */
+  private unknownWeight = 0;
 
   constructor(entries: HelpLibraryEntry[]) {
     const docs = entries.flatMap((entry) => [entry.question, ...entry.variants].map((text) => ({ entry, toks: tokens(text) })));
     const df = new Map<string, number>();
     for (const d of docs) for (const t of new Set(d.toks)) df.set(t, (df.get(t) ?? 0) + 1);
     for (const [t, n] of df) this.idf.set(t, Math.log(1 + docs.length / n));
+    this.unknownWeight = Math.log(1 + docs.length);
     for (const d of docs) {
       if (!d.toks.length) continue;
       const vector = this.vectorize(d.toks);
@@ -111,16 +116,28 @@ export class HelpLibraryMatcher {
   /** The best entry if it clears the threshold and margin; otherwise null (go live). */
   match(question: string): LibraryMatch | null {
     const toks = tokens(question);
-    // Unknown words count against the match — they may change the meaning.
+    // A word the library never uses counts fully against every match: it is
+    // usually what the question is really about ("let RECRUITERS find me"
+    // must not match "find jobs").
     const unknown = toks.filter((t) => !this.idf.has(t)).length;
     const q = this.vectorize(toks);
-    const qNorm = Math.sqrt(norm(q) ** 2 + unknown * Math.log(2) ** 2);
+    const qNorm = Math.sqrt(norm(q) ** 2 + unknown * this.unknownWeight ** 2);
     if (!qNorm || toks.length - unknown < 1) return null;
 
+    const qMass = [...q.values()].reduce((a, w) => a + w, 0) + unknown * this.unknownWeight;
     const best = new Map<string, LibraryMatch>();
     for (const p of this.phrasings) {
       let dot = 0;
-      for (const [t, w] of q) dot += w * (p.vector.get(t) ?? 0);
+      let covered = 0;
+      for (const [t, w] of q) {
+        const pw = p.vector.get(t);
+        if (pw === undefined) continue;
+        dot += w * pw;
+        covered += w;
+      }
+      // Similar overall isn't enough: the words that make the question
+      // specific have to be there too.
+      if (covered / qMass < MIN_COVERAGE) continue;
       const score = dot / (qNorm * p.norm);
       const prev = best.get(p.entry.id);
       if (!prev || score > prev.score) best.set(p.entry.id, { entry: p.entry, score });

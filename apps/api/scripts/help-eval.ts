@@ -16,7 +16,7 @@ import fs from 'fs';
 import path from 'path';
 import { LlmService } from '../src/llm/llm.service';
 import { HELP_GUIDES } from '../src/modules/help-assistant/help-guides.generated';
-import { mentionsPaidPlans, withoutPaidPlanMentions } from '../src/modules/help-assistant/help-guide-parse';
+import { iosSafeAnswer, mentionsPaidPlans, withoutPaidPlanMentions } from '../src/modules/help-assistant/help-guide-parse';
 import { guideHash, HelpLibraryMatcher } from '../src/modules/help-assistant/help-library';
 import { HELP_LIBRARY } from '../src/modules/help-assistant/help-library.generated';
 
@@ -55,7 +55,7 @@ async function main() {
     const hit = matchers.get(c.audience)?.match(c.question);
     const useLibrary = hit && !(ios && mentionsPaidPlans(hit.entry.answer));
     if (useLibrary) fromLibrary++;
-    const res = useLibrary
+    const raw = useLibrary
       ? { answer: hit.entry.answer, covered: true, sectionIds: hit.entry.sectionIds }
       : await llm.answerHelpQuestion({
       audience: c.audience,
@@ -64,6 +64,8 @@ async function main() {
       history: [{ role: 'user', content: c.question }],
       noPaidPlans: ios,
     });
+    // Same last-line guard the service applies to iOS answers.
+    const res = ios ? iosSafeAnswer(raw) : raw;
     const problems: string[] = [];
     if (c.covered !== undefined && res.covered !== c.covered) problems.push(`covered=${res.covered}, expected ${c.covered}`);
     const expected = c.expectSection === undefined ? [] : ([] as string[]).concat(c.expectSection);

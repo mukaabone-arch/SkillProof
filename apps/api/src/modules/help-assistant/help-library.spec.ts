@@ -16,6 +16,20 @@ export const FIXTURE: HelpLibraryEntry[] = [
     sectionIds: ['assessments'],
   },
   {
+    id: 'jobs',
+    question: 'How do I find jobs?',
+    variants: ['find jobs for me', 'where are jobs', 'search for jobs', 'find matching roles'],
+    answer: 'Go to the Jobs page...',
+    sectionIds: ['jobs'],
+  },
+  {
+    id: 'recruiters',
+    question: 'How do I turn on recruiter visibility?',
+    variants: ['show my profile to staffing agencies', 'enable recruiter access', 'opt in to recruiters'],
+    answer: 'Turn on Available to recruiters...',
+    sectionIds: ['recruiters-opt-in'],
+  },
+  {
     id: 'delete',
     question: 'How do I delete my account?',
     variants: ['remove my account', 'close my account permanently', 'delete profile'],
@@ -52,6 +66,7 @@ describe('HelpLibraryMatcher', () => {
     ['how do i get my first verified badge', 'badge'],
     ['remove my account', 'delete'],
     ['pause my account', 'deactivate'],
+    ['how can I find jobs', 'jobs'],
   ])('matches "%s" to %s', (q, id) => {
     expect(m.match(q)?.entry.id).toBe(id);
   });
@@ -63,6 +78,9 @@ describe('HelpLibraryMatcher', () => {
     'hi',
     '',
     'كيف أحصل على شارة موثقة؟',
+    // Found in the first real eval: matched the jobs entry on "find", even
+    // with a recruiter entry in the library.
+    'How do I let recruiters find me?',
   ])('sends "%s" live', (q) => {
     expect(m.match(q)).toBeNull();
   });

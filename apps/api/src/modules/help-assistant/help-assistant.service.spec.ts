@@ -91,6 +91,18 @@ describe('HelpAssistantService', () => {
     expect(created[0]).toMatchObject({ platform: 'ios' });
   });
 
+  it('on iOS replaces a live answer that still names paid plans', async () => {
+    const { svc, llm, created } = setup();
+    llm.answerHelpQuestion.mockResolvedValueOnce({
+      answer: "I can't help with Premium pricing or upgrades.",
+      covered: false,
+      sectionIds: [],
+    });
+    const res = await svc.ask('u1', Role.CANDIDATE, { ...ask('How much is Premium?'), platform: 'ios' });
+    expect(res.answer).not.toMatch(/premium|pric|upgrad/i);
+    expect(created[0]).toMatchObject({ answer: res.answer, covered: false });
+  });
+
   it('refuses once the daily limit is reached, without calling the model', async () => {
     const { svc, llm } = setup({ todayCount: DAILY_QUESTION_LIMIT });
     await expect(svc.ask('u1', Role.CANDIDATE, ask('Another one'))).rejects.toBeInstanceOf(HttpException);

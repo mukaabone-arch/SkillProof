@@ -6,7 +6,7 @@ import { LlmService } from '../../llm/llm.service';
 import { InMemoryRateLimiter } from '../../common/ip-rate-limiter';
 import { AskHelpDto, HelpAudienceKey, HelpPlatform } from './help-assistant.dto';
 import { HELP_GUIDES } from './help-guides.generated';
-import { mentionsPaidPlans, withoutPaidPlanMentions } from './help-guide-parse';
+import { iosSafeAnswer, mentionsPaidPlans, withoutPaidPlanMentions } from './help-guide-parse';
 import { guideHash, HelpLibraries, HelpLibraryMatcher, looksPersonal, normalizeQuestion } from './help-library';
 import { HELP_LIBRARY } from './help-library.generated';
 
@@ -149,6 +149,7 @@ export class HelpAssistantService {
           history,
           noPaidPlans,
         });
+        if (noPaidPlans) result = iosSafeAnswer(result);
       } catch (err) {
         // LlmService's errors carry the provider's raw message (status codes,
         // "invalid x-api-key"); that's for our logs, not for the person asking.
