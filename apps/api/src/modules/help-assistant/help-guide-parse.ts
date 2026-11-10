@@ -39,6 +39,11 @@ export function parseHelpGuide(raw: string): HelpGuide {
  */
 const PAID_PLAN_RE = /\b(paid plans?|premium|upgrad\w*|purchas\w*|pric(e|es|ing)|subscri\w*)|₹/i;
 
+/** True when text talks about paid plans — such a library answer is never served on iOS. */
+export function mentionsPaidPlans(text: string): boolean {
+  return PAID_PLAN_RE.test(text);
+}
+
 export function withoutPaidPlanMentions(markdown: string): string {
   return markdown
     .split('\n')
