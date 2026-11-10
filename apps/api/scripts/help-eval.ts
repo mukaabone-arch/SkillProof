@@ -8,13 +8,17 @@
  *
  * A case passes when `covered` matches (if given), one of the expected
  * sections (if any) is among the cited ones, and the answer doesn't match `mustNotMatch`.
- * Language cases (`note`) are printed for a person to check.
+ * Language cases (`note`) are printed for a person to check. A question the
+ * pre-built library answers is checked against the library answer (tagged
+ * [library]), since that is what users get.
  */
 import fs from 'fs';
 import path from 'path';
 import { LlmService } from '../src/llm/llm.service';
 import { HELP_GUIDES } from '../src/modules/help-assistant/help-guides.generated';
-import { withoutPaidPlanMentions } from '../src/modules/help-assistant/help-guide-parse';
+import { iosSafeAnswer, mentionsPaidPlans, withoutPaidPlanMentions } from '../src/modules/help-assistant/help-guide-parse';
+import { guideHash, HelpLibraryMatcher } from '../src/modules/help-assistant/help-library';
+import { HELP_LIBRARY } from '../src/modules/help-assistant/help-library.generated';
 
 interface Case {
   audience: 'candidate' | 'employer' | 'recruiter';
@@ -36,18 +40,32 @@ async function main() {
   const verbose = process.argv.includes('--verbose');
   const cases: Case[] = JSON.parse(fs.readFileSync(path.join(__dirname, 'help-eval.cases.json'), 'utf8'));
   const llm = new LlmService();
+  const matchers = new Map<string, HelpLibraryMatcher>();
+  for (const [audience, lib] of Object.entries(HELP_LIBRARY)) {
+    if (lib && lib.guideHash === guideHash(HELP_GUIDES[audience as Case['audience']].markdown)) {
+      matchers.set(audience, new HelpLibraryMatcher(lib.entries));
+    }
+  }
   let failed = 0;
+  let fromLibrary = 0;
 
   for (const c of cases) {
     const guide = HELP_GUIDES[c.audience];
     const ios = c.platform === 'ios';
-    const res = await llm.answerHelpQuestion({
+    const hit = matchers.get(c.audience)?.match(c.question);
+    const useLibrary = hit && !(ios && mentionsPaidPlans(hit.entry.answer));
+    if (useLibrary) fromLibrary++;
+    const raw = useLibrary
+      ? { answer: hit.entry.answer, covered: true, sectionIds: hit.entry.sectionIds }
+      : await llm.answerHelpQuestion({
       audience: c.audience,
       guide: ios ? withoutPaidPlanMentions(guide.markdown) : guide.markdown,
       sectionIds: guide.sections.map((s) => s.id),
       history: [{ role: 'user', content: c.question }],
       noPaidPlans: ios,
     });
+    // Same last-line guard the service applies to iOS answers.
+    const res = ios ? iosSafeAnswer(raw) : raw;
     const problems: string[] = [];
     if (c.covered !== undefined && res.covered !== c.covered) problems.push(`covered=${res.covered}, expected ${c.covered}`);
     const expected = c.expectSection === undefined ? [] : ([] as string[]).concat(c.expectSection);
@@ -58,12 +76,12 @@ async function main() {
 
     if (problems.length) failed++;
     const tag = problems.length ? 'FAIL' : 'PASS';
-    console.log(`${tag}  [${c.audience}${ios ? '/ios' : ''}] ${c.question}${problems.length ? `\n      ${problems.join('; ')}` : ''}`);
+    console.log(`${tag}  [${c.audience}${ios ? '/ios' : ''}]${useLibrary ? ' [library]' : ''} ${c.question}${problems.length ? `\n      ${problems.join('; ')}` : ''}`);
     if (c.note) console.log(`      CHECK: ${c.note}`);
     if (verbose || problems.length || c.note) console.log(`      > ${res.answer.replace(/\n/g, '\n        ')}`);
   }
 
-  console.log(`\n${cases.length - failed}/${cases.length} passed`);
+  console.log(`\n${cases.length - failed}/${cases.length} passed · ${fromLibrary} answered from the library`);
   process.exit(failed ? 1 : 0);
 }
 

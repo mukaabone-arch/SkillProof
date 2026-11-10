@@ -4,12 +4,17 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { HelpAnswerInput, LlmService } from '../../llm/llm.service';
 import { DAILY_QUESTION_LIMIT, HelpAssistantService, validateConversation } from './help-assistant.service';
 import { HELP_GUIDES } from './help-guides.generated';
+import { guideHash } from './help-library';
+import { FIXTURE } from './help-library.spec';
 
-function setup(opts: { orgType?: 'EMPLOYER' | 'STAFFING' | null; todayCount?: number } = {}) {
+type Cached = { answer: string; covered: boolean; sectionIds: string[] } | null;
+
+function setup(opts: { orgType?: 'EMPLOYER' | 'STAFFING' | null; todayCount?: number; cached?: Cached } = {}) {
   const created: Record<string, unknown>[] = [];
   const prisma = {
     helpQuestion: {
       count: jest.fn(async () => opts.todayCount ?? 0),
+      findFirst: jest.fn(async () => opts.cached ?? null),
       create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {
         created.push(data);
         return { id: 'hq-1' };
@@ -31,6 +36,8 @@ function setup(opts: { orgType?: 'EMPLOYER' | 'STAFFING' | null; todayCount?: nu
     }),
   };
   const svc = new HelpAssistantService(prisma as unknown as PrismaService, llm as unknown as LlmService);
+  // Start every test without a library; the library tests install one.
+  svc.useLibraries({});
   return { svc, prisma, llm, calls, created, firstCandidateId };
 }
 
@@ -49,6 +56,7 @@ describe('HelpAssistantService', () => {
       covered: true,
       sources: [{ id: firstCandidateId, label: HELP_GUIDES.candidate.sections[0].label }],
       guidePath: '/help/candidate',
+      source: 'live',
     });
     expect(created[0]).toMatchObject({
       userId: 'u1',
@@ -83,6 +91,18 @@ describe('HelpAssistantService', () => {
     expect(created[0]).toMatchObject({ platform: 'ios' });
   });
 
+  it('on iOS replaces a live answer that still names paid plans', async () => {
+    const { svc, llm, created } = setup();
+    llm.answerHelpQuestion.mockResolvedValueOnce({
+      answer: "I can't help with Premium pricing or upgrades.",
+      covered: false,
+      sectionIds: [],
+    });
+    const res = await svc.ask('u1', Role.CANDIDATE, { ...ask('How much is Premium?'), platform: 'ios' });
+    expect(res.answer).not.toMatch(/premium|pric|upgrad/i);
+    expect(created[0]).toMatchObject({ answer: res.answer, covered: false });
+  });
+
   it('refuses once the daily limit is reached, without calling the model', async () => {
     const { svc, llm } = setup({ todayCount: DAILY_QUESTION_LIMIT });
     await expect(svc.ask('u1', Role.CANDIDATE, ask('Another one'))).rejects.toBeInstanceOf(HttpException);
@@ -112,6 +132,90 @@ describe('HelpAssistantService', () => {
     const where = (prisma.helpQuestion.deleteMany.mock.calls[0] as unknown as [{ where: { createdAt: { lt: Date } } }])[0].where;
     const ageDays = (Date.now() - where.createdAt.lt.getTime()) / 86_400_000;
     expect(Math.round(ageDays)).toBe(90);
+  });
+});
+
+describe('HelpAssistantService answer tiers', () => {
+  const currentLibrary = () => ({ candidate: { guideHash: guideHash(HELP_GUIDES.candidate.markdown), entries: FIXTURE } });
+
+  it('answers a close match from the library without calling the model', async () => {
+    const { svc, llm, created } = setup();
+    svc.useLibraries(currentLibrary());
+    const res = await svc.ask('u1', Role.CANDIDATE, ask('failed my test, what now?'));
+
+    expect(res).toMatchObject({ answer: 'Yes. You can retake...', source: 'library', covered: true });
+    expect(res.sources.map((s) => s.id)).toEqual(['retakes']);
+    expect(llm.answerHelpQuestion).not.toHaveBeenCalled();
+    expect(created[0]).toMatchObject({ source: 'library' });
+  });
+
+  it('ignores a library written from an older guide', async () => {
+    const { svc, llm } = setup();
+    svc.useLibraries({ candidate: { guideHash: 'old', entries: FIXTURE } });
+    expect((await svc.ask('u1', Role.CANDIDATE, ask('failed my test, what now?'))).source).toBe('live');
+    expect(llm.answerHelpQuestion).toHaveBeenCalled();
+  });
+
+  it('never serves a library answer about paid plans on iOS', async () => {
+    const { svc, llm } = setup();
+    svc.useLibraries({
+      candidate: {
+        guideHash: guideHash(HELP_GUIDES.candidate.markdown),
+        entries: [{ ...FIXTURE[0], answer: 'Unlimited until skill purchases launch.' }],
+      },
+    });
+    const res = await svc.ask('u1', Role.CANDIDATE, { ...ask('Can I retake an assessment?'), platform: 'ios' });
+    expect(res.source).toBe('live');
+    expect(llm.answerHelpQuestion).toHaveBeenCalled();
+  });
+
+  it('reuses an earlier live answer to the same question while the guide is unchanged', async () => {
+    const { svc, llm, prisma, created } = setup({ cached: { answer: 'Earlier answer', covered: true, sectionIds: ['jobs'] } });
+    const res = await svc.ask('u1', Role.CANDIDATE, ask('How does matching work?'));
+
+    expect(res).toMatchObject({ answer: 'Earlier answer', source: 'cache' });
+    expect(llm.answerHelpQuestion).not.toHaveBeenCalled();
+    const where = (prisma.helpQuestion.findFirst.mock.calls[0] as unknown as [{ where: Record<string, unknown> }])[0].where;
+    expect(where).toMatchObject({
+      audience: 'CANDIDATE',
+      normalizedQuestion: 'match work',
+      guideHash: guideHash(HELP_GUIDES.candidate.markdown),
+      source: 'live',
+      platform: { in: ['web', 'android'] },
+    });
+    expect(created[0]).toMatchObject({ source: 'cache', normalizedQuestion: 'match work' });
+  });
+
+  it('sends follow-ups live and never caches them', async () => {
+    const { svc, llm, prisma, created } = setup({ cached: { answer: 'x', covered: true, sectionIds: [] } });
+    svc.useLibraries(currentLibrary());
+    await svc.ask('u1', Role.CANDIDATE, {
+      messages: [
+        { role: 'user', content: 'How do I get my first verified badge?' },
+        { role: 'assistant', content: 'Open Assessments...' },
+        { role: 'user', content: 'Can I retake an assessment?' },
+      ],
+    });
+    expect(llm.answerHelpQuestion).toHaveBeenCalled();
+    expect(prisma.helpQuestion.findFirst).not.toHaveBeenCalled();
+    expect(created[0]).toMatchObject({ source: 'live', normalizedQuestion: null });
+  });
+
+  it('never caches a question with personal details', async () => {
+    const { svc, prisma, created } = setup();
+    await svc.ask('u1', Role.CANDIDATE, ask('Why is 9876543210 not accepted as my phone?'));
+    expect(prisma.helpQuestion.findFirst).not.toHaveBeenCalled();
+    expect(created[0]).toMatchObject({ normalizedQuestion: null });
+  });
+
+  it('counts only live answers toward the daily limit, and lets library answers through at the limit', async () => {
+    const { svc, prisma } = setup({ todayCount: DAILY_QUESTION_LIMIT });
+    svc.useLibraries(currentLibrary());
+    expect((await svc.ask('u1', Role.CANDIDATE, ask('remove my account'))).source).toBe('library');
+
+    await expect(svc.ask('u2', Role.CANDIDATE, ask('What is a portfolio page?'))).rejects.toBeInstanceOf(HttpException);
+    const where = (prisma.helpQuestion.count.mock.calls[0] as unknown as [{ where: Record<string, unknown> }])[0].where;
+    expect(where).toMatchObject({ source: 'live' });
   });
 });
 

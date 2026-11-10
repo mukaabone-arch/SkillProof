@@ -2,6 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { parseHelpGuide, withoutPaidPlanMentions } from './help-guide-parse';
 import { HELP_GUIDES } from './help-guides.generated';
+import { guideHash, HelpLibraryMatcher } from './help-library';
+import { HELP_LIBRARY } from './help-library.generated';
 
 const DOCS = path.join(__dirname, '..', '..', '..', '..', '..', 'docs');
 
@@ -59,5 +61,30 @@ describe('withoutPaidPlanMentions', () => {
 
   it('leaves the real candidate guide free of paid-plan wording', () => {
     expect(withoutPaidPlanMentions(HELP_GUIDES.candidate.markdown)).not.toMatch(/paid plan|premium|purchas|upgrad|₹/i);
+  });
+});
+
+describe('help-library.generated.ts', () => {
+  const entries = Object.entries(HELP_LIBRARY) as [keyof typeof HELP_GUIDES, NonNullable<(typeof HELP_LIBRARY)['candidate']>][];
+
+  it.each(entries.length ? entries : [['(none)', null]] as never)(
+    '%s library was built from the current guide (run `npm run help:library` after editing a guide)',
+    (audience, lib) => {
+      if (!lib) return;
+      expect(lib.guideHash).toBe(guideHash(HELP_GUIDES[audience].markdown));
+    },
+  );
+
+  it('every entry cites real sections and is found by its own question', () => {
+    for (const [audience, lib] of entries) {
+      const ids = new Set(HELP_GUIDES[audience].sections.map((s) => s.id));
+      const matcher = new HelpLibraryMatcher(lib.entries);
+      for (const e of lib.entries) {
+        expect(e.sectionIds.every((id) => ids.has(id))).toBe(true);
+        // Another entry with the same answer winning is fine; a different answer is a clash to fix in review.
+        const hit = matcher.match(e.question);
+        if (hit) expect(hit.entry.answer).toBe(e.answer);
+      }
+    }
   });
 });

@@ -453,10 +453,17 @@ model HelpQuestion {
   covered    Boolean
   /// Guide section ids ({#id} anchors) the answer was based on
   sectionIds String[]
+  /// "library" (pre-built answer), "cache" (an earlier live answer to the same question) or "live" (Claude)
+  source     String       @default("live")
+  /// Answer-cache key (see normalizeQuestion); null when this answer must not be reused — a follow-up, or a question with personal details
+  normalizedQuestion String?
+  /// Hash of the guide the answer came from; a cached answer is reused only while the guide is unchanged
+  guideHash  String?
   createdAt  DateTime     @default(now())
 
   @@index([userId, createdAt])
   @@index([createdAt])
+  @@index([audience, normalizedQuestion])
 }
 
 // ---------- Multi-provider auth (phone OTP, Google, GitHub) ----------
