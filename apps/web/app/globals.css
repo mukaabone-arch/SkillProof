@@ -1640,6 +1640,10 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
 .field label { font-size: 0.85rem; font-weight: 600; color: var(--ink); }
 .field input, .field select { width: 100%; }
+/* Checkboxes and radios keep their natural size: stretched to 100% they push
+   their label text to the far edge of the row (job form's "Salary not
+   disclosed"). */
+.field input[type='checkbox'], .field input[type='radio'] { width: auto; flex: none; }
 /* Dark-theme fix: was `color-mix(--gray-900 10%, white)` — a light-gray track on a light page.
    --gray-900 is now the *text* value (near-white), so that mix would read as a barely-tinted
    white track on a dark page; mixed into --card instead, independent of the text-color token. */
@@ -4754,4 +4758,18 @@ p:has(+ .staffing-filters) { max-width: 72ch; }
   .job-import-table thead { display: none; }
   .job-import-table tr { border-bottom: 1px solid var(--gray-100); padding: 8px 0; }
   .job-import-table td { border: none; padding: 4px 0; }
+}
+
+/* Job form: one row per skill — name, level, Required, Remove — on a grid so a
+   long skill name wraps in its own column instead of running under the level
+   picker (components/EmployerJobs.tsx). */
+.job-skill-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, 200px) auto auto;
+  align-items: center; gap: 12px; margin-bottom: 10px;
+}
+.job-skill-row .job-skill-name { font-weight: 500; overflow-wrap: anywhere; }
+.job-skill-row label { white-space: nowrap; }
+@media (max-width: 760px) {
+  .job-skill-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .job-skill-row .job-skill-name, .job-skill-row select { grid-column: 1 / -1; }
 }

@@ -784,8 +784,8 @@ export default function EmployerJobs() {
             <div className="field">
               <label>{editingJobId ? 'Skills — review before saving' : 'AI-suggested skills — review before saving'}</label>
               {suggested.map((s, i) => (
-                <div key={s.skillId} className="row" style={{ alignItems: 'center' }}>
-                  <span style={{ flex: 1 }}>{s.skillName}</span>
+                <div key={s.skillId} className="job-skill-row">
+                  <span className="job-skill-name">{s.skillName}</span>
                   <select
                     value={s.requiredLevel}
                     onChange={(e) => updateSuggested(i, { requiredLevel: e.target.value })}
