@@ -71,6 +71,8 @@ interface Job {
   salaryNotDisclosed: boolean;
   status: JobStatus;
   skills: JobSkillView[];
+  /** Set when this job is a role in a hiring project (GET /jobs includes it). */
+  projectRole?: { projectId: string; project: { name: string } } | null;
 }
 
 /** GET /jobs already returns every scalar Job column (no `select`, only `include: { skills }`) — description/salary were just never read by the frontend before Edit needed to prefill a form with them. */
@@ -205,6 +207,11 @@ export default function EmployerJobs() {
   const [suggested, setSuggested] = useState<SuggestedSkill[]>([]);
   const [parsing, setParsing] = useState(false);
   const [creating, setCreating] = useState(false);
+  // Opened from a hiring project's "+ New role": the saved job is added to
+  // that project as a role, with these two extra fields.
+  const projectId = useSearchParams().get('project');
+  const [roleHeadcount, setRoleHeadcount] = useState('1');
+  const [roleStart, setRoleStart] = useState('');
 
   const [statusUpdatingJobId, setStatusUpdatingJobId] = useState<string | null>(null);
   const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
@@ -586,6 +593,17 @@ export default function EmployerJobs() {
       const wasCreate = !editingJobId;
       setEditingJobId(null);
 
+      // A new role for a hiring project: link it, then go back to the project.
+      if (wasCreate && projectId) {
+        const headcount = Math.min(50, Math.max(1, Number(roleHeadcount) || 1));
+        await api(`/projects/${projectId}/roles`, {
+          method: 'POST',
+          body: JSON.stringify({ jobId, headcount, ...(roleStart ? { targetStartDate: roleStart } : {}) }),
+        });
+        router.push(`/employer/projects/${projectId}`);
+        return;
+      }
+
       // Immediately after posting a brand-new LIVE job — not a draft, and
       // not an edit of an existing job — route to its Job-to-Talent Match
       // page rather than the job list, same as the Post-job button below.
@@ -604,7 +622,9 @@ export default function EmployerJobs() {
   return (
     <>
       <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
-        {showForm && <h2 style={{ margin: 0 }}>{editingJobId ? 'Edit draft' : 'Post a job'}</h2>}
+        {showForm && (
+          <h2 style={{ margin: 0 }}>{editingJobId ? 'Edit draft' : projectId ? 'Add a role to the project' : 'Post a job'}</h2>
+        )}
         {!showForm && (
           <div className="row" style={{ margin: 0, gap: 8 }}>
             <button onClick={openForm}>+ New job</button>
@@ -768,6 +788,26 @@ export default function EmployerJobs() {
             </label>
           </div>
 
+          {projectId && !editingJobId && (
+            <div className="projects-dates">
+              <div className="field">
+                <label htmlFor="roleHeadcount">People needed for this role</label>
+                <input
+                  id="roleHeadcount"
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={roleHeadcount}
+                  onChange={(e) => setRoleHeadcount(e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="roleStart">Target start (optional)</label>
+                <input id="roleStart" type="date" value={roleStart} onChange={(e) => setRoleStart(e.target.value)} />
+              </div>
+            </div>
+          )}
+
           <div className="field">
             <label htmlFor="status">Status</label>
             <select
@@ -839,6 +879,12 @@ export default function EmployerJobs() {
               {j.skills
                 .map((s) => `${s.skill.name} (${skillLevelName(s.requiredLevel)}${s.isRequired ? '' : ', optional'})`)
                 .join(', ')}
+            </div>
+          )}
+          {j.projectRole && (
+            <div className="meta job-chip-project">
+              Project:{' '}
+              <Link href={`/employer/projects/${j.projectRole.projectId}`}>{j.projectRole.project.name}</Link>
             </div>
           )}
 

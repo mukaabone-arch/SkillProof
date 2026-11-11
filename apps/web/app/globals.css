@@ -4773,3 +4773,42 @@ p:has(+ .staffing-filters) { max-width: 72ch; }
   .job-skill-row { grid-template-columns: minmax(0, 1fr) auto; }
   .job-skill-row .job-skill-name, .job-skill-row select { grid-column: 1 / -1; }
 }
+
+/* ---------- Hiring projects (components/EmployerProjects.tsx, EmployerProjectDetail.tsx, HeadcountBar.tsx) ---------- */
+.projects { display: flex; flex-direction: column; gap: 16px; }
+.projects-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.projects .card.projects-form, .projects .card.project-header, .projects .card.project-roles { flex-direction: column; align-items: stretch; gap: 12px; }
+.projects-form h2, .project-roles h2 { margin: 0; font-size: 1.1rem; }
+.projects-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.projects-form-actions, .project-roles-actions, .project-header-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.projects .card.project-card { flex-direction: column; align-items: stretch; gap: 10px; color: inherit; text-decoration: none; }
+.project-card:hover { box-shadow: var(--shadow-md); text-decoration: none; }
+.project-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.project-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.85rem; color: var(--gray-600); }
+.projects-archived-toggle { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--gray-600); }
+.projects-archived-toggle input { width: auto; }
+.project-roles-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.project-add-role { display: grid; grid-template-columns: minmax(0, 2fr) minmax(110px, 1fr) minmax(150px, 1fr) auto; gap: 12px; align-items: end; padding: 12px; border: 1px dashed var(--gray-100); border-radius: var(--radius-md); }
+.project-add-role .field { margin: 0; }
+.project-roles-table input[type='number'] { width: 84px; padding: 8px 10px; }
+.project-roles-table input[type='date'] { width: 160px; padding: 8px 10px; }
+.project-roles-table .ui-badge { margin-top: 6px; }
+.project-role-links { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; }
+.project-role-links .btn-link { margin: 0; }
+.headcount { display: flex; flex-direction: column; gap: 6px; }
+.headcount-bar { display: flex; height: 8px; border-radius: var(--radius-full); background: var(--gray-100); overflow: hidden; }
+.headcount-hired { background: var(--success); }
+.headcount-progress { background: color-mix(in srgb, var(--brand-600) 55%, transparent); }
+.headcount-words { font-size: 0.85rem; color: var(--gray-600); }
+.headcount-words strong { color: var(--gray-900); }
+.headcount-compact { min-width: 140px; }
+.job-chip-project { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; }
+@media (max-width: 760px) {
+  .projects-dates, .project-add-role { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .project-roles-table td[data-label]::before {
+    content: attr(data-label); display: block; font-size: 0.8rem; font-weight: 600; color: var(--gray-600); margin-bottom: 4px;
+  }
+}

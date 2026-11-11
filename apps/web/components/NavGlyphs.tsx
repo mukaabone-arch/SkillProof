@@ -42,6 +42,12 @@ const paths = {
       <path d="M9 13h6M9 17h6" />
     </>
   ),
+  projects: (
+    <>
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <path d="M8 13h8" />
+    </>
+  ),
   search: (
     <>
       <circle cx="11" cy="11" r="7" />

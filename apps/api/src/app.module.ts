@@ -39,6 +39,7 @@ import { AiContentReportsModule } from './modules/ai-content-reports/ai-content-
 import { StaffingModule } from './modules/staffing/staffing.module';
 import { DevicesModule } from './modules/devices/devices.module';
 import { HelpAssistantModule } from './modules/help-assistant/help-assistant.module';
+import { ProjectsModule } from './modules/projects/projects.module';
 
 @Module({
   imports: [
@@ -82,6 +83,7 @@ import { HelpAssistantModule } from './modules/help-assistant/help-assistant.mod
     StaffingModule,
     DevicesModule,
     HelpAssistantModule,
+    ProjectsModule,
   ],
 })
 export class AppModule {}
