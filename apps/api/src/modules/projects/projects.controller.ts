@@ -1,11 +1,11 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { OrgType, Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { OrgMemberGuard, OrgScopedRequest } from '../auth/org-member.guard';
 import { OrgSetupCompleteGuard } from '../auth/org-setup-complete.guard';
-import { OrgVerifiedGuard } from '../auth/org-verified.guard';
+import { AllowOrgTypes, OrgVerifiedGuard } from '../auth/org-verified.guard';
 import { ProjectsService } from './projects.service';
 import { AddRoleDto, CreateProjectDto, UpdateProjectDto, UpdateRoleDto } from './projects.dto';
 
@@ -17,6 +17,8 @@ import { AddRoleDto, CreateProjectDto, UpdateProjectDto, UpdateRoleDto } from '.
 @Controller('projects')
 @UseGuards(JwtAuthGuard, RolesGuard, OrgMemberGuard, OrgSetupCompleteGuard, OrgVerifiedGuard)
 @Roles(Role.EMPLOYER_ADMIN, Role.EMPLOYER_MEMBER)
+// Recruiters run client projects (phase 2); see ProjectsService.
+@AllowOrgTypes(OrgType.EMPLOYER, OrgType.STAFFING)
 export class ProjectsController {
   constructor(private readonly svc: ProjectsService) {}
 

@@ -77,9 +77,11 @@ const SECTIONS: { href: string; label: string; icon: NavGlyphName }[] = [
 /** Staffing companies (Organization.type STAFFING) — see StaffingModule on the API side. */
 const STAFFING_SECTIONS: { href: string; label: string; icon: NavGlyphName }[] = [
   { href: '/employer/talent', label: 'Find talent', icon: 'search' },
+  { href: '/employer/jobs', label: 'Job Postings', icon: 'postings' },
+  { href: '/employer/projects', label: 'Projects', icon: 'projects' },
   { href: '/employer/requests', label: 'Availability requests', icon: 'applicants' },
   { href: '/employer/submissions', label: 'Submissions', icon: 'shortlist' },
-  { href: '/employer/clients', label: 'Clients', icon: 'postings' },
+  { href: '/employer/clients', label: 'Clients', icon: 'jobs' },
   // Billing returns with recruiter subscription plans (Phase 2b); the current
   // billing page is employers' assessment-charge documents only.
   { href: '/employer/settings', label: 'Settings', icon: 'settings' },

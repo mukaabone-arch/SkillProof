@@ -22,6 +22,7 @@ function fakePrisma() {
         return row;
       }),
     },
+    organization: { findUniqueOrThrow: jest.fn(async () => ({ type: 'EMPLOYER' })) },
     notification: { findMany: jest.fn(async () => []) },
     application: { findMany: jest.fn(async () => []) },
     shortlistEntry: { findMany: jest.fn(async () => []) },

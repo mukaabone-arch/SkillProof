@@ -2056,6 +2056,11 @@ model Job {
   status             JobStatus      @default(DRAFT)
   /// Set on drafts created by a bulk import (POST /jobs/import), so the review screen can list that upload's drafts together. Null for jobs made one at a time.
   importBatchId      String?
+  /// Agency postings only: the recruiter's client this job is for (a StaffingClient of the same org). Null for an employer's own jobs.
+  postedForClientId  String?
+  postedForClient    StaffingClient? @relation(fields: [postedForClientId], references: [id], onDelete: SetNull)
+  /// Agency postings only: show candidates "a confidential client" instead of the client's name. Default hidden.
+  hideClientName     Boolean        @default(true)
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
@@ -2104,6 +2109,9 @@ model HiringProject {
   startDate       DateTime?
   endDate         DateTime?
   createdByUserId String
+  /// Recruiter projects only: the client the work is for. Every role's job is posted for this client.
+  clientId        String?
+  client          StaffingClient?     @relation(fields: [clientId], references: [id], onDelete: SetNull)
   status          HiringProjectStatus @default(ACTIVE)
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
@@ -2124,6 +2132,8 @@ model ProjectRole {
   targetStartDate DateTime?
   sortOrder       Int           @default(0)
   createdAt       DateTime      @default(now())
+  /// Recruiter roles: people put forward to the client for this role. Hired = PLACED.
+  submissions     StaffingSubmission[]
 
   @@index([projectId])
 }
@@ -3644,6 +3654,8 @@ model StaffingClient {
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   submissions  StaffingSubmission[]
+  postings     Job[]
+  projects     HiringProject[]
 
   @@unique([orgId, nameKey])
   @@index([nameKey])
@@ -3675,10 +3687,14 @@ model StaffingSubmission {
   consentedAt        DateTime?
   statusUpdatedAt    DateTime                 @default(now())
   candidateNote      String?
+  /// Set when the submission fills a role in one of the recruiter's projects.
+  projectRoleId      String?
+  projectRole        ProjectRole?             @relation(fields: [projectRoleId], references: [id], onDelete: SetNull)
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
 
   @@index([candidateId, clientNameKey])
   @@index([candidateId, clientDomain])
   @@index([orgId, createdAt])
+  @@index([projectRoleId])
 }

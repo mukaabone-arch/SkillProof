@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   NotificationType,
   Prisma,
@@ -122,16 +122,36 @@ export class StaffingSubmissionsService {
     });
     if (!candidate) throw new NotFoundException('This candidate is not available.');
 
-    const agreed = await this.prisma.staffingAvailabilityRequest.findFirst({
-      where: {
-        orgId,
-        candidateId: candidate.id,
-        status: { in: [StaffingRequestStatus.AVAILABLE, StaffingRequestStatus.CONDITIONAL] },
-      },
-      select: { id: true },
-    });
-    if (!agreed) {
-      throw new ForbiddenException('You can only submit candidates who told you they are available.');
+    const [agreed, applied] = await Promise.all([
+      this.prisma.staffingAvailabilityRequest.findFirst({
+        where: {
+          orgId,
+          candidateId: candidate.id,
+          status: { in: [StaffingRequestStatus.AVAILABLE, StaffingRequestStatus.CONDITIONAL] },
+        },
+        select: { id: true },
+      }),
+      // Applying to one of this recruiter's agency postings shares the
+      // candidate's details with them, so it counts like saying "available".
+      // The candidate still approves the submission itself (consent below).
+      this.prisma.application.findFirst({
+        where: { candidateProfileId: candidate.id, job: { orgId } },
+        select: { id: true },
+      }),
+    ]);
+    if (!agreed && !applied) {
+      throw new ForbiddenException('You can only submit candidates who told you they are available or applied to one of your jobs.');
+    }
+
+    if (dto.projectRoleId) {
+      const role = await this.prisma.projectRole.findFirst({
+        where: { id: dto.projectRoleId, project: { orgId } },
+        select: { project: { select: { clientId: true } } },
+      });
+      if (!role) throw new NotFoundException('Project role not found');
+      if (role.project.clientId !== client.id) {
+        throw new BadRequestException("That project role is for a different client.");
+      }
     }
 
     const key: ClientKey = { nameKey: client.nameKey, domain: client.domain };
@@ -151,6 +171,7 @@ export class StaffingSubmissionsService {
         candidateId: candidate.id,
         createdByUserId: userId,
         roleTitle: dto.roleTitle.trim(),
+        projectRoleId: dto.projectRoleId ?? null,
         clientNameKey: client.nameKey,
         clientDomain: client.domain,
         consentExpiresAt: new Date(now.getTime() + CONSENT_TTL_HOURS * 60 * 60 * 1000),
@@ -183,6 +204,7 @@ export class StaffingSubmissionsService {
     return rows.map((s) => ({
       id: s.id,
       client: s.client,
+      projectRoleId: s.projectRoleId,
       candidateId: s.candidateId,
       // The candidate already said yes to this company, so the name is known to it.
       candidateName: !s.candidateProfile.deletedAt && !s.candidateProfile.deactivatedAt ? s.candidateProfile.fullName : null,

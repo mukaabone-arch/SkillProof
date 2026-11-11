@@ -3,6 +3,7 @@
 /** Job detail: full public job info + Apply (disabled once already applied). */
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { postedByText } from '@/lib/postedBy';
 import Link from 'next/link';
 import { api, getToken, type ApiError } from '@/lib/api';
 import { Card, ErrorState, JobDescription, LoadingState } from '@/components/ui';
@@ -21,6 +22,9 @@ interface JobDetail {
   id: string;
   title: string;
   orgName: string;
+  /** Agency postings: the client ("a confidential client" when hidden), else null. */
+  postedFor?: string | null;
+  agencyPosting?: boolean;
   employmentType: string;
   location: string | null;
   remote: boolean;
@@ -255,7 +259,7 @@ export default function JobDetailPage() {
       <Link href="/jobs">← Back to jobs</Link>
       <h1 style={{ marginTop: 16 }}>{job.title}</h1>
       <p className="meta" style={{ fontSize: '1rem' }}>
-        {job.orgName} · {job.employmentType.replace('_', ' ')} ·{' '}
+        {job.agencyPosting ? `Posted by ${postedByText(job)}` : job.orgName} · {job.employmentType.replace('_', ' ')} ·{' '}
         {job.remote ? 'Remote' : job.location || 'Location not set'}
         {(job.experienceMin !== null || job.experienceMax !== null) &&
           ` · ${job.experienceMin ?? 0}–${job.experienceMax ?? '∞'} yrs experience`}
@@ -347,6 +351,11 @@ export default function JobDetailPage() {
         </button>
         {job.alreadyApplied && <span className="ok">✓ You&apos;ve applied to this job</span>}
       </div>
+      {job.agencyPosting && !job.alreadyApplied && (
+        <p className="meta" style={{ marginTop: 4 }}>
+          This job is posted by a recruiting agency. Your name and contact details go to {job.orgName}.
+        </p>
+      )}
 
       {applyIssue?.code === 'PROFILE_INCOMPLETE' && (
         <p className="meta">

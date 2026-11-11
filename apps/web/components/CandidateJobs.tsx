@@ -7,6 +7,7 @@
  * at /jobs/[id].
  */
 import { useEffect, useState } from 'react';
+import { postedByText } from '@/lib/postedBy';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
@@ -37,6 +38,7 @@ export interface JobSummary {
   id: string;
   title: string;
   orgName: string;
+  postedFor?: string | null;
   employmentType: string;
   location: string | null;
   remote: boolean;
@@ -79,6 +81,7 @@ interface MyApplication {
     id: string;
     title: string;
     orgName: string;
+  postedFor?: string | null;
     employmentType: string;
     location: string | null;
     remote: boolean;
@@ -121,7 +124,7 @@ function isValidTab(value: string | null): value is Tab {
 function JobMeta({ job }: { job: JobSummary }) {
   return (
     <div className="meta">
-      {job.orgName} · {job.employmentType.replace('_', ' ')} ·{' '}
+      {postedByText(job)} · {job.employmentType.replace('_', ' ')} ·{' '}
       {job.remote ? 'Remote' : job.location || 'Location not set'}
       {(job.experienceMin !== null || job.experienceMax !== null) &&
         ` · ${job.experienceMin ?? 0}–${job.experienceMax ?? '∞'} yrs`}
@@ -413,7 +416,7 @@ export default function CandidateJobs() {
                 </div>
               )}
               <div className="meta">
-                {a.job.orgName} · {a.job.employmentType.replace('_', ' ')} ·{' '}
+                {postedByText(a.job)} · {a.job.employmentType.replace('_', ' ')} ·{' '}
                 {a.job.remote ? 'Remote' : a.job.location || 'Location not set'}
               </div>
               <div className="meta">Applied {new Date(a.createdAt).toLocaleDateString()}</div>

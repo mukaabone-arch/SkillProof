@@ -51,6 +51,11 @@ export class CreateStaffingSubmissionDto {
   @IsNotEmpty()
   @MaxLength(120)
   roleTitle!: string;
+
+  /** Optional: the role in one of this recruiter's client projects that this submission fills (must be for the same client). */
+  @IsOptional()
+  @IsUUID()
+  projectRoleId?: string;
 }
 
 export class UpdateSubmissionStatusDto {

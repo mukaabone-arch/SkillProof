@@ -51,13 +51,16 @@ import { employerApi } from '@/lib/api';
 import EmployerSidebarShell, { EmployerOrgIdentity } from '@/components/EmployerSidebarShell';
 import { isOrgSetupComplete, OrgReadinessFields } from '@/lib/orgReadiness';
 import { onOrgTypeChange } from '@/lib/orgTypeBus';
+import { OrgTypeProvider } from '@/lib/orgTypeContext';
 import { SIGNED_OUT_URL } from '@/lib/signedOut';
 
 const { getToken, api } = employerApi;
 
 const SETUP_EXEMPT_PATHS = ['/employer/setup', '/employer/settings'];
 /** Sections that belong to one org type only — the API refuses the other type regardless (OrgVerifiedGuard / AllowOrgTypes). */
-const EMPLOYER_ONLY_PATHS = ['/employer/dashboard', '/employer/jobs', '/employer/projects', '/employer/candidates', '/employer/applicants', '/employer/shortlist'];
+// Job Postings and Projects are shared: recruiters post agency jobs for their clients there (hiring projects phase 2).
+// Bulk import stays employer-only (its API is too).
+const EMPLOYER_ONLY_PATHS = ['/employer/dashboard', '/employer/jobs/import', '/employer/candidates', '/employer/applicants', '/employer/shortlist'];
 const STAFFING_ONLY_PATHS = ['/employer/talent', '/employer/requests', '/employer/submissions', '/employer/clients'];
 const isUnder = (pathname: string, paths: string[]) => paths.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 const DEACTIVATED_EXEMPT_PATHS = ['/employer/deactivated'];
@@ -191,13 +194,15 @@ export default function EmployerLayout({ children }: { children: React.ReactNode
   if (DEACTIVATED_EXEMPT_PATHS.includes(pathname)) return <>{children}</>;
 
   return (
-    <EmployerSidebarShell
-      verified={verificationStatus === 'VERIFIED'}
-      org={org}
-      orgType={orgType}
-      onLoggedOut={() => router.replace(SIGNED_OUT_URL)}
-    >
-      {children}
-    </EmployerSidebarShell>
+    <OrgTypeProvider value={orgType}>
+      <EmployerSidebarShell
+        verified={verificationStatus === 'VERIFIED'}
+        org={org}
+        orgType={orgType}
+        onLoggedOut={() => router.replace(SIGNED_OUT_URL)}
+      >
+        {children}
+      </EmployerSidebarShell>
+    </OrgTypeProvider>
   );
 }

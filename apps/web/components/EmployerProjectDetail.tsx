@@ -6,6 +6,11 @@
  * links the saved job back here), existing jobs can be added, and every
  * role's hired / in-progress numbers come from its job's shortlist pipeline
  * (GET /projects/:id). Headcount and target start are edited in the table.
+ *
+ * A recruiter's project is for one client: its roles are agency postings for
+ * that client, and progress counts the people submitted to the client for
+ * each role (placed = hired). Applicants are submitted from the job's
+ * applicant list, so each role links there and to Submissions.
  */
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -41,6 +46,9 @@ interface ProjectView {
   startDate: string | null;
   endDate: string | null;
   status: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
+  /** Recruiter projects: the client the work is for. */
+  client?: { id: string; name: string } | null;
+  recruiter?: boolean;
   roles: ProjectRoleView[];
   headcount: number;
   hired: number;
@@ -54,6 +62,7 @@ interface OrgJob {
   title: string;
   status: JobStatus;
   projectRole: { projectId: string } | null;
+  postedForClient?: { id: string } | null;
 }
 
 const JOB_STATUS: Record<JobStatus, { label: string; variant: 'default' | 'verified' | 'neutral' }> = {
@@ -186,7 +195,10 @@ export default function EmployerProjectDetail({ projectId }: { projectId: string
     );
   }
 
-  const freeJobs = jobs.filter((j) => !j.projectRole && j.status !== 'CLOSED');
+  // A recruiter project only takes jobs posted for its client.
+  const freeJobs = jobs.filter(
+    (j) => !j.projectRole && j.status !== 'CLOSED' && (!project.client || j.postedForClient?.id === project.client.id),
+  );
   const readyDrafts = project.roles.filter((r) => r.jobStatus === 'DRAFT' && !r.blockers.length).length;
   const archived = project.status === 'ARCHIVED';
 
@@ -231,7 +243,10 @@ export default function EmployerProjectDetail({ projectId }: { projectId: string
             <h1 style={{ margin: 0 }}>{project.name}</h1>
             {project.status !== 'ACTIVE' && <Badge variant="neutral">{project.status === 'COMPLETED' ? 'Completed' : 'Archived'}</Badge>}
           </div>
-          <div className="meta">{dateRange(project.startDate, project.endDate)}</div>
+          <div className="meta">
+            {project.client ? `For ${project.client.name} · ` : ''}
+            {dateRange(project.startDate, project.endDate)}
+          </div>
           {project.description && <p style={{ margin: 0 }}>{project.description}</p>}
           <HeadcountBar headcount={project.headcount} hired={project.hired} inProgress={project.inProgress} />
           <div className="project-header-actions">
@@ -311,7 +326,13 @@ export default function EmployerProjectDetail({ projectId }: { projectId: string
                   </option>
                 ))}
               </select>
-              {freeJobs.length === 0 && <p className="meta">Every open job is already in a project.</p>}
+              {freeJobs.length === 0 && (
+                <p className="meta">
+                  {project.client
+                    ? `Every open job for ${project.client.name} is already in a project.`
+                    : 'Every open job is already in a project.'}
+                </p>
+              )}
             </div>
             <div className="field">
               <label htmlFor="addHeadcount">People needed</label>
@@ -393,6 +414,15 @@ export default function EmployerProjectDetail({ projectId }: { projectId: string
                         <Link href={`/employer/jobs?edit=${r.jobId}`} className="btn-link">
                           Open draft
                         </Link>
+                      ) : project.recruiter ? (
+                        <>
+                          <Link href={`/employer/jobs?openApplicants=${r.jobId}`} className="btn-link">
+                            Applicants
+                          </Link>
+                          <Link href="/employer/submissions" className="btn-link">
+                            Submissions
+                          </Link>
+                        </>
                       ) : (
                         <Link href={`/employer/shortlist?jobId=${r.jobId}`} className="btn-link">
                           View pipeline

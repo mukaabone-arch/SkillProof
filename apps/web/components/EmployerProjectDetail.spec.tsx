@@ -7,6 +7,8 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import EmployerProjectDetail from './EmployerProjectDetail';
 import EmployerProjects from './EmployerProjects';
 import HeadcountBar from './HeadcountBar';
+import StaffingSubmitToClient from './StaffingSubmitToClient';
+import { OrgTypeProvider } from '@/lib/orgTypeContext';
 
 const push = jest.fn();
 jest.mock('next/navigation', () => ({ useRouter: () => ({ push, replace: jest.fn() }) }));
@@ -35,6 +37,15 @@ const JOBS = [
   { id: 'j8', code: 'AI-8', title: 'Old role', status: 'CLOSED', projectRole: null },
 ];
 
+const RECRUITER_PROJECT = {
+  ...PROJECT,
+  id: 'p2',
+  name: 'Globex data team',
+  recruiter: true,
+  client: { id: 'c1', name: 'Globex' },
+  roles: [PROJECT.roles[0]],
+};
+
 const calls: { url: string; init?: RequestInit }[] = [];
 const json = (status: number, body: unknown) => ({ ok: status < 300, status, json: async () => body }) as Response;
 
@@ -45,6 +56,9 @@ beforeEach(() => {
   (global as unknown as { fetch: typeof fetch }).fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     calls.push({ url, init });
+    if (url.endsWith('/projects/p2') && !init?.method) return json(200, RECRUITER_PROJECT);
+    if (url.endsWith('/staffing/clients')) return json(200, [{ id: 'c1', name: 'Globex' }, { id: 'c2', name: 'Initech' }]);
+    if (url.endsWith('/staffing/submissions')) return json(201, { id: 's1' });
     if (url.endsWith('/projects/p1/publish')) return json(200, { published: ['j3'], skipped: [] });
     if (url.endsWith('/projects/p1') && !init?.method) return json(200, PROJECT);
     if (url.includes('/projects/p1')) return json(200, {});
@@ -111,6 +125,67 @@ describe('EmployerProjects', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Data platform' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
     await waitFor(() => expect(push).toHaveBeenCalledWith('/employer/projects/p9'));
+  });
+});
+
+describe('Recruiter projects', () => {
+  it('shows the client, links roles to applicants and submissions, and only offers jobs for that client', async () => {
+    (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.endsWith('/projects/p2')) return json(200, RECRUITER_PROJECT);
+      if (url.endsWith('/jobs'))
+        return json(200, [
+          { id: 'j7', code: 'G-7', title: 'Data Engineer', status: 'LIVE', projectRole: null, postedForClient: { id: 'c1' } },
+          { id: 'j8', code: 'I-8', title: 'Initech role', status: 'LIVE', projectRole: null, postedForClient: { id: 'c2' } },
+        ]);
+      return json(404, {});
+    });
+    render(
+      <OrgTypeProvider value="STAFFING">
+        <EmployerProjectDetail projectId="p2" />
+      </OrgTypeProvider>,
+    );
+    await screen.findByRole('heading', { name: 'Globex data team' });
+    expect(screen.getByText(/For Globex ·/)).toBeInTheDocument();
+    const row = screen.getAllByRole('row')[1];
+    expect(within(row).getByRole('link', { name: 'Applicants' })).toHaveAttribute('href', '/employer/jobs?openApplicants=j1');
+    expect(within(row).getByRole('link', { name: 'Submissions' })).toHaveAttribute('href', '/employer/submissions');
+    expect(within(row).queryByRole('link', { name: 'View pipeline' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add an existing job' }));
+    const options = within(screen.getByLabelText('Job')).getAllByRole('option').map((o) => o.textContent);
+    expect(options).toEqual(['Choose a job…', 'Data Engineer (G-7) · Posted']);
+  });
+
+  it('creates a project for a chosen client', async () => {
+    render(
+      <OrgTypeProvider value="STAFFING">
+        <EmployerProjects />
+      </OrgTypeProvider>,
+    );
+    await screen.findByText('Support AI rollout');
+    fireEvent.click(screen.getByRole('button', { name: '+ New project' }));
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Globex data team' } });
+    const create = screen.getByRole('button', { name: 'Create project' });
+    expect(create).toBeDisabled();
+    fireEvent.change(await screen.findByLabelText('Client'), { target: { value: 'c1' } });
+    fireEvent.click(create);
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/employer/projects/p9'));
+    const post = calls.find((c) => c.url.endsWith('/projects') && c.init?.method === 'POST')!;
+    expect(JSON.parse(String(post.init?.body))).toMatchObject({ name: 'Globex data team', clientId: 'c1' });
+  });
+});
+
+describe('StaffingSubmitToClient on an agency posting', () => {
+  it('submits to the job’s client and links the project role', async () => {
+    render(<StaffingSubmitToClient candidateId="cand1" defaultRole="Data Engineer" fixedClient={{ id: 'c1', name: 'Globex' }} projectRoleId="r1" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Submit to Globex' }));
+    expect(screen.queryByLabelText('Client')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Ask candidate to approve' }));
+    await screen.findByText(/Sent for the candidate/);
+    const post = calls.find((c) => c.url.endsWith('/staffing/submissions'))!;
+    expect(JSON.parse(String(post.init?.body))).toEqual({ candidateId: 'cand1', clientId: 'c1', roleTitle: 'Data Engineer', projectRoleId: 'r1' });
   });
 });
 

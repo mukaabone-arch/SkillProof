@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { POSTED_BY_SELECT, postedByFields, postedByText } from '../jobs/posted-by.util';
 import { ApplicationStatus, NotificationType, ProfileViewSource } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WEB_BASE_URL } from '../../config/web-base-url';
@@ -33,7 +34,7 @@ export class ApplicationsService {
             locationCountry: true,
             locationLegacy: true,
             remote: true,
-            organization: { select: { name: true } },
+            ...POSTED_BY_SELECT,
           },
         },
       },
@@ -46,7 +47,7 @@ export class ApplicationsService {
       job: {
         id: a.job.id,
         title: a.job.title,
-        orgName: a.job.organization.name,
+        ...postedByFields(a.job),
         employmentType: a.job.employmentType,
         location: formatLocation(a.job),
         remote: a.job.remote,
@@ -69,7 +70,7 @@ export class ApplicationsService {
     const updated = await this.prisma.application.update({
       where: { id: applicationId },
       data: { status },
-      include: { job: { select: { title: true, organization: { select: { name: true } } } } },
+      include: { job: { select: { title: true, ...POSTED_BY_SELECT } } },
     });
     await this.profileViews.record(application.candidateProfileId, employerUserId, ProfileViewSource.STATUS_CHANGE);
 
@@ -77,7 +78,7 @@ export class ApplicationsService {
       const subject = `Your application to ${updated.job.title} was updated`;
       const html = renderNotificationEmail(
         `<p>Your application to <strong>${updated.job.title}</strong> at ` +
-          `<strong>${updated.job.organization.name}</strong> is now <strong>${status}</strong>.</p>`,
+          `<strong>${postedByText(updated.job)}</strong> is now <strong>${status}</strong>.</p>`,
         { label: 'View your applications', url: `${WEB_BASE_URL}/jobs?tab=applications` },
       );
       await this.notifications.sendEmail(

@@ -1,13 +1,21 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { HiringProjectStatus, JobStatus, Prisma, ShortlistStage } from '@prisma/client';
+import { HiringProjectStatus, JobStatus, Prisma, ShortlistStage, StaffingSubmissionStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { formatLocation } from '../locations/location-format.util';
 import { postingBlockers } from '../jobs/import/job-csv';
 import { JobImportService } from '../jobs/import/job-import.service';
+import { assertOrgClient } from '../jobs/posting-client.util';
 import { AddRoleDto, CreateProjectDto, UpdateProjectDto, UpdateRoleDto } from './projects.dto';
 
 /** Pipeline stages that count as "in progress" for a role (Hired counts as hired). */
 export const IN_PROGRESS_STAGES: ShortlistStage[] = [ShortlistStage.INVITED, ShortlistStage.INTERVIEWING, ShortlistStage.OFFER];
+
+/** Recruiter roles: submission statuses that count as "in progress" (PLACED counts as hired). */
+export const SUBMISSION_IN_PROGRESS: StaffingSubmissionStatus[] = [
+  StaffingSubmissionStatus.SUBMITTED,
+  StaffingSubmissionStatus.INTERVIEWING,
+  StaffingSubmissionStatus.OFFER,
+];
 
 export interface RoleCounts {
   hired: number;
@@ -15,12 +23,13 @@ export interface RoleCounts {
 }
 
 /**
- * Hiring projects for employers (phase 1 of the spec; recruiter client
- * projects come later). A project lists roles; each role is one existing
- * job (ProjectRole.jobId is unique), created and posted through the normal
- * job screens. Headcount progress is counted from each job's shortlist
- * pipeline on every read, never stored, so it can't drift from the
- * pipeline the employer actually works in.
+ * Hiring projects. A project lists roles; each role is one existing job
+ * (ProjectRole.jobId is unique), created and posted through the normal job
+ * screens. Headcount progress is counted on every read, never stored:
+ *  - employer projects: from each job's shortlist pipeline (HIRED = hired);
+ *  - recruiter projects (phase 2, clientId set): from the submissions put
+ *    forward to the client for each role (PLACED = hired). Every role's job
+ *    is an agency posting for the project's client.
  */
 @Injectable()
 export class ProjectsService {
@@ -33,15 +42,19 @@ export class ProjectsService {
     const projects = await this.prisma.hiringProject.findMany({
       where: { orgId, ...(includeArchived ? {} : { status: { not: HiringProjectStatus.ARCHIVED } }) },
       orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-      include: { roles: { select: { jobId: true, headcount: true, targetStartDate: true, job: { select: { status: true } } } } },
+      include: {
+        client: { select: { id: true, name: true } },
+        roles: { select: { id: true, jobId: true, headcount: true, targetStartDate: true, job: { select: { status: true } } } },
+      },
     });
-    const counts = await this.countsByJob(projects.flatMap((p) => p.roles.map((r) => r.jobId)));
+    const counts = await this.countsForRoles(projects.flatMap((p) => p.roles.map((r) => ({ ...r, recruiter: !!p.clientId }))));
     const today = startOfToday();
     return projects.map((p) => {
-      const roles = p.roles.map((r) => ({ ...r, ...(counts.get(r.jobId) ?? zero()) }));
+      const roles = p.roles.map((r) => ({ ...r, ...(counts.get(r.id) ?? zero()) }));
       return {
         id: p.id,
         name: p.name,
+        client: p.client,
         description: p.description,
         startDate: p.startDate,
         endDate: p.endDate,
@@ -56,10 +69,13 @@ export class ProjectsService {
 
   async create(orgId: string, userId: string, dto: CreateProjectDto) {
     assertDateOrder(dto.startDate, dto.endDate);
+    // Recruiters: every project is for one of their clients. Employers: never.
+    await assertOrgClient(this.prisma, orgId, dto.clientId, true);
     return this.prisma.hiringProject.create({
       data: {
         orgId,
         createdByUserId: userId,
+        clientId: dto.clientId ?? null,
         name: dto.name.trim(),
         description: dto.description?.trim() || null,
         startDate: dto.startDate ? new Date(dto.startDate) : null,
@@ -72,6 +88,7 @@ export class ProjectsService {
     const project = await this.prisma.hiringProject.findFirst({
       where: { id, orgId },
       include: {
+        client: { select: { id: true, name: true } },
         roles: {
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
           include: {
@@ -94,10 +111,11 @@ export class ProjectsService {
       },
     });
     if (!project) throw new NotFoundException('Project not found.');
-    const counts = await this.countsByJob(project.roles.map((r) => r.jobId));
+    const recruiter = !!project.clientId;
+    const counts = await this.countsForRoles(project.roles.map((r) => ({ id: r.id, jobId: r.jobId, recruiter })));
     const today = startOfToday();
     const roles = project.roles.map((r) => {
-      const c = counts.get(r.jobId) ?? zero();
+      const c = counts.get(r.id) ?? zero();
       return {
         id: r.id,
         jobId: r.jobId,
@@ -116,7 +134,7 @@ export class ProjectsService {
       };
     });
     const { roles: _r, ...rest } = project;
-    return { ...rest, roles, ...totals(roles), openRoles: roles.filter((r) => !r.filled).length };
+    return { ...rest, recruiter, roles, ...totals(roles), openRoles: roles.filter((r) => !r.filled).length };
   }
 
   async update(orgId: string, id: string, dto: UpdateProjectDto) {
@@ -140,8 +158,11 @@ export class ProjectsService {
   async addRole(orgId: string, projectId: string, dto: AddRoleDto) {
     const project = await this.owned(orgId, projectId);
     if (project.status === HiringProjectStatus.ARCHIVED) throw new BadRequestException('Restore the project before adding roles.');
-    const job = await this.prisma.job.findFirst({ where: { id: dto.jobId, orgId }, select: { id: true } });
+    const job = await this.prisma.job.findFirst({ where: { id: dto.jobId, orgId }, select: { id: true, postedForClientId: true } });
     if (!job) throw new NotFoundException('Job not found.');
+    if (project.clientId && job.postedForClientId !== project.clientId) {
+      throw new BadRequestException("This job is posted for a different client than the project's.");
+    }
     const last = await this.prisma.projectRole.aggregate({ where: { projectId }, _max: { sortOrder: true } });
     try {
       return await this.prisma.projectRole.create({
@@ -189,6 +210,42 @@ export class ProjectsService {
     });
     if (!drafts.length) return { published: [], skipped: [] };
     return this.jobImport.publish(orgId, drafts.map((d) => d.jobId));
+  }
+
+  /**
+   * hired / in-progress per role id. Employer roles count their job's
+   * shortlist pipeline; recruiter roles count the submissions linked to them.
+   */
+  async countsForRoles(roles: { id: string; jobId: string; recruiter: boolean }[]): Promise<Map<string, RoleCounts>> {
+    const out = new Map<string, RoleCounts>();
+    const employer = roles.filter((r) => !r.recruiter);
+    const recruiter = roles.filter((r) => r.recruiter);
+    const [byJob, byRole] = await Promise.all([
+      this.countsByJob(employer.map((r) => r.jobId)),
+      this.countsBySubmission(recruiter.map((r) => r.id)),
+    ]);
+    for (const r of employer) out.set(r.id, byJob.get(r.jobId) ?? zero());
+    for (const r of recruiter) out.set(r.id, byRole.get(r.id) ?? zero());
+    return out;
+  }
+
+  /** Recruiter roles: hired (PLACED) / in progress per project role, from submissions. */
+  async countsBySubmission(roleIds: string[]): Promise<Map<string, RoleCounts>> {
+    const out = new Map<string, RoleCounts>();
+    if (!roleIds.length) return out;
+    const groups = await this.prisma.staffingSubmission.groupBy({
+      by: ['projectRoleId', 'status'],
+      where: { projectRoleId: { in: roleIds }, status: { in: [StaffingSubmissionStatus.PLACED, ...SUBMISSION_IN_PROGRESS] } },
+      _count: { _all: true },
+    });
+    for (const g of groups) {
+      if (!g.projectRoleId) continue;
+      const c = out.get(g.projectRoleId) ?? zero();
+      if (g.status === StaffingSubmissionStatus.PLACED) c.hired += g._count._all;
+      else c.inProgress += g._count._all;
+      out.set(g.projectRoleId, c);
+    }
+    return out;
   }
 
   /** hired / in-progress per job, from the shortlist pipeline. */

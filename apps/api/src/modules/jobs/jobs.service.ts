@@ -21,6 +21,7 @@ import { CreateJobDto, JobSkillItemDto, UpdateJobDto } from './jobs.dto';
 import { isProfileReadyToApply } from '../profiles/profile-readiness';
 import { formatLocation } from '../locations/location-format.util';
 import { hasVisiblePortfolio } from '../portfolio/portfolio.util';
+import { assertOrgClient } from './posting-client.util';
 
 @Injectable()
 export class JobsService {
@@ -34,6 +35,7 @@ export class JobsService {
 
   async create(orgId: string, dto: CreateJobDto) {
     assertSalaryShape(dto.salaryMin, dto.salaryMax, dto.salaryNotDisclosed ?? false);
+    await this.assertPostingClient(orgId, dto.postedForClientId, true);
     try {
       return await this.prisma.job.create({ data: { orgId, ...dto, code: normalizeCode(dto.code) } });
     } catch (err) {
@@ -47,8 +49,10 @@ export class JobsService {
       orderBy: { createdAt: 'desc' },
       include: {
         skills: { include: { skill: true } },
+        // Agency postings: which client the job is for (recruiter job cards).
+        postedForClient: { select: { id: true, name: true } },
         // For the project chip on each job card.
-        projectRole: { select: { projectId: true, project: { select: { name: true } } } },
+        projectRole: { select: { id: true, projectId: true, project: { select: { name: true } } } },
       },
     });
   }
@@ -69,6 +73,18 @@ export class JobsService {
       dto.salaryMax !== undefined ? dto.salaryMax : job.salaryMax,
       dto.salaryNotDisclosed !== undefined ? dto.salaryNotDisclosed : job.salaryNotDisclosed,
     );
+
+    if (dto.postedForClientId !== undefined) {
+      await this.assertPostingClient(orgId, dto.postedForClientId, true);
+      // A role in a recruiter project stays posted for that project's client.
+      const role = await this.prisma.projectRole.findUnique({
+        where: { jobId },
+        select: { project: { select: { clientId: true } } },
+      });
+      if (role?.project.clientId && role.project.clientId !== dto.postedForClientId) {
+        throw new BadRequestException("This job is a role in a project for another client. Remove it from the project first.");
+      }
+    }
 
     const data = dto.code !== undefined ? { ...dto, code: normalizeCode(dto.code) } : dto;
     let updated;
@@ -436,6 +452,11 @@ export class JobsService {
   }
 
   /** IDOR protection: employers may only touch jobs in their own org. */
+  /** See assertOrgClient. */
+  assertPostingClient(orgId: string, clientId: string | null | undefined, required: boolean) {
+    return assertOrgClient(this.prisma, orgId, clientId, required);
+  }
+
   private async getOwnedJob(orgId: string, jobId: string) {
     const job = await this.prisma.job.findUnique({ where: { id: jobId } });
     if (!job) throw new NotFoundException('Job not found');
