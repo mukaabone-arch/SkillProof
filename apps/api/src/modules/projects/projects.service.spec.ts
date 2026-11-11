@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { HiringProjectStatus, JobStatus, Prisma, ShortlistStage } from '@prisma/client';
+import { HiringProjectStatus, JobStatus, OrgType, Prisma, ShortlistStage, StaffingSubmissionStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JobImportService } from '../jobs/import/job-import.service';
 import { ProjectsService } from './projects.service';
@@ -45,8 +45,11 @@ function setup() {
       delete: jest.fn(),
       aggregate: jest.fn(async () => ({ _max: { sortOrder: 2 } })),
     },
-    job: { findFirst: jest.fn(async () => ({ id: 'j9' })) },
+    job: { findFirst: jest.fn(async () => ({ id: 'j9', postedForClientId: null as string | null })) },
     shortlistEntry: { groupBy: jest.fn(async () => groups) },
+    staffingSubmission: { groupBy: jest.fn(async (_args: { where: { status: { in: string[] } } }) => [] as unknown[]) },
+    organization: { findUniqueOrThrow: jest.fn(async () => ({ type: OrgType.EMPLOYER as OrgType })) },
+    staffingClient: { findFirst: jest.fn(async () => ({ id: 'c1' })) },
   };
   const jobImport = { publish: jest.fn(async (_o: string, ids: string[]) => ({ published: ids, skipped: [] })) };
   const svc = new ProjectsService(prisma as unknown as PrismaService, jobImport as unknown as JobImportService);
@@ -96,8 +99,8 @@ describe('ProjectsService', () => {
         endDate: null,
         status: HiringProjectStatus.ACTIVE,
         roles: [
-          { jobId: 'j1', headcount: 5, targetStartDate: PAST, job: { status: JobStatus.LIVE } },
-          { jobId: 'j2', headcount: 3, targetStartDate: null, job: { status: JobStatus.LIVE } },
+          { id: 'r1', jobId: 'j1', headcount: 5, targetStartDate: PAST, job: { status: JobStatus.LIVE } },
+          { id: 'r2', jobId: 'j2', headcount: 3, targetStartDate: null, job: { status: JobStatus.LIVE } },
         ],
       },
     ]);
@@ -150,5 +153,58 @@ describe('ProjectsService', () => {
     prisma.projectRole.findFirst.mockResolvedValue({ id: 'r1' });
     await svc.removeRole('o1', 'p1', 'r1');
     expect(prisma.projectRole.delete).toHaveBeenCalledWith({ where: { id: 'r1' } });
+  });
+
+  describe('recruiter client projects', () => {
+    it('counts each role from the submissions put forward for it: placed = hired', async () => {
+      const { svc, prisma } = setup();
+      prisma.staffingSubmission.groupBy.mockResolvedValue([
+        { projectRoleId: 'r1', status: StaffingSubmissionStatus.PLACED, _count: { _all: 1 } },
+        { projectRoleId: 'r1', status: StaffingSubmissionStatus.INTERVIEWING, _count: { _all: 2 } },
+        { projectRoleId: 'r1', status: StaffingSubmissionStatus.SUBMITTED, _count: { _all: 1 } },
+      ]);
+      prisma.hiringProject.findFirst.mockResolvedValue({
+        id: 'p2',
+        orgId: 'o1',
+        clientId: 'c1',
+        client: { id: 'c1', name: 'Globex' },
+        name: 'Globex data team',
+        roles: [{ id: 'r1', jobId: 'j1', headcount: 2, targetStartDate: null, sortOrder: 0, job: job('j1') }],
+      });
+
+      const p = await svc.get('o1', 'p2');
+      // The job's own shortlist pipeline (2 hired in the fixture) is ignored for a recruiter role.
+      expect(p.roles[0]).toMatchObject({ hired: 1, inProgress: 3, filled: false });
+      expect(p).toMatchObject({ recruiter: true, client: { name: 'Globex' } });
+      expect(prisma.shortlistEntry.groupBy).not.toHaveBeenCalled();
+      expect(prisma.staffingSubmission.groupBy.mock.calls[0]![0].where.status.in).toEqual([
+        StaffingSubmissionStatus.PLACED,
+        StaffingSubmissionStatus.SUBMITTED,
+        StaffingSubmissionStatus.INTERVIEWING,
+        StaffingSubmissionStatus.OFFER,
+      ]);
+    });
+
+    it('requires a recruiter to name a client, and stores it', async () => {
+      const { svc, prisma } = setup();
+      prisma.organization.findUniqueOrThrow.mockResolvedValue({ type: OrgType.STAFFING });
+      await expect(svc.create('o1', 'u1', { name: 'Globex data team' })).rejects.toBeInstanceOf(BadRequestException);
+      const p = await svc.create('o1', 'u1', { name: 'Globex data team', clientId: 'c1' });
+      expect(p).toMatchObject({ clientId: 'c1', orgId: 'o1' });
+    });
+
+    it("refuses an employer project with a client", async () => {
+      const { svc } = setup();
+      await expect(svc.create('o1', 'u1', { name: 'X', clientId: 'c1' })).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it("only adds jobs posted for the project's client", async () => {
+      const { svc, prisma } = setup();
+      prisma.hiringProject.findFirst.mockResolvedValue({ id: 'p2', status: HiringProjectStatus.ACTIVE, clientId: 'c1' });
+      prisma.job.findFirst.mockResolvedValueOnce({ id: 'j9', postedForClientId: 'c2' });
+      await expect(svc.addRole('o1', 'p2', { jobId: 'j9', headcount: 1 })).rejects.toBeInstanceOf(BadRequestException);
+      prisma.job.findFirst.mockResolvedValueOnce({ id: 'j9', postedForClientId: 'c1' });
+      await expect(svc.addRole('o1', 'p2', { jobId: 'j9', headcount: 1 })).resolves.toMatchObject({ jobId: 'j9' });
+    });
   });
 });

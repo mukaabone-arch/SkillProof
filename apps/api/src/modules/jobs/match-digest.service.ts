@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { POSTED_BY_SELECT, postedByText } from './posted-by.util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CertVerificationStatus, ClaimStatus, JobStatus, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -16,7 +17,7 @@ const DIGEST_JOB_SELECT = {
   title: true,
   experienceMin: true,
   experienceMax: true,
-  organization: { select: { name: true } },
+  ...POSTED_BY_SELECT,
   skills: {
     select: {
       skillId: true,
@@ -146,7 +147,7 @@ export class MatchDigestService {
     const items = matches
       .map(
         ({ job, result }) =>
-          `<li><strong>${job.title}</strong> at ${job.organization.name} — ${result.score}% match</li>`,
+          `<li><strong>${job.title}</strong> at ${postedByText(job)} — ${result.score}% match</li>`,
       )
       .join('');
     return renderNotificationEmail(`<p>New jobs matching your verified skills:</p><ul>${items}</ul>`, {

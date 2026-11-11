@@ -21,6 +21,11 @@ export class CreateProjectDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+
+  /** Recruiters only (required for them): the client this project is for. */
+  @IsOptional()
+  @IsUUID()
+  clientId?: string;
 }
 
 export class UpdateProjectDto {

@@ -14,6 +14,7 @@ import { renderNotificationEmail } from '../notifications/notification-email.tem
 import { CandidateSkillClaim, JobSkillRequirement, scoreCandidate } from './scoring';
 import { BrowseJobsDto } from './candidate-jobs.dto';
 import { isProfileReadyToApply } from '../profiles/profile-readiness';
+import { POSTED_BY_SELECT, postedByFields, postedByText, postedFor } from './posted-by.util';
 import { formatLocation } from '../locations/location-format.util';
 import { BadgeResolverService } from '../badges/badge-resolver.service';
 import { APPLY_GATE_REQUIRED_LEVELS } from '../../config/apply-gate.config';
@@ -59,7 +60,7 @@ const JOB_LIST_SELECT = {
   experienceMin: true,
   experienceMax: true,
   createdAt: true,
-  organization: { select: { name: true } },
+  ...POSTED_BY_SELECT,
   skills: {
     select: {
       skillId: true,
@@ -248,7 +249,7 @@ export class CandidateJobsService {
   async apply(userId: string, jobId: string) {
     const job = await this.prisma.job.findUnique({
       where: { id: jobId },
-      include: { organization: { select: { name: true } } },
+      include: { organization: { select: { name: true } }, postedForClient: { select: { name: true } } },
     });
     if (!job || job.status !== JobStatus.LIVE) throw new NotFoundException('Job not found');
 
@@ -278,9 +279,12 @@ export class CandidateJobsService {
 
     // Best-effort — a slow/failed email must never fail the application itself.
     try {
-      const subject = `You've applied to ${job.title} at ${job.organization.name}`;
+      const from = postedByText(job);
+      const subject = `You've applied to ${job.title} at ${from}`;
       const html = renderNotificationEmail(
-        `<p>You've applied to <strong>${job.title}</strong> at <strong>${job.organization.name}</strong>. The employer will review your application and you'll be notified of any status change.</p>`,
+        postedFor(job)
+          ? `<p>You've applied to <strong>${job.title}</strong> with <strong>${from}</strong>. ${job.organization.name} now has your name and contact details, will review your application, and you'll be notified of any status change.</p>`
+          : `<p>You've applied to <strong>${job.title}</strong> at <strong>${from}</strong>. The employer will review your application and you'll be notified of any status change.</p>`,
         { label: 'View your applications', url: `${WEB_BASE_URL}/jobs?tab=applications` },
       );
       await this.notifications.sendEmail(userId, NotificationType.APPLICATION_CONFIRMATION, subject, html);
@@ -430,7 +434,7 @@ export class CandidateJobsService {
     return {
       id: job.id,
       title: job.title,
-      orgName: job.organization.name,
+      ...postedByFields(job),
       employmentType: job.employmentType,
       location: formatLocation(job),
       remote: job.remote,

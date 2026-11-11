@@ -5,6 +5,12 @@
  * pre-fills title/experience and suggests taxonomy skills, plus a list of
  * the org's existing jobs. Nothing is auto-saved — the employer reviews the
  * AI suggestions before "Save job" ever calls the API.
+ *
+ * Recruiters (STAFFING orgs) use the same screen for agency postings: every
+ * job is for one of their clients (with the client's name hidden from
+ * candidates by default), applicants are put forward with "Submit to
+ * <client>" instead of a shortlist, and there's no bulk import or talent
+ * match (recruiters have Find talent).
  */
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -16,6 +22,8 @@ import { skillLevelName } from '@/lib/skillLevels';
 import ShortlistButton from './ShortlistButton';
 import ApplicantCard, { type ApplicantCardData } from './ApplicantCard';
 import { LocationAutocomplete, LocationSuggestion } from './LocationAutocomplete';
+import StaffingSubmitToClient from './StaffingSubmitToClient';
+import { useOrgType } from '@/lib/orgTypeContext';
 
 const { api, apiBlob } = employerApi;
 
@@ -72,7 +80,15 @@ interface Job {
   status: JobStatus;
   skills: JobSkillView[];
   /** Set when this job is a role in a hiring project (GET /jobs includes it). */
-  projectRole?: { projectId: string; project: { name: string } } | null;
+  projectRole?: { id?: string; projectId: string; project: { name: string } } | null;
+  /** Agency postings (recruiters): the client this job is for, and whether candidates see its name. */
+  postedForClient?: { id: string; name: string } | null;
+  hideClientName?: boolean;
+}
+
+interface StaffingClientOption {
+  id: string;
+  name: string;
 }
 
 /** GET /jobs already returns every scalar Job column (no `select`, only `include: { skills }`) — description/salary were just never read by the frontend before Edit needed to prefill a form with them. */
@@ -128,6 +144,9 @@ interface JobForm {
   salaryMax: string;
   salaryNotDisclosed: boolean;
   status: string;
+  /** Recruiters only: the client this posting is for, and whether candidates see its name. */
+  postedForClientId: string;
+  hideClientName: boolean;
 }
 
 interface MatchedSkill {
@@ -193,10 +212,16 @@ const emptyForm: JobForm = {
   salaryMax: '',
   salaryNotDisclosed: false,
   status: 'DRAFT',
+  postedForClientId: '',
+  hideClientName: true,
 };
 
 export default function EmployerJobs() {
   const router = useRouter();
+  const recruiter = useOrgType() === 'STAFFING';
+  const [clients, setClients] = useState<StaffingClientOption[] | null>(null);
+  // A new role for a recruiter project is posted for the project's client.
+  const [projectClient, setProjectClient] = useState<StaffingClientOption | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [skillIdByName, setSkillIdByName] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
@@ -254,6 +279,24 @@ export default function EmployerJobs() {
   const autoOpenedEditJobId = useRef<string | null>(null);
 
   useEffect(() => {
+    if (!recruiter) return;
+    api<StaffingClientOption[]>('/staffing/clients')
+      .then(setClients)
+      .catch((e) => setError((e as Error).message));
+  }, [recruiter]);
+
+  useEffect(() => {
+    if (!recruiter || !projectId) return;
+    api<{ client: StaffingClientOption | null }>(`/projects/${projectId}`)
+      .then((p) => {
+        if (!p.client) return;
+        setProjectClient(p.client);
+        setForm((f) => ({ ...f, postedForClientId: p.client!.id }));
+      })
+      .catch(() => undefined);
+  }, [recruiter, projectId]);
+
+  useEffect(() => {
     if (!autoOpenNewJob || autoOpenedNewJob.current) return;
     autoOpenedNewJob.current = true;
     openForm();
@@ -308,7 +351,7 @@ export default function EmployerJobs() {
   function openForm() {
     setEditingJobId(null);
     setShowForm(true);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, postedForClientId: projectClient?.id ?? (clients?.length === 1 ? clients[0].id : '') });
     setSuggested([]);
     setError('');
   }
@@ -332,6 +375,8 @@ export default function EmployerJobs() {
       salaryMax: job.salaryMax !== null ? String(job.salaryMax / 100) : '',
       salaryNotDisclosed: job.salaryNotDisclosed,
       status: job.status,
+      postedForClientId: job.postedForClient?.id ?? '',
+      hideClientName: job.hideClientName ?? true,
     });
     // The draft's current skills, editable the same way as AI suggestions —
     // an imported draft's AI-suggested skills are reviewed here.
@@ -359,7 +404,7 @@ export default function EmployerJobs() {
       // real — route straight to the Job-to-Talent Match page instead of
       // leaving the employer to go find it. Reopening a CLOSED job isn't
       // "posting," so that transition stays in the list.
-      if (status === 'LIVE' && wasDraft) {
+      if (status === 'LIVE' && wasDraft && !recruiter) {
         router.push(`/employer/jobs/${jobId}/matches`);
         return;
       }
@@ -480,9 +525,10 @@ export default function EmployerJobs() {
     setApplicantsError('');
     setLoadingApplicants(true);
     try {
+      // Recruiters have no shortlist: applicants are submitted to the client.
       const [res, shortlist] = await Promise.all([
         api<Applicant[]>(`/jobs/${jobId}/applicants`),
-        loadShortlistForJob(jobId),
+        recruiter ? Promise.resolve({}) : loadShortlistForJob(jobId),
       ]);
       setApplicants(res);
       setApplicantsShortlist(shortlist);
@@ -531,6 +577,10 @@ export default function EmployerJobs() {
       setError('Title, job code, and description are required.');
       return;
     }
+    if (recruiter && !form.postedForClientId) {
+      setError('Choose the client this job is for.');
+      return;
+    }
     setCreating(true);
     setError('');
     try {
@@ -541,6 +591,7 @@ export default function EmployerJobs() {
         employmentType: form.employmentType,
         remote: form.remote,
         status: form.status,
+        ...(recruiter ? { postedForClientId: form.postedForClientId, hideClientName: form.hideClientName } : {}),
       };
       if (form.locationStructured) {
         // A real dropdown pick this session — write the structured fields,
@@ -607,7 +658,7 @@ export default function EmployerJobs() {
       // Immediately after posting a brand-new LIVE job — not a draft, and
       // not an edit of an existing job — route to its Job-to-Talent Match
       // page rather than the job list, same as the Post-job button below.
-      if (wasCreate && form.status === 'LIVE') {
+      if (wasCreate && form.status === 'LIVE' && !recruiter) {
         router.push(`/employer/jobs/${jobId}/matches`);
         return;
       }
@@ -628,9 +679,11 @@ export default function EmployerJobs() {
         {!showForm && (
           <div className="row" style={{ margin: 0, gap: 8 }}>
             <button onClick={openForm}>+ New job</button>
-            <Link href="/employer/jobs/import" className="btn btn-secondary">
-              Import from file
-            </Link>
+            {!recruiter && (
+              <Link href="/employer/jobs/import" className="btn btn-secondary">
+                Import from file
+              </Link>
+            )}
           </div>
         )}
       </div>
@@ -655,6 +708,44 @@ export default function EmployerJobs() {
           <button onClick={parseWithAi} disabled={parsing || !form.description.trim()}>
             {parsing ? 'Parsing…' : 'Parse with AI'}
           </button>
+
+          {recruiter && (
+            <div className="field">
+              <label htmlFor="jobClient">Client</label>
+              {clients && clients.length === 0 ? (
+                <p className="meta" style={{ margin: 0 }}>
+                  Add a client first in <Link href="/employer/clients">Clients</Link>.
+                </p>
+              ) : (
+                <select
+                  id="jobClient"
+                  value={form.postedForClientId}
+                  disabled={!!projectClient && !editingJobId}
+                  onChange={(e) => setForm({ ...form, postedForClientId: e.target.value })}
+                >
+                  <option value="">Choose a client…</option>
+                  {(clients ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              )}
+              <label className="row" style={{ alignItems: 'center', marginTop: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={form.hideClientName}
+                  onChange={(e) => setForm({ ...form, hideClientName: e.target.checked })}
+                />
+                Hide the client&apos;s name from candidates
+              </label>
+              <p className="meta" style={{ margin: 0 }}>
+                Candidates see &ldquo;Posted by your agency for{' '}
+                {form.hideClientName
+                  ? 'a confidential client'
+                  : (clients ?? []).find((c) => c.id === form.postedForClientId)?.name ?? 'the client'}
+                &rdquo;. Applying shares their name and contact details with you, not with the client.
+              </p>
+            </div>
+          )}
 
           <div className="field">
             <label htmlFor="jobTitle">Title</label>
@@ -881,6 +972,12 @@ export default function EmployerJobs() {
                 .join(', ')}
             </div>
           )}
+          {j.postedForClient && (
+            <div className="meta">
+              For {j.postedForClient.name}
+              {j.hideClientName ? ' · name hidden from candidates' : ' · name shown to candidates'}
+            </div>
+          )}
           {j.projectRole && (
             <div className="meta job-chip-project">
               Project:{' '}
@@ -924,7 +1021,7 @@ export default function EmployerJobs() {
               </button>
             )}
 
-            {j.status === 'DRAFT' ? (
+            {recruiter ? null : j.status === 'DRAFT' ? (
               <button onClick={() => viewMatches(j.id)}>
                 {matchesForJob === j.id ? 'Hide candidate pool preview' : 'Preview candidate pool'}
               </button>
@@ -1034,6 +1131,7 @@ export default function EmployerJobs() {
                   key={a.applicationId}
                   applicant={a}
                   headerActions={
+                    recruiter ? undefined : (
                     <ShortlistButton
                       candidateId={a.profileId}
                       jobId={j.id}
@@ -1046,6 +1144,7 @@ export default function EmployerJobs() {
                       })}
                       onError={setApplicantsError}
                     />
+                    )
                   }
                   resumeAction={
                     a.hasResume ? (
@@ -1073,6 +1172,16 @@ export default function EmployerJobs() {
                       ))}
                       {statusConfirmed === a.applicationId && (
                         <span className="ok" style={{ margin: 0 }}>✓ Updated</span>
+                      )}
+                      {recruiter && j.postedForClient && (
+                        <div style={{ flexBasis: '100%' }}>
+                          <StaffingSubmitToClient
+                            candidateId={a.profileId}
+                            defaultRole={j.title}
+                            fixedClient={j.postedForClient}
+                            projectRoleId={j.projectRole?.id}
+                          />
+                        </div>
                       )}
                     </div>
                   }

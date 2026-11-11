@@ -1,9 +1,13 @@
 'use client';
 
 /**
- * "Submit to a client" on an accepted availability request (staffing portal).
+ * "Submit to a client" on an accepted availability request, or on an
+ * applicant to one of the recruiter's agency postings (staffing portal).
  * Creates a submission that waits for the candidate's approval — they see
- * the client's name before agreeing (POST /staffing/submissions).
+ * the client's name before agreeing (POST /staffing/submissions). From an
+ * agency posting the client is fixed (the one the job is for) and the
+ * submission is linked to the job's project role, if it has one, so the
+ * project counts it.
  */
 import { useState } from 'react';
 import Link from 'next/link';
@@ -13,10 +17,19 @@ const { api } = employerApi;
 
 interface Client { id: string; name: string }
 
-export default function StaffingSubmitToClient({ candidateId, defaultRole }: { candidateId: string; defaultRole: string }) {
+interface Props {
+  candidateId: string;
+  defaultRole: string;
+  /** Agency posting: the client the job is for (no client picker). */
+  fixedClient?: Client;
+  /** Agency posting in a project: the role this submission fills. */
+  projectRoleId?: string;
+}
+
+export default function StaffingSubmitToClient({ candidateId, defaultRole, fixedClient, projectRoleId }: Props) {
   const [open, setOpen] = useState(false);
-  const [clients, setClients] = useState<Client[] | null>(null);
-  const [clientId, setClientId] = useState('');
+  const [clients, setClients] = useState<Client[] | null>(fixedClient ? [fixedClient] : null);
+  const [clientId, setClientId] = useState(fixedClient?.id ?? '');
   const [role, setRole] = useState(defaultRole);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -40,7 +53,7 @@ export default function StaffingSubmitToClient({ candidateId, defaultRole }: { c
     setBusy(true);
     setError('');
     try {
-      await api('/staffing/submissions', { method: 'POST', body: JSON.stringify({ candidateId, clientId, roleTitle: role }) });
+      await api('/staffing/submissions', { method: 'POST', body: JSON.stringify({ candidateId, clientId, roleTitle: role, ...(projectRoleId ? { projectRoleId } : {}) }) });
       setSent(true);
       setOpen(false);
     } catch (e) {
@@ -60,7 +73,7 @@ export default function StaffingSubmitToClient({ candidateId, defaultRole }: { c
   if (!open) {
     return (
       <div className="row" style={{ margin: '8px 0 0' }}>
-        <button type="button" onClick={start}>Submit to a client</button>
+        <button type="button" onClick={start}>{fixedClient ? `Submit to ${fixedClient.name}` : 'Submit to a client'}</button>
       </div>
     );
   }
@@ -73,10 +86,16 @@ export default function StaffingSubmitToClient({ candidateId, defaultRole }: { c
       ) : (
         <>
           <div className="staffing-rate">
-            <select value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Client">
-              <option value="">Choose a client…</option>
-              {clients?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            {fixedClient ? (
+              <span className="meta" style={{ margin: 0, alignSelf: 'center' }}>
+                To <strong>{fixedClient.name}</strong>
+              </span>
+            ) : (
+              <select value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Client">
+                <option value="">Choose a client…</option>
+                {clients?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            )}
             <input value={role} maxLength={120} onChange={(e) => setRole(e.target.value)} placeholder="Role at the client" aria-label="Role" />
           </div>
           <p className="meta" style={{ margin: 0 }}>

@@ -5,6 +5,9 @@
  * piece of work needs; each card shows hired against headcount, counted by
  * the API from each role's job pipeline (GET /projects). "New project" is an
  * inline form; a project's roles are managed on its own page.
+ *
+ * Recruiters run a project for one of their clients: they pick it when
+ * creating the project, and the card shows it.
  */
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -12,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import { employerApi } from '@/lib/api';
 import { Badge, EmptyState } from '@/components/ui';
 import HeadcountBar from './HeadcountBar';
+import { useOrgType } from '@/lib/orgTypeContext';
 
 const { api } = employerApi;
 
@@ -22,6 +26,7 @@ export interface ProjectSummary {
   startDate: string | null;
   endDate: string | null;
   status: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
+  client?: { id: string; name: string } | null;
   roleCount: number;
   headcount: number;
   hired: number;
@@ -44,11 +49,13 @@ export function dateRange(start: string | null, end: string | null): string {
 
 export default function EmployerProjects() {
   const router = useRouter();
+  const recruiter = useOrgType() === 'STAFFING';
+  const [clients, setClients] = useState<{ id: string; name: string }[] | null>(null);
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', startDate: '', endDate: '' });
+  const [form, setForm] = useState({ name: '', description: '', startDate: '', endDate: '', clientId: '' });
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -56,6 +63,16 @@ export default function EmployerProjects() {
       .then(setProjects)
       .catch((e) => setError((e as Error).message));
   }, [showArchived]);
+
+  useEffect(() => {
+    if (!recruiter) return;
+    api<{ id: string; name: string }[]>('/staffing/clients')
+      .then((list) => {
+        setClients(list);
+        if (list.length === 1) setForm((f) => ({ ...f, clientId: list[0].id }));
+      })
+      .catch((e) => setError((e as Error).message));
+  }, [recruiter]);
 
   async function create(e: FormEvent) {
     e.preventDefault();
@@ -69,6 +86,7 @@ export default function EmployerProjects() {
           ...(form.description.trim() ? { description: form.description.trim() } : {}),
           ...(form.startDate ? { startDate: form.startDate } : {}),
           ...(form.endDate ? { endDate: form.endDate } : {}),
+          ...(recruiter ? { clientId: form.clientId } : {}),
         }),
       });
       router.push(`/employer/projects/${p.id}`);
@@ -82,7 +100,9 @@ export default function EmployerProjects() {
     <div className="projects">
       <div className="projects-toolbar">
         <p className="meta" style={{ margin: 0 }}>
-          Group the roles one piece of work needs, and see how many are hired.
+          {recruiter
+            ? 'Group the roles a client needs filled, and see how many you have placed.'
+            : 'Group the roles one piece of work needs, and see how many are hired.'}
         </p>
         {!creating && (
           <button type="button" onClick={() => setCreating(true)}>
@@ -94,6 +114,25 @@ export default function EmployerProjects() {
       {creating && (
         <form className="card projects-form" onSubmit={create}>
           <h2>New project</h2>
+          {recruiter && (
+            <div className="field">
+              <label htmlFor="projectClient">Client</label>
+              {clients && clients.length === 0 ? (
+                <p className="meta" style={{ margin: 0 }}>
+                  Add a client first in <Link href="/employer/clients">Clients</Link>.
+                </p>
+              ) : (
+                <select id="projectClient" required value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })}>
+                  <option value="">Choose a client…</option>
+                  {(clients ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
           <div className="field">
             <label htmlFor="projectName">Name</label>
             <input
@@ -127,7 +166,7 @@ export default function EmployerProjects() {
             </div>
           </div>
           <div className="projects-form-actions">
-            <button type="submit" disabled={saving || form.name.trim().length < 2}>
+            <button type="submit" disabled={saving || form.name.trim().length < 2 || (recruiter && !form.clientId)}>
               {saving ? 'Creating…' : 'Create project'}
             </button>
             <button type="button" className="btn-secondary" onClick={() => setCreating(false)} disabled={saving}>
@@ -154,7 +193,10 @@ export default function EmployerProjects() {
               <strong>{p.name}</strong>
               {p.status !== 'ACTIVE' && <Badge variant="neutral">{p.status === 'COMPLETED' ? 'Completed' : 'Archived'}</Badge>}
             </div>
-            <div className="meta">{dateRange(p.startDate, p.endDate)}</div>
+            <div className="meta">
+              {p.client ? `${p.client.name} · ` : ''}
+              {dateRange(p.startDate, p.endDate)}
+            </div>
             <HeadcountBar headcount={p.headcount} hired={p.hired} inProgress={p.inProgress} />
             <div className="project-card-foot">
               <span>

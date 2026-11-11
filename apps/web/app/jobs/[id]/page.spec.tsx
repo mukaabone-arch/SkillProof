@@ -39,10 +39,10 @@ const JOB = {
 };
 
 /** `progress` as given — the test controls whether levelNamesHeld/-Remaining are present. */
-function mockFetch(progress: Record<string, unknown>) {
+function mockFetch(progress: Record<string, unknown>, job: Record<string, unknown> = JOB) {
   (global as unknown as { fetch: typeof fetch }).fetch = jest.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (url.includes('/jobs/browse/job-1')) return jsonResponse(200, JOB);
+    if (url.includes('/jobs/browse/job-1')) return jsonResponse(200, job);
     if (url.includes('/jobs/matched')) return jsonResponse(200, { jobs: [] });
     if (url.includes('/profiles/me')) return jsonResponse(200, { resumeS3Key: 'resume.pdf', aiYearsOfExp: 3 });
     if (url.includes('/me/entitlements')) {
@@ -94,5 +94,35 @@ describe('Job detail — apply-gate progress message', () => {
     const text = await renderPage(PROGRESS_BASE);
 
     expect(text).toHaveTextContent('RAG Systems: Foundational earned — Practitioner and Advanced to go before you can apply to jobs.');
+  });
+});
+
+describe('Job detail — agency postings', () => {
+  it('names the agency and the confidential client, and says who gets the candidate’s details', async () => {
+    localStorage.setItem('sp_token', 'test-access-token');
+    mockFetch(
+      { skillId: 's1', skillName: 'RAG Systems', levelsHeld: [], levelsRemaining: ['L1'] },
+      { ...JOB, orgName: 'Talent Partners', postedFor: 'a confidential client', agencyPosting: true },
+    );
+    render(
+      <EntitlementsProvider>
+        <JobDetailPage />
+      </EntitlementsProvider>,
+    );
+    expect(await screen.findByText(/Posted by Talent Partners for a confidential client/)).toBeInTheDocument();
+    expect(screen.getByText('This job is posted by a recruiting agency. Your name and contact details go to Talent Partners.')).toBeInTheDocument();
+  });
+
+  it('shows neither on an employer’s own job', async () => {
+    localStorage.setItem('sp_token', 'test-access-token');
+    mockFetch({ skillId: 's1', skillName: 'RAG Systems', levelsHeld: [], levelsRemaining: ['L1'] });
+    render(
+      <EntitlementsProvider>
+        <JobDetailPage />
+      </EntitlementsProvider>,
+    );
+    await screen.findByRole('heading', { name: 'Senior ML Engineer' });
+    expect(screen.queryByText(/Posted by/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/recruiting agency/)).not.toBeInTheDocument();
   });
 });

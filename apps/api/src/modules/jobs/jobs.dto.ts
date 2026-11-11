@@ -140,6 +140,16 @@ export class CreateJobDto {
   @IsOptional()
   @IsEnum(JobStatus)
   status?: JobStatus;
+
+  /** Recruiters only: the client (StaffingClient) this agency posting is for. Required for recruiter jobs; rejected for employers. */
+  @IsOptional()
+  @IsUUID()
+  postedForClientId?: string;
+
+  /** Recruiters only: show candidates "a confidential client" instead of the client's name. Defaults to true. */
+  @IsOptional()
+  @IsBoolean()
+  hideClientName?: boolean;
 }
 
 export class UpdateJobDto {
@@ -241,6 +251,16 @@ export class UpdateJobDto {
   @IsOptional()
   @IsEnum(JobStatus)
   status?: JobStatus;
+
+  /** Recruiters only: the client (StaffingClient) this agency posting is for. Required for recruiter jobs; rejected for employers. */
+  @IsOptional()
+  @IsUUID()
+  postedForClientId?: string;
+
+  /** Recruiters only: show candidates "a confidential client" instead of the client's name. Defaults to true. */
+  @IsOptional()
+  @IsBoolean()
+  hideClientName?: boolean;
 }
 
 export class JobSkillItemDto {
