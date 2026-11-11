@@ -12,11 +12,15 @@ import { MatchingService } from './matching.service';
 import { CandidateJobsController } from './candidate-jobs.controller';
 import { CandidateJobsService } from './candidate-jobs.service';
 import { MatchDigestService } from './match-digest.service';
+import { LocationsModule } from '../locations/locations.module';
+import { JobImportController } from './import/job-import.controller';
+import { JobImportService } from './import/job-import.service';
 
 @Module({
-  imports: [AuthModule, LlmModule, NotificationsModule, ProfilesModule, EmployerCandidateAccessModule, EntitlementsModule, BadgesModule],
-  controllers: [JobsController, CandidateJobsController],
-  providers: [JobsService, MatchingService, CandidateJobsService, MatchDigestService],
+  imports: [AuthModule, LlmModule, NotificationsModule, ProfilesModule, EmployerCandidateAccessModule, EntitlementsModule, BadgesModule, LocationsModule],
+  // JobImportController first: its literal 'jobs/import/…' paths must win over JobsController's ':id' routes.
+  controllers: [JobImportController, JobsController, CandidateJobsController],
+  providers: [JobsService, MatchingService, CandidateJobsService, MatchDigestService, JobImportService],
   exports: [JobsService, CandidateJobsService],
 })
 export class JobsModule {}
