@@ -114,7 +114,7 @@ describe('OtpLogin — sign_up vs. login analytics', () => {
 describe('OtpLogin — beta promo ribbon', () => {
   it('renders BetaPromoScroll for an anonymous visitor', () => {
     render(<OtpLogin onLoggedIn={jest.fn()} />);
-    expect(screen.getByRole('note')).toHaveTextContent('MyAmbii is now on your phone');
+    expect(screen.getByRole('note')).toHaveTextContent('Available now on iOS and Android');
   });
 
   it('renders nothing when a candidate token is present', () => {

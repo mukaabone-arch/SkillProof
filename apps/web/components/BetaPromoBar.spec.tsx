@@ -171,10 +171,10 @@ describe('BetaPromoScroll — the landing/candidate-login ribbon', () => {
     expect(screen.getByRole('note')).toBeInTheDocument();
   });
 
-  it('returns null once the offer is over (same cutoff as the bar, via the shared hook)', () => {
+  it('keeps showing after the beta offer ends — the apps stay available', () => {
     jest.useFakeTimers().setSystemTime(new Date('2027-02-01T00:00:00+05:30'));
-    const { container } = render(<BetaPromoScroll />);
-    expect(container).toBeEmptyDOMElement();
+    render(<BetaPromoScroll />);
+    expect(screen.getByRole('note')).toBeInTheDocument();
   });
 
   it('hides for a signed-in candidate', () => {
@@ -195,17 +195,16 @@ describe('BetaPromoScroll — the landing/candidate-login ribbon', () => {
     expect(screen.getByRole('note')).toBeInTheDocument();
   });
 
-  it('shows the app launch notice from the same visibility source as the bar', () => {
-    const { unmount } = render(<BetaPromoBar />);
-    const barText = screen.getByRole('note').textContent;
-    unmount();
-
+  it('shows the store badges, each linking to its store', () => {
     render(<BetaPromoScroll />);
-    // Not an exact string match: the ribbon deliberately drops the bar's
-    // leading em dash before "Free" (see BetaPromoScroll.tsx's own doc
-    // comment — orphaned punctuation once the date is forced onto its own
-    // line). Same date, same "Candidates: Be among the first..." lead.
-    expect(barText).toContain('31 January 2027');
-    expect(screen.getByRole('note')).toHaveTextContent('MyAmbii is now on your phone');
+    expect(screen.getByRole('note')).toHaveTextContent('Available now on iOS and Android');
+    expect(screen.getByRole('link', { name: 'Download on the App Store' })).toHaveAttribute(
+      'href',
+      'https://apps.apple.com/in/app/myambii/id6826762205',
+    );
+    expect(screen.getByRole('link', { name: 'Get it on Google Play' })).toHaveAttribute(
+      'href',
+      'https://play.google.com/store/apps/details?id=com.flairfuture.myambii',
+    );
   });
 });

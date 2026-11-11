@@ -1,79 +1,46 @@
 'use client';
 
 /**
- * Floating scroll/ribbon acquisition banner for the two pages where the
- * thin bar used to render above the chrome: the landing page ("/") and the
- * candidate login screen ("/candidate"). Same fact as BetaPromoBar, same
- * source (BETA_FREE_UNTIL via formatBetaPromoDate) and same logged-out/
- * offer-window gating — see useBetaPromoVisible for why that rule lives in
- * one place rather than being copied into both components.
- *
- * Unlike BetaPromoBar, this component owns no path allow-list: it's mounted
- * directly inline by the two pages that want it (app/page.tsx's hero,
- * OtpLogin.tsx's split panel), so there's nothing to gate on besides "is
- * the offer live and the visitor logged out" — the hook already answers
- * that. It also takes no placement prop; each mount site owns its own CSS
- * for where this sits (`.lp-hero-inner > .beta-promo-scroll`,
- * `.auth-split-panel > .beta-promo-scroll` in globals.css) rather than this
- * component knowing anything about either page's layout.
- *
- * The date line deliberately drops the thin bar's leading em dash
- * ("— Free until 31 January 2027" on the bar) — see globals.css's own
- * `.beta-promo-scroll .beta-promo-date` comment: this component's date
- * always renders on its own line (a deterministic break, not a
- * width-triggered wrap), and an em dash is an inline joiner that reads as
- * orphaned punctuation sitting alone at the start of a line. The bar keeps
- * the dash because it never breaks — it's one component, one line, one
- * source fact, but two different punctuation needs depending on whether a
- * line break sits between "jobs" and "Free".
- *
- * The shape (a central panel plus two rolled ends) is pure CSS — see
- * `.beta-promo-scroll` in globals.css for why: a bitmap or fixed-viewBox
- * SVG would either clip or letterbox once the panel stopped sizing to its
- * own content (see that rule's own comment on the fixed ~420px width and
- * why the lead clause wraps inside it rather than growing the box).
- *
- * `role="note"`, not a link or button, not dismissible — same as
- * BetaPromoBar. Unlike the bar, the lead clause here is NOT one uniform
- * weight: "Candidates:" is wrapped in a `<strong>` so it can carry its own
- * font-weight (700, set explicitly in globals.css — never the UA default
- * bold, same discipline as everything else in that file) against the rest
- * of the clause at 600. That only exists on the ribbon, scoped to
- * `.beta-promo-scroll strong` — BetaPromoBar's plain-text span is
- * deliberately untouched, see that rule's own comment for why a shared,
- * unscoped selector on this pair of components is exactly the mistake to
- * avoid here.
- *
- * The date's own spaces are replaced with U+00A0 (non-breaking space)
- * before rendering — NOT for the "Free until" lead-in, only for
- * formatBetaPromoDate's output. At the ribbon's enlarged/bolded date size
- * (see that CSS rule's own comment), the full date line no longer always
- * fits the box on narrow viewports, and when it has to wrap, an ordinary
- * space would let the browser break it anywhere — including between "30"
- * and "November", or "November" and "2026", which reads as broken rather
- * than deliberate. Non-breaking spaces inside the date string remove
- * every wrap point except the one between "until" and the date itself, so
- * if this line does wrap, it always wraps as "Free until" / "30 November
- * 2026" — the date stays a single intact unit — never mid-date. The bar's
- * own date (BetaPromoBar.tsx) doesn't need this: `.beta-promo-bar
- * .beta-promo-date` is `white-space: nowrap`, so it can never wrap at any
- * width in the first place.
+ * Floating panel on the landing page hero ("/") and the candidate login
+ * ("/candidate"). Each mount site owns where it sits (`.lp-hero-inner >
+ * .beta-promo-scroll`, `.auth-split-panel > .beta-promo-scroll` in
+ * globals.css). The name is historical: it used to carry the beta
+ * "free until" offer.
  */
-import { useBetaPromoVisible } from '@/lib/useBetaPromoVisible';
+import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { getToken } from '@/lib/api';
 
-/** Mobile app launch notice (replaced the beta "free until" message, 2026-11). */
+/**
+ * Mobile app availability (2026-11): "Available now on iOS and Android" with
+ * the App Store and Google Play badges, replacing the text links. The
+ * badges are cropped from the supplied artwork (public/badges/*.png, shown
+ * at their native 1x size). Shown to signed-out visitors only, and no longer
+ * tied to the beta offer window (the apps stay available after it ends).
+ */
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.flairfuture.myambii';
 const APP_STORE_URL = 'https://apps.apple.com/in/app/myambii/id6826762205';
 
 export default function BetaPromoScroll() {
-  const visible = useBetaPromoVisible();
+  const pathname = usePathname();
+  const [visible, setVisible] = useState(false);
+  useEffect(() => setVisible(!getToken()), [pathname]);
 
   if (!visible) return null;
 
   return (
-    <div className="beta-promo-scroll" role="note">
-      <span><strong>New:</strong> MyAmbii is now on your phone. Prove your AI skills and apply for jobs on the go</span>{' '}
-      <span className="beta-promo-links">Get the app: <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">Google Play</a>{' · '}<a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer">App Store</a></span>
+    <div className="beta-promo-scroll app-availability" role="note">
+      <p className="app-availability-title">Available now on iOS and Android</p>
+      <div className="app-availability-badges">
+        <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/badges/app-store.png" width={211} height={61} alt="Download on the App Store" />
+        </a>
+        <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/badges/google-play.png" width={210} height={61} alt="Get it on Google Play" />
+        </a>
+      </div>
     </div>
   );
 }

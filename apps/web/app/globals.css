@@ -4530,10 +4530,30 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   .lp-footer-links { column-gap: 16px; align-content: flex-start; align-self: flex-start; }
 }
 
-/* App launch ribbon: store links on their own line, bold, visibly links. */
-.beta-promo-links { display: block; margin-top: 4px; font-weight: 700; }
-.beta-promo-links a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
-.beta-promo-links a:hover { opacity: 0.85; }
+/* App availability (2026-11): the ribbon becomes a dark panel with the
+   App Store and Google Play badges, matching the supplied artwork. Badges
+   are 1x PNGs (211×61), never shown larger than that; on narrow screens
+   they shrink and wrap under each other. */
+.beta-promo-scroll.app-availability {
+  width: auto;
+  padding: 18px 20px 20px;
+  background: #1b1c18;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+/* A plain panel like the artwork: no rolled scroll ends. */
+.beta-promo-scroll.app-availability::before,
+.beta-promo-scroll.app-availability::after { display: none; }
+.app-availability-title { text-wrap: balance; margin: 0 0 14px; font-size: 1.05rem; font-weight: 600; color: #fff; }
+.app-availability-badges { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.app-availability-badges a { display: block; line-height: 0; border-radius: 10px; }
+.app-availability-badges a:hover { opacity: 0.88; }
+.app-availability-badges a:focus-visible { outline: 2px solid var(--brand-400); outline-offset: 3px; }
+.app-availability-badges img { width: auto; height: 56px; max-width: 100%; }
+@media (max-width: 480px) {
+  .beta-promo-scroll.app-availability { padding: 16px 14px; }
+  .app-availability-badges { gap: 10px; }
+  .app-availability-badges img { height: 44px; }
+}
 
 /* ---- Find talent: one aligned filter row ----
    City carried its "open to remote" checkbox inside the same field, so that
