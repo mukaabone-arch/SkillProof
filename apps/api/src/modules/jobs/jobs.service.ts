@@ -45,7 +45,11 @@ export class JobsService {
     return this.prisma.job.findMany({
       where: { orgId },
       orderBy: { createdAt: 'desc' },
-      include: { skills: { include: { skill: true } } },
+      include: {
+        skills: { include: { skill: true } },
+        // For the project chip on each job card.
+        projectRole: { select: { projectId: true, project: { select: { name: true } } } },
+      },
     });
   }
 
@@ -173,6 +177,8 @@ export class JobsService {
     }
     await this.prisma.$transaction(async (tx) => {
       await tx.jobSkill.deleteMany({ where: { jobId } });
+      // A deleted draft leaves its hiring project too (ProjectRole.jobId has no cascade).
+      await tx.projectRole.deleteMany({ where: { jobId } });
       await tx.job.delete({ where: { id: jobId } });
     });
     return { ok: true };

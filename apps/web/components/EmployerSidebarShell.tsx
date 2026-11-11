@@ -66,6 +66,7 @@ import { SIGNED_OUT_URL } from '@/lib/signedOut';
 const SECTIONS: { href: string; label: string; icon: NavGlyphName }[] = [
   { href: '/employer/dashboard', label: 'Dashboard', icon: 'dashboard' },
   { href: '/employer/jobs', label: 'Job Postings', icon: 'postings' },
+  { href: '/employer/projects', label: 'Projects', icon: 'projects' },
   { href: '/employer/candidates', label: 'Find Candidates', icon: 'search' },
   { href: '/employer/applicants', label: 'Applicants', icon: 'applicants' },
   { href: '/employer/shortlist', label: 'Shortlist', icon: 'shortlist' },

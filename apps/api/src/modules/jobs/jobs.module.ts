@@ -21,6 +21,6 @@ import { JobImportService } from './import/job-import.service';
   // JobImportController first: its literal 'jobs/import/…' paths must win over JobsController's ':id' routes.
   controllers: [JobImportController, JobsController, CandidateJobsController],
   providers: [JobsService, MatchingService, CandidateJobsService, MatchDigestService, JobImportService],
-  exports: [JobsService, CandidateJobsService],
+  exports: [JobsService, CandidateJobsService, JobImportService],
 })
 export class JobsModule {}

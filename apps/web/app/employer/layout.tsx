@@ -57,7 +57,7 @@ const { getToken, api } = employerApi;
 
 const SETUP_EXEMPT_PATHS = ['/employer/setup', '/employer/settings'];
 /** Sections that belong to one org type only — the API refuses the other type regardless (OrgVerifiedGuard / AllowOrgTypes). */
-const EMPLOYER_ONLY_PATHS = ['/employer/dashboard', '/employer/jobs', '/employer/candidates', '/employer/applicants', '/employer/shortlist'];
+const EMPLOYER_ONLY_PATHS = ['/employer/dashboard', '/employer/jobs', '/employer/projects', '/employer/candidates', '/employer/applicants', '/employer/shortlist'];
 const STAFFING_ONLY_PATHS = ['/employer/talent', '/employer/requests', '/employer/submissions', '/employer/clients'];
 const isUnder = (pathname: string, paths: string[]) => paths.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 const DEACTIVATED_EXEMPT_PATHS = ['/employer/deactivated'];

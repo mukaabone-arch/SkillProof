@@ -688,6 +688,7 @@ model Organization {
   staffingBlocks   StaffingBlock[]
   staffingClients     StaffingClient[]
   staffingSubmissions StaffingSubmission[]
+  hiringProjects      HiringProject[]
 }
 
 model OrgMember {
@@ -2059,6 +2060,8 @@ model Job {
   updatedAt          DateTime       @updatedAt
 
   skills             JobSkill[]
+  /// The project role this job fills, if it belongs to a hiring project.
+  projectRole        ProjectRole?
   applications       Application[]
   shortlistEntries   ShortlistEntry[]
   assessmentRequests AssessmentRequest[]
@@ -2078,6 +2081,51 @@ model JobSkill {
   isRequired    Boolean    @default(true)
 
   @@unique([jobId, skillId])
+}
+
+
+// ---------- Hiring projects (employer portal) ----------
+
+enum HiringProjectStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+/// A named piece of work and the roles it needs (see ProjectsService). Each
+/// role is one job posting; how many people are hired for it is always
+/// counted from that job's shortlist pipeline, never stored here.
+model HiringProject {
+  id              String              @id @default(uuid())
+  orgId           String
+  organization    Organization        @relation(fields: [orgId], references: [id])
+  name            String
+  description     String?
+  startDate       DateTime?
+  endDate         DateTime?
+  createdByUserId String
+  status          HiringProjectStatus @default(ACTIVE)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  roles           ProjectRole[]
+
+  @@index([orgId, status])
+}
+
+/// One role in a project = one job (jobId unique: a job is in at most one project).
+model ProjectRole {
+  id              String        @id @default(uuid())
+  projectId       String
+  project         HiringProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  jobId           String        @unique
+  job             Job           @relation(fields: [jobId], references: [id])
+  /// People needed for this role (1–50).
+  headcount       Int
+  targetStartDate DateTime?
+  sortOrder       Int           @default(0)
+  createdAt       DateTime      @default(now())
+
+  @@index([projectId])
 }
 
 // ---------- Applications (candidate side, step 3d) ----------
