@@ -2053,6 +2053,8 @@ model Job {
    */
   salaryNotDisclosed Boolean        @default(false)
   status             JobStatus      @default(DRAFT)
+  /// Set on drafts created by a bulk import (POST /jobs/import), so the review screen can list that upload's drafts together. Null for jobs made one at a time.
+  importBatchId      String?
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
@@ -2063,6 +2065,7 @@ model Job {
 
   @@unique([orgId, code])
   @@index([orgId])
+  @@index([orgId, importBatchId])
 }
 
 model JobSkill {

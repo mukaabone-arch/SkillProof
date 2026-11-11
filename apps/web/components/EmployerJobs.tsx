@@ -241,6 +241,10 @@ export default function EmployerJobs() {
   // dependency like openApplicants above: openForm() doesn't read `jobs`.
   const autoOpenNewJob = useSearchParams().get('new') === '1';
   const autoOpenedNewJob = useRef(false);
+  // Deep link from the bulk-import review (/employer/jobs/import): opens that
+  // draft in the edit form once the jobs list has loaded.
+  const editJobId = useSearchParams().get('edit');
+  const autoOpenedEditJobId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!autoOpenNewJob || autoOpenedNewJob.current) return;
@@ -263,6 +267,16 @@ export default function EmployerJobs() {
         ),
       );
   }, []);
+
+  useEffect(() => {
+    if (!editJobId || jobs.length === 0 || autoOpenedEditJobId.current === editJobId) return;
+    autoOpenedEditJobId.current = editJobId;
+    const job = jobs.find((j) => j.id === editJobId && j.status === 'DRAFT');
+    if (!job) return;
+    openEditForm(job);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editJobId, jobs]);
 
   useEffect(() => {
     if (!openApplicantsJobId || jobs.length === 0) return;
@@ -312,7 +326,16 @@ export default function EmployerJobs() {
       salaryNotDisclosed: job.salaryNotDisclosed,
       status: job.status,
     });
-    setSuggested([]);
+    // The draft's current skills, editable the same way as AI suggestions —
+    // an imported draft's AI-suggested skills are reviewed here.
+    setSuggested(
+      job.skills.map((s) => ({
+        skillId: s.skill.id,
+        skillName: s.skill.name,
+        requiredLevel: s.requiredLevel,
+        isRequired: s.isRequired,
+      })),
+    );
     setShowForm(true);
     setError('');
   }
@@ -582,7 +605,14 @@ export default function EmployerJobs() {
     <>
       <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
         {showForm && <h2 style={{ margin: 0 }}>{editingJobId ? 'Edit draft' : 'Post a job'}</h2>}
-        {!showForm && <button onClick={openForm}>+ New job</button>}
+        {!showForm && (
+          <div className="row" style={{ margin: 0, gap: 8 }}>
+            <button onClick={openForm}>+ New job</button>
+            <Link href="/employer/jobs/import" className="btn btn-secondary">
+              Import from file
+            </Link>
+          </div>
+        )}
       </div>
 
       {error && <p className="error" style={{ marginTop: 12 }}>{error}</p>}
@@ -752,7 +782,7 @@ export default function EmployerJobs() {
 
           {suggested.length > 0 && (
             <div className="field">
-              <label>AI-suggested skills — review before saving</label>
+              <label>{editingJobId ? 'Skills — review before saving' : 'AI-suggested skills — review before saving'}</label>
               {suggested.map((s, i) => (
                 <div key={s.skillId} className="row" style={{ alignItems: 'center' }}>
                   <span style={{ flex: 1 }}>{s.skillName}</span>
