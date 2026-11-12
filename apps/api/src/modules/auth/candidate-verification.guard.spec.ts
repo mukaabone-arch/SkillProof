@@ -20,19 +20,21 @@ function contextFor(
   klass: object,
   role: Role,
   sub = 'user-1',
+  headers: Record<string, string> = {},
 ): ExecutionContext {
   return {
     getHandler: () => handler,
     getClass: () => klass,
-    switchToHttp: () => ({ getRequest: () => ({ user: { sub, role } }) }),
+    switchToHttp: () => ({ getRequest: () => ({ user: { sub, role }, headers }) }),
   } as unknown as ExecutionContext;
 }
 
-function makeGuard(user: { phone: string | null; email: string | null } | null) {
+function makeGuard(user: { phone: string | null; email: string | null; country?: string | null } | null) {
   const findUnique = jest.fn(async () => user);
-  const prisma = { user: { findUnique } } as never;
+  const updateMany = jest.fn(async () => ({ count: 1 }));
+  const prisma = { user: { findUnique, updateMany } } as never;
   const guard = new CandidateVerificationGuard(new Reflector(), prisma);
-  return { guard, findUnique };
+  return { guard, findUnique, updateMany };
 }
 
 describe('CandidateVerificationGuard', () => {
@@ -109,5 +111,27 @@ describe('CandidateVerificationGuard', () => {
     );
     expect(result).toBe(true);
     expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  describe('outside India (phone optional)', () => {
+    const handler = ProfilesController.prototype.me as (...args: never[]) => unknown;
+
+    it('lets an email-only candidate through when their country is not India', async () => {
+      const { guard } = makeGuard({ phone: null, email: 'a@b.co', country: 'AE' });
+      await expect(guard.canActivate(contextFor(handler, ProfilesController, Role.CANDIDATE))).resolves.toBe(true);
+    });
+
+    it("records the client's country on first sight and applies it straight away", async () => {
+      const { guard, updateMany } = makeGuard({ phone: null, email: 'a@b.co', country: null });
+      await expect(
+        guard.canActivate(contextFor(handler, ProfilesController, Role.CANDIDATE, 'user-1', { 'x-client-country': 'gb' })),
+      ).resolves.toBe(true);
+      expect(updateMany).toHaveBeenCalledWith({ where: { id: 'user-1', country: null }, data: { country: 'GB' } });
+    });
+
+    it('still requires a phone in India', async () => {
+      const { guard } = makeGuard({ phone: null, email: 'a@b.co', country: 'IN' });
+      await expect(guard.canActivate(contextFor(handler, ProfilesController, Role.CANDIDATE))).rejects.toThrow();
+    });
   });
 });

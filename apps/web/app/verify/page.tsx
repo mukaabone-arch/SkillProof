@@ -35,7 +35,12 @@ interface Me {
   role: string;
   phone: string | null;
   email: string | null;
+  /** From the API: a verified phone is required only in India. Missing (older API) = required. */
+  phoneRequired?: boolean;
 }
+
+const needsPhone = (me: Me) => me.phoneRequired !== false && !me.phone;
+const isComplete = (me: Me) => !!me.email && !needsPhone(me);
 
 type Channel = 'phone' | 'email';
 
@@ -65,7 +70,7 @@ export default function VerifyPage() {
       .then((data) => {
         setMe(data);
         // Already complete (finished in another tab, or a stale redirect) — no reason to sit here.
-        if (data.phone && data.email) router.replace('/candidate');
+        if (isComplete(data)) router.replace('/candidate');
       })
       .catch((e) => setLoadError((e as ApiError).message));
   }, [router]);
@@ -133,7 +138,7 @@ export default function VerifyPage() {
       // Firing on every successful link/verify instead would double-count a
       // candidate who needs to add both (bounced back here after the
       // first), which is exactly what "fire once" for a funnel step means.
-      if (me && (activeChannel === 'phone' ? me.email != null : me.phone != null)) {
+      if (me && (activeChannel === 'phone' ? me.email != null : !needsPhone(me))) {
         trackVerificationComplete(activeChannel === 'phone' ? 'phone_otp' : 'email_otp');
       }
       // Refresh both the gate's cached status and entitlements BEFORE
@@ -166,29 +171,40 @@ export default function VerifyPage() {
       <h1 className="auth-headline">One more step</h1>
       <div className="auth-card">
         <h2 style={{ marginTop: 0 }}>Verify your contact details</h2>
-        <p>
-          Every MyAmbii candidate account needs a verified phone number <em>and</em> a verified email address —
-          it&apos;s how employers and our support team can reach you, and it&apos;s your only recovery path if you
-          ever lose access to one of them.
-        </p>
-        <p>
-          If you signed up with Google or GitHub, that only ever gives us a verified email — those sign-in methods
-          never share a phone number. You&apos;ll need to add and verify one below to continue; it&apos;s a one-time
-          step, not something specific to your account.
-        </p>
+        {me && me.phoneRequired === false ? (
+          <p>
+            Every MyAmbii candidate account needs a verified email address — it&apos;s how employers and our support
+            team reach you, and how you get back in if you ever lose access.
+          </p>
+        ) : (
+          <>
+            <p>
+              Every MyAmbii candidate account in India needs a verified phone number <em>and</em> a verified email
+              address — it&apos;s how employers and our support team can reach you, and it&apos;s your only recovery
+              path if you ever lose access to one of them.
+            </p>
+            <p>
+              If you signed up with Google or GitHub, that only ever gives us a verified email — those sign-in methods
+              never share a phone number. You&apos;ll need to add and verify one below to continue; it&apos;s a
+              one-time step, not something specific to your account.
+            </p>
+          </>
+        )}
 
         {loadError && <p className="error">{loadError}</p>}
 
         {me && (
           <>
             <ul style={{ paddingLeft: 20, margin: '0 0 16px' }}>
-              <li>Phone: {me.phone ? <strong>{me.phone}</strong> : 'Not added yet'}</li>
+              {(me.phone || me.phoneRequired !== false) && (
+                <li>Phone: {me.phone ? <strong>{me.phone}</strong> : 'Not added yet'}</li>
+              )}
               <li>Email: {me.email ? <strong>{me.email}</strong> : 'Not added yet'}</li>
             </ul>
 
             {!activeChannel && (
               <div className="row" style={{ margin: 0 }}>
-                {!me.phone && <button onClick={() => startChannel('phone')}>Add phone number</button>}
+                {needsPhone(me) && <button onClick={() => startChannel('phone')}>Add phone number</button>}
                 {!me.email && <button onClick={() => startChannel('email')}>Add email address</button>}
               </div>
             )}
