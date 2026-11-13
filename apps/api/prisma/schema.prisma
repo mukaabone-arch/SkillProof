@@ -360,6 +360,14 @@ model User {
   /// it, a daily-active user with a long-lived refresh token would read as
   /// dormant for weeks between fresh OTP/OAuth sign-ins.
   lastLoginAt  DateTime?
+  /// Best guess at the country the candidate uses MyAmbii from (ISO 3166-1
+  /// alpha-2), sent by the web and mobile clients as X-Client-Country (from
+  /// the device's time zone and region) and recorded the first time we see
+  /// it. Decides whether a verified phone is required: our SMS codes go out
+  /// on an India-registered route, so outside India a verified email is
+  /// enough (see candidate-verification-readiness.ts). Null = not seen yet,
+  /// which is treated as India (the original rule).
+  country      String?
 
   /// When this user agreed that their assessment/interview-practice answers
   /// are processed by our AI provider (Anthropic) — App Store guideline

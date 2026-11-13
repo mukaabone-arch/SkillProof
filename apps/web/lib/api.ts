@@ -15,6 +15,7 @@
  * TODO before production: move both tokens to httpOnly cookies via a Next.js
  * route handler proxy, to remove them from JS-readable storage (XSS defense).
  */
+import { clientCountry } from './clientCountry';
 import { emitLimitReached, LimitReachedPayload } from './limitReachedBus';
 import { emitAssessmentBlocked } from './assessmentBlockedBus';
 import { emitCandidateVerificationIncomplete } from './candidateVerificationBus';
@@ -153,11 +154,14 @@ function createApiClient({ access: ACCESS_KEY, refresh: REFRESH_KEY }: ScopeKeys
     // FormData bodies (file uploads) need the browser to set its own multipart
     // boundary — an explicit Content-Type header here would break that.
     const isFormData = options.body instanceof FormData;
+    const country = clientCountry();
     return fetch(`${API_URL}${path}`, {
       ...options,
       headers: {
         ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
         ...(t ? { Authorization: `Bearer ${t}` } : {}),
+        // Decides whether a candidate must verify a phone (India only) — see clientCountry.ts.
+        ...(country ? { 'X-Client-Country': country } : {}),
         ...options.headers,
       },
     });

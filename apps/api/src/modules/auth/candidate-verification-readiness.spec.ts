@@ -46,3 +46,22 @@ describe('candidate-verification-readiness', () => {
     }
   });
 });
+
+describe('phone requirement by country', () => {
+  const { missingVerificationFields, isCandidateVerified, phoneRequired, assertCandidateVerified } =
+    jest.requireActual('./candidate-verification-readiness') as typeof import('./candidate-verification-readiness');
+
+  it('requires a phone in India and when the country is unknown', () => {
+    expect(phoneRequired({ country: 'IN' })).toBe(true);
+    expect(phoneRequired({ country: null })).toBe(true);
+    expect(phoneRequired({})).toBe(true);
+    expect(missingVerificationFields({ phone: null, email: 'a@b.co', country: 'IN' })).toEqual(['phone']);
+  });
+
+  it('needs only a verified email outside India', () => {
+    expect(phoneRequired({ country: 'AE' })).toBe(false);
+    expect(isCandidateVerified({ phone: null, email: 'a@b.co', country: 'AE' })).toBe(true);
+    expect(missingVerificationFields({ phone: null, email: null, country: 'GB' })).toEqual(['email']);
+    expect(() => assertCandidateVerified({ phone: null, email: null, country: 'US' })).toThrow('Add and verify an email address to continue.');
+  });
+});

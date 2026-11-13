@@ -113,6 +113,24 @@ describe('CandidateVerificationProvider — unit', () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
+  it('treats an email-only candidate outside India as complete (the API says nothing is missing)', async () => {
+    (global as unknown as { fetch: typeof fetch }).fetch = jest.fn(async (url: string) =>
+      url.endsWith('/users/me')
+        ? jsonResponse(200, { role: 'CANDIDATE', phone: null, email: 'a@b.com', phoneRequired: false, missingVerification: [] })
+        : jsonResponse(200, {}),
+    ) as unknown as typeof fetch;
+    act(() => setTokens('tok-abroad', 'refresh'));
+
+    render(
+      <CandidateVerificationProvider>
+        <Probe />
+      </CandidateVerificationProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('page-content')).toBeInTheDocument());
+    expect(replace).not.toHaveBeenCalled();
+  });
+
   it('fails open (renders children, never blocks) when GET /users/me rejects outright', async () => {
     (global as unknown as { fetch: typeof fetch }).fetch = jest.fn(async () => {
       throw new Error('network error');

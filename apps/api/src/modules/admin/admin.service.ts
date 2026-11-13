@@ -481,6 +481,7 @@ export class AdminService {
         SELECT
           u.id AS "userId",
           u.phone,
+          u.country,
           u.email,
           u."createdAt",
           u."lastLoginAt",
@@ -545,14 +546,14 @@ export class AdminService {
       page: dto.page,
       pageSize: dto.pageSize,
       candidates: rows.map((r) => {
-        const missing = missingVerificationFields({ phone: r.phone, email: r.email });
+        const missing = missingVerificationFields({ phone: r.phone, email: r.email, country: r.country });
         return {
           id: r.userId,
           name: r.fullName,
           email: r.email,
           phone: r.phone,
           createdAt: r.createdAt,
-          verified: isCandidateVerified({ phone: r.phone, email: r.email }),
+          verified: isCandidateVerified({ phone: r.phone, email: r.email, country: r.country }),
           missingVerification: missing,
           authMethod: resolveAuthMethod(r.identityProviders, r.phone, r.email),
           lastLoginAt: r.lastLoginAt,
@@ -687,6 +688,7 @@ interface CandidateRow {
   userId: string;
   phone: string | null;
   email: string | null;
+  country: string | null;
   createdAt: Date;
   lastLoginAt: Date | null;
   fullName: string | null;

@@ -2,6 +2,8 @@ import { Controller, Get, Req, UseGuards, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard, AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { SkipVerificationGate } from '../auth/skip-verification-gate.decorator';
+import { CLIENT_COUNTRY_HEADER, recordClientCountry } from '../auth/client-country';
+import { missingVerificationFields, phoneRequired } from '../auth/candidate-verification-readiness';
 
 @Controller('users')
 export class UsersController {
@@ -25,6 +27,9 @@ export class UsersController {
       },
     });
     if (!user || user.deletedAt) throw new NotFoundException();
+    // The clients call this first after sign-in, so this is where a new
+    // candidate's country is usually recorded (see client-country.ts).
+    user.country = await recordClientCountry(this.prisma, user.id, user.country, req.headers[CLIENT_COUNTRY_HEADER]);
     const { passwordHash, profile, ...safe } = user;
     // photoKey is a storage key, never handed to a client — see
     // ProfilesService.withHasPhoto for the same rule on /profiles/me.
@@ -35,6 +40,14 @@ export class UsersController {
           return { ...rest, hasPhoto: photoKey != null };
         })()
       : null;
-    return { ...safe, profile: safeProfile };
+    // phoneRequired / missingVerification: what the verify screens need, so
+    // the clients never re-derive the rule (older app builds that ignore
+    // these keep requiring both, which only errs on the strict side).
+    return {
+      ...safe,
+      profile: safeProfile,
+      phoneRequired: phoneRequired(user),
+      missingVerification: missingVerificationFields(user),
+    };
   }
 }

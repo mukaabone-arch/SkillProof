@@ -51,6 +51,8 @@ interface Me {
   role: string;
   phone: string | null;
   email: string | null;
+  /** From the API: what's still missing. A phone is required only in India (see clientCountry.ts). */
+  missingVerification?: ('phone' | 'email')[];
 }
 
 type VerificationStatus =
@@ -136,7 +138,7 @@ export function CandidateVerificationProvider({ children }: { children: ReactNod
       const status: VerificationStatus =
         me.role !== 'CANDIDATE'
           ? 'not-applicable'
-          : me.phone != null && me.email != null
+          : (me.missingVerification ? me.missingVerification.length === 0 : me.phone != null && me.email != null)
             ? 'complete'
             : 'incomplete';
       setState({ status });

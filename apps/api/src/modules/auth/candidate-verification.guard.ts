@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedRequest } from './jwt-auth.guard';
 import { SKIP_VERIFICATION_GATE_KEY } from './skip-verification-gate.decorator';
 import { assertCandidateVerified } from './candidate-verification-readiness';
+import { CLIENT_COUNTRY_HEADER, recordClientCountry } from './client-country';
 
 /**
  * Enforces candidate-verification-readiness.ts's gate: a CANDIDATE must
@@ -50,14 +51,15 @@ export class CandidateVerificationGuard implements CanActivate {
 
     const user = await this.prisma.user.findUnique({
       where: { id: req.user.sub },
-      select: { phone: true, email: true },
+      select: { phone: true, email: true, country: true },
     });
     // A vanished user (deleted between token issue and this request) isn't
     // this guard's problem to diagnose — let the downstream handler's own
     // lookup fail naturally instead of masking it behind a verification error.
     if (!user) return true;
 
-    assertCandidateVerified(user);
+    const country = await recordClientCountry(this.prisma, req.user.sub, user.country, req.headers?.[CLIENT_COUNTRY_HEADER]);
+    assertCandidateVerified({ ...user, country });
     return true;
   }
 }
