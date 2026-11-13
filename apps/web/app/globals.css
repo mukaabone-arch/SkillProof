@@ -4832,3 +4832,7 @@ p:has(+ .staffing-filters) { max-width: 72ch; }
     content: attr(data-label); display: block; font-size: 0.8rem; font-weight: 600; color: var(--gray-600); margin-bottom: 4px;
   }
 }
+
+/* Candidate login: phone sign-in is India-only (OtpLogin). */
+.auth-phone-note { margin: 8px 0 0; font-size: 0.85rem; }
+.auth-phone-note .btn-link { padding: 0; font-size: inherit; }

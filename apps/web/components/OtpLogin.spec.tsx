@@ -6,7 +6,7 @@
 import '@testing-library/jest-dom';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { clearTokens, setTokens, employerApi } from '@/lib/api';
-import OtpLogin from './OtpLogin';
+import OtpLogin, { isIndianNumber, OUTSIDE_INDIA_MESSAGE } from './OtpLogin';
 import EmployerOtpLogin from './EmployerOtpLogin';
 
 beforeEach(() => {
@@ -184,5 +184,32 @@ describe('EmployerOtpLogin — still on AuthMessageRotator (regression check)', 
     expect(
       screen.queryByText('Prove your skills. Get matched to jobs that want them.'),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('OtpLogin — phone sign-in is India-only', () => {
+  it('tells someone with a non-Indian number to use email, without calling the API', async () => {
+    const fetchMock = jest.fn();
+    (global as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
+    render(<OtpLogin onLoggedIn={jest.fn()} />);
+    fireEvent.click(screen.getByText('Phone', { selector: 'button' }));
+    expect(screen.getByText(/Phone sign-in is available for Indian \(\+91\) mobile numbers/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Phone number'), { target: { value: '+1 732 309 5108' } });
+    fireEvent.click(screen.getByText('Send code'));
+    expect(await screen.findByText(OUTSIDE_INDIA_MESSAGE)).toBeInTheDocument();
+    expect(fetchMock.mock.calls.filter(([u]) => String(u).includes('/auth/otp/request'))).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use your email' }));
+    expect(screen.getByLabelText('Email')).toBeInTheDocument();
+  });
+
+  it('recognises Indian numbers', () => {
+    expect(isIndianNumber('+91 98765 43210')).toBe(true);
+    expect(isIndianNumber('9876543210')).toBe(true);
+    expect(isIndianNumber('0091 98765 43210')).toBe(true);
+    expect(isIndianNumber('+17323095108')).toBe(false);
+    expect(isIndianNumber('+971 50 123 4567')).toBe(false);
+    expect(isIndianNumber('00971501234567')).toBe(false);
   });
 });

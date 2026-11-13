@@ -39,6 +39,22 @@ interface Props {
   onLoggedIn: () => void;
 }
 
+/** Shown when a non-Indian number is entered: our OTP SMS route (MSG91, DLT) only reaches +91. */
+export const OUTSIDE_INDIA_MESSAGE =
+  'Phone verification is available for Indian (+91) numbers only. Outside India, please sign in with your email.';
+
+/**
+ * Indian mobile number, or something we can't tell yet (left to the API to
+ * validate): a bare 10-digit number, or one starting +91 / 0091 / 91 + 10
+ * digits. Anything with another country code is not.
+ */
+export function isIndianNumber(raw: string): boolean {
+  const compact = raw.replace(/[\s\-().]/g, '');
+  if (compact.startsWith('+')) return compact.startsWith('+91');
+  if (compact.startsWith('00')) return compact.startsWith('0091');
+  return true;
+}
+
 export default function OtpLogin({ onLoggedIn }: Props) {
   const [method, setMethod] = useState<Method>('email');
   const [email, setEmail] = useState('');
@@ -100,6 +116,12 @@ export default function OtpLogin({ onLoggedIn }: Props) {
   }
 
   async function sendCode() {
+    // Our SMS codes only reach Indian numbers — say so plainly instead of
+    // letting the API answer "phone must be a valid phone number".
+    if (!isEmail && !isIndianNumber(phone)) {
+      setError(OUTSIDE_INDIA_MESSAGE);
+      return;
+    }
     setError('');
     setBusy(true);
     try {
@@ -230,6 +252,12 @@ export default function OtpLogin({ onLoggedIn }: Props) {
                         if (e.key === 'Enter' && canSend) sendCode();
                       }}
                     />
+                    <p className="meta auth-phone-note">
+                      Phone sign-in is available for Indian (+91) mobile numbers. Outside India?{' '}
+                      <button type="button" className="btn-link" onClick={() => switchMethod('email')}>
+                        Use your email
+                      </button>
+                    </p>
                   </>
                 )}
                 <button style={{ width: '100%', marginTop: 10 }} onClick={sendCode} disabled={!canSend}>
