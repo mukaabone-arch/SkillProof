@@ -45,6 +45,12 @@ confirms them, then runs `npm run i18n:sync`.
 9. Footer: company line and copyright changed on main (footer.company,
    footer.copy).
 
+**Reviewed 2026-11-14:** the reviewer approved all 22 keys above as written
+(questions 5–9 and the menu badges in 10): جهة توظيف for Recruiter, للشركات
+for For Business, طلبات التوفّر / الترشيحات المقدَّمة, the app ribbon, the
+rewritten promo bar and the footer lines. Fingerprinted with `npm run
+i18n:sync`; check-i18n now passes with every key reviewed.
+
 ## Counts: plural forms and digits (house rule)
 
 - Any message that takes a count uses ICU plural syntax with the Arabic
