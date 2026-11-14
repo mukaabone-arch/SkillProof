@@ -146,5 +146,7 @@
   "employerMatches.bands.strong": "a99cde5745",
   "employerMatches.bands.good": "ea82225f4d",
   "employerMatches.bands.partial": "5d99bc5de4",
-  "employerMatches.bands.none": "72668d5368"
+  "employerMatches.bands.none": "72668d5368",
+  "employerDashboard.avgDays": "118aec87ea",
+  "employerMatches.experienceYears": "c54db478a9"
 }

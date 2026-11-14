@@ -65,6 +65,22 @@ ar.sources.json. employerDashboard.avgDays and employerMatches.experienceYears
 are not: their Arabic was rewritten into plural forms after the review copy
 was made, so they go into the next review with the new keys.
 
+**Update 2026-11-14:** the reviewer confirmed the count rule, and both keys
+are now fingerprinted. Years follow the same pattern as days:
+
+| Count | Days | Years |
+|---|---|---|
+| 1 | يوم واحد | سنة واحدة |
+| 2 | يومان | سنتان |
+| 3–10 | n أيام (plural) | n سنوات (plural) |
+| 11–99 | n يومًا (singular, accusative) | n سنة (singular) |
+
+Examples from the review: 5 years = خمس سنوات, 11 years = أحد عشر سنة,
+20 years = عشرون سنة. In ICU terms that is few → plural, many → singular,
+which is what both messages already do; lib/arabicPlurals.spec.tsx pins the
+reviewer's examples. Use this table for any new count (months, weeks,
+candidates…).
+
 10. **Menu badges** (header.candidateBadge / employerBadge / recruiterBadge):
     the one-letter tiles beside Candidate / Employer / Recruiter. Arabic uses
     the first letter of each word after the article: م (المتقدم), ص (صاحب

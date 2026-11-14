@@ -25,11 +25,20 @@ describe('Arabic plurals', () => {
     expect(t('employerDashboard.avgDays', { days })).toBe(expected);
   });
 
+  // The expert reviewer's rule (2026-11-14): 1 سنة واحدة, 2 سنتان,
+  // 3–10 plural سنوات, 11–99 singular سنة — same pattern as days.
   it.each([
     [1, 'سنة واحدة'],
     [2, 'سنتان'],
+    [3, '3 سنوات'],
     [5, '5 سنوات'],
+    [8, '8 سنوات'],
+    [10, '10 سنوات'],
+    [11, '11 سنة'],
     [12, '12 سنة'],
+    [15, '15 سنة'],
+    [20, '20 سنة'],
+    [30, '30 سنة'],
   ])('experienceYears %i → %s …', (years, expected) => {
     expect(t('employerMatches.experienceYears', { years })).toBe(`${expected} (حسب تصريح المتقدم)`);
   });
