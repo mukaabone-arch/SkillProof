@@ -1,6 +1,7 @@
 'use client';
 
 /** Employer candidate search: filter by taxonomy skill + min level + verified-only, browse results. */
+import LevelMedal from '@/components/LevelMedal';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { employerApi } from '@/lib/api';
@@ -227,7 +228,7 @@ export default function CandidateSearch() {
               {c.verifiedSkills.map((s) => (
                 <Link key={s.skillId} href={`/badges/${s.verifyHash}`}>
                   <button title={s.verifiedBy === 'DISCUSSION' ? 'Verified by discussion' : 'Verified by test'}>
-                    {s.skillName} ({skillLevelName(s.level)}) {s.verifiedBy === 'DISCUSSION' ? '💬' : ''}
+                    <LevelMedal level={s.level} /> {s.skillName} ({skillLevelName(s.level)}) {s.verifiedBy === 'DISCUSSION' ? '💬' : ''}
                   </button>
                 </Link>
               ))}

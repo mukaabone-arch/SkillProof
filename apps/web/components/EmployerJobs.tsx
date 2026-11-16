@@ -19,6 +19,7 @@ import { employerApi, downloadBlob } from '@/lib/api';
 import { Badge, Card, EmptyState } from '@/components/ui';
 import { matchBand, MATCH_BAND_LABELS, MATCH_BAND_VARIANTS } from '@/lib/matchBand';
 import { skillLevelName } from '@/lib/skillLevels';
+import LevelMedal from './LevelMedal';
 import ShortlistButton from './ShortlistButton';
 import ApplicantCard, { type ApplicantCardData } from './ApplicantCard';
 import { LocationAutocomplete, LocationSuggestion } from './LocationAutocomplete';
@@ -1093,7 +1094,7 @@ export default function EmployerJobs() {
                       {c.matched.map((m) => (
                         <Link key={m.skillId} href={`/badges/${m.verifyHash}`}>
                           <button title={m.verifiedBy === 'DISCUSSION' ? 'Verified by discussion' : 'Verified by test'}>
-                            {m.skillName} ({skillLevelName(m.level)}) {m.verifiedBy === 'DISCUSSION' ? '💬' : ''}
+                            <LevelMedal level={m.level} /> {m.skillName} ({skillLevelName(m.level)}) {m.verifiedBy === 'DISCUSSION' ? '💬' : ''}
                           </button>
                         </Link>
                       ))}

@@ -18,6 +18,7 @@
  * (e.g. "This candidate is not available right now.") looked like the button
  * simply did nothing. The page-level error is now only for loading the list.
  */
+import LevelMedal from '@/components/LevelMedal';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -503,7 +504,7 @@ export default function EmployerShortlist() {
               {e.verifiedSkills.map((s) => (
                 <Link key={s.skillId} href={`/badges/${s.verifyHash}`}>
                   <Badge variant="verified" title={s.verifiedBy === 'DISCUSSION' ? 'Verified by discussion' : 'Verified by test'}>
-                    {s.skillName} ({skillLevelName(s.level)}) {s.verifiedBy === 'DISCUSSION' ? '💬' : ''}
+                    <LevelMedal level={s.level} /> {s.skillName} ({skillLevelName(s.level)}) {s.verifiedBy === 'DISCUSSION' ? '💬' : ''}
                   </Badge>
                 </Link>
               ))}

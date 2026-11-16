@@ -8,6 +8,7 @@
  * for what backs each field and why avgTimeToHireDays can be null (real
  * absence of data, never fabricated).
  */
+import PortalHeadline from './PortalHeadline';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { employerApi } from '@/lib/api';
@@ -133,8 +134,9 @@ export default function EmployerDashboard() {
 
   return (
     <main className="container-wide">
-      <h1>Dashboard</h1>
-      <p>Your hiring at a glance.</p>
+      <PortalHeadline eyebrow="Dashboard" title="Hire verified AI talent">
+        <p className="meta" style={{ margin: 0 }}>Your hiring at a glance.</p>
+      </PortalHeadline>
 
       {error && <p className="error">{error}</p>}
       {loading && <p className="meta">Loading…</p>}

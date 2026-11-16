@@ -8,6 +8,9 @@
  * "Check availability" sends one request for one role; contact details
  * appear under Availability requests once the candidate says yes.
  */
+import PortalHeadline from '@/components/PortalHeadline';
+import LevelMedal from '@/components/LevelMedal';
+import { skillLevelName } from '@/lib/skillLevels';
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { employerApi } from '@/lib/api';
@@ -147,7 +150,7 @@ export default function TalentPage() {
 
   return (
     <main className="container-wide">
-      <h1>Find talent</h1>
+      <PortalHeadline eyebrow="Find talent" title="Verified talent for your clients" />
       <p>
         Candidates who&apos;ve opted in to recruiters and confirmed their availability in the last 30 days. Names and
         contact details are shared once a candidate accepts your request — see{' '}
@@ -239,7 +242,10 @@ export default function TalentPage() {
             </div>
             <div className="staffing-skills">
               {c.verifiedSkills.map((s) => (
-                <span key={s.skillId} className="ui-badge ui-badge-verified">{s.skillName} · {s.level}</span>
+                <span key={s.skillId} className="ui-badge ui-badge-verified skill-chip">
+                  <LevelMedal level={s.level} />
+                  {s.skillName} · {skillLevelName(s.level)}
+                </span>
               ))}
             </div>
 

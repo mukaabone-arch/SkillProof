@@ -4836,3 +4836,21 @@ p:has(+ .staffing-filters) { max-width: 72ch; }
 /* Candidate login: phone sign-in is India-only (OtpLogin). */
 .auth-phone-note { margin: 8px 0 0; font-size: 0.85rem; }
 .auth-phone-note .btn-link { padding: 0; font-size: inherit; }
+
+/* Employer / recruiter headline strip (PortalHeadline). */
+.portal-headline { margin-bottom: 20px; }
+.portal-headline-eyebrow {
+  margin: 0 0 6px; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--brand-600);
+}
+.portal-headline h1 { margin: 0 0 10px; }
+.portal-headline-tag {
+  display: inline-flex; align-items: center; gap: 8px; margin: 0 0 10px;
+  padding: 6px 12px; border-radius: 999px; font-size: 0.85rem; font-weight: 600;
+  color: var(--success); background: color-mix(in srgb, var(--success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
+}
+
+/* Verified-skill level medal (LevelMedal) inside badges and chips. */
+.level-medal { flex: none; vertical-align: -0.35em; margin-inline-end: 3px; }
+.skill-chip { display: inline-flex; align-items: center; gap: 4px; }

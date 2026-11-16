@@ -11,6 +11,7 @@
  * actions make sense depends on context (a specific job vs. an org-wide
  * list vs. a read-only dashboard preview).
  */
+import LevelMedal from '@/components/LevelMedal';
 import Link from 'next/link';
 import { Badge } from '@/components/ui';
 import { matchBand, MATCH_BAND_LABELS, MATCH_BAND_VARIANTS } from '@/lib/matchBand';
@@ -196,7 +197,7 @@ export default function ApplicantCard({ applicant: a, headerActions, resumeActio
             {a.verifiedSkills.map((s) => (
               <Link key={s.skillId} href={`/badges/${s.verifyHash}`}>
                 <Badge variant="verified" title={s.verifiedBy === 'DISCUSSION' ? 'Verified by discussion' : 'Verified by test'}>
-                  {s.skillName} ({skillLevelName(s.level)}) {s.verifiedBy === 'DISCUSSION' ? '💬' : ''}
+                  <LevelMedal level={s.level} /> {s.skillName} ({skillLevelName(s.level)}) {s.verifiedBy === 'DISCUSSION' ? '💬' : ''}
                 </Badge>
               </Link>
             ))}
