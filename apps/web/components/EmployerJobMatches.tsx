@@ -21,6 +21,7 @@
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { employerApi } from '@/lib/api';
 import { Badge, EmptyState, ErrorState, LoadingState } from '@/components/ui';
 import { matchBand, MATCH_BAND_LABELS, MATCH_BAND_VARIANTS } from '@/lib/matchBand';
@@ -70,6 +71,22 @@ export default function EmployerJobMatches({ jobId }: Props) {
   const [data, setData] = useState<MatchesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const router = useRouter();
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState('');
+
+  /** AI sourcing for this job: opens its campaign (creating it, with drafted messages, the first time). */
+  async function reachOut() {
+    setStarting(true);
+    setStartError('');
+    try {
+      const c = await api<{ id: string }>('/outreach/campaigns', { method: 'POST', body: JSON.stringify({ jobId }) });
+      router.push(`/employer/outreach/${c.id}`);
+    } catch (e) {
+      setStartError((e as Error).message);
+      setStarting(false);
+    }
+  }
 
   function load() {
     setLoading(true);
@@ -110,8 +127,16 @@ export default function EmployerJobMatches({ jobId }: Props) {
           <h1 style={{ marginBottom: 4 }}>Talent match</h1>
           <p className="meta" style={{ margin: 0 }}>{data.jobTitle}</p>
         </div>
-        <Link href="/employer/jobs" className="btn btn-secondary">Back to Job Postings</Link>
+        <div className="row" style={{ margin: 0, flexWrap: 'wrap' }}>
+          {funnel.considered > 0 && (
+            <button onClick={reachOut} disabled={starting}>
+              {starting ? 'Writing messages…' : 'Reach out with AI'}
+            </button>
+          )}
+          <Link href="/employer/jobs" className="btn btn-secondary">Back to Job Postings</Link>
+        </div>
       </div>
+      {startError && <ErrorState message={startError} />}
 
       <div
       style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, marginTop: 24, marginBottom: 24 }}

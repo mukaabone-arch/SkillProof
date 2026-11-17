@@ -4,6 +4,7 @@
 import CandidateNav from '@/components/CandidateNav';
 import CandidateInterviews from '@/components/CandidateInterviews';
 import StaffingRequestsInbox from '@/components/StaffingRequestsInbox';
+import OutreachInbox from '@/components/OutreachInbox';
 import StaffingSubmissionsInbox from '@/components/StaffingSubmissionsInbox';
 import InterviewPrepPanel from '@/components/InterviewPrepPanel';
 import { useRequireAuth } from '@/lib/useRequireAuth';
@@ -21,6 +22,7 @@ export default function InterviewsPage() {
 
         <div className="list-page-columns">
           <div className="list-page-main">
+            <OutreachInbox />
             <StaffingRequestsInbox />
             <StaffingSubmissionsInbox />
             <CandidateInterviews />

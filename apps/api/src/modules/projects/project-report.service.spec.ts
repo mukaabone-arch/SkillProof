@@ -16,11 +16,13 @@ function setup(project: Record<string, unknown>) {
     },
     shortlistEntry: {
       findMany: jest.fn(async () => [
-        { jobId: 'j1', candidateId: 'c1', stage: ShortlistStage.HIRED },
-        { jobId: 'j1', candidateId: 'c2', stage: ShortlistStage.INTERVIEWING },
-        { jobId: 'j1', candidateId: 'c3', stage: ShortlistStage.REJECTED },
+        { id: 'e1', jobId: 'j1', candidateId: 'c1', stage: ShortlistStage.HIRED },
+        { id: 'e2', jobId: 'j1', candidateId: 'c2', stage: ShortlistStage.INTERVIEWING },
+        { id: 'e3', jobId: 'j1', candidateId: 'c3', stage: ShortlistStage.REJECTED },
+        { id: 'e4', jobId: 'j1', candidateId: 'c4', stage: ShortlistStage.SHORTLISTED },
       ]),
     },
+    outreachMessage: { findMany: jest.fn(async () => [{ shortlistEntryId: 'e4' }]) },
     job: { findMany: jest.fn(async () => [{ id: 'j1', skills: [{ skillId: 's1', requiredLevel: 'L2' }] }]) },
     skillClaim: {
       findMany: jest.fn(async () => [
@@ -50,9 +52,9 @@ describe('ProjectReportService', () => {
     const r = await svc.build('o1', 'p1', NOW);
     const row = r.roles[0];
     expect(row.applicants).toBe(5);
-    expect(row.stages).toMatchObject({ HIRED: 1, INTERVIEWING: 1, REJECTED: 1 });
-    // c1 applied, c2 was added from search; the rejected candidate is not counted.
-    expect(row.sources).toEqual({ applied: 1, sourced: 1 });
+    expect(row.stages).toMatchObject({ HIRED: 1, INTERVIEWING: 1, REJECTED: 1, SHORTLISTED: 1 });
+    // c1 applied, c2 was added from search, c4 said Interested to AI sourcing; the rejected candidate is not counted.
+    expect(row.sources).toEqual({ applied: 1, aiSourced: 1, sourced: 1 });
     // Only c1 holds the required skill at Practitioner or above, verified.
     expect(row.meetsVerifiedSkills).toBe(1);
     expect((prisma.skillClaim.findMany.mock.calls as unknown as [{ where: { status: string } }][])[0][0].where.status).toBe(ClaimStatus.VERIFIED);

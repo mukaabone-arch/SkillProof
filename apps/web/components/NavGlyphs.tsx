@@ -86,6 +86,12 @@ const paths = {
     </>
   ),
   upgrade: <path d="M12 3l2.4 5.6L20 11l-5.6 2.4L12 19l-2.4-5.6L4 11l5.6-2.4z" />,
+  outreach: (
+    <>
+      <path d="M21 3 10 14" />
+      <path d="M21 3l-7 18-4-7-7-4z" />
+    </>
+  ),
 };
 
 export type NavGlyphName = keyof typeof paths;

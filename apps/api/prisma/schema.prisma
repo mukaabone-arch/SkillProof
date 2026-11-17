@@ -298,6 +298,12 @@ enum NotificationType {
   STAFFING_SUBMISSION_DECISION
   /** Candidate: a submission moved on (interviewing, offer, placed, not selected, withdrawn). */
   STAFFING_SUBMISSION_STATUS
+  /** Candidate: an employer or recruiter reached out about a role (OutreachService.send). */
+  OUTREACH_MESSAGE
+  /** Candidate: a reminder about an outreach message they haven't answered (OutreachFollowUpJob). */
+  OUTREACH_FOLLOW_UP
+  /** Org: a candidate answered an outreach message. */
+  OUTREACH_REPLY
 }
 
 enum NotificationChannel {
@@ -406,6 +412,7 @@ model User {
   staffingSubmissionsCreated StaffingSubmission[] @relation("StaffingSubmissionCreatedBy")
   deviceTokens              DeviceToken[]
   helpQuestions             HelpQuestion[]
+  outreachCampaignsCreated  OutreachCampaign[]  @relation("OutreachCampaignCreatedBy")
 }
 
 // ---------- Push notifications (FCM) ----------
@@ -697,6 +704,7 @@ model Organization {
   staffingClients     StaffingClient[]
   staffingSubmissions StaffingSubmission[]
   hiringProjects      HiringProject[]
+  outreachCampaigns   OutreachCampaign[]
 }
 
 model OrgMember {
@@ -954,6 +962,20 @@ model CandidateProfile {
   staffingRequests        StaffingAvailabilityRequest[]
   staffingBlocks          StaffingBlock[]
   staffingSubmissions StaffingSubmission[]
+
+  /**
+   * AI sourcing (OutreachModule): whether employers and recruiters may message
+   * this candidate about a role they never applied to. ANYONE by default (a
+   * launch notice tells existing candidates); VERIFIED_MATCHES only lets a
+   * campaign reach them when they're a verified match for the role
+   * (score >= 50, see outreach.util.ts); OFF stops new messages and any
+   * follow-ups still due. Recruiter (STAFFING) orgs additionally need
+   * openToStaffing, the existing agency opt-in.
+   */
+  recruiterContact      RecruiterContactPreference @default(ANYONE)
+  /** Most first-time outreach messages this candidate receives per rolling 7 days, all orgs together. Follow-ups don't count. */
+  outreachWeeklyLimit   Int                        @default(3)
+  outreachMessages      OutreachMessage[]
 }
 
 /**
@@ -2075,6 +2097,7 @@ model Job {
   skills             JobSkill[]
   /// The project role this job fills, if it belongs to a hiring project.
   projectRole        ProjectRole?
+  outreachCampaigns  OutreachCampaign[]
   applications       Application[]
   shortlistEntries   ShortlistEntry[]
   assessmentRequests AssessmentRequest[]
@@ -3705,4 +3728,107 @@ model StaffingSubmission {
   @@index([candidateId, clientDomain])
   @@index([orgId, createdAt])
   @@index([projectRoleId])
+}
+
+// ---------- AI sourcing and outreach (2026-11) ----------
+
+enum RecruiterContactPreference {
+  ANYONE
+  VERIFIED_MATCHES
+  OFF
+}
+
+enum OutreachCampaignStatus {
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+enum OutreachStatus {
+  /** Drafted, waiting for the recruiter to approve and send. */
+  DRAFT
+  /** Recruiter removed this candidate from the batch before sending. */
+  SKIPPED
+  SENT
+  INTERESTED
+  NOT_NOW
+  NOT_INTERESTED
+  /** Sent but no longer live: the campaign closed or the candidate turned contact off before replying. */
+  STOPPED
+}
+
+enum OutreachEventType {
+  DRAFTED
+  EDITED
+  SENT
+  FOLLOW_UP
+  REPLIED
+  STOPPED
+}
+
+/// One AI sourcing run for one job: the ranked candidates it found and the messages sent to them (see OutreachService).
+model OutreachCampaign {
+  id              String                 @id @default(uuid())
+  orgId           String
+  organization    Organization           @relation(fields: [orgId], references: [id])
+  jobId           String
+  job             Job                    @relation(fields: [jobId], references: [id])
+  createdByUserId String
+  createdByUser   User                   @relation("OutreachCampaignCreatedBy", fields: [createdByUserId], references: [id])
+  status          OutreachCampaignStatus @default(ACTIVE)
+  /// Days after the first message when each follow-up goes out; length = number of follow-ups (max 2).
+  followUpDays    Int[]                  @default([3, 7])
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  messages        OutreachMessage[]
+
+  @@index([orgId, createdAt])
+  @@index([jobId])
+}
+
+/// One candidate in a campaign: the drafted message, then its send, follow-ups and the candidate's answer.
+model OutreachMessage {
+  id               String           @id @default(uuid())
+  campaignId       String
+  campaign         OutreachCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  /// Copied from the campaign so per-org limits and "declined this org" checks need no join.
+  orgId            String
+  candidateId      String
+  candidateProfile CandidateProfile @relation(fields: [candidateId], references: [id])
+  /// scoreCandidate's 0-100 at drafting time; ranking only, never shown as a number.
+  score            Int
+  /// One line built from the match breakdown, e.g. "Verified L3 Python; missing Kubernetes".
+  matchReason      String
+  body             String
+  status           OutreachStatus   @default(DRAFT)
+  sentAt           DateTime?
+  sentByUserId     String?
+  followUpsSent    Int              @default(0)
+  nextFollowUpAt   DateTime?
+  respondedAt      DateTime?
+  candidateNote    String?
+  /// Employer orgs: the shortlist entry created when the candidate said Interested.
+  shortlistEntryId String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  events           OutreachEvent[]
+
+  @@unique([campaignId, candidateId])
+  @@index([candidateId, sentAt])
+  @@index([orgId, candidateId])
+  @@index([sentByUserId, sentAt])
+  @@index([status, nextFollowUpAt])
+}
+
+/// Audit trail for outreach: who drafted, edited, sent, followed up, and how the candidate replied.
+model OutreachEvent {
+  id          String            @id @default(uuid())
+  messageId   String
+  message     OutreachMessage   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  type        OutreachEventType
+  actorUserId String?
+  detail      String?
+  createdAt   DateTime          @default(now())
+
+  @@index([messageId, createdAt])
 }

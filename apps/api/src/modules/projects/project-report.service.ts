@@ -59,8 +59,8 @@ export interface ReportRole {
   stages: Record<string, number>;
   /** Employer only: candidates in the pipeline who hold every required skill, verified, at the required level. */
   meetsVerifiedSkills: number | null;
-  /** Employer only: pipeline candidates who applied vs were added from search or matches. */
-  sources: { applied: number; sourced: number } | null;
+  /** Employer only: pipeline candidates who applied, said Interested to AI sourcing, or were added from search or matches. */
+  sources: { applied: number; aiSourced: number; sourced: number } | null;
   attention: Attention[];
 }
 
@@ -115,7 +115,7 @@ export class ProjectReportService {
         applicants: applicantsByJob.get(r.jobId) ?? 0,
         stages,
         meetsVerifiedSkills: recruiter ? null : d?.meetsVerifiedSkills ?? 0,
-        sources: recruiter ? null : d?.sources ?? { applied: 0, sourced: 0 },
+        sources: recruiter ? null : d?.sources ?? { applied: 0, aiSourced: 0, sourced: 0 },
         attention,
       };
     });
@@ -149,6 +149,7 @@ export class ProjectReportService {
           ? null
           : {
               applied: roles.reduce((a, r) => a + (r.sources?.applied ?? 0), 0),
+              aiSourced: roles.reduce((a, r) => a + (r.sources?.aiSourced ?? 0), 0),
               sourced: roles.reduce((a, r) => a + (r.sources?.sourced ?? 0), 0),
             },
       },
@@ -160,10 +161,10 @@ export class ProjectReportService {
 
   /** Per job: shortlist stage counts, where candidates came from, and how many meet the verified-skill bar. */
   private async employerDetail(jobIds: string[]) {
-    const out = new Map<string, { stages: Record<string, number>; sources: { applied: number; sourced: number }; meetsVerifiedSkills: number }>();
+    const out = new Map<string, { stages: Record<string, number>; sources: { applied: number; aiSourced: number; sourced: number }; meetsVerifiedSkills: number }>();
     if (!jobIds.length) return out;
     const [entries, apps, jobs] = await Promise.all([
-      this.prisma.shortlistEntry.findMany({ where: { jobId: { in: jobIds } }, select: { jobId: true, candidateId: true, stage: true } }),
+      this.prisma.shortlistEntry.findMany({ where: { jobId: { in: jobIds } }, select: { id: true, jobId: true, candidateId: true, stage: true } }),
       this.prisma.application.findMany({ where: { jobId: { in: jobIds } }, select: { jobId: true, candidateProfileId: true } }),
       this.prisma.job.findMany({
         where: { id: { in: jobIds } },
@@ -173,6 +174,16 @@ export class ProjectReportService {
     const applied = new Set(apps.map((a) => `${a.jobId}:${a.candidateProfileId}`));
     const active = entries.filter((e) => ACTIVE_STAGES.includes(e.stage));
     const candidateIds = Array.from(new Set(active.map((e) => e.candidateId)));
+    const fromOutreach = active.length
+      ? new Set(
+          (
+            await this.prisma.outreachMessage.findMany({
+              where: { shortlistEntryId: { in: active.map((e) => e.id) } },
+              select: { shortlistEntryId: true },
+            })
+          ).map((m) => m.shortlistEntryId),
+        )
+      : new Set<string | null>();
     const skillIds = Array.from(new Set(jobs.flatMap((j) => j.skills.map((s) => s.skillId))));
     const claims =
       candidateIds.length && skillIds.length
@@ -184,7 +195,7 @@ export class ProjectReportService {
     const levelOf = new Map(claims.map((c) => [`${c.profileId}:${c.skillId}`, LEVEL_RANK[c.level]]));
     const required = new Map(jobs.map((j) => [j.id, j.skills]));
 
-    for (const jobId of jobIds) out.set(jobId, { stages: {}, sources: { applied: 0, sourced: 0 }, meetsVerifiedSkills: 0 });
+    for (const jobId of jobIds) out.set(jobId, { stages: {}, sources: { applied: 0, aiSourced: 0, sourced: 0 }, meetsVerifiedSkills: 0 });
     for (const e of entries) {
       if (!e.jobId) continue;
       const d = out.get(e.jobId)!;
@@ -194,6 +205,7 @@ export class ProjectReportService {
       if (!e.jobId) continue;
       const d = out.get(e.jobId)!;
       if (applied.has(`${e.jobId}:${e.candidateId}`)) d.sources.applied++;
+      else if (fromOutreach.has(e.id)) d.sources.aiSourced++;
       else d.sources.sourced++;
       const req = required.get(e.jobId) ?? [];
       if (req.length && req.every((s) => (levelOf.get(`${e.candidateId}:${s.skillId}`) ?? 0) >= LEVEL_RANK[s.requiredLevel])) {
@@ -270,7 +282,7 @@ export function reportToCsv(report: Awaited<ReturnType<ProjectReportService['bui
     'In progress',
     'Applicants',
     ...report.stageKeys.map((k) => STAGE_LABELS[k] ?? k),
-    ...(recruiter ? [] : ['Meet all required verified skills', 'Applied', 'Added from search or matches']),
+    ...(recruiter ? [] : ['Meet all required verified skills', 'Applied', 'Sourced by AI', 'Added from search or matches']),
     'Needs attention',
   ];
   const rows = report.roles.map((r) => [
@@ -284,7 +296,7 @@ export function reportToCsv(report: Awaited<ReturnType<ProjectReportService['bui
     r.inProgress,
     r.applicants,
     ...report.stageKeys.map((k) => r.stages[k] ?? 0),
-    ...(recruiter ? [] : [r.meetsVerifiedSkills, r.sources?.applied, r.sources?.sourced]),
+    ...(recruiter ? [] : [r.meetsVerifiedSkills, r.sources?.applied, r.sources?.aiSourced, r.sources?.sourced]),
     r.attention.map((a) => ATTENTION_LABELS[a]).join('; '),
   ]);
   const t = report.totals;
@@ -299,7 +311,7 @@ export function reportToCsv(report: Awaited<ReturnType<ProjectReportService['bui
     t.inProgress,
     t.applicants,
     ...report.stageKeys.map((k) => report.stageTotals[k] ?? 0),
-    ...(recruiter ? [] : [t.meetsVerifiedSkills, t.sources?.applied, t.sources?.sourced]),
+    ...(recruiter ? [] : [t.meetsVerifiedSkills, t.sources?.applied, t.sources?.aiSourced, t.sources?.sourced]),
     `${t.lateRoles} past start date`,
   ];
   return [header, ...rows, totals].map((row) => row.map(csvCell).join(',')).join('\r\n') + '\r\n';

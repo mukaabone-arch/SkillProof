@@ -40,6 +40,7 @@ import { StaffingModule } from './modules/staffing/staffing.module';
 import { DevicesModule } from './modules/devices/devices.module';
 import { HelpAssistantModule } from './modules/help-assistant/help-assistant.module';
 import { ProjectsModule } from './modules/projects/projects.module';
+import { OutreachModule } from './modules/outreach/outreach.module';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { ProjectsModule } from './modules/projects/projects.module';
     DevicesModule,
     HelpAssistantModule,
     ProjectsModule,
+    OutreachModule,
   ],
 })
 export class AppModule {}

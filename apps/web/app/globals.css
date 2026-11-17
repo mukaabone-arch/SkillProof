@@ -4903,3 +4903,33 @@ p:has(+ .staffing-filters) { max-width: 72ch; }
   .project-report-table thead { display: table-header-group; }
   body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* ---- AI sourcing and outreach (2026-11) ---- */
+.outreach-start { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin: 16px 0; }
+.outreach-start button { white-space: nowrap; }
+.outreach-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin: 20px 0; }
+.outreach-tiles .status-card-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.outreach-tiles .status-card { padding: 14px 16px; }
+.outreach-tiles .status-card:hover { transform: none; }
+.outreach-tile-strong { border-color: var(--success); }
+.outreach-tile-strong .status-stat { color: var(--success); }
+.outreach-notice { padding: 10px 12px; border-radius: var(--radius-md); background: var(--brand-50); color: var(--ink); }
+.outreach-section { margin-top: 24px; }
+.outreach-section > h2 { font-size: var(--text-lg); margin-bottom: 8px; }
+.outreach-section > summary { cursor: pointer; color: var(--ink-60); }
+.outreach-draft, .outreach-reply { flex-direction: column; align-items: stretch; gap: 6px; margin-top: 12px; }
+.outreach-draft textarea { width: 100%; font: inherit; line-height: 1.5; resize: vertical; }
+.outreach-reason { margin: 0; font-size: var(--text-sm); color: var(--ink-60); }
+.outreach-reason::before { content: 'Why: '; font-weight: 600; color: var(--ink); }
+.outreach-reply-yes { border-left: 3px solid var(--success); }
+.outreach-note { margin: 4px 0; font-style: italic; }
+.outreach-table td .meta { font-size: var(--text-xs); margin: 2px 0 0; }
+.outreach-campaign .btn-small, .outreach-section .btn-small { padding: 4px 10px; font-size: var(--text-sm); min-height: 0; }
+.outreach-body { white-space: pre-line; margin: 8px 0; line-height: 1.55; }
+.outreach-opportunity.is-focused { box-shadow: 0 0 0 2px var(--indigo); }
+.outreach-prefs { flex-direction: column; align-items: stretch; gap: 0; }
+.outreach-prefs h2 { font-size: var(--text-lg); margin-bottom: 4px; }
+.outreach-pref-option { display: flex; align-items: flex-start; gap: 10px; font-weight: 400; padding: 10px 0; border-top: 1px solid var(--ink-12); cursor: pointer; }
+.outreach-pref-option:first-of-type { border-top: 0; }
+.outreach-pref-option input { width: auto; margin-top: 4px; }
+.source-ai { background: #e9a23b; }

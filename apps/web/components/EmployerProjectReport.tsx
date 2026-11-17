@@ -38,7 +38,7 @@ interface ReportRole {
   applicants: number;
   stages: Record<string, number>;
   meetsVerifiedSkills: number | null;
-  sources: { applied: number; sourced: number } | null;
+  sources: { applied: number; aiSourced?: number; sourced: number } | null;
   attention: Attention[];
 }
 
@@ -64,7 +64,7 @@ export interface ProjectReport {
     applicants: number;
     fillRate: number;
     meetsVerifiedSkills: number | null;
-    sources: { applied: number; sourced: number } | null;
+    sources: { applied: number; aiSourced?: number; sourced: number } | null;
   };
   stageKeys: string[];
   stageTotals: Record<string, number>;
@@ -306,7 +306,7 @@ export default function EmployerProjectReport({ projectId }: { projectId: string
         {totals.sources && (
           <section className="card project-report-section">
             <h2>Where candidates came from</h2>
-            <SourceSplit applied={totals.sources.applied} sourced={totals.sources.sourced} />
+            <SourceSplit applied={totals.sources.applied} aiSourced={totals.sources.aiSourced ?? 0} sourced={totals.sources.sourced} />
           </section>
         )}
       </div>
@@ -318,8 +318,8 @@ export default function EmployerProjectReport({ projectId }: { projectId: string
   );
 }
 
-function SourceSplit({ applied, sourced }: { applied: number; sourced: number }) {
-  const total = applied + sourced;
+function SourceSplit({ applied, aiSourced, sourced }: { applied: number; aiSourced: number; sourced: number }) {
+  const total = applied + aiSourced + sourced;
   if (!total) {
     return (
       <p className="meta" style={{ margin: 0 }}>
@@ -328,23 +328,28 @@ function SourceSplit({ applied, sourced }: { applied: number; sourced: number })
     );
   }
   const pct = (n: number) => Math.round((n / total) * 100);
+  const parts = [
+    { key: 'applied', cls: 'source-applied', label: 'Applied', n: applied },
+    { key: 'ai', cls: 'source-ai', label: 'Sourced by AI', n: aiSourced },
+    { key: 'sourced', cls: 'source-sourced', label: 'Added from search or matches', n: sourced },
+  ].filter((p) => p.key !== 'ai' || p.n > 0);
   return (
     <div>
       <div
         className="source-split-bar"
         role="img"
-        aria-label={`${applied} applied (${pct(applied)}%), ${sourced} added from search or matches (${pct(sourced)}%)`}
+        aria-label={parts.map((p) => `${p.n} ${p.label.toLowerCase()} (${pct(p.n)}%)`).join(', ')}
       >
-        <span className="source-applied" style={{ width: `${pct(applied)}%` }} />
-        <span className="source-sourced" style={{ width: `${pct(sourced)}%` }} />
+        {parts.map((p) => (
+          <span key={p.key} className={p.cls} style={{ width: `${pct(p.n)}%` }} />
+        ))}
       </div>
       <ul className="source-split-legend">
-        <li>
-          <i className="source-applied" /> Applied: {applied} ({pct(applied)}%)
-        </li>
-        <li>
-          <i className="source-sourced" /> Added from search or matches: {sourced} ({pct(sourced)}%)
-        </li>
+        {parts.map((p) => (
+          <li key={p.key}>
+            <i className={p.cls} /> {p.label}: {p.n} ({pct(p.n)}%)
+          </li>
+        ))}
       </ul>
     </div>
   );

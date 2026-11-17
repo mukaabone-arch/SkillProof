@@ -68,6 +68,7 @@ export default function CandidateNav({ onLoggedOut }: Props) {
   }
 
   const menuItems: AccountMenuItem[] = [
+    { label: 'Opportunities', href: '/opportunities', icon: 'outreach' },
     { label: 'Account', href: '/profile/account', icon: 'settings' },
     { label: 'Help', onClick: () => setHelpOpen(true), icon: 'help', mobileOnly: true },
     ...(tier === 'FREE'

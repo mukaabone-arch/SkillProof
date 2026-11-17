@@ -68,6 +68,7 @@ const SECTIONS: { href: string; label: string; icon: NavGlyphName }[] = [
   { href: '/employer/jobs', label: 'Job Postings', icon: 'postings' },
   { href: '/employer/projects', label: 'Projects', icon: 'projects' },
   { href: '/employer/candidates', label: 'Find Candidates', icon: 'search' },
+  { href: '/employer/outreach', label: 'AI sourcing', icon: 'outreach' },
   { href: '/employer/applicants', label: 'Applicants', icon: 'applicants' },
   { href: '/employer/shortlist', label: 'Shortlist', icon: 'shortlist' },
   { href: '/employer/billing', label: 'Billing', icon: 'billing' },
@@ -77,6 +78,7 @@ const SECTIONS: { href: string; label: string; icon: NavGlyphName }[] = [
 /** Staffing companies (Organization.type STAFFING) — see StaffingModule on the API side. */
 const STAFFING_SECTIONS: { href: string; label: string; icon: NavGlyphName }[] = [
   { href: '/employer/talent', label: 'Find talent', icon: 'search' },
+  { href: '/employer/outreach', label: 'AI sourcing', icon: 'outreach' },
   { href: '/employer/jobs', label: 'Job Postings', icon: 'postings' },
   { href: '/employer/projects', label: 'Projects', icon: 'projects' },
   { href: '/employer/requests', label: 'Availability requests', icon: 'applicants' },

@@ -7,6 +7,9 @@ import '@testing-library/jest-dom';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import EmployerJobMatches from './EmployerJobMatches';
 
+const push = jest.fn();
+jest.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
+
 function jsonResponse(status: number, body: unknown): Response {
   return { ok: status >= 200 && status < 300, status, json: async () => body } as Response;
 }
