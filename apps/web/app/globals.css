@@ -4854,3 +4854,52 @@ p:has(+ .staffing-filters) { max-width: 72ch; }
 /* Verified-skill level medal (LevelMedal) inside badges and chips. */
 .level-medal { flex: none; vertical-align: -0.35em; margin-inline-end: 3px; }
 .skill-chip { display: inline-flex; align-items: center; gap: 4px; }
+
+/* Project report (EmployerProjectReport). */
+.project-report { display: flex; flex-direction: column; gap: 18px; }
+.project-report-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.project-report-head h1 { margin: 0 0 6px; }
+.project-report-buttons { display: flex; gap: 10px; }
+.project-report-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.report-tile { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 18px; }
+.report-tile strong { font-size: 2rem; line-height: 1.1; color: var(--brand-600); }
+.report-tile-label { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-60); }
+.report-tile .meta { margin: 0; font-size: 0.82rem; }
+.project-report-section { display: block; margin: 0; }
+.project-report-section h2 { margin: 0 0 12px; font-size: 1.15rem; }
+.project-report-scroll { overflow-x: auto; }
+.project-report-table { width: 100%; }
+.project-report-table td { white-space: nowrap; }
+.project-report-table thead th { white-space: normal; vertical-align: bottom; }
+.project-report-table td:first-child { white-space: normal; min-width: 170px; }
+.project-report-table tr { break-inside: avoid; }
+.project-report-table tfoot th, .project-report-table tfoot td { font-weight: 700; border-top: 2px solid var(--ink-30); }
+.report-filled { color: var(--success); font-weight: 700; }
+.project-report-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.project-report-attention { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.project-report-attention li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.source-split-bar { display: flex; height: 14px; border-radius: 999px; overflow: hidden; background: var(--paper-2); }
+.source-applied { background: var(--brand-600); }
+.source-sourced { background: #2a9d8f; }
+.source-split-legend { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; }
+.source-split-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-inline-end: 6px; vertical-align: 0; }
+.project-report-foot { margin: 0; }
+@media (max-width: 900px) {
+  .project-report-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .project-report-pair { grid-template-columns: 1fr; }
+}
+/* "Save as PDF" prints the report alone: no portal chrome, no buttons. */
+@media print {
+  @page { size: A4 landscape; margin: 12mm; }
+  .employer-topbar, .employer-sidebar, .employer-sidebar-scrim, .report-actions, .help-ai-root, .cky-btn-revisit-wrapper { display: none !important; }
+  .employer-shell, .employer-body { display: block !important; background: #fff !important; }
+  .employer-body > *:not(.employer-sidebar) { margin: 0 !important; padding: 0 !important; }
+  .project-report-main { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }
+  .project-report .card { box-shadow: none !important; border: 1px solid #ddd !important; }
+  .project-report-tiles .card, .project-report-pair .card { break-inside: avoid; }
+  .project-report-scroll { overflow: visible !important; }
+  .project-report-table { font-size: 11px; }
+  .project-report-table td:first-child { min-width: 150px; }
+  .project-report-table thead { display: table-header-group; }
+  body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

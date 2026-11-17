@@ -250,6 +250,9 @@ export default function EmployerProjectDetail({ projectId }: { projectId: string
           {project.description && <p style={{ margin: 0 }}>{project.description}</p>}
           <HeadcountBar headcount={project.headcount} hired={project.hired} inProgress={project.inProgress} />
           <div className="project-header-actions">
+            <Link href={`/employer/projects/${project.id}/report`} className="btn-link">
+              View report
+            </Link>
             <button type="button" className="btn-link" onClick={startEdit}>
               Edit details
             </button>

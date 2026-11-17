@@ -9,14 +9,16 @@ interface Props {
   inProgress: number;
   /** Compact: the numbers only on one line, for table cells. */
   compact?: boolean;
+  /** "hired" (employers) or "placed" (recruiter projects). */
+  doneWord?: string;
 }
 
-export default function HeadcountBar({ headcount, hired, inProgress, compact = false }: Props) {
+export default function HeadcountBar({ headcount, hired, inProgress, compact = false, doneWord = 'hired' }: Props) {
   const total = Math.max(headcount, 1);
   const hiredShown = Math.min(hired, headcount);
   const progressShown = Math.min(inProgress, Math.max(headcount - hiredShown, 0));
   const pct = (n: number) => `${(n / total) * 100}%`;
-  const label = `${hired} of ${headcount} hired${inProgress ? `, ${inProgress} in progress` : ''}`;
+  const label = `${hired} of ${headcount} ${doneWord}${inProgress ? `, ${inProgress} in progress` : ''}`;
   return (
     <div className={`headcount${compact ? ' headcount-compact' : ''}`}>
       <div className="headcount-bar" role="img" aria-label={label}>
@@ -25,7 +27,7 @@ export default function HeadcountBar({ headcount, hired, inProgress, compact = f
       </div>
       <div className="headcount-words">
         <strong>
-          {hired} of {headcount} hired
+          {hired} of {headcount} {doneWord}
         </strong>
         {inProgress > 0 && <span> · {inProgress} in progress</span>}
       </div>
