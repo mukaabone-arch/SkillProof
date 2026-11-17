@@ -103,6 +103,22 @@ The score is calculated **only from verified information**: verified skill claim
 
 Your top 10 matches also get a written explanation of why they scored as they did. It's generated after scoring and describes the result rather than influencing it.
 
+## AI sourcing {#ai-sourcing}
+
+AI sourcing finds candidates for a live job and writes each of them a personal message. Nothing is sent until you approve it.
+
+1. Open **AI sourcing** in the sidebar and pick a live job, or choose **Reach out with AI** on a job's matches page.
+2. MyAmbii ranks every candidate who allows employers to contact them, using the same verified-skill score as job matches. It leaves out people who already applied, are already on the job's shortlist, or told your organisation "Not for me" in the last 90 days.
+3. Each candidate gets a drafted message that names your role and their verified skills, with a one-line reason they were picked. Edit any message, or choose **Leave out**.
+4. Choose **Send**. Messages go by email and to the candidate's Opportunities page.
+5. Candidates reply with one tap: **Interested**, **Not now**, or **Not for me**. Up to two reminders go out automatically, 3 and 7 days after the first message, and stop as soon as they reply.
+
+When a candidate says **Interested**, you see their email and phone on the campaign page, and they're added to that job's shortlist. Continue from the shortlist as usual.
+
+**Limits.** Each person in your team can send up to 50 new messages a day. Each candidate also sets how many messages they accept per week (3 by default). A message held by a limit stays a draft, so you can send it later.
+
+**Find more candidates** adds the next best matches to the campaign. **Pause** stops sending and reminders. **Close** ends the campaign; candidates who haven't answered can no longer reply.
+
 ---
 
 ## Applicants {#applicants}

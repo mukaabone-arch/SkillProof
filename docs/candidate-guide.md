@@ -193,6 +193,20 @@ At 10, applications are blocked until the reset. If an application fails for a t
 
 ---
 
+## Messages from employers and recruiters {#opportunities}
+
+Employers and recruiters can find you through AI sourcing when your verified skills match one of their roles, and send you a message about it. You'll get an email, and the message appears on **Opportunities** (in your account menu) and on **Interviews**.
+
+Reply with one tap:
+
+- **Interested** shares your email and phone with that company. An employer adds you to that job's shortlist.
+- **Not now** keeps the door open; you can still say Interested later.
+- **Not for me** ends it. That company won't contact you again about new roles for 90 days.
+
+If you don't answer, you'll get at most two reminders.
+
+**Choose who can contact you** on Opportunities: any role that matches your skills (the default), only strong matches, or nobody. You can also set how many new messages you get per week (3 by default). Every email also has a link to stop recruiter messages. Recruitment agencies can reach you only if you've also turned on **Open to recruiters** on your profile.
+
 ## Interviews {#interviews}
 
 The Interviews page shows every employer shortlist you're on and where you are in their process.

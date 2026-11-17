@@ -70,6 +70,19 @@ You can't submit a candidate to a client when:
 
 You'll see the reason when you try. This protects candidates from duplicate submissions and protects whoever brought the candidate to the client first.
 
+## AI sourcing {#ai-sourcing}
+
+AI sourcing finds candidates for one of your live job postings and writes each of them a personal message. Nothing is sent until you approve it.
+
+1. Open **AI sourcing** in the sidebar and pick a live job.
+2. MyAmbii ranks candidates who are open to recruiters and allow contact, by their verified skills against the job. Anyone who blocked your company, or told you "Not now" or "Not for me" recently, is left out.
+3. Review the drafted messages, edit any of them, or choose **Leave out**, then **Send**.
+4. Candidates reply with one tap: **Interested**, **Not now**, or **Not for me**. Up to two reminders go out after 3 and 7 days, and stop as soon as they reply.
+
+Candidates stay anonymous until they say **Interested**. Then you see their name, email and phone, and can **submit them to the client** from the campaign page, with the usual consent step.
+
+**Limits.** Each person can send up to 50 new messages a day, and each candidate sets how many messages they accept per week.
+
 ## FAQ {#faq}
 
 **Why can't I see a candidate's name?**
