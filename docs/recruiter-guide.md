@@ -6,7 +6,7 @@ How MyAmbii works for recruiters, staffing companies and recruitment agencies pl
 
 Recruiters sign in at **myambii.com/staffing** (or **For business → Recruiter** on the home page) with a work email and a one-time code. There's no password.
 
-The first time you sign in, you set up your organisation. Accounts created from the recruiter sign-in are set up as recruiters automatically, so you go straight to the recruiter portal: **Find talent**, **Requests**, **Submissions** and **Clients**. Employer tools such as job posts and assessment requests aren't part of the recruiter portal.
+The first time you sign in, you set up your organisation. Accounts created from the recruiter sign-in are set up as recruiters automatically, so you go straight to the recruiter portal: **Find talent**, **AI sourcing**, **Job Postings**, **Projects**, **Availability requests**, **Submissions** and **Clients**. Employer-only tools, such as the shortlist and assessment requests, aren't part of the recruiter portal.
 
 Your organisation is reviewed before you can search candidates. Once it's verified, its type (recruiter or employer) can't be changed. If you set up under the wrong one, contact us before verification.
 
@@ -70,6 +70,34 @@ You can't submit a candidate to a client when:
 
 You'll see the reason when you try. This protects candidates from duplicate submissions and protects whoever brought the candidate to the client first.
 
+## Job postings for clients {#job-postings}
+
+You can post jobs on behalf of your clients from **Job Postings**. Add the client on **Clients** first.
+
+- Every job is for one client. Choose it on the job form.
+- **The client's name is hidden by default.** Candidates see your company's name "for a confidential client", for example "Posted by Talent Partners for a confidential client". Untick **Hide the client's name from candidates** to show it.
+- Paste a description and use **Parse with AI** to fill in the title, experience and skills, the same as for employers.
+- When a candidate applies, their name and contact details are shared with you, not with the client.
+- Open a job's applicants and choose **Submit to** (followed by the client's name) to put someone forward. The candidate approves first, as with every submission.
+
+## Projects {#projects}
+
+A project groups the roles one client needs filled, and shows how many you've placed against how many they need.
+
+1. On **Projects**, choose **New project** and pick the client. Add a name, and optionally a description and dates.
+2. Add roles. **+ New role** opens the job form with the client already chosen. **Add an existing job** uses one of your postings for that client. Each job can be in one project only.
+3. For each role, set **People needed** (1–50) and, optionally, a **target start** date.
+
+**Progress comes from your submissions** for each role. **Placed** counts as filled; Submitted, Interviewing and Offer count as in progress. Each role links to its applicants and to **Submissions**.
+
+A role shows **Filled** when everyone needed is placed, and **Start date passed** when its target start has gone by and it isn't filled. **Mark complete** and **Archive** change only the project, never its jobs.
+
+### Project reports {#project-reports}
+
+**View report** shows each role's people needed, placed, applicants and how many submissions are at each status, plus the roles that need attention: past their start date, nobody in progress, not yet posted, or closed before filling. Submissions whose consent request ran out show as expired.
+
+**Download CSV** for Excel or Google Sheets, or **Save as PDF**. Reports never include candidate names or contact details, so you can share them with your client.
+
 ## AI sourcing {#ai-sourcing}
 
 AI sourcing finds candidates for one of your live job postings and writes each of them a personal message. Nothing is sent until you approve it.
@@ -92,7 +120,7 @@ Names and contact details are shared only after the candidate answers **Availabl
 Either they turned off **Open to recruiters**, or they haven't confirmed their availability in the last 30 days. Candidates you've already been in touch with stay on your **Requests** and **Submissions** pages.
 
 **Can I use the employer tools as well?**
-No. Recruiter and employer organisations have separate portals. If your company also hires for itself, set up a separate employer organisation from the **Employer** sign-in.
+Recruiters have their own job postings, projects and AI sourcing, but not the employer shortlist or assessment requests. Recruiter and employer organisations have separate portals. If your company also hires for itself, set up a separate employer organisation from the **Employer** sign-in.
 
 **Does MyAmbii send the candidate's CV to my client?**
 No. MyAmbii records consent and representation; how you present the candidate to your client is up to you.

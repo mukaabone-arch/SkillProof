@@ -66,6 +66,47 @@ When you unpublish, everyone who applied and everyone active on your shortlist f
 
 **This can't be undone.** Reopening the job later doesn't retract those notifications or restore anything.
 
+### Importing jobs from a file {#job-import}
+
+To post many roles at once, choose **Import from file** on Job Postings and download the CSV template. Fill in one row per job and upload it. Up to 50 rows per file.
+
+- **Required columns:** title, description (at least 20 characters) and employment type. Everything else is optional: code, location, remote, experience min and max, salary min and max in LPA, salary not disclosed, and skills.
+- **Skills** go in one cell as "Skill name: level", separated by semicolons, for example `RAG Systems: L2; Prompt Engineering: L1 (optional)`. Levels can be written as L1, L2, L3 or as Foundational, Practitioner, Advanced. Leave the cell empty and AI suggests skills from the description.
+- **Every row becomes a draft**, never a live job. Rows with a problem are skipped and listed with the reason, so you can fix the file and upload those again.
+
+After the upload you review the drafts. Each one shows what still stops it being posted: at least one required skill, and a city or "remote". **Post ready jobs** publishes all the drafts that are ready together. Open any other draft in the normal job form to finish it.
+
+---
+
+## Projects {#projects}
+
+A project groups the roles one piece of work needs, such as "Support AI rollout: 3 ML engineers and 2 analysts", and shows how many are hired against how many you need.
+
+1. On **Projects**, choose **New project**. Give it a name, and optionally a description and start and end dates.
+2. Add roles. **+ New role** opens the normal job form and links the job back to the project. **Add an existing job** uses a job you already have. Each role is one job, and a job can only be in one project.
+3. For each role, set **People needed** (1–50) and, optionally, a **target start** date.
+
+**Progress is counted from each job's shortlist.** Candidates at Hired count as hired; Invited, Interviewing and Offer count as in progress. Nothing is entered by hand. Hiring more people than a role needs doesn't make up for another role that's short.
+
+On the project page:
+
+- A role shows **Filled** when it has hired everyone it needs, with a **Close job** shortcut.
+- **Start date passed** marks a role whose target start has gone by and that still isn't filled.
+- Draft roles list what still blocks posting. **Post ready roles** posts every draft that's ready.
+- **Remove from project** takes a role out; its job and candidates are untouched.
+- **Mark complete** and **Archive** change only the project. Its jobs stay as they are. Archived projects are hidden from the list until you show them, and can be restored.
+
+### Project reports {#project-reports}
+
+**View report** on a project shows where hiring stands, ready to share with leadership.
+
+- **Summary:** fill rate (people hired against people needed), candidates in progress, total applicants, and how many candidates in the pipeline hold every required skill verified at the required level.
+- **Roles table:** people needed, hired, applicants, and how many candidates are at each pipeline stage, with a totals row. Rejected or declined columns appear only when it happens.
+- **Needs attention:** roles past their start date, roles with nobody in progress, roles not yet posted, and roles closed before they were filled.
+- **Where candidates came from:** applied, sourced by AI, or added from search or matches.
+
+**Download CSV** opens in Excel or Google Sheets. **Save as PDF** prints just the report, in landscape. Reports never include candidate names or contact details.
+
 ---
 
 ## Finding candidates {#finding-candidates}

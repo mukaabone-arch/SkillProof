@@ -8,7 +8,7 @@ Everything you can do on MyAmbii, and how it works.
 
 Five steps from signing up to applying for your first job.
 
-**1. Verify your phone and email.** You need both on file before you can reach anything else. If you signed up with Google or GitHub, you'll usually be asked to add a phone number.
+**1. Verify your email, and your phone if you're in India.** You need these on file before you can reach anything else. In India you need both a verified phone and a verified email. Outside India, a verified email is enough, because our text-message codes only go to Indian (+91) numbers.
 
 **2. Fill in your profile.** At minimum, add your full name and either a headline or your years of experience. That's the threshold for starting an assessment. Upload your resume too, since you'll need one on file to apply for jobs.
 
@@ -159,6 +159,8 @@ The Jobs page has three tabs.
 
 **My applications** tracks what you've applied to.
 
+Some jobs are posted by a recruitment agency for one of its clients. They show the agency's name and the client's, for example "Posted by Talent Partners for Globex", or "for a confidential client" when the agency hasn't named them. Applying shares your name and contact details with the agency, not with the client. The agency asks your permission before putting you forward to the client (see [Recruiters](#recruiters)).
+
 ### What you need before you can apply {#apply-requirements}
 
 Four things:
@@ -243,6 +245,8 @@ If you deactivate or delete your account, the certificate stays verifiable but n
 
 Under Profile → Account, you can add a missing phone or email, or change one you already have. Both are confirmed by a one-time code onto your existing account, so you won't accidentally end up with two accounts.
 
+**Phone sign-in and phone codes work for Indian (+91) numbers only.** Outside India, sign in with your email, or with Google or GitHub (or Apple in the iPhone app).
+
 ### Deactivating {#deactivate}
 
 Deactivating hides you from search, matching, and new results. Employers can't shortlist you or send you invitations, and notification emails stop.
@@ -300,6 +304,12 @@ You need at least one verified skill. Claimed-but-unverified skills aren't enoug
 
 **Do I lose an application if something goes wrong?**
 No. Failed submissions are credited back automatically.
+
+**I'm outside India. Do I need a phone number?**
+No. A verified email is enough outside India. Phone codes only go to Indian (+91) numbers.
+
+**Is there a mobile app?**
+Yes. The MyAmbii candidate app is on the App Store and Google Play. Sign in with the same account; your profile, badges and applications are the same on the web and in the app.
 
 ## Recruiters {#recruiters}
 
