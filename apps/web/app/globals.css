@@ -3174,6 +3174,8 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .lp-footer-lockup .brand-product-name { font-size: 1.4rem; }
 .lp-footer-company { color: var(--ink); font-weight: 600; margin-top: 8px; }
 .lp-footer-copy { color: var(--ink-30); font-size: 0.8rem; margin-top: 4px; }
+.lp-footer:has(.lp-footer-end) { padding-bottom: 0; }
+.lp-footer-end { margin-top: 28px; height: 56px; border-top: 1px solid var(--ink-12); background: color-mix(in srgb, var(--card) 60%, var(--gray-50)); }
 .lp-footer-links { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
 /* ConsentSettingsLink renders a <button> (it triggers withdrawal + reload,
    not navigation) in among the footer's <a> links. Reset first — declared

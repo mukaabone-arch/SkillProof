@@ -218,6 +218,8 @@ export default function LandingPage() {
             <ConsentSettingsLink />
           </nav>
         </div>
+        {/* Closing band: the same divider line and card colour as the About section above the footer. */}
+        <div className="lp-footer-end" aria-hidden="true" />
       </footer>
     </>
   );
