@@ -164,7 +164,8 @@ export default function EmployerSidebarShell({ verified, org, orgType = 'EMPLOYE
             label={org?.name ?? 'Account'}
             items={[
               { label: 'Settings', href: '/employer/settings', icon: 'settings' },
-              { label: 'Billing', href: '/employer/billing', icon: 'billing' },
+              // Billing is employers' assessment-charge documents only — recruiters have none yet (see STAFFING_SECTIONS).
+              ...(orgType === 'STAFFING' ? [] : [{ label: 'Billing', href: '/employer/billing', icon: 'billing' as NavGlyphName }]),
               { label: 'Team members', href: '/employer/settings#team', icon: 'applicants' },
               { label: 'Log out', onClick: handleLogout, icon: 'logout' },
             ]}

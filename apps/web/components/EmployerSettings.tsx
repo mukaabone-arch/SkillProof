@@ -31,6 +31,7 @@ import { formatOrgIndustry, OrgIndustry, ORG_INDUSTRY_OPTIONS } from '@/lib/orgI
 import { useOrgLogo } from '@/lib/useOrgLogo';
 import OrgMark from '@/components/OrgMark';
 import PasskeysSection from './PasskeysSection';
+import { useOrgType } from '@/lib/orgTypeContext';
 
 const { api } = employerApi;
 
@@ -92,6 +93,8 @@ interface DeactivationPreview {
 
 export default function EmployerSettings() {
   const router = useRouter();
+  // Recruiters have no billing documents yet (assessment charges are employer-only).
+  const recruiter = useOrgType() === 'STAFFING';
   const [org, setOrg] = useState<OrgMe>();
   const [team, setTeam] = useState<TeamData>();
   const [error, setError] = useState('');
@@ -441,7 +444,7 @@ export default function EmployerSettings() {
             </p>
           )}
 
-          {org.organization.verificationStatus === 'VERIFIED' && (
+          {org.organization.verificationStatus === 'VERIFIED' && !recruiter && (
             <p className="meta" style={{ marginTop: 4 }}>
               GST invoices and receipts are generated automatically for each charge.{' '}
               <Link href="/employer/billing">View billing documents →</Link>

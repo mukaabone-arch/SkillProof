@@ -75,4 +75,15 @@ describe('EmployerSidebarShell — account menu', () => {
     expect(screen.getByRole('menuitem', { name: 'Team members' })).toHaveAttribute('href', '/employer/settings#team');
     expect(screen.getByRole('menuitem', { name: 'Log out' })).toBeInTheDocument();
   });
+
+  it('has no Billing item for a recruiter organisation', () => {
+    render(
+      <EmployerSidebarShell verified orgType="STAFFING" org={{ name: 'Hire Co', hasLogo: false }} onLoggedOut={() => {}}>
+        <p>page</p>
+      </EmployerSidebarShell>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Hire Co menu' }));
+    expect(screen.queryByRole('menuitem', { name: 'Billing' })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Settings' })).toBeInTheDocument();
+  });
 });
