@@ -32,6 +32,7 @@ import { useOrgLogo } from '@/lib/useOrgLogo';
 import OrgMark from '@/components/OrgMark';
 import PasskeysSection from './PasskeysSection';
 import { useOrgType } from '@/lib/orgTypeContext';
+import IntegrationsSettings from './IntegrationsSettings';
 
 const { api } = employerApi;
 
@@ -583,6 +584,11 @@ export default function EmployerSettings() {
           DPDP expects withdrawal to be at least as easy as giving consent,
           so it belongs wherever a signed-in user would actually look for a
           privacy control. */}
+      {org && isAdmin && org.organization.verificationStatus === 'VERIFIED' && (
+        <CollapsibleSection id="integrations" title="Integrations" status="Webhooks and API keys for your ATS">
+          <IntegrationsSettings />
+        </CollapsibleSection>
+      )}
       <PasskeysSection portal="employer" collapsible />
       <CollapsibleSection
         id="privacy"

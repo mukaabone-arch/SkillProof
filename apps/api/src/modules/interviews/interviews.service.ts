@@ -1,4 +1,5 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
 import { InterviewQuestionCategory, NotificationType, Prisma, ShortlistStage } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -26,6 +27,8 @@ export class InterviewsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    /** Optional so unit tests that build this service by hand need no change. */
+    @Optional() private readonly webhooks?: WebhookDispatcherService,
   ) {}
 
   async listMine(userId: string) {
@@ -47,6 +50,7 @@ export class InterviewsService {
     const nextStage = assertTransition(entry.stage, action);
 
     await this.prisma.shortlistEntry.update({ where: { id }, data: { stage: nextStage } });
+    this.webhooks?.pipelineChanged(id, entry.stage);
 
     const roleLine = entry.job ? ` for ${entry.job.title}` : '';
     const verb = dto.response === 'ACCEPT' ? 'accepted' : 'declined';

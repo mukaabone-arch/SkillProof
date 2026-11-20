@@ -41,6 +41,8 @@ import { DevicesModule } from './modules/devices/devices.module';
 import { HelpAssistantModule } from './modules/help-assistant/help-assistant.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { OutreachModule } from './modules/outreach/outreach.module';
+import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
 
 @Module({
   imports: [
@@ -86,6 +88,8 @@ import { OutreachModule } from './modules/outreach/outreach.module';
     HelpAssistantModule,
     ProjectsModule,
     OutreachModule,
+    WebhooksModule,
+    IntegrationsModule,
   ],
 })
 export class AppModule {}

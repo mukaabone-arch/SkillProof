@@ -1,4 +1,5 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
 import { ClaimStatus, Prisma, ProfileViewSource, ShortlistStage } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ProfileViewsService } from '../profile-views/profile-views.service';
@@ -29,6 +30,8 @@ export class ShortlistService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly profileViews: ProfileViewsService,
+    /** Optional so unit tests that build this service by hand need no change. */
+    @Optional() private readonly webhooks?: WebhookDispatcherService,
   ) {}
 
   /**
@@ -54,11 +57,16 @@ export class ShortlistService {
 
     if (dto.jobId) {
       await this.getOwnedJob(orgId, dto.jobId);
+      const before = await this.prisma.shortlistEntry.findUnique({
+        where: { orgId_candidateId_jobId: { orgId, candidateId: dto.candidateId, jobId: dto.jobId } },
+        select: { id: true },
+      });
       const entry = await this.prisma.shortlistEntry.upsert({
         where: { orgId_candidateId_jobId: { orgId, candidateId: dto.candidateId, jobId: dto.jobId } },
         update: {},
         create: { orgId, candidateId: dto.candidateId, jobId: dto.jobId, addedByUserId: userId, note: dto.note },
       });
+      if (!before) this.webhooks?.pipelineChanged(entry.id, null);
       return this.toView(entry.id);
     }
 
@@ -70,6 +78,7 @@ export class ShortlistService {
       (await this.prisma.shortlistEntry.create({
         data: { orgId, candidateId: dto.candidateId, jobId: null, addedByUserId: userId, note: dto.note },
       }));
+    if (!existing) this.webhooks?.pipelineChanged(entry.id, null);
     return this.toView(entry.id);
   }
 

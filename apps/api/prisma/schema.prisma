@@ -705,6 +705,8 @@ model Organization {
   staffingSubmissions StaffingSubmission[]
   hiringProjects      HiringProject[]
   outreachCampaigns   OutreachCampaign[]
+  webhooks            OrgWebhook[]
+  apiKeys             OrgApiKey[]
 }
 
 model OrgMember {
@@ -3831,4 +3833,71 @@ model OutreachEvent {
   createdAt   DateTime          @default(now())
 
   @@index([messageId, createdAt])
+}
+
+// ---------- Integrations, layer 1 (2026-11): webhooks and API keys ----------
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+/// An org's endpoint that receives signed JSON events (see WebhookDispatcherService).
+model OrgWebhook {
+  id              String            @id @default(uuid())
+  orgId           String
+  organization    Organization      @relation(fields: [orgId], references: [id])
+  url             String
+  /// HMAC-SHA256 signing secret, shown to the admin once when created. Needed in clear to sign, like any webhook secret.
+  secret          String
+  /// Event names this endpoint receives (see WEBHOOK_EVENTS).
+  events          String[]
+  active          Boolean           @default(true)
+  createdByUserId String
+  /// Failures in a row; the endpoint is switched off after WEBHOOK_DISABLE_AFTER.
+  consecutiveFailures Int           @default(0)
+  disabledReason  String?
+  lastDeliveryAt  DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  deliveries      WebhookDelivery[]
+
+  @@index([orgId])
+}
+
+/// One event sent (or to be retried) to one endpoint. Kept 30 days as the delivery log.
+model WebhookDelivery {
+  id             String                @id @default(uuid())
+  webhookId      String
+  webhook        OrgWebhook            @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  event          String
+  payload        Json
+  status         WebhookDeliveryStatus @default(PENDING)
+  attempts       Int                   @default(0)
+  responseStatus Int?
+  error          String?
+  nextAttemptAt  DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime              @default(now())
+
+  @@index([webhookId, createdAt])
+  @@index([status, nextAttemptAt])
+}
+
+/// API key for the org's own systems (an ATS, a script). Only a SHA-256 hash is stored; the key is shown once.
+model OrgApiKey {
+  id              String       @id @default(uuid())
+  orgId           String
+  organization    Organization @relation(fields: [orgId], references: [id])
+  name            String
+  /// First characters of the key ("mya_ab12cd34"), shown in the list so people can tell keys apart.
+  prefix          String
+  keyHash         String       @unique
+  createdByUserId String
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime     @default(now())
+
+  @@index([orgId])
 }

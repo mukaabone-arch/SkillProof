@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
 import {
   NotificationType,
   Prisma,
@@ -52,6 +53,8 @@ export class StaffingSubmissionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    /** Optional so unit tests that build this service by hand need no change. */
+    @Optional() private readonly webhooks?: WebhookDispatcherService,
   ) {}
 
   // ---------- clients ----------
@@ -187,6 +190,7 @@ export class StaffingSubmissionsService {
         `<p>They'll only do this if you approve. While they represent you there, no other recruiter can submit you to ${esc(client.name)}. Please decide within ${CONSENT_TTL_HOURS} hours.</p>` +
         `<p><a href="${WEB_BASE_URL}/interviews">Review the request</a></p>`,
     );
+    this.webhooks?.submissionChanged(sub.id, null);
     return { id: sub.id, status: sub.status, consentExpiresAt: sub.consentExpiresAt };
   }
 
@@ -232,6 +236,7 @@ export class StaffingSubmissionsService {
       throw new ConflictException(`A submission that is ${String(from).toLowerCase().replace(/_/g, ' ')} can't be moved to ${to.toLowerCase().replace(/_/g, ' ')}.`);
     }
     await this.prisma.staffingSubmission.update({ where: { id }, data: { status: to, statusUpdatedAt: now } });
+    this.webhooks?.submissionChanged(id, String(from));
 
     const words = STATUS_WORDS[to];
     if (words) {
@@ -298,6 +303,7 @@ export class StaffingSubmissionsService {
         candidateNote: dto.note?.trim() || null,
       },
     });
+    this.webhooks?.submissionChanged(id, S.PENDING_CONSENT);
     await this.notify(
       sub.createdByUserId,
       NotificationType.STAFFING_SUBMISSION_DECISION,
@@ -315,6 +321,7 @@ export class StaffingSubmissionsService {
     if (!sub || sub.candidateId !== profile.id) throw new NotFoundException('Submission not found');
     if (!candidateCanWithdraw(sub.status)) throw new ConflictException('This submission can no longer be withdrawn.');
     await this.prisma.staffingSubmission.update({ where: { id }, data: { status: S.WITHDRAWN, statusUpdatedAt: new Date() } });
+    this.webhooks?.submissionChanged(id, sub.status);
     await this.notify(
       sub.createdByUserId,
       NotificationType.STAFFING_SUBMISSION_DECISION,

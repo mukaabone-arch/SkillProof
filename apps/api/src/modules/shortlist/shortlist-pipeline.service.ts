@@ -1,4 +1,5 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
 import { NotificationType, ProfileViewSource, ShortlistStage } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WEB_BASE_URL } from '../../config/web-base-url';
@@ -25,6 +26,8 @@ export class ShortlistPipelineService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly profileViews: ProfileViewsService,
+    /** Optional so unit tests that build this service by hand need no change. */
+    @Optional() private readonly webhooks?: WebhookDispatcherService,
   ) {}
 
   async invite(orgId: string, id: string, dto: InviteDto) {
@@ -36,6 +39,7 @@ export class ShortlistPipelineService {
       where: { id },
       data: { stage: nextStage, inviteMessage: dto.message },
     });
+    this.webhooks?.pipelineChanged(id, entry.stage);
 
     const roleLine = entry.job ? ` for ${entry.job.title}` : '';
     await this.notify(
@@ -116,6 +120,7 @@ export class ShortlistPipelineService {
     const nextStage = assertTransition(entry.stage, 'extendOffer');
 
     await this.prisma.shortlistEntry.update({ where: { id }, data: { stage: nextStage } });
+    this.webhooks?.pipelineChanged(id, entry.stage);
 
     const roleLine = entry.job ? ` for ${entry.job.title}` : '';
     await this.notify(
@@ -138,6 +143,7 @@ export class ShortlistPipelineService {
     const nextStage = assertTransition(entry.stage, action);
 
     await this.prisma.shortlistEntry.update({ where: { id }, data: { stage: nextStage } });
+    this.webhooks?.pipelineChanged(id, entry.stage);
     return { id };
   }
 
@@ -149,6 +155,7 @@ export class ShortlistPipelineService {
       where: { id },
       data: { stage: nextStage, rejectReason: dto.reason },
     });
+    this.webhooks?.pipelineChanged(id, entry.stage);
     await this.profileViews.record(entry.candidateId, userId, ProfileViewSource.REJECT);
 
     const roleLine = entry.job ? ` for ${entry.job.title}` : '';

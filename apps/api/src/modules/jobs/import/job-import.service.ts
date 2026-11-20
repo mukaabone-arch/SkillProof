@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, Optional } from '@nestjs/common';
+import { WebhookDispatcherService } from '../../webhooks/webhook-dispatcher.service';
 import { JobStatus, Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -70,6 +71,8 @@ export class JobImportService {
     private readonly prisma: PrismaService,
     private readonly llm: LlmService,
     private readonly locations: LocationSearchService,
+    /** Optional so unit tests that build this service by hand need no change. */
+    @Optional() private readonly webhooks?: WebhookDispatcherService,
   ) {}
 
   async importCsv(orgId: string, userId: string, buffer: Buffer): Promise<ImportResult> {
@@ -211,7 +214,10 @@ export class JobImportService {
       }
       // Guarded on DRAFT so a double click can't flip a job twice.
       const { count } = await this.prisma.job.updateMany({ where: { id, orgId, status: JobStatus.DRAFT }, data: { status: JobStatus.LIVE } });
-      if (count) published.push(id);
+      if (count) {
+        published.push(id);
+        this.webhooks?.jobChanged(id, JobStatus.DRAFT);
+      }
       else skipped.push({ id, reason: 'Already posted.' });
     }
     return { published, skipped };

@@ -10,5 +10,6 @@ import { ShortlistPipelineService } from './shortlist-pipeline.service';
   imports: [AuthModule, NotificationsModule, ProfileViewsModule],
   controllers: [ShortlistController],
   providers: [ShortlistService, ShortlistPipelineService],
+  exports: [ShortlistPipelineService],
 })
 export class ShortlistModule {}

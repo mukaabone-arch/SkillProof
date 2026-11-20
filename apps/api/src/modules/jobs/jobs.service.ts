@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
 import {
   CandidateOfferResponse,
   CertVerificationStatus,
@@ -31,13 +32,17 @@ export class JobsService {
     private readonly profiles: ProfilesService,
     private readonly employerAccess: EmployerCandidateAccessService,
     private readonly notifications: NotificationsService,
+    /** Optional so unit tests that build this service by hand need no change. */
+    @Optional() private readonly webhooks?: WebhookDispatcherService,
   ) {}
 
   async create(orgId: string, dto: CreateJobDto) {
     assertSalaryShape(dto.salaryMin, dto.salaryMax, dto.salaryNotDisclosed ?? false);
     await this.assertPostingClient(orgId, dto.postedForClientId, true);
     try {
-      return await this.prisma.job.create({ data: { orgId, ...dto, code: normalizeCode(dto.code) } });
+      const job = await this.prisma.job.create({ data: { orgId, ...dto, code: normalizeCode(dto.code) } });
+      if (job.status !== JobStatus.DRAFT) this.webhooks?.jobChanged(job.id, null);
+      return job;
     } catch (err) {
       throw translateCodeConflict(err);
     }
@@ -106,6 +111,7 @@ export class JobsService {
     if (job.status === JobStatus.LIVE && updated.status === JobStatus.CLOSED) {
       await this.notifyJobUnpublished(jobId, updated.title);
     }
+    if (job.status !== updated.status) this.webhooks?.jobChanged(jobId, job.status);
 
     return updated;
   }

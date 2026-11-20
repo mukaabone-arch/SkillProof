@@ -6,6 +6,7 @@
  * "Represents" means this company currently holds the candidate for that
  * client: no other staffing company can submit them there.
  */
+import AtsDownloadButton from '@/components/AtsDownloadButton';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import StaffingEmptyState from '@/components/StaffingEmptyState';
@@ -16,6 +17,7 @@ const { api } = employerApi;
 
 interface Submission {
   id: string;
+  candidateId: string;
   client: { id: string; name: string };
   candidateName: string | null;
   ref: string;
@@ -107,6 +109,9 @@ export default function StaffingSubmissionsPage() {
             {s.status === 'PENDING_CONSENT' && ` · approval due ${new Date(s.consentExpiresAt).toLocaleString()}`}
           </div>
           {s.candidateNote && <p style={{ margin: '6px 0' }}>&ldquo;{s.candidateNote}&rdquo;</p>}
+          <div className="row" style={{ margin: '4px 0 0' }}>
+            <AtsDownloadButton candidateId={s.candidateId} name={s.candidateName ?? s.ref} />
+          </div>
           {(SUBMISSION_NEXT[s.status] ?? []).length > 0 && (
             <div className="row" style={{ margin: '8px 0 0', flexWrap: 'wrap' }}>
               {(SUBMISSION_NEXT[s.status] ?? []).map((to) => (

@@ -111,6 +111,16 @@ Candidates stay anonymous until they say **Interested**. Then you see their name
 
 **Limits.** Each person can send up to 50 new messages a day, and each candidate sets how many messages they accept per week.
 
+## Connecting your ATS {#integrations}
+
+Admins can connect MyAmbii to the agency's applicant tracking system under **Settings → Integrations**.
+
+- **Webhooks** send a signed JSON message when a candidate applies to one of your postings, says Interested to AI sourcing, or when a submission changes status (including the candidate's approval).
+- **API keys** let your systems read your postings, applicants and submissions, and update a submission's status.
+- **Download for ATS** on the Submissions and AI sourcing pages gives a candidate's details and verified skills as a JSON file.
+
+Candidates stay anonymous in these messages until they've approved a submission, said yes to an availability check, applied, or said Interested. The developer reference is at [myambii.com/developers](/developers).
+
 ## FAQ {#faq}
 
 **Why can't I see a candidate's name?**

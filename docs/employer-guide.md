@@ -259,6 +259,16 @@ Before you confirm, you'll see exactly how many live jobs will be closed and how
 
 ---
 
+## Connecting your ATS {#integrations}
+
+If you use an applicant tracking system (ATS), MyAmbii can send it candidates and keep stages in step. Admins set this up under **Settings → Integrations**.
+
+- **Webhooks:** add an HTTPS address and choose events, such as a candidate applying, moving stage on the shortlist, or saying Interested to AI sourcing. MyAmbii sends each event as a signed JSON message. **Send test event** checks it works, and **Recent deliveries** shows what was sent, with failed ones retried automatically.
+- **API keys:** let your own systems read your jobs, applicants and shortlist, and move candidates on (invite, offer, hire, close or reject). A key is shown once, so copy it when you create it.
+- **Download for ATS:** on the shortlist and AI sourcing pages, any team member can download a candidate's details and verified skills as a JSON file.
+
+Every message includes the candidate's verified skills with links anyone can check. Contact details are included only once the candidate applied to your job or said Interested. The full reference for your developers is at [myambii.com/developers](/developers).
+
 ## Common questions {#faq}
 
 **Why can't I access anything except Settings?**

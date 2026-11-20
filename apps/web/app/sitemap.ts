@@ -2,6 +2,6 @@ import type { MetadataRoute } from 'next';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = 'https://www.myambii.com';
-  return ['', '/candidate', '/employer', '/staffing', '/faq', '/contact', '/privacy', '/terms', '/refunds']
+  return ['', '/candidate', '/employer', '/staffing', '/faq', '/contact', '/privacy', '/terms', '/refunds', '/developers']
     .map((path) => ({ url: `${base}${path}`, lastModified: new Date() }));
 }

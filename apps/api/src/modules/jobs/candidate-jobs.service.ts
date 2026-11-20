@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
 import {
   CertVerificationStatus,
   ClaimStatus,
@@ -89,6 +90,8 @@ export class CandidateJobsService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly badgeResolver: BadgeResolverService,
+    /** Optional so unit tests that build this service by hand need no change. */
+    @Optional() private readonly webhooks?: WebhookDispatcherService,
   ) {}
 
   async browse(userId: string, dto: BrowseJobsDto) {
@@ -292,6 +295,7 @@ export class CandidateJobsService {
       // NotificationsService already swallows its own errors; this catch is defense in depth.
     }
 
+    this.webhooks?.applied(application.id);
     return application;
   }
 

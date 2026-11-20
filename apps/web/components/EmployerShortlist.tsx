@@ -18,6 +18,7 @@
  * (e.g. "This candidate is not available right now.") looked like the button
  * simply did nothing. The page-level error is now only for loading the list.
  */
+import AtsDownloadButton from './AtsDownloadButton';
 import LevelMedal from '@/components/LevelMedal';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -497,6 +498,7 @@ export default function EmployerShortlist() {
                 {resumeDownloadingId === e.candidateId ? 'Downloading…' : 'View resume'}
               </button>
             )}
+            <AtsDownloadButton candidateId={e.candidateId} name={e.fullName} />
           </div>
 
           {e.verifiedSkills.length > 0 && (

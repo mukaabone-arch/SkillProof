@@ -23,6 +23,7 @@ import {
   formatShortDate,
 } from '@/lib/outreach';
 import StaffingSubmitToClient from './StaffingSubmitToClient';
+import AtsDownloadButton from './AtsDownloadButton';
 
 const { api } = employerApi;
 
@@ -263,6 +264,9 @@ export default function EmployerOutreachCampaign({ campaignId }: { campaignId: s
                   {m.contact.phone && <a href={`tel:${m.contact.phone}`}>{m.contact.phone}</a>}
                 </p>
               )}
+              <div>
+                <AtsDownloadButton candidateId={m.candidateId} name={m.candidate.name} />
+              </div>
               {c.anonymised ? (
                 <StaffingSubmitToClient
                   candidateId={m.candidateId}

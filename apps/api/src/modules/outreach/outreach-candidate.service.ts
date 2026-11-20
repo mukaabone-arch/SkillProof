@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
 import { NotificationType, OrgType, OutreachEventType, OutreachStatus, RecruiterContactPreference } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WEB_BASE_URL } from '../../config/web-base-url';
@@ -26,6 +27,8 @@ export class OutreachCandidateService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    /** Optional so unit tests that build this service by hand need no change. */
+    @Optional() private readonly webhooks?: WebhookDispatcherService,
   ) {}
 
   async listMine(userId: string) {
@@ -128,6 +131,10 @@ export class OutreachCandidateService {
     await this.prisma.outreachEvent.create({
       data: { messageId: m.id, type: OutreachEventType.REPLIED, actorUserId: userId, detail: dto.response },
     });
+    if (status === OutreachStatus.INTERESTED) {
+      this.webhooks?.interested(m.id);
+      if (shortlistEntryId && shortlistEntryId !== m.shortlistEntryId) this.webhooks?.pipelineChanged(shortlistEntryId, null);
+    }
 
     const recipient = m.sentByUserId ?? m.campaign.createdByUserId;
     const staffing = m.campaign.organization.type === OrgType.STAFFING;

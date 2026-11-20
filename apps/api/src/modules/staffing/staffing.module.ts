@@ -13,5 +13,6 @@ import { StaffingAvailabilityReminderJob } from './staffing-availability-reminde
   imports: [NotificationsModule, AuthModule, ProfileViewsModule],
   controllers: [StaffingSubmissionsOrgController, StaffingSubmissionsCandidateController, StaffingCandidateController, StaffingOrgController],
   providers: [StaffingSubmissionsService, StaffingService, StaffingAvailabilityReminderJob],
+  exports: [StaffingSubmissionsService],
 })
 export class StaffingModule {}
