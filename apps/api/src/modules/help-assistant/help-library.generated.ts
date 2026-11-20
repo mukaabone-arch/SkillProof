@@ -5,97 +5,89 @@ import type { HelpLibraries } from './help-library';
 
 export const HELP_LIBRARY: HelpLibraries = {
   "candidate": {
-    "guideHash": "1d91368786e310fe",
+    "guideHash": "9d70a907dd0e5a03",
     "entries": [
       {
         "id": "candidate-quick-start-1",
-        "question": "What do I need to do first after signing up?",
+        "question": "What do I need to do to get started on MyAmbii?",
         "variants": [
           "how do i get started",
-          "what's the first step",
-          "getting started on myambii",
-          "setup steps",
-          "initial setup",
-          "what should i do after creating account"
+          "whats the first step",
+          "getting started guide",
+          "first steps on myambii",
+          "how to begin"
         ],
-        "answer": "Start by verifying your phone and email — you need both before you can access anything else. If you signed up with Google or GitHub, you'll usually need to add a phone number. Then fill in your profile with at least your full name and either a headline or years of experience, and upload your resume. After that, take an assessment to earn your first verified skill badge. Finally, make sure you answer your AI years of experience on your profile (zero is fine, but it can't be blank). Then you're ready to start applying for jobs.",
+        "answer": "Start with these five steps. First, verify your email, and your phone if you're in India. Second, fill in your profile with at least your full name and either a headline or years of experience, and upload your resume. Third, take an assessment to earn your first verified skill badge. Fourth, fill in your AI-specific years of experience on your profile—zero is valid, it just can't be left blank. Fifth, go to Jobs and apply to openings. Your dashboard shows one suggested next step if you're unsure what to do.",
         "sectionIds": [
           "quick-start"
         ]
       },
       {
         "id": "candidate-quick-start-2",
+        "question": "Do I need to verify my phone number?",
+        "variants": [
+          "do i need to add phone",
+          "is phone verification required",
+          "phone number required india",
+          "do i have to verify phone"
+        ],
+        "answer": "In India, yes—you need both a verified phone and a verified email before you can access anything else. Outside India, a verified email is enough, because text-message codes only go to Indian (+91) numbers.",
+        "sectionIds": [
+          "quick-start"
+        ]
+      },
+      {
+        "id": "candidate-quick-start-3",
+        "question": "What's the minimum I need to add to my profile?",
+        "variants": [
+          "what do i need on my profile",
+          "minimum profile requirements",
+          "whats required on profile",
+          "profile setup"
+        ],
+        "answer": "At minimum, add your full name and either a headline or your years of experience. That's the threshold for starting an assessment. You'll also need to upload a resume before you can apply for jobs.",
+        "sectionIds": [
+          "quick-start"
+        ]
+      },
+      {
+        "id": "candidate-quick-start-4",
         "question": "How many applications do I get per month?",
         "variants": [
-          "how many jobs can i apply to",
           "application limit",
-          "do i have limited applications",
+          "how many jobs can i apply to",
           "applications per month",
-          "how many can i apply for"
+          "whats my application limit"
         ],
-        "answer": "You get 10 applications a month. The Jobs page shows how many you have left. The count resets at the start of each calendar month, UTC.",
+        "answer": "You can submit 10 applications a month. The job page shows how many you have left. The count resets at the start of each calendar month, UTC.",
         "sectionIds": [
           "quick-start",
           "application-limit"
         ]
       },
       {
-        "id": "candidate-quick-start-3",
-        "question": "What's required before I can apply to a job?",
-        "variants": [
-          "what do i need to apply",
-          "requirements to apply for jobs",
-          "can i apply yet",
-          "what's needed to start applying",
-          "apply job requirements"
-        ],
-        "answer": "You need four things: your name and years of experience on your profile, a resume uploaded, your AI years of experience answered (zero counts, blank doesn't), and at least one verified credential — either a MyAmbii badge or a Verified certification.",
-        "sectionIds": [
-          "quick-start",
-          "apply-requirements"
-        ]
-      },
-      {
-        "id": "candidate-quick-start-4",
-        "question": "How do I earn a verified skill badge?",
-        "variants": [
-          "how to get verified skills",
-          "how do i verify a skill",
-          "earn a badge",
-          "getting badges",
-          "first badge how"
-        ],
-        "answer": "Go to Assessments, pick a skill, and take the test. Passing earns you a verified badge at that level. You earn levels in order — once you pass one level, you can attempt the next level up for that skill.",
-        "sectionIds": [
-          "quick-start",
-          "skills-and-levels"
-        ]
-      },
-      {
         "id": "candidate-quick-start-5",
-        "question": "What should I put in my profile?",
+        "question": "What's the first thing I should do after signing up?",
         "variants": [
-          "what goes in profile",
-          "profile information",
-          "what to add to profile",
-          "how to fill profile",
-          "profile setup"
+          "what should i do first",
+          "first step after signup",
+          "what do i do now",
+          "starting out"
         ],
-        "answer": "At minimum, add your full name and either a headline or your years of experience — that's the threshold for starting an assessment. You can also add your email, role title, location, whether you're open to remote work, AI-specific years of experience, GitHub and LinkedIn links, a photo, and a resume. Upload your resume especially, since you'll need one on file to apply for jobs. You can upload your resume and MyAmbii will suggest your name, headline, location, years of experience, and role, but nothing saves until you confirm it.",
+        "answer": "Verify your email, and your phone if you're in India. You need these on file before you can reach anything else. After that, fill in your profile with at least your full name and either a headline or years of experience.",
         "sectionIds": [
-          "quick-start",
-          "profile"
+          "quick-start"
         ]
       },
       {
         "id": "candidate-profile-1",
         "question": "What can I add to my profile?",
         "variants": [
-          "what should i put on my profile",
-          "what info goes on my profile",
-          "how do i fill out my profile",
-          "what details can i add",
-          "profile setup"
+          "what goes on my profile",
+          "what information can i put on my profile",
+          "how do i complete my profile",
+          "what should be on my profile",
+          "profile fields"
         ],
         "answer": "You can add your full name, email, headline, role title, location, whether you're open to remote work, years of experience, AI-specific years of experience, GitHub and LinkedIn links, a photo, and a resume.",
         "sectionIds": [
@@ -104,57 +96,28 @@ export const HELP_LIBRARY: HelpLibraries = {
       },
       {
         "id": "candidate-profile-2",
-        "question": "How do I upload my resume and use the AI parsing feature?",
+        "question": "Can MyAmbii help me fill in my profile from my resume?",
         "variants": [
-          "can myambii parse my resume",
-          "upload resume and parse",
-          "how to parse resume with ai",
-          "resume parsing feature",
-          "does it auto-fill my profile from resume"
+          "parse resume with ai",
+          "can you auto fill my profile",
+          "resume parsing",
+          "upload resume and auto fill",
+          "does myambii read my resume"
         ],
-        "answer": "Upload your resume and MyAmbii will suggest a name, headline, location, years of experience, and role. Nothing is saved until you click Looks good — apply to my profile. Skills it detects are shown for information only and are never added automatically.",
+        "answer": "Yes. Upload your resume and MyAmbii will suggest a name, headline, location, years of experience, and role. Nothing is saved until you click \"Looks good — apply to my profile.\" Skills it detects are shown for information only and are never added automatically.",
         "sectionIds": [
           "profile"
         ]
       },
       {
         "id": "candidate-profile-3",
-        "question": "Can I add certifications to my profile?",
+        "question": "How do I add a location to my profile?",
         "variants": [
-          "how to add certs",
-          "where do i upload certifications",
-          "what certifications can i add",
-          "add coursera certificate",
-          "aws certification myambii"
-        ],
-        "answer": "You can add certifications from Credly, Coursera, LinkedIn Learning, PMI, PeopleCert, AWS, Microsoft, Google, Scrum Alliance, Udemy, edX, NPTEL, or anything else as free text. Add a link or upload a file as proof, and tag the skills it covers.",
-        "sectionIds": [
-          "certifications"
-        ]
-      },
-      {
-        "id": "candidate-profile-4",
-        "question": "What's the difference between verified and self-reported certifications?",
-        "variants": [
-          "certification trust levels",
-          "what does verified certification mean",
-          "self-reported vs verified cert",
-          "certification proof types",
-          "which certifications count"
-        ],
-        "answer": "Certifications show one of three trust levels. Verified certifications are confirmed by the issuer and affect job matching. Link provided means you gave a URL but it hasn't been confirmed. Self-reported means no proof attached. Only Verified certifications affect job matching. The other two are display only.",
-        "sectionIds": [
-          "certifications"
-        ]
-      },
-      {
-        "id": "candidate-profile-5",
-        "question": "How do I pick a location on my profile?",
-        "variants": [
-          "set location profile",
-          "how to change location",
-          "location settings",
-          "where is location on profile"
+          "where do i set my location",
+          "how do i change my location",
+          "location field",
+          "edit location",
+          "pick location"
         ],
         "answer": "Pick from the autocomplete rather than typing free text. Only a selected location unlocks location-aware job matching.",
         "sectionIds": [
@@ -162,12 +125,42 @@ export const HELP_LIBRARY: HelpLibraries = {
         ]
       },
       {
-        "id": "candidate-profile-6",
-        "question": "What happens to my photo when I upload it?",
+        "id": "candidate-profile-4",
+        "question": "What certifications can I add?",
         "variants": [
-          "where is my profile picture shared",
+          "what certifications does myambii accept",
+          "can i add aws certification",
+          "which certs can i upload",
+          "certified by what platforms",
+          "certification providers"
+        ],
+        "answer": "You can add certifications from Credly, Coursera, LinkedIn Learning, PMI, PeopleCert, AWS, Microsoft, Google, Scrum Alliance, Udemy, edX, NPTEL, or anything else as free text. Add a link or upload a file as proof, and tag the skills it covers.",
+        "sectionIds": [
+          "certifications"
+        ]
+      },
+      {
+        "id": "candidate-profile-5",
+        "question": "Do my certifications count toward job matching?",
+        "variants": [
+          "how do certifications affect matching",
+          "do certs help my match score",
+          "certification matching",
+          "do unverified certifications count",
+          "self reported certification job matching"
+        ],
+        "answer": "Only Verified certifications affect job matching. Certifications with just a link provided or self-reported are display only. Verified certifications are confirmed by the issuer — Credly certifications verify automatically.",
+        "sectionIds": [
+          "certifications"
+        ]
+      },
+      {
+        "id": "candidate-profile-6",
+        "question": "Can employers see my photo?",
+        "variants": [
           "is my photo public",
-          "who can see my photo",
+          "who can see my profile picture",
+          "where is my photo shared",
           "photo privacy"
         ],
         "answer": "Your photo is only served to signed-in users through MyAmbii. There's no public URL for it.",
@@ -177,11 +170,13 @@ export const HELP_LIBRARY: HelpLibraries = {
       },
       {
         "id": "candidate-profile-7",
-        "question": "Does my role title affect how employers match with me?",
+        "question": "What does role title do?",
         "variants": [
-          "does role title matter for matching",
-          "role title matching",
-          "does job title affect my score"
+          "does role title affect matching",
+          "what is role title for",
+          "does role title matter",
+          "role title importance",
+          "how is role title used"
         ],
         "answer": "Role title is used for display and filtering. It does not affect your match scores.",
         "sectionIds": [
@@ -193,37 +188,37 @@ export const HELP_LIBRARY: HelpLibraries = {
         "question": "how many levels are there for each skill",
         "variants": [
           "what are the skill levels",
+          "do all skills have 3 levels",
           "how many levels can i get",
-          "what's the max level for a skill",
-          "do all skills have 3 levels"
+          "are there different tiers for skills"
         ],
-        "answer": "A skill can be verified at up to three levels: Foundational (L1), Practitioner (L2), and Advanced (L3). Which levels exist depends on the skill — not every skill offers all three.",
+        "answer": "A skill can be verified at up to three levels: Foundational (L1), Practitioner (L2), and Advanced (L3). Which levels exist depends on the skill — not every skill offers all three. You earn levels in order and can attempt the level immediately above the highest one you hold.",
         "sectionIds": [
           "skills-and-levels"
         ]
       },
       {
         "id": "candidate-skills-and-levels-2",
-        "question": "can i skip a level and go straight to advanced",
+        "question": "what does a verified skill get me",
         "variants": [
-          "do i have to do level 1 first",
-          "can i attempt level 2 without level 1",
-          "skip foundational and do practitioner",
-          "do levels have to be in order"
+          "why should i get a verified badge",
+          "what are the benefits of verified skills",
+          "how does a verified level help",
+          "what does it mean to be verified"
         ],
-        "answer": "You earn levels in order. You can attempt the level immediately above the highest one you hold for that skill. If a skill only offers L2, then L2 is where you start; you're not blocked behind a level that doesn't exist.",
+        "answer": "A verified level appears on your profile and on a shareable public certificate page. It counts fully towards your match score on jobs asking for that skill. It also satisfies the requirement to have at least one verified credential before you can apply to jobs.",
         "sectionIds": [
           "skills-and-levels"
         ]
       },
       {
         "id": "candidate-skills-and-levels-3",
-        "question": "how long does a verified badge last",
+        "question": "how long does a badge last",
         "variants": [
-          "when does my badge expire",
-          "how long is a badge valid for",
-          "do badges expire",
-          "badge validity period"
+          "when do my badges expire",
+          "do verified skills expire",
+          "how long is a badge valid",
+          "do i need to renew my badge"
         ],
         "answer": "Levels expire one year after you earn them. An expired badge stops counting towards matching, but you can retake the assessment to renew it.",
         "sectionIds": [
@@ -232,287 +227,286 @@ export const HELP_LIBRARY: HelpLibraries = {
       },
       {
         "id": "candidate-skills-and-levels-4",
-        "question": "what does it mean when a skill says locked",
+        "question": "what does the locked state mean in the catalog",
         "variants": [
-          "why is this skill locked",
-          "locked state assessment",
-          "can't access locked skill",
-          "what unlocks a locked skill"
+          "why is a skill locked",
+          "what does it mean when a skill says locked",
+          "how do i unlock a skill level"
         ],
-        "answer": "Locked means the level is above the next level you're eligible for. The assessment catalog page tells you what unlocks it.",
+        "answer": "Locked means that level is above the next level you're eligible for. The catalog page tells you what unlocks it. You earn levels in order, so you can only attempt the level immediately above the highest one you currently hold.",
         "sectionIds": [
-          "catalog-states"
+          "skills-and-levels"
         ]
       },
       {
         "id": "candidate-skills-and-levels-5",
-        "question": "what's the difference between earned and covered",
+        "question": "what does earned mean",
         "variants": [
-          "earned vs covered badge",
-          "covered state meaning",
-          "what does covered mean in assessments",
-          "earned status explained"
+          "what's the earned state",
+          "what does it mean when my skill says earned"
         ],
-        "answer": "Earned means you hold a valid badge at that level. Covered means the level is below a level you already hold, so there's no separate badge to earn.",
+        "answer": "Earned means you hold a valid badge at that level.",
         "sectionIds": [
-          "catalog-states"
+          "skills-and-levels"
         ]
       },
       {
         "id": "candidate-skills-and-levels-6",
-        "question": "do verified badges affect job matching",
+        "question": "what's the difference between earned and covered",
         "variants": [
-          "how much do badges help matching",
-          "do verified skills matter for jobs",
-          "do badges count towards match score",
-          "skill badges and job matching"
+          "what does covered mean vs earned",
+          "why do some skills say covered",
+          "whats the difference between covered and earned"
         ],
-        "answer": "A verified level appears on your profile and on a shareable public certificate page, and it counts fully towards your match score on jobs asking for that skill. It also satisfies the requirement to have at least one verified credential before applying to jobs.",
+        "answer": "Covered means that level is below a level you already hold, so there's no separate badge to earn. Earned means you hold a valid badge at that level.",
         "sectionIds": [
           "skills-and-levels"
         ]
       },
       {
         "id": "candidate-skills-and-levels-7",
-        "question": "what happens if my badge expires can i retake it",
+        "question": "can i take levels in any order",
         "variants": [
-          "expired badge retake",
-          "can i renew my badge",
-          "my badge lapsed what do i do",
-          "retaking after expiry"
+          "do i have to take foundational first",
+          "do i need to pass l1 before l2",
+          "can i skip a level",
+          "what if i only want the advanced level"
         ],
-        "answer": "If a badge expires, you can retake the assessment to renew it. There's no waiting period between attempts.",
+        "answer": "You earn levels in order. You can attempt the level immediately above the highest one you hold for that skill. If a skill only offers L2, then L2 is where you start; you're not blocked behind a level that doesn't exist.",
         "sectionIds": [
-          "skills-and-levels",
-          "retakes"
+          "skills-and-levels"
         ]
       },
       {
         "id": "candidate-assessments-1",
-        "question": "What happens if I switch tabs while taking a test?",
+        "question": "what happens if I switch tabs during a test",
         "variants": [
-          "will i fail if i switch tabs",
-          "switching tabs during assessment",
-          "tab switching penalty",
-          "does switching tabs matter",
-          "what if i leave the tab"
+          "tab switching during assessment",
+          "if i leave the test window",
+          "switching tabs during test",
+          "tab switching penality",
+          "what if i switch tabs on a test"
         ],
-        "answer": "MyAmbii records tab switches as signals for human review, but they never fail you automatically and don't change your score or badge.",
+        "answer": "MyAmbii records tab switches, along with leaving fullscreen, attempting to paste, copying, and right-clicking. These are recorded as signals for a human to review. They never fail you automatically and they don't change your score or your badge.",
         "sectionIds": [
-          "assessments",
           "test-format"
         ]
       },
       {
         "id": "candidate-assessments-2",
-        "question": "How long do I have to complete an assessment?",
+        "question": "how long do I have to take the test",
         "variants": [
-          "time limit for assessment",
-          "how much time do i get",
-          "assessment countdown",
-          "can i pause a test",
-          "do i have a time limit"
+          "how much time for assessment",
+          "assessment time limit",
+          "how long does test take",
+          "countdown timer test",
+          "time allowed for test"
         ],
-        "answer": "Tests have a countdown running on the server. When time runs out, it submits automatically. For discussion sessions, plan for roughly 20 minutes.",
+        "answer": "Multiple-choice tests have a countdown running on the server, and when time runs out it submits automatically. The guide doesn't specify the exact duration — for that, check the test itself when you start, or visit Contact on myambii.com/contact.",
         "sectionIds": [
-          "assessments",
-          "test-format",
-          "discussion-format"
+          "test-format"
         ]
       },
       {
         "id": "candidate-assessments-3",
-        "question": "What happens if my internet cuts out during a test?",
+        "question": "do my answers save if I refresh",
         "variants": [
-          "connection drops during assessment",
-          "wifi disconnected during test",
-          "lost connection to test",
-          "internet went out during assessment"
+          "will i lose answers if page refreshes",
+          "refresh page during test",
+          "what if i accidentally close the tab",
+          "answers auto save test",
+          "refresh lose progress"
         ],
-        "answer": "Answers save as you go, so a refresh won't lose your work. Just reload the page to continue.",
+        "answer": "Answers save as you go while you're taking a test, so a refresh won't lose your work.",
         "sectionIds": [
-          "assessments",
           "test-format"
         ]
       },
       {
         "id": "candidate-assessments-4",
-        "question": "Will I see which questions I got wrong?",
+        "question": "how long does the AI discussion assessment take",
         "variants": [
-          "can i see my wrong answers",
-          "which questions did i miss",
-          "show me my mistakes",
-          "detailed answer feedback"
+          "how long is discussion format",
+          "how much time for rag systems assessment",
+          "how long rag l2 test",
+          "discussion session length",
+          "how many minutes discussion"
         ],
-        "answer": "You'll see your score and a breakdown by topic showing how many you got right in each area, but you won't see which specific questions you missed.",
+        "answer": "The live discussion format is roughly 20 minutes.",
         "sectionIds": [
-          "assessments",
-          "test-format"
+          "discussion-format"
         ]
       },
       {
         "id": "candidate-assessments-5",
-        "question": "How soon do I get my test results?",
+        "question": "what if I go quiet during the discussion assessment",
         "variants": [
-          "when will i know if i passed",
-          "result timing",
-          "how long for results",
-          "immediate results"
+          "idle timeout discussion",
+          "silent for 15 mins in session",
+          "what happens if i don't respond",
+          "discussion session timeout",
+          "stopped responding to assessor"
         ],
-        "answer": "You get your result immediately after finishing a multiple-choice test. For discussion sessions, a human reviewer looks at it and you'll usually hear back within a day.",
+        "answer": "If you go quiet for 15 minutes, the session times out. But it's not the end — reload the page and you'll pick up where you left off, with the last question asked again. You can also leave deliberately and come back later.",
         "sectionIds": [
-          "assessments",
-          "test-format",
           "discussion-format"
         ]
       },
       {
         "id": "candidate-assessments-6",
-        "question": "Can I use copy and paste during an assessment?",
+        "question": "when will I get my discussion assessment result",
         "variants": [
-          "pasting answers",
-          "copying during test",
-          "paste blocked",
-          "can i ctrl c"
+          "how long for discussion feedback",
+          "when do i hear back from live assessment",
+          "discussion review time",
+          "how long until i know if i passed",
+          "when will reviewer respond"
         ],
-        "answer": "Copying is recorded as a signal for review, and pasting is blocked entirely. These signals never fail you automatically and don't change your score or badge.",
+        "answer": "A reviewer looks at your session, and you'll usually hear back within a day.",
         "sectionIds": [
-          "assessments",
-          "test-format"
+          "discussion-format"
         ]
       },
       {
         "id": "candidate-assessments-7",
-        "question": "What is a discussion assessment format?",
+        "question": "can I retake an assessment",
         "variants": [
-          "what's the discussion format",
-          "how does discussion assessment work",
-          "text conversation assessment",
-          "RAG systems assessment"
+          "retake policy",
+          "how many times can i attempt",
+          "can i take the same test again",
+          "attempt limit per skill",
+          "do i have to wait to retake"
         ],
-        "answer": "Instead of multiple choice, you have a roughly 20-minute text conversation with an AI assessor. It's recorded and reviewed by a person afterwards. After each topic you get informal notes as coaching, but your official result comes from a human reviewer, usually within a day.",
+        "answer": "There's no waiting period between attempts. On the free plan the standing limit is two attempts at each skill and level — your first, plus one retake — but that's temporarily lifted to unlimited attempts until skill purchases launch in early 2027. The count is per level, so passing Foundational (L1) and moving to Practitioner (L2) starts fresh. If a badge expires, the counter effectively resets and only attempts after expiry count.",
         "sectionIds": [
-          "assessments",
-          "discussion-format"
+          "retakes"
         ]
       },
       {
         "id": "candidate-assessments-8",
-        "question": "What if I go idle during a discussion session?",
+        "question": "my badge expired what do I do",
         "variants": [
-          "discussion timed out",
-          "my session expired",
-          "i was quiet too long",
-          "inactive for 15 minutes"
+          "expired badge renew",
+          "badge lapsed can i retake",
+          "badge expired fix",
+          "how to renew expired skill",
+          "1 year badge expiration"
         ],
-        "answer": "If you go quiet for 15 minutes the session times out. Reload the page and you'll pick up where you left off, with the last question asked again. You can also leave deliberately and come back later.",
+        "answer": "Badges last a year. Retake the assessment to renew it.",
         "sectionIds": [
-          "assessments",
-          "discussion-format"
+          "retakes",
+          "skills-and-levels"
         ]
       },
       {
         "id": "candidate-assessments-9",
-        "question": "Can I retake an assessment immediately?",
+        "question": "which skill should I take first",
         "variants": [
-          "waiting period between attempts",
-          "can i retry right away",
-          "retake cooldown",
-          "how soon can i retake"
+          "first skill choice",
+          "best skill to start with",
+          "which assessment first",
+          "first attempt locks which skill",
+          "how do i choose first skill"
         ],
-        "answer": "There's no waiting period between attempts. On the free plan you currently get unlimited attempts per skill and level until skill purchases launch in early 2027; the standing limit is two attempts per level.",
+        "answer": "On the free plan, your first self-started multiple-choice attempt locks your free self-started attempts to that one skill. You can keep taking other levels of the same skill, but not a different skill. Choose your first skill deliberately. This doesn't apply to assessments an employer asks you to take.",
         "sectionIds": [
-          "assessments",
-          "retakes",
-          "free-limits"
+          "free-skill-lock"
         ]
       },
       {
         "id": "candidate-assessments-10",
-        "question": "What if I disagree with my discussion assessment result?",
+        "question": "what does the reviewer see from my discussion assessment",
         "variants": [
-          "dispute my score",
-          "challenge discussion result",
-          "unfair assessment review",
-          "appeal discussion verdict"
+          "what does employer see discussion",
+          "discussion assessment result details",
+          "do they see transcript",
+          "what feedback do i get from discussion",
+          "what shows in discussion result"
         ],
-        "answer": "You can dispute each verdict once, in your own words. It goes back for another review. If a session is marked as not having given you a fair chance to show what you know, you can retake immediately with no penalty.",
+        "answer": "If you disagree with a verdict, you can dispute it once per claim, in your own words. It goes back for another review. After you finish, a reviewer looks at your session and you'll usually hear back within a day. Your result shows a verdict on each part of the rubric, the reviewer's written reasoning, and whether that part affected your badge. You can read the full transcript.",
         "sectionIds": [
-          "assessments",
           "discussion-format"
         ]
       },
       {
         "id": "candidate-assessments-11",
-        "question": "What do employers see when I pass an assessment they requested?",
+        "question": "what if the discussion assessment wasn't fair",
         "variants": [
-          "what does employer see after i pass",
-          "employer visibility",
-          "shared results with employer",
-          "does employer see my score"
+          "unfair assessment",
+          "didn't get fair chance discussion",
+          "retake after bad session",
+          "assessor mistake",
+          "session marked unfair"
         ],
-        "answer": "For a multiple-choice test, the employer sees whether you passed, your score, and a topic breakdown. For a discussion session, they only see whether you passed — not the conversation, individual answers, or any other details.",
+        "answer": "Sometimes a session is marked as not having given you a fair chance to show what you know. That's counted as our assessor's shortcoming, not yours, and you can retake immediately with no penalty.",
         "sectionIds": [
-          "assessments",
-          "employer-requests",
-          "test-format",
           "discussion-format"
         ]
       },
       {
         "id": "candidate-assessments-12",
-        "question": "Do I need to have five days to complete a requested assessment?",
+        "question": "do I see my test score breakdown",
         "variants": [
-          "time limit for employer request",
-          "how long to start employer assessment",
-          "five day deadline",
-          "employer assessment window"
+          "what do i see after test",
+          "do i get feedback on questions",
+          "topic breakdown test",
+          "how many questions did i get right",
+          "see which answers were wrong"
         ],
-        "answer": "You have five days to start an employer-requested assessment. After that the request closes and you'd need the employer to send a new one.",
+        "answer": "You get your result immediately. You'll see your score, whether you passed, and a breakdown by topic showing how many you got right in each area. You won't see which specific questions you missed.",
         "sectionIds": [
-          "assessments",
-          "employer-requests"
+          "test-format"
         ]
       },
       {
         "id": "candidate-employer-requests-1",
-        "question": "What happens when an employer asks me to take an assessment?",
+        "question": "how long do i have to complete an assessment that an employer asked me to take",
         "variants": [
-          "employer requested assessment",
-          "what does it mean when an employer asks me to take a test",
-          "employer wants me to verify a skill",
-          "how do employer-requested assessments work",
-          "an employer asked me to do an assessment"
+          "how much time do i have for employer requested assessment",
+          "employer assessment deadline",
+          "when does employer assessment expire",
+          "how long before employer assessment request closes"
         ],
-        "answer": "When an employer shortlists you, they can ask you to verify a specific skill. You'll see the request on your dashboard and at the top of your Assessments page. You have five days to start it. After that it closes, and the employer would need to send a new request. Before you start, we show you exactly what the employer will see when you finish: for a test, whether you passed, your score, and a breakdown by topic; for a discussion, just whether you passed.",
+        "answer": "You have five days to start it. After that the request closes and you'd need the employer to send a new one.",
         "sectionIds": [
           "employer-requests"
         ]
       },
       {
         "id": "candidate-employer-requests-2",
-        "question": "Do employer assessment requests count against my free plan limits?",
+        "question": "does an employer assessment request count against my application limit",
         "variants": [
-          "does employer assessment use my attempts",
-          "do employer requested tests count towards my 2 attempts",
-          "does asking for verification use my application limit",
-          "employer assessment free plan",
-          "do i lose an attempt if employer asks me"
+          "do employer requested tests use up my attempts",
+          "does employer assessment count towards my limits",
+          "employer assessment free limit",
+          "do i lose attempts if i take employer requested skill"
         ],
-        "answer": "No. Assessments an employer requests don't count against your own limits. You get unlimited attempts on those, and they don't trigger the free-plan skill lock that normally locks you to one skill after your first self-started attempt. The employer covers the cost.",
+        "answer": "These requests don't count against your own limits, and they don't trigger the free-plan skill lock. The employer covers the cost.",
         "sectionIds": [
-          "employer-requests",
-          "free-skill-lock",
-          "free-limits"
+          "employer-requests"
         ]
       },
       {
         "id": "candidate-employer-requests-3",
-        "question": "What if I already have the badge the employer is asking for?",
+        "question": "what will the employer see when i complete their assessment",
         "variants": [
-          "i already have this skill verified",
-          "do i need to retake if i already passed",
-          "employer asked for skill i already earned",
+          "what results do employers get from my assessment",
+          "what does employer see after i take their test",
+          "employer assessment results visibility",
+          "what info goes to employer after assessment"
+        ],
+        "answer": "Before you start, we show you exactly what the employer will see when you finish. For a test: whether you passed, your score, and the topic breakdown. For a discussion: whether you passed. Nothing else — not the conversation, not your individual answers.",
+        "sectionIds": [
+          "employer-requests"
+        ]
+      },
+      {
+        "id": "candidate-employer-requests-4",
+        "question": "what if i already have the badge the employer is asking for",
+        "variants": [
+          "i already have this skill do i still need to take the assessment",
+          "employer asking for skill i already earned",
+          "do i need to retake if i have the badge",
           "what if i already hold the badge"
         ],
         "answer": "If you already hold the badge they asked for, there's nothing to do and no one is charged.",
@@ -521,504 +515,547 @@ export const HELP_LIBRARY: HelpLibraries = {
         ]
       },
       {
-        "id": "candidate-employer-requests-4",
-        "question": "How long do I have to start an employer assessment?",
-        "variants": [
-          "deadline for employer assessment",
-          "when does employer request expire",
-          "how many days to start",
-          "time limit on employer ask"
-        ],
-        "answer": "You have five days to start it. After that the request closes and the employer would need to send a new one.",
-        "sectionIds": [
-          "employer-requests"
-        ]
-      },
-      {
         "id": "candidate-employer-requests-5",
-        "question": "What does the employer see when I finish their assessment?",
+        "question": "are employer skill requests separate from my free plan limits",
         "variants": [
-          "what info does employer get from my test",
-          "what can employer see after i finish",
-          "employer assessment results visibility",
-          "what gets shared with employer"
+          "employer assessment outside my attempt limit",
+          "does employer request use my two attempts",
+          "are employer requested assessments unlimited",
+          "employer request counts towards my limit"
         ],
-        "answer": "Before you start, we show you exactly what the employer will see when you finish. For a multiple-choice test: whether you passed, your score, and a breakdown by topic showing how many you got right in each area. For a discussion assessment: whether you passed. Nothing else — not the conversation, not your individual answers.",
+        "answer": "Assessments an employer requests are outside all of these limits. These requests don't count against your own limits, and they don't trigger the free-plan skill lock. The employer covers the cost.",
         "sectionIds": [
-          "employer-requests"
+          "employer-requests",
+          "free-limits"
         ]
       },
       {
         "id": "candidate-jobs-1",
-        "question": "How do I find jobs on MyAmbii?",
+        "question": "how do i find jobs on myambii",
         "variants": [
+          "where can i see job listings",
           "how to search for jobs",
-          "where can i find job openings",
-          "how do i look for jobs",
-          "job search",
-          "find jobs on myambii"
+          "how do i browse jobs",
+          "where are the jobs",
+          "job search"
         ],
-        "answer": "Go to the Jobs page. You'll see three tabs: Matched to you ranks live openings against your verified skills, Browse jobs lets you search manually by skill, location, or remote-only, and My applications tracks what you've applied to.",
+        "answer": "Go to the Jobs page. You'll see three tabs: Matched to you, which ranks live openings against your verified skills; Browse jobs, where you can search manually by skill, location, or remote-only; and My applications, which tracks what you've applied to.",
         "sectionIds": [
           "jobs"
         ]
       },
       {
         "id": "candidate-jobs-2",
-        "question": "What does my match score mean?",
+        "question": "what is the matched to you tab",
         "variants": [
-          "how is my match score calculated",
-          "why is my score low",
-          "what affects my match",
-          "how does matching work"
+          "what does matched to you mean",
+          "how does matched to you work",
+          "how are jobs matched to me",
+          "what is job matching"
         ],
-        "answer": "Your score is based only on verified information: your verified skills and their levels, Verified certifications tagged to skills the job asks for, and your years of experience. A verified skill at or above the level asked for gets full credit. A verified skill below the level gets partial credit scaled by how close you are. A skill you've claimed but not verified gets limited credit. Required skills count double compared to nice-to-have skills. Your headline, role title, and location are for display and filtering only and don't affect the score.",
+        "answer": "Matched to you ranks live job openings against your verified skills, with a score for each job and a list showing which required skills you have and which you're missing.",
         "sectionIds": [
+          "jobs",
           "matching"
         ]
       },
       {
         "id": "candidate-jobs-3",
-        "question": "What do I need before I can apply for a job?",
+        "question": "how many jobs can i apply to per month",
         "variants": [
-          "why can't i apply for jobs",
-          "can't submit application",
-          "what's required to apply",
-          "how do i apply for jobs"
-        ],
-        "answer": "You need four things: your name and years of experience on your profile, a resume uploaded, your AI years of experience answered (zero counts, blank doesn't), and at least one verified credential — either a MyAmbii badge or a Verified certification.",
-        "sectionIds": [
-          "apply-requirements"
-        ]
-      },
-      {
-        "id": "candidate-jobs-4",
-        "question": "How many jobs can I apply to per month?",
-        "variants": [
-          "application limit",
           "how many applications do i get",
-          "10 applications a month",
-          "applications left this month"
+          "application limit",
+          "how many jobs can i apply",
+          "am i limited on applications"
         ],
-        "answer": "You can submit 10 applications a month. The job page shows how many you have left. The count resets at the start of each calendar month, UTC. At 10, applications are blocked until the reset. If an application fails for a technical reason, it doesn't cost you a slot.",
+        "answer": "You can submit 10 applications a month. The job page shows how many you have left. The count resets at the start of each calendar month, UTC.",
         "sectionIds": [
           "application-limit"
         ]
       },
       {
-        "id": "candidate-jobs-5",
-        "question": "Why don't I appear in employer searches?",
+        "id": "candidate-jobs-4",
+        "question": "can i apply for a job if i dont have all required skills",
         "variants": [
-          "why can't employers find me",
-          "not showing up in search results",
-          "invisible to employers",
-          "employers can't see me"
+          "can i apply without all skills",
+          "what if i dont have all the skills they want",
+          "do i need every skill to apply",
+          "requirements to apply for jobs"
         ],
-        "answer": "You need at least one verified skill. Claimed-but-unverified skills aren't enough. Also check that you have your full name and years of experience on your profile, a resume uploaded, and your AI years of experience answered.",
+        "answer": "You need four things to apply: your name and years of experience on your profile, a resume uploaded, your AI years of experience answered, and at least one verified credential. You don't need all the skills a job asks for — your match score shows which you have and which you're missing. Jobs you apply to may have different requirements.",
         "sectionIds": [
-          "jobs",
-          "apply-requirements"
+          "apply-requirements",
+          "matching"
+        ]
+      },
+      {
+        "id": "candidate-jobs-5",
+        "question": "what does myambii show employers about me when i apply",
+        "variants": [
+          "what information do employers see",
+          "what does the employer see when i apply",
+          "how much information do employers get"
+        ],
+        "answer": "Your match score is based only on verified information: your verified skills and their levels, Verified certifications tagged to the skills the job asks for, and your years of experience. Your headline, role title, and location are for display and filtering only and don't affect the score. Nothing you write about yourself affects it.",
+        "sectionIds": [
+          "matching"
         ]
       },
       {
         "id": "candidate-jobs-6",
-        "question": "Do I lose an application if something goes wrong?",
+        "question": "do i lose my application if it fails to submit",
         "variants": [
-          "failed application what happens",
-          "does a failed submission cost an application",
-          "application error refund"
+          "failed to apply application rejected",
+          "my application failed what happens",
+          "does a failed application count"
         ],
-        "answer": "No. Failed submissions are credited back automatically.",
+        "answer": "No. If an application fails for a technical reason, it doesn't cost you a slot.",
         "sectionIds": [
           "application-limit"
         ]
       },
       {
         "id": "candidate-jobs-7",
-        "question": "What is Matched to you?",
+        "question": "what happens when i apply to a job posted by a recruitment agency",
         "variants": [
-          "matched to you tab",
-          "what does matched to you mean",
-          "how are jobs matched",
-          "understand matched to you"
+          "what are agency jobs",
+          "job posted by recruitment agency",
+          "how do i apply to agency jobs",
+          "recruitment agency postings"
         ],
-        "answer": "Matched to you ranks live openings against your verified skills. Each job gets a score and shows which required skills you have and which you're missing.",
+        "answer": "Some jobs are posted by a recruitment agency for one of its clients. When you apply, your name and contact details are shared with the agency, not with the client. The agency will ask your permission before putting you forward to the client.",
         "sectionIds": [
           "jobs"
         ]
       },
       {
         "id": "candidate-jobs-8",
-        "question": "How do I search for jobs by location?",
+        "question": "what is the interviews page",
         "variants": [
-          "filter jobs by location",
-          "search jobs near me",
-          "location filtering",
-          "jobs in my area"
+          "what does interviews mean",
+          "what is the interviews tab",
+          "where can i see my interviews",
+          "how do i see interview invites"
         ],
-        "answer": "Go to the Browse jobs tab on the Jobs page and search by location or choose remote-only.",
+        "answer": "The Interviews page shows every employer shortlist you're on and where you are in their process. You'll see stages like on their shortlist, invited to interview, interviewing, offer extended, or the process has ended. Once invited, you can accept or decline.",
         "sectionIds": [
-          "jobs"
-        ]
-      },
-      {
-        "id": "candidate-jobs-9",
-        "question": "When does my application limit reset?",
-        "variants": [
-          "when do i get more applications",
-          "application reset date",
-          "application limit reset time"
-        ],
-        "answer": "The count resets at the start of each calendar month, UTC. If you're in India, that's 5:30am on the 1st rather than local midnight.",
-        "sectionIds": [
-          "application-limit"
-        ]
-      },
-      {
-        "id": "candidate-jobs-10",
-        "question": "Why can't I apply to this job?",
-        "variants": [
-          "application blocked",
-          "can't submit application",
-          "why is apply button disabled",
-          "unable to apply"
-        ],
-        "answer": "You need four things: your name and years of experience on your profile, a resume uploaded, your AI years of experience answered (zero counts, blank doesn't), and at least one verified credential — either a MyAmbii badge or a Verified certification. Check all four are complete before applying.",
-        "sectionIds": [
-          "apply-requirements"
-        ]
-      },
-      {
-        "id": "candidate-jobs-11",
-        "question": "What happens after I apply for a job?",
-        "variants": [
-          "what's next after i apply",
-          "can i track my application",
-          "application status",
-          "where do i see my applications"
-        ],
-        "answer": "You can track your applications on the My applications tab in the Jobs page. For updates on employer shortlists and interviews, check your Interviews page.",
-        "sectionIds": [
-          "jobs",
           "interviews"
         ]
       },
       {
+        "id": "candidate-jobs-9",
+        "question": "can employers message me directly",
+        "variants": [
+          "can recruiters contact me",
+          "do employers send messages",
+          "can companies reach out to me",
+          "how do i hear from employers"
+        ],
+        "answer": "Yes. Employers and recruiters can find you through AI sourcing when your verified skills match one of their roles, and send you a message. You'll get an email and see it on Opportunities and Interviews. You can reply Interested to share your contact details, or Not now or Not for me.",
+        "sectionIds": [
+          "opportunities"
+        ]
+      },
+      {
+        "id": "candidate-jobs-10",
+        "question": "how do i control who can contact me about jobs",
+        "variants": [
+          "can i stop recruiters from contacting me",
+          "how do i manage recruiter contact",
+          "how do i turn off recruiter messages",
+          "control who messages me"
+        ],
+        "answer": "On Opportunities, choose who can contact you: any role that matches your skills (the default), only strong matches, or nobody. You can also set how many new messages you get per week. Every email also has a link to stop recruiter messages. If you want to work with recruiters specifically, turn on Open to recruiters in your profile.",
+        "sectionIds": [
+          "opportunities",
+          "recruiters"
+        ]
+      },
+      {
+        "id": "candidate-jobs-11",
+        "question": "what happens if i decline a job interview invitation",
+        "variants": [
+          "how do i reject an interview",
+          "can i decline an interview",
+          "what if i say no to an interview"
+        ],
+        "answer": "Declining an invitation ends that pipeline. You'll be asked to confirm.",
+        "sectionIds": [
+          "interviews"
+        ]
+      },
+      {
+        "id": "candidate-opportunities-1",
+        "question": "How do employers and recruiters find me and contact me?",
+        "variants": [
+          "how do recruiters find me",
+          "how do companies contact me",
+          "how can employers reach me",
+          "how am i discovered",
+          "who finds my profile",
+          "can recruiters message me"
+        ],
+        "answer": "Employers and recruiters use AI sourcing to find you when your verified skills match one of their roles, then send you a message. You'll get an email, and the message appears on Opportunities and on Interviews. You control who can contact you on Opportunities: any role that matches your skills (the default), only strong matches, or nobody.",
+        "sectionIds": [
+          "opportunities"
+        ]
+      },
+      {
+        "id": "candidate-opportunities-2",
+        "question": "What do I do when an employer or recruiter sends me a message?",
+        "variants": [
+          "how do i respond to an opportunity",
+          "what does interested mean",
+          "employer messaged me what now",
+          "recruiter message how to reply",
+          "someone contacted me on myambii",
+          "what should i do with opportunities"
+        ],
+        "answer": "You can reply with one tap. Interested shares your email and phone with that company—an employer adds you to that job's shortlist, while a recruiter asks for permission before putting you forward to their client. Not now keeps the door open; you can still say Interested later. Not for me ends it, and that company won't contact you again about new roles for 90 days. If you don't answer, you'll get at most two reminders.",
+        "sectionIds": [
+          "opportunities"
+        ]
+      },
+      {
+        "id": "candidate-opportunities-3",
+        "question": "Can I control how many messages I get from recruiters?",
+        "variants": [
+          "how many recruiter messages per week",
+          "can i limit messages",
+          "too many recruiter emails",
+          "how often do recruiters contact me",
+          "how to get fewer opportunities",
+          "mute recruiter messages"
+        ],
+        "answer": "Yes. On Opportunities, you can set how many new messages you get per week—3 by default. You can also choose who can contact you: any role that matches your skills, only strong matches, or nobody. You can also turn off Open to recruiters on your profile to stop recruiter contact entirely. Every email also has a link to stop recruiter messages.",
+        "sectionIds": [
+          "opportunities"
+        ]
+      },
+      {
+        "id": "candidate-opportunities-4",
+        "question": "Do recruiters see my name and contact details?",
+        "variants": [
+          "what can recruiters see",
+          "do recruiters know my name",
+          "privacy with recruiters",
+          "what information do recruiters have",
+          "can recruiters see my email",
+          "are recruiters private"
+        ],
+        "answer": "When a recruiter finds you through sourcing, they see your skills and availability, not your name or contact details. They only get your name, email and phone if you answer Available to their availability check, or if you say Interested to their message.",
+        "sectionIds": [
+          "recruiters",
+          "opportunities"
+        ]
+      },
+      {
+        "id": "candidate-opportunities-5",
+        "question": "What's the difference between employers and recruiters on MyAmbii?",
+        "variants": [
+          "employers vs recruiters",
+          "how are recruiters different",
+          "what's a recruitment agency",
+          "employer or recruiter",
+          "are recruiters companies",
+          "difference between employer and staffing company"
+        ],
+        "answer": "Employers post jobs directly. Recruiters and staffing companies place candidates with their clients—they find you, ask if you're interested, and if so, ask permission before putting you forward to their client company. When a job is posted by a recruiter, it shows their name and the client's name, for example \"Posted by Talent Partners for Globex\", or \"for a confidential client\" when they haven't named them. Applying shares your name and contact details with the recruiter, not the client—the recruiter asks permission before introducing you to the client.",
+        "sectionIds": [
+          "opportunities",
+          "jobs"
+        ]
+      },
+      {
         "id": "candidate-interviews-1",
-        "question": "What does it mean when an employer has put me on their shortlist?",
+        "question": "What does it mean when an employer has me on their shortlist?",
         "variants": [
           "what does shortlist mean",
-          "im on a shortlist what happens next",
-          "employer shortlisted me",
-          "shortlisted candidates what now",
-          "what is shortlist on myambii"
+          "employer shortlisted me what happens next",
+          "im on a shortlist what now",
+          "what is shortlist status",
+          "shortlisted by employer",
+          "what does it mean to be shortlisted"
         ],
-        "answer": "It means an employer has saved your profile. You can see it on your Interviews page. At that stage, there's nothing for you to do — you'll get an invitation if they want to move forward.",
+        "answer": "It means an employer has saved your profile. You're on their radar but they haven't invited you to interview yet. Check the Interviews page to see where you stand with that company.",
         "sectionIds": [
           "interviews"
         ]
       },
       {
         "id": "candidate-interviews-2",
-        "question": "How do I decline an interview invitation?",
+        "question": "How do I accept or decline an interview invitation?",
         "variants": [
-          "can i say no to an interview",
-          "how do i turn down an interview",
-          "decline interview invite",
-          "reject interview invitation",
-          "i don't want this interview"
+          "how to accept interview invite",
+          "can i decline an interview",
+          "how do i respond to interview invitation",
+          "accept or reject interview",
+          "interview invitation what do i do",
+          "declining interview invitation"
         ],
-        "answer": "Go to your Interviews page and decline the invitation. You'll be asked to confirm. Declining ends that pipeline with that employer.",
+        "answer": "On the Interviews page, you'll see the invitation with options to accept or decline. If you decline, that ends that pipeline with that employer and you'll be asked to confirm.",
         "sectionIds": [
           "interviews"
         ]
       },
       {
         "id": "candidate-interviews-3",
-        "question": "When will the employer schedule my interview?",
+        "question": "What happens after I accept an interview?",
         "variants": [
-          "how long until my interview",
-          "when do i get interview details",
-          "when will they schedule me",
-          "how long does it take to get scheduled for interview",
-          "when will i know the interview time"
+          "accepted interview invite whats next",
+          "after i accept interview when do they contact me",
+          "what happens when you accept interview",
+          "interview accepted now what",
+          "do i need to do anything after accepting"
         ],
-        "answer": "Scheduling is up to the employer. There's no fixed timeline. Once you've accepted an invitation, you'll see the round details as they're added.",
+        "answer": "Once you accept, scheduling is up to the employer. They'll add round details as they're confirmed. There's no fixed number of rounds. You'll see the round you're currently on in the Interviews page.",
         "sectionIds": [
           "interviews"
         ]
       },
       {
         "id": "candidate-interviews-4",
-        "question": "What stages can I be at in an employer's hiring process?",
+        "question": "What should I do if I get an offer?",
         "variants": [
-          "interview stages myambii",
-          "what are the interview statuses",
-          "where am i in hiring process",
-          "interview pipeline stages",
-          "what does interviewing status mean"
+          "employer made me an offer what do i do",
+          "how to respond to job offer",
+          "accept decline or still deciding offer",
+          "offer extended what now",
+          "got a job offer options"
         ],
-        "answer": "On your Interviews page you can be in one of these stages: On their shortlist, Invited to interview, Interviewing, Offer extended, or Hired, Closed, Declined, or Rejected. You'll see which round you're currently on.",
+        "answer": "On the Interviews page, you can accept the offer, decline it, or say you're still deciding. Choose whichever reflects where you are.",
         "sectionIds": [
           "interviews"
         ]
       },
       {
         "id": "candidate-interviews-5",
-        "question": "What do I do if I get an offer?",
+        "question": "How can I tell what stage of the hiring process I'm in?",
         "variants": [
-          "employer made me an offer",
-          "offer extended what now",
-          "how do i accept an offer",
-          "can i decline an offer",
-          "im thinking about the offer"
+          "what stage is my interview",
+          "where am i in the hiring process",
+          "how do i know what round im on",
+          "interview status check",
+          "which stage am i at"
         ],
-        "answer": "When an offer is extended, you can accept it, decline it, or say you're still deciding. You'll see these options on your Interviews page.",
+        "answer": "The Interviews page shows every employer shortlist you're on and what stage you're at: on their shortlist, invited to interview, interviewing, offer extended, or the process has ended. You'll see the round you're currently on and details as they're added.",
         "sectionIds": [
           "interviews"
         ]
       },
       {
         "id": "candidate-badges-1",
-        "question": "how do i share my badge on linkedin",
+        "question": "Can I share my badge on LinkedIn?",
         "variants": [
-          "can i share my badge",
+          "how do i share my badge",
           "share badge linkedin",
-          "how to share certificate",
-          "can i put my badge on linkedin",
-          "share my certificate"
+          "can i post my badge somewhere",
+          "share my certificate",
+          "post badge on social media",
+          "share certificate online"
         ],
-        "answer": "Every badge you earn has a public certificate page you can share, for example on LinkedIn. Anyone can open it without signing in. It shows your name, the skill and level, how it was verified, when it was issued, when it expires, and whether it's still valid.",
+        "answer": "Yes. Every badge you earn has a public certificate page you can share. You can link to it on LinkedIn or anywhere else. Anyone can open it without signing in, and it shows your name, the skill and level, when it was issued and when it expires, and whether it's still valid.",
         "sectionIds": [
           "badges"
         ]
       },
       {
         "id": "candidate-badges-2",
-        "question": "what happens to my certificates if i delete my account",
+        "question": "What information is on my certificate?",
         "variants": [
-          "if i delete my account what happens to badges",
-          "delete account certificates still there",
-          "do badges disappear when i delete",
-          "what happens to my certs after deletion",
-          "certificates after account deletion"
+          "whats on my badge certificate",
+          "what does the certificate show",
+          "what info is in my badge",
+          "what appears on certificate",
+          "certificate details",
+          "what's displayed on badge"
         ],
-        "answer": "If you delete your account, your certificates stay verifiable but no longer show your details.",
+        "answer": "Your certificate shows your name, the skill and level, how it was verified, when it was issued, when it expires, and whether it's still valid.",
+        "sectionIds": [
+          "badges"
+        ]
+      },
+      {
+        "id": "candidate-badges-3",
+        "question": "If I delete my account will my badge still work?",
+        "variants": [
+          "delete account what happens to badge",
+          "will my certificate disappear if i delete account",
+          "do badges stay after deleting",
+          "badge after account deletion",
+          "can people still verify my badge if i delete",
+          "does certificate stay if i delete account"
+        ],
+        "answer": "Yes. If you delete your account, your verified badges remain independently verifiable but no longer carry your name. The certificate page stays verifiable but won't show your details anymore.",
         "sectionIds": [
           "badges",
           "delete"
         ]
       },
       {
-        "id": "candidate-badges-3",
-        "question": "can employers see my badge details on the certificate",
-        "variants": [
-          "what do employers see on certificate",
-          "what info is on my certificate",
-          "certificate details",
-          "what shows on badge certificate",
-          "who can see certificate details"
-        ],
-        "answer": "The certificate page shows your name, the skill and level, how it was verified, when it was issued, when it expires, and whether it's still valid. Anyone can open it without signing in.",
-        "sectionIds": [
-          "badges"
-        ]
-      },
-      {
-        "id": "candidate-badges-4",
-        "question": "is my badge certificate public",
-        "variants": [
-          "can anyone see my certificate",
-          "certificate public or private",
-          "is certificate viewable without login",
-          "who can access my certificate",
-          "badge certificate privacy"
-        ],
-        "answer": "Every badge has a public certificate page you can share. Anyone can open it without signing in.",
-        "sectionIds": [
-          "badges"
-        ]
-      },
-      {
-        "id": "candidate-badges-5",
-        "question": "what information is on my certificate",
-        "variants": [
-          "whats on the certificate",
-          "certificate contains what",
-          "certificate info",
-          "what details on badge cert",
-          "certificate shows what"
-        ],
-        "answer": "The certificate shows your name, the skill and level, how it was verified, when it was issued, when it expires, and whether it's still valid.",
-        "sectionIds": [
-          "badges"
-        ]
-      },
-      {
         "id": "candidate-account-1",
-        "question": "How do I add or change my phone number?",
+        "question": "How do I add a phone number to my account?",
         "variants": [
-          "how do i update my phone",
-          "can i change my phone number",
-          "how to add phone to account",
-          "update phone number myambii",
-          "change phone on profile"
+          "how to add phone number",
+          "can i add a phone",
+          "adding phone to account",
+          "how do i link my phone",
+          "add phone number to myambii"
         ],
-        "answer": "Go to Profile → Account. You can add a missing phone or change one you already have. We'll send a one-time code to confirm it, so you won't accidentally end up with two accounts.",
+        "answer": "Go to Profile → Account. You can add a phone number and confirm it with a one-time code. Outside India, a verified email is enough — you don't need a phone. Phone sign-in and codes only work for Indian (+91) numbers.",
         "sectionIds": [
+          "account",
           "login-methods"
         ]
       },
       {
         "id": "candidate-account-2",
-        "question": "How do I add or change my email?",
+        "question": "How do I change my email address?",
         "variants": [
-          "how do i update my email address",
-          "can i change my email",
-          "how to change email on myambii",
-          "update email address"
+          "change email",
+          "how to update email",
+          "can i switch email addresses",
+          "update email adress",
+          "change my email on myambii"
         ],
-        "answer": "Go to Profile → Account. You can add a missing email or change one you already have. We'll send a one-time code to confirm it, so you won't accidentally end up with two accounts.",
+        "answer": "Go to Profile → Account. You can change your email and confirm it with a one-time code sent to your existing account, so you won't accidentally create two accounts.",
         "sectionIds": [
+          "account",
           "login-methods"
         ]
       },
       {
         "id": "candidate-account-3",
-        "question": "What happens if I deactivate my account?",
+        "question": "Can I sign in with Google?",
         "variants": [
-          "how do i deactivate my account",
-          "what does deactivate mean",
-          "can i pause my account",
-          "deactivate account myambii"
+          "google sign in",
+          "login with google",
+          "how to use google to sign in",
+          "do you support google login",
+          "sign in with github"
         ],
-        "answer": "Deactivating hides you from search, matching, and new results. Employers can't shortlist you or send you invitations, and notification emails stop. Nothing is deleted — your profile, badges, applications, and history stay exactly as they are. You can sign back in whenever you want and everything resumes.",
+        "answer": "Outside India, yes. You can sign in with Google, GitHub, or Apple (in the iPhone app). Inside India, you can sign in with phone or email.",
         "sectionIds": [
-          "deactivate"
+          "login-methods"
         ]
       },
       {
         "id": "candidate-account-4",
-        "question": "Can I reactivate my account after deactivating?",
+        "question": "What happens if I deactivate my account?",
         "variants": [
-          "how do i reactivate",
-          "can i turn my account back on",
-          "sign back in after deactivate",
-          "resume account after deactivation"
+          "deactivate account",
+          "how to deactivate",
+          "what does deactivating do",
+          "can i pause my account",
+          "temporary deactivation"
         ],
-        "answer": "Yes. Sign back in whenever you want and everything resumes.",
+        "answer": "Deactivating hides you from search, matching, and new invitations. Employers can't shortlist you or send messages, and notification emails stop. Nothing is deleted — your profile, badges, applications, and history stay the same. You can sign back in anytime and everything resumes.",
         "sectionIds": [
           "deactivate"
         ]
       },
       {
         "id": "candidate-account-5",
-        "question": "What happens if I delete my account?",
+        "question": "How do I permanently delete my account?",
         "variants": [
-          "how do i delete my account",
-          "can i permanently delete",
-          "delete account myambii",
-          "what does delete mean"
+          "delete account",
+          "how to delete my profile",
+          "permanent deletion",
+          "remove my account",
+          "how do i delet my acount"
         ],
-        "answer": "Deleting is permanent. Your name, email, phone, photo, resume, and profile details are removed. Your verified badges remain independently verifiable but no longer carry your name. Employers keep anonymised records of candidates they've interviewed, which is a legal requirement for them.",
+        "answer": "Go to your Account settings and choose delete. Type DELETE to confirm — it's permanent. Your name, email, phone, photo, resume, and profile details are removed. Your verified badges stay independently verifiable but no longer carry your name. Employers keep anonymised records of candidates they've interviewed, as required by law.",
         "sectionIds": [
           "delete"
         ]
       },
       {
         "id": "candidate-account-6",
-        "question": "How do I permanently delete my account?",
+        "question": "If I delete my account, what happens to my badges?",
         "variants": [
-          "how to delete account permanently",
-          "can i delete everything",
-          "remove my account myambii",
-          "completely delete account"
+          "delete account badges",
+          "will my certificates be removed",
+          "do i lose my badges if i delete",
+          "deleted account certificate",
+          "badges after deletion"
         ],
-        "answer": "Go to your account settings. You'll be asked to type DELETE to confirm, and then the deletion is permanent. Your name, email, phone, photo, resume, and profile details are removed. Your verified badges remain independently verifiable but no longer carry your name.",
+        "answer": "Your verified badges remain independently verifiable but no longer carry your name. The certificate pages stay shareable but won't show your details.",
         "sectionIds": [
-          "delete"
+          "delete",
+          "badges"
         ]
       },
       {
         "id": "candidate-account-7",
-        "question": "Do my certificates stay public after I delete my account?",
+        "question": "Can I change my phone number on MyAmbii?",
         "variants": [
-          "will my badge still be verifiable after delete",
-          "certificate after account deletion",
-          "public certificates after deleting account"
+          "change phone number",
+          "update phone",
+          "switch phone numbers",
+          "how to change phone",
+          "modify my phone"
         ],
-        "answer": "Yes. Your verified badges remain independently verifiable after deletion, but they no longer show your name.",
+        "answer": "Yes. Go to Profile → Account to change your phone number. The change is confirmed with a one-time code sent to your existing account.",
         "sectionIds": [
-          "delete"
+          "login-methods"
         ]
       },
       {
         "id": "candidate-account-8",
-        "question": "What's the difference between deactivating and deleting?",
+        "question": "Do I need a phone number to use MyAmbii outside India?",
         "variants": [
-          "deactivate vs delete",
-          "should i deactivate or delete",
-          "deactivation difference from deletion"
+          "need phone number outside india",
+          "do i have to add phone",
+          "is phone required",
+          "phone mandatory",
+          "phone number required outside india"
         ],
-        "answer": "Deactivating hides you from search and employers but keeps everything on file — you can sign back in and resume anytime. Deleting is permanent and removes your name, email, phone, photo, resume, and profile details.",
-        "sectionIds": [
-          "deactivate",
-          "delete"
-        ]
-      },
-      {
-        "id": "candidate-account-9",
-        "question": "Can I get my data back after deleting my account?",
-        "variants": [
-          "can i recover deleted account",
-          "is deletion reversible",
-          "get data back after delete",
-          "undo account deletion"
-        ],
-        "answer": "No. Deleting is permanent. Your name, email, phone, photo, resume, and profile details are removed and can't be recovered.",
-        "sectionIds": [
-          "delete"
-        ]
-      },
-      {
-        "id": "candidate-account-10",
-        "question": "Will employers still see me if I deactivate?",
-        "variants": [
-          "do employers see me when deactivated",
-          "hidden from employers after deactivate",
-          "will companies find me if i deactivate"
-        ],
-        "answer": "No. Deactivating hides you from search, matching, and new results. Employers can't shortlist you or send you invitations.",
-        "sectionIds": [
-          "deactivate"
-        ]
-      },
-      {
-        "id": "candidate-account-11",
-        "question": "Can I add a phone number if I signed up with Google or GitHub?",
-        "variants": [
-          "phone number google signup",
-          "add phone if signed up with github",
-          "phone number for google account"
-        ],
-        "answer": "Yes. If you signed up with Google or GitHub, you'll usually be asked to add a phone number. You can do this under Profile → Account.",
+        "answer": "No. Outside India, a verified email is enough. Phone codes only work for Indian (+91) numbers.",
         "sectionIds": [
           "quick-start",
           "login-methods"
         ]
       },
       {
+        "id": "candidate-account-9",
+        "question": "What sign-in methods are available in India?",
+        "variants": [
+          "how to sign in india",
+          "sign in methods india",
+          "what can i use to login in india",
+          "india login options"
+        ],
+        "answer": "In India, you can sign in with your phone or email (both must be verified). You can also use Google, GitHub, or Apple (in the iPhone app).",
+        "sectionIds": [
+          "login-methods"
+        ]
+      },
+      {
+        "id": "candidate-account-10",
+        "question": "How do I reactivate my account after deactivating it?",
+        "variants": [
+          "reactivate account",
+          "turn account back on",
+          "resume deactivated account",
+          "reactive account",
+          "how to reactivate"
+        ],
+        "answer": "Sign back in. When you do, everything resumes — your profile, badges, applications, and history are exactly as they were.",
+        "sectionIds": [
+          "deactivate"
+        ]
+      },
+      {
         "id": "candidate-free-limits-1",
         "question": "How many times can I retake an assessment?",
         "variants": [
-          "how many retakes do i get",
+          "how many attempts do i get",
           "can i retake a test",
-          "unlimited retakes?",
-          "how many attempts per skill",
-          "retake limit",
-          "do i get multiple attempts"
+          "do i get unlimited retakes",
+          "how many retakes",
+          "can i take an assessment again"
         ],
-        "answer": "Right now you get unlimited attempts per skill and level, which is a temporary allowance until skill purchases launch in early 2027. The regular limit after that is two attempts — your first try plus one retake. There's no waiting period between attempts. The count is per level, so if you pass one level and move to the next, your attempts there start fresh.",
+        "answer": "Right now you get unlimited attempts at each skill and level on the free plan. This is a temporary allowance until skill purchases launch in early 2027. The standing limit is two attempts — your first attempt plus one retake — but that's lifted for now. If a badge expires, the counter resets and only attempts after that expiry count.",
         "sectionIds": [
           "free-limits",
           "retakes"
@@ -1026,15 +1063,14 @@ export const HELP_LIBRARY: HelpLibraries = {
       },
       {
         "id": "candidate-free-limits-2",
-        "question": "How many jobs can I apply for each month?",
+        "question": "How many job applications do I get per month?",
         "variants": [
-          "application limit",
-          "how many applications per month",
-          "do i have a limit on job applications",
-          "applications left",
-          "10 applications"
+          "application limit free plan",
+          "how many jobs can i apply to",
+          "whats my application limit",
+          "do i have unlimited applications"
         ],
-        "answer": "You can submit 10 applications a month on the free plan. The count resets at the start of each calendar month, UTC. The job page shows how many you have left before you use them all.",
+        "answer": "You can submit 10 applications a month on the free plan. The count resets at the start of each calendar month, UTC. If you're in India, that's 5:30am on the 1st rather than local midnight. The job page shows how many you have left.",
         "sectionIds": [
           "free-limits",
           "application-limit"
@@ -1042,112 +1078,125 @@ export const HELP_LIBRARY: HelpLibraries = {
       },
       {
         "id": "candidate-free-limits-3",
-        "question": "Can I take multiple skills on the free plan?",
+        "question": "Can I try multiple skills on the free plan?",
         "variants": [
+          "can i take tests for different skills",
           "free plan skill lock",
-          "can i do different skills",
-          "locked to one skill",
-          "why cant i take another skill",
-          "multiple skills free plan"
+          "am i locked to one skill",
+          "can i switch skills"
         ],
-        "answer": "On the free plan, your first self-started multiple-choice attempt locks your free self-started attempts to that one skill. You can keep taking other levels of the same skill, but not a different skill. This doesn't apply to assessments an employer asks you to take — those are separate and don't use up anything of yours. So choose your first skill carefully.",
+        "answer": "On the free plan, your first self-started multiple-choice attempt locks your free self-started attempts to that one skill. You can keep taking other levels of the same skill, but not a different skill. Choose your first skill deliberately. This doesn't apply to assessments an employer asks you to take — those are separate and don't use up anything of yours.",
         "sectionIds": [
-          "free-limits",
-          "free-skill-lock"
+          "free-skill-lock",
+          "free-limits"
         ]
       },
       {
         "id": "candidate-free-limits-4",
-        "question": "How many discussion assessments can I do on the free plan?",
+        "question": "What features are included on the free plan?",
         "variants": [
-          "live discussion limit",
-          "how many discussions can i take",
-          "discussion session free plan",
-          "one discussion a month",
-          "can i retake discussion"
+          "whats included free",
+          "free plan features",
+          "what can i do for free",
+          "free tier"
         ],
-        "answer": "You get one live discussion session a month on the free plan right now. That's a limited-time launch allowance, not a permanent part of the free plan. The one-a-month allowance runs through January 2027 as a launch-window offer. After that, it may no longer be included on the free plan.",
+        "answer": "The free plan includes verified skills and badges, job matching, 10 job applications a month, unlimited attempts per skill and level right now, self-started multiple-choice assessments limited to one skill, and one live discussion session a month. The discussion session is a limited-time launch allowance through January 2027, not permanent. Assessments an employer requests are outside all these limits. A paid plan is coming in early 2027.",
         "sectionIds": [
           "free-limits"
         ]
       },
       {
         "id": "candidate-free-limits-5",
-        "question": "What does the free plan include?",
+        "question": "How often do I need to confirm my recruiter availability?",
         "variants": [
-          "what's free",
-          "free plan features",
-          "what can i do for free",
-          "free tier",
-          "free account limits"
+          "how long does recruiter availability last",
+          "when does open to recruiters expire",
+          "do i need to update recruiter status",
+          "recruiter availability timeout"
         ],
-        "answer": "The free plan includes verified skills and badges, job matching, 10 job applications a month, and unlimited attempts per skill and level right now (a temporary allowance until skill purchases launch in early 2027). You can also take self-started multiple-choice assessments, limited to one skill set by your first attempt. You get one live discussion session a month as a limited-time launch allowance. Assessments an employer requests are outside all of these limits. A paid plan is coming in early 2027.",
+        "answer": "You need to confirm your availability at least every 30 days to stay visible to recruiters. We remind you by email and in the app before it lapses. You can turn the switch off any time to stop appearing.",
         "sectionIds": [
-          "free-limits"
+          "recruiters-opt-in"
         ]
       },
       {
         "id": "candidate-faq-1",
         "question": "Why can't I start an assessment?",
         "variants": [
-          "why wont my assessment start",
-          "assessment not loading",
-          "cant begin assessment",
-          "why am i blocked from taking a test",
-          "assessment unavailable to me"
+          "I can't start an assessment",
+          "unable to begin assessment",
+          "assessment won't let me start",
+          "why am I locked out of assessments",
+          "can't take a test"
         ],
-        "answer": "Check that your profile has your full name and either a headline or years of experience. On the free plan, also check whether your first attempt locked you to a different skill.",
+        "answer": "Check your profile has your full name and either a headline or years of experience. On the free plan, also check whether your first attempt locked you to a different skill.",
         "sectionIds": [
-          "profile",
-          "assessments",
-          "free-skill-lock",
-          "faq"
+          "faq",
+          "quick-start",
+          "free-skill-lock"
         ]
       },
       {
         "id": "candidate-faq-2",
-        "question": "My badge expired. What do I do?",
+        "question": "Why can't I apply for this job?",
         "variants": [
-          "badge expired what now",
-          "how to renew expired badge",
-          "my skill badge is gone",
-          "credential lapsed",
-          "verification expired"
+          "can't submit application",
+          "application button is greyed out",
+          "not allowed to apply",
+          "job application blocked",
+          "why wont it let me apply"
         ],
-        "answer": "Badges last a year. Retake the assessment to renew it.",
+        "answer": "You need a complete profile with your name and years of experience, a resume uploaded, your AI years of experience answered, at least one verified credential, and applications remaining this month. You get 10 applications a month.",
         "sectionIds": [
-          "skills-and-levels",
-          "retakes",
-          "faq"
+          "faq",
+          "apply-requirements",
+          "application-limit"
         ]
       },
       {
         "id": "candidate-faq-3",
-        "question": "I finished my discussion assessment. When do I hear back?",
+        "question": "Why don't I appear in employer searches?",
         "variants": [
-          "when will i get my discussion results",
-          "how long till i know if i passed",
-          "waiting for assessment feedback",
-          "where are my results",
-          "discussion session review time"
+          "employers can't find me",
+          "not showing up in search results",
+          "invisible to recruiters",
+          "why am I not searchable",
+          "how do I get found"
         ],
-        "answer": "A person reviews it, usually within a day.",
+        "answer": "You need at least one verified skill. Claimed-but-unverified skills aren't enough.",
         "sectionIds": [
-          "discussion-format",
-          "faq"
+          "faq",
+          "matching"
+        ]
+      },
+      {
+        "id": "candidate-faq-4",
+        "question": "My discussion session says it expired. What should I do?",
+        "variants": [
+          "discussion session expired",
+          "session timed out",
+          "my session is expired",
+          "discussion assessment timeout",
+          "can I go back to my discussion"
+        ],
+        "answer": "Reload the page. Idle sessions time out but resume where you left off.",
+        "sectionIds": [
+          "faq",
+          "discussion-format"
         ]
       },
       {
         "id": "candidate-recruiters-1",
-        "question": "How do I turn on the recruiter feature?",
+        "question": "how do i turn on recruiter access",
         "variants": [
-          "how to enable open to recruiters",
-          "how do i get found by recruiters",
-          "turn on open to recruiters",
-          "how to be visible to recruiters",
-          "recruiter setting on/off"
+          "how do i enable recruiters",
+          "how do recruiters find me",
+          "how to allow recruiters to contact me",
+          "open to recruiters setting",
+          "how do i opt in to recruiters",
+          "recruiter opt in"
         ],
-        "answer": "Go to your profile and turn on Open to recruiters. Fill in your availability: when you can start, whether you want contract or permanent work, and your expected rate. Verified recruiters can then find you by your verified skills.",
+        "answer": "Turn on Open to recruiters in your profile and fill in your availability: when you can start, whether you want contract or permanent work, and your expected rate. Verified recruiters can then find you by your verified skills. They see your skills and availability, but not your name or contact details.",
         "sectionIds": [
           "recruiters",
           "recruiters-opt-in"
@@ -1155,14 +1204,15 @@ export const HELP_LIBRARY: HelpLibraries = {
       },
       {
         "id": "candidate-recruiters-2",
-        "question": "What can recruiters see about me?",
+        "question": "do recruiters see my name and contact info",
         "variants": [
-          "what do recruiters see",
-          "what info do recruiters get",
-          "what recruiter visibility",
-          "what information recruiters access"
+          "can recruiters see my phone number",
+          "do recruiters get my email",
+          "what information do recruiters see about me",
+          "is my name hidden from recruiters",
+          "can recruiters contact me directly"
         ],
-        "answer": "Recruiters see your verified skills and your availability. They don't see your name or contact details unless you share them.",
+        "answer": "When recruiters find you through your verified skills, they see your skills and availability only, not your name or contact details. They get your contact information only after you answer their availability request and choose to share it.",
         "sectionIds": [
           "recruiters",
           "recruiters-opt-in"
@@ -1170,14 +1220,15 @@ export const HELP_LIBRARY: HelpLibraries = {
       },
       {
         "id": "candidate-recruiters-3",
-        "question": "How often do I need to confirm my availability?",
+        "question": "how often do i need to confirm my availability for recruiters",
         "variants": [
           "how long does recruiter availability last",
-          "when does open to recruiters expire",
-          "how to refresh recruiter status",
-          "availability confirmation frequency"
+          "when does my recruiter profile expire",
+          "do i need to update recruiter availability",
+          "how often confirm availability recruiters",
+          "recruiter availability expiry"
         ],
-        "answer": "Confirm your availability at least every 30 days to stay visible to recruiters. You'll get email and in-app reminders before it lapses. Turn the switch off any time to stop appearing.",
+        "answer": "Confirm your availability at least every 30 days to stay visible to recruiters. We remind you by email and in the app before it lapses. You can turn the switch off any time to stop appearing.",
         "sectionIds": [
           "recruiters",
           "recruiters-opt-in"
@@ -1185,14 +1236,15 @@ export const HELP_LIBRARY: HelpLibraries = {
       },
       {
         "id": "candidate-recruiters-4",
-        "question": "What happens when a recruiter asks if I'm available?",
+        "question": "what happens when a recruiter asks if im available",
         "variants": [
-          "recruiter sends me a request",
-          "what are recruiter requests",
-          "recruiter asks about availability",
-          "how do recruiter inquiries work"
+          "recruiter sent me an availability request",
+          "how do i respond to recruiter availability check",
+          "what do i do when recruiter asks about role",
+          "recruiter availability question what now",
+          "how to answer recruiter request"
         ],
-        "answer": "A recruiter can ask whether you're available for a specific role. You'll see it in Interviews on the website and app. Answer Available to share your name, email and phone with that recruiter, or Not now. Requests expire after 48 hours.",
+        "answer": "You'll see the request in Interviews on the website and app. Answer Available to share your name, email and phone with that recruiter, or Not now. The request expires after 48 hours. You can also choose not to be contacted by that recruiter again.",
         "sectionIds": [
           "recruiters",
           "recruiters-requests"
@@ -1200,72 +1252,44 @@ export const HELP_LIBRARY: HelpLibraries = {
       },
       {
         "id": "candidate-recruiters-5",
-        "question": "Can I block a recruiter from contacting me?",
+        "question": "can a recruiter put me forward to their client without asking",
         "variants": [
-          "how to avoid a recruiter",
-          "stop recruiter from messaging",
-          "block recruiter",
-          "dont want contact from recruiter"
+          "can recruiter submit me without permission",
+          "does recruiter need approval to submit me",
+          "recruiter submission approval",
+          "can recruiter send my resume to client",
+          "do i have to agree to recruiter submission"
         ],
-        "answer": "After a recruiter asks whether you're available, you can choose not to be contacted by that recruiter again.",
+        "answer": "No. After you've been in touch, a recruiter may ask to put you forward to a named client, but nothing happens unless you approve. You have 72 hours to decide.",
         "sectionIds": [
           "recruiters",
-          "recruiters-requests"
+          "recruiters-submissions"
         ]
       },
       {
         "id": "candidate-recruiters-6",
-        "question": "How long do I have to respond to a recruiter request?",
+        "question": "what happens after i approve a recruiter submission",
         "variants": [
-          "recruiter availability request timeout",
-          "how long to answer recruiter",
-          "recruiter request expiration",
-          "when does recruiter ask expire"
+          "after i say yes to recruiter submission",
+          "can other recruiters also submit me",
+          "what does recruiter submission mean",
+          "recruiter put me forward to client now what",
+          "after recruiter submits me to client"
         ],
-        "answer": "Recruiter availability requests expire after 48 hours.",
+        "answer": "That recruiter represents you to that client, and no other recruiter can submit you there. You can follow the status—interviewing, offer, placed—under Interviews, and you can withdraw at any time.",
         "sectionIds": [
           "recruiters",
-          "recruiters-requests"
+          "recruiters-submissions"
         ]
       },
       {
         "id": "candidate-recruiters-7",
-        "question": "What's a recruiter submission?",
+        "question": "can a recruiter submit me to a company im already applying to",
         "variants": [
-          "recruiter submits me",
-          "what does recruiter submission mean",
-          "recruiter putting me forward",
-          "recruiter client submission"
-        ],
-        "answer": "After you've been in touch with a recruiter, they may ask to put you forward to a named client. Nothing happens unless you approve. You have 72 hours to decide. If you approve, that recruiter represents you to that client and no other recruiter can submit you there.",
-        "sectionIds": [
-          "recruiters",
-          "recruiters-submissions"
-        ]
-      },
-      {
-        "id": "candidate-recruiters-8",
-        "question": "Can I withdraw from a recruiter submission?",
-        "variants": [
-          "withdraw from recruiter",
-          "cancel recruiter submission",
-          "take back recruiter submission",
-          "how to withdraw from placement"
-        ],
-        "answer": "Yes. You can follow the status of a recruiter submission (interviewing, offer, placed) under Interviews, and you can withdraw.",
-        "sectionIds": [
-          "recruiters",
-          "recruiters-submissions"
-        ]
-      },
-      {
-        "id": "candidate-recruiters-9",
-        "question": "Can a recruiter submit me to a company I already applied to?",
-        "variants": [
-          "recruiter submit same company",
-          "applied directly to job then recruiter",
-          "duplicate submissions",
-          "multiple recruiter submissions same employer"
+          "recruiter submit me to job i applied to",
+          "can two people submit me same company",
+          "recruiter conflict with direct application",
+          "what if im already in process with employer"
         ],
         "answer": "No. A recruiter can't submit you to a company whose hiring process you're already in on MyAmbii, for example a job you applied to directly.",
         "sectionIds": [
@@ -1274,70 +1298,100 @@ export const HELP_LIBRARY: HelpLibraries = {
         ]
       },
       {
-        "id": "candidate-recruiters-10",
-        "question": "How long do I have to approve a recruiter submission?",
+        "id": "candidate-recruiters-8",
+        "question": "can i turn off recruiter messages",
         "variants": [
-          "recruiter submission time limit",
-          "how long to decide on submission",
-          "submission approval deadline",
-          "recruiter forwarding time window"
+          "how to stop recruiters contacting me",
+          "disable recruiter access",
+          "how do i opt out of recruiters",
+          "stop recruiter contact",
+          "turn off open to recruiters"
         ],
-        "answer": "You have 72 hours to approve or decline a recruiter submission.",
+        "answer": "Yes. Turn off Open to recruiters in your profile any time to stop appearing to recruiters.",
         "sectionIds": [
           "recruiters",
-          "recruiters-submissions"
+          "recruiters-opt-in"
+        ]
+      },
+      {
+        "id": "candidate-recruiters-9",
+        "question": "can i choose which recruiters contact me",
+        "variants": [
+          "block specific recruiter",
+          "how to avoid certain recruiters",
+          "choose recruiters i work with",
+          "can i say no to a recruiter again",
+          "stop one recruiter contacting me"
+        ],
+        "answer": "When a recruiter sends you an availability request, you can choose not to be contacted by that recruiter again.",
+        "sectionIds": [
+          "recruiters",
+          "recruiters-requests"
+        ]
+      },
+      {
+        "id": "candidate-recruiters-10",
+        "question": "how long do recruiter availability requests last",
+        "variants": [
+          "recruiter request timeout",
+          "how long to answer recruiter",
+          "recruiter request expires when",
+          "do recruiter requests expire",
+          "time limit recruiter request"
+        ],
+        "answer": "Recruiter availability requests expire after 48 hours.",
+        "sectionIds": [
+          "recruiters",
+          "recruiters-requests"
         ]
       },
       {
         "id": "candidate-recruiters-11",
-        "question": "How do I turn off Open to recruiters?",
+        "question": "how long do i have to approve a recruiter submission",
         "variants": [
-          "how to stop showing recruiters",
-          "disable open to recruiters",
-          "hide from recruiters",
-          "turn off recruiter visibility"
+          "recruiter submission deadline",
+          "how long to decide on recruiter submission",
+          "recruiter client submission expires when",
+          "time limit recruiter put me forward"
         ],
-        "answer": "Turn off the Open to recruiters switch in your profile. You'll stop appearing to recruiters immediately.",
+        "answer": "You have 72 hours to decide whether to approve a recruiter's request to submit you to a named client.",
         "sectionIds": [
           "recruiters",
-          "recruiters-opt-in"
+          "recruiters-submissions"
         ]
       }
     ]
   },
   "employer": {
-    "guideHash": "baa60f123c61c0ed",
+    "guideHash": "9b50bf445d319a31",
     "entries": [
       {
         "id": "employer-quick-start-1",
         "question": "How do I get started with MyAmbii?",
         "variants": [
-          "getting started",
-          "first steps",
-          "how to begin",
-          "whats the first thing i do",
-          "quick start guide",
-          "im new to myambii"
+          "what are the first steps",
+          "how do i begin",
+          "getting started guide",
+          "how 2 start",
+          "walk me through the basics"
         ],
-        "answer": "There are five steps. First, complete your organisation setup by adding your logo, industry, and website — the rest of the portal stays locked until this is done. Second, post a job with a title, internal job code, and description (you can paste an existing one and use Parse with AI to fill most of it in). Third, publish it to make it live. Fourth, find candidates by opening your job and choosing View matches to see scored candidates, or use Find Candidates to browse by skill. Fifth, shortlist and invite the promising ones to interview.",
+        "answer": "There are five steps from signing up to shortlisting your first candidate.\n\n1. Complete your organisation setup by adding your logo, industry, and website.\n2. Post a job with a title, job code, and description. You can paste in an existing description and use \"Parse with AI\" to fill most fields automatically.\n3. Publish the job to make it live.\n4. Find candidates by opening your live job and viewing matches, or use Find Candidates to browse by skill.\n5. Shortlist promising candidates and invite them to interview.\n\nYou can't post jobs or find candidates until organisation setup is done.",
         "sectionIds": [
           "quick-start",
-          "org-setup",
-          "jobs",
-          "job-matches"
+          "org-setup"
         ]
       },
       {
         "id": "employer-quick-start-2",
         "question": "What do I need to do before I can post a job?",
         "variants": [
-          "cant post job",
-          "whats blocking me",
-          "why is job postings locked",
-          "setup requirements",
-          "before posting a job"
+          "what's blocking me from posting",
+          "why can't i post jobs",
+          "what setup is required",
+          "job posting requirements",
+          "what do i need 2 do first"
         ],
-        "answer": "You need to complete your organisation setup first. That means adding three things: a logo, an industry, and a website. You'll be sent to a setup screen until all three are filled in. Once you've done that, Job Postings unlocks and you can create and post a job.",
+        "answer": "Complete your organisation setup first. You need to add your logo, industry, and website. The job posting area stays locked until all three are filled in. Once you've added them, you'll be submitted for verification automatically.",
         "sectionIds": [
           "quick-start",
           "org-setup"
@@ -1345,80 +1399,78 @@ export const HELP_LIBRARY: HelpLibraries = {
       },
       {
         "id": "employer-quick-start-3",
-        "question": "How do I find candidates to hire?",
+        "question": "How do I find candidates on MyAmbii?",
         "variants": [
-          "finding candidates",
-          "how to search candidates",
-          "where do i find people",
-          "browsing candidates",
-          "candidate search"
+          "where do i look for candidates",
+          "how 2 search for people",
+          "how do i browse candidates",
+          "finding candidates process",
+          "how can i see candidates"
         ],
-        "answer": "There are two tools. Use Find Candidates to browse by skill across the whole platform with no job tied to it — it's for exploratory searching. Use Job matches by opening a live job and choosing View matches — it scores every eligible candidate against that specific job's requirements. Shortlist the ones you want to move forward with.",
+        "answer": "Open a live job and choose \"View matches\" to see candidates scored against that specific role. Or use Find Candidates to browse by skill regardless of any job. Find Candidates is for exploratory searching; job matches are for filling a particular role.",
         "sectionIds": [
           "quick-start",
-          "finding-candidates",
-          "candidate-search",
-          "job-matches"
+          "finding-candidates"
         ]
       },
       {
         "id": "employer-quick-start-4",
-        "question": "What happens after I post a job?",
+        "question": "Can I paste a job description and have it filled in automatically?",
         "variants": [
-          "after publishing a job",
-          "next steps posting",
-          "what comes after i create a job",
-          "published my job now what"
-        ],
-        "answer": "Publishing makes your job live. Then open it and choose View matches to see candidates scored against what the role asks for. You can shortlist the ones you're interested in and invite them to interview.",
-        "sectionIds": [
-          "quick-start",
-          "jobs",
-          "job-matches",
-          "shortlist"
-        ]
-      },
-      {
-        "id": "employer-quick-start-5",
-        "question": "Can I use an existing job description to create a job?",
-        "variants": [
+          "parse with ai",
+          "auto fill job description",
+          "can ai help me create a job",
           "paste job description",
-          "import job description",
-          "use old job posting",
-          "parse with ai"
+          "does it auto complete"
         ],
-        "answer": "Yes. When you create a job, paste in an existing job description and use Parse with AI. MyAmbii will suggest a title, an experience range, and skills mapped to our taxonomy. You can edit every suggestion before you save.",
+        "answer": "Yes. When creating a job, paste an existing job description and choose \"Parse with AI\". MyAmbii will suggest a title, experience range, and skills mapped to our taxonomy. You can edit every suggestion, including skill levels and whether they're required. Nothing saves until you do.",
         "sectionIds": [
           "quick-start",
           "jobs"
         ]
       },
       {
+        "id": "employer-quick-start-5",
+        "question": "What happens after I publish a job?",
+        "variants": [
+          "what's next after publishing",
+          "once i post a job what then",
+          "after publishing a job",
+          "what happens when job goes live",
+          "then what"
+        ],
+        "answer": "Once your job is live, you can find candidates and they can apply. Open the job and choose \"View matches\" to see candidates scored against what the role asks for. You can then shortlist promising candidates and invite them to interview.",
+        "sectionIds": [
+          "quick-start",
+          "job-matches"
+        ]
+      },
+      {
         "id": "employer-org-setup-1",
         "question": "What do I need to do to set up my organization?",
         "variants": [
-          "how do i set up my org",
-          "what's required to get started",
+          "how do I set up my org",
+          "what's required to set up the company",
           "organization setup steps",
-          "what do i need to complete before using the portal",
-          "org setup requirements"
+          "what do i need to complete first",
+          "setup my organisation"
         ],
-        "answer": "You need three things: a logo, an industry, and a website. You'll be sent to a setup screen until all three are filled in. Once you complete these, your organisation is submitted for verification automatically — there's no separate step to trigger it.",
+        "answer": "You need three things: a logo, an industry, and a website. You'll be sent to a setup screen until all three are filled in. Once they're done, your organisation submits for verification automatically.",
         "sectionIds": [
           "org-setup"
         ]
       },
       {
         "id": "employer-org-setup-2",
-        "question": "Why is most of the portal locked when I first sign up?",
+        "question": "Why is most of the portal locked?",
         "variants": [
-          "why can't i access jobs",
-          "why is everything greyed out",
-          "what's blocking me from using the portal",
-          "why can't i see job postings",
-          "portal is locked what do i do"
+          "why can't I access jobs",
+          "everything is greyed out",
+          "why am i stuck in settings",
+          "portal says locked",
+          "can't use find candidates"
         ],
-        "answer": "Everything except Settings stays locked until you've completed organisation setup (adding a logo, industry, and website) and your organisation is verified by a platform admin. Once you're verified, everything unlocks and stays unlocked.",
+        "answer": "Until your organisation is verified, only Settings is available. Job Postings, Find Candidates, Applicants, Shortlist, and Billing all stay locked for everyone on your team until a platform admin approves your organisation. Complete your organisation setup first — logo, industry, and website — and you'll be submitted for verification automatically.",
         "sectionIds": [
           "org-setup",
           "verification"
@@ -1426,69 +1478,42 @@ export const HELP_LIBRARY: HelpLibraries = {
       },
       {
         "id": "employer-org-setup-3",
-        "question": "What happens after I finish setting up my organization?",
+        "question": "What does verification mean?",
         "variants": [
-          "what's next after org setup",
-          "does my organization get verified automatically",
-          "what comes after i add logo and industry",
-          "do i need to do anything else after setup"
+          "what is verification",
+          "do I need to get verified",
+          "verification status",
+          "what's the verification process"
         ],
-        "answer": "Your organisation is submitted for verification automatically — there's no separate step to trigger it. It then moves from Pending to Verified, or to Rejected with a reason you can see. If rejected, fix what the reason points to and save your organisation details; that resubmits you automatically.",
+        "answer": "Completing your organisation setup submits you for verification automatically — there's no separate step to trigger it. Your organisation moves from Pending to Verified, or to Rejected with a reason you can see. Once you're Verified, everything unlocks. Verification is also shown to candidates as a trust signal on your job postings.",
         "sectionIds": [
-          "org-setup",
           "verification"
         ]
       },
       {
         "id": "employer-org-setup-4",
-        "question": "Can I use the hiring features while my organization is being verified?",
+        "question": "My organisation got rejected, what do I do?",
         "variants": [
-          "can i post jobs while pending",
-          "can i search for candidates while pending",
-          "can i access everything before verification",
-          "do i have to wait to be verified"
+          "rejected after verification",
+          "verification rejected why",
+          "how to fix a rejection",
+          "we got rejected what now",
+          "resubmit after rejection"
         ],
-        "answer": "No. Until you're Verified, Settings is the only part of the portal you can use. Job Postings, Find Candidates, Applicants, Shortlist, and Billing all stay locked — for every teammate — until a platform admin approves your organisation.",
+        "answer": "You'll see the reason in Settings. Fix what it points to in your organisation details and save them. That resubmits you automatically — there's no separate resubmit button to look for.",
         "sectionIds": [
           "verification"
         ]
       },
       {
         "id": "employer-org-setup-5",
-        "question": "What do I do if my organization got rejected during verification?",
+        "question": "How many people can I add to my team?",
         "variants": [
-          "my org was rejected what now",
-          "organization rejected how do i fix it",
-          "how do i resubmit after rejection",
-          "rejected verification what's next"
-        ],
-        "answer": "You'll see the reason for the rejection in Settings. Fix what it points to in your organisation details and save. That resubmits you automatically — there's no separate resubmit button to look for.",
-        "sectionIds": [
-          "verification"
-        ]
-      },
-      {
-        "id": "employer-org-setup-6",
-        "question": "What are the different roles and what can each role do?",
-        "variants": [
-          "what's the difference between admin and member",
-          "what can admins do vs members",
-          "team member permissions",
-          "what roles are available"
-        ],
-        "answer": "There are two roles. Admins can edit organisation details, upload the logo, invite and manage teammates, and deactivate the organisation. Members can do everything related to hiring — jobs, candidate search, applicants, and the shortlist — with exactly the same access as admins. They see organisation and team information but can't change it.",
-        "sectionIds": [
-          "team"
-        ]
-      },
-      {
-        "id": "employer-org-setup-7",
-        "question": "How many people can I invite to my organization?",
-        "variants": [
-          "how many team members can i add",
-          "what's the team size limit",
-          "how many seats do i get",
-          "team member limit"
+          "team size limit",
+          "how many team members",
+          "seats available",
+          "can i add more teammates",
+          "max team members"
         ],
         "answer": "Every organisation gets 5 seats. Your usage is shown on Settings.",
         "sectionIds": [
@@ -1496,231 +1521,464 @@ export const HELP_LIBRARY: HelpLibraries = {
         ]
       },
       {
-        "id": "employer-org-setup-8",
-        "question": "Can I remove the last admin from my organization?",
+        "id": "employer-org-setup-6",
+        "question": "What's the difference between admin and member roles?",
         "variants": [
-          "can i delete the last admin",
-          "what if i want to remove the only admin",
-          "can i demote myself as admin",
-          "last admin removal"
+          "admin vs member",
+          "what can admins do",
+          "member permissions",
+          "team roles explained",
+          "what's an admin"
         ],
-        "answer": "No. You can't remove or demote the last admin. The option is disabled with an explanation.",
+        "answer": "Admins can edit organisation details, upload the logo, invite and manage teammates, and deactivate the organisation. Members can do everything related to hiring — jobs, candidate search, applicants, and the shortlist — with exactly the same access as admins. They see organisation and team information but can't change it.",
+        "sectionIds": [
+          "team"
+        ]
+      },
+      {
+        "id": "employer-org-setup-7",
+        "question": "Can I remove the last admin from my team?",
+        "variants": [
+          "delete only admin",
+          "remove last admin",
+          "demote the admin",
+          "what if i'm the only admin"
+        ],
+        "answer": "You can't remove or demote the last admin. The option is disabled with an explanation.",
+        "sectionIds": [
+          "team"
+        ]
+      },
+      {
+        "id": "employer-org-setup-8",
+        "question": "My teammate's invitation hasn't been accepted, can I resend it?",
+        "variants": [
+          "resend invitation",
+          "invite expired",
+          "teammate invitation lapsed",
+          "how to resend team invite",
+          "invitation never arrived"
+        ],
+        "answer": "Invitations expire. There's no resend button. To re-invite someone whose invitation lapsed, revoke the old one and send a fresh invitation to the same address.",
         "sectionIds": [
           "team"
         ]
       },
       {
         "id": "employer-org-setup-9",
-        "question": "What do I do if a teammate's invitation link expired?",
+        "question": "Why can't I do anything except look at settings?",
         "variants": [
-          "invitation expired how do i resend",
-          "can i resend an invitation",
-          "teammate invite lapsed what now",
-          "expired invitation resend"
+          "stuck in settings only",
+          "can't access anything",
+          "settings locked",
+          "portal won't let me do anything",
+          "everything is blocked"
         ],
-        "answer": "There's no resend button. To re-invite someone whose invitation lapsed, revoke the old one and send a fresh invitation to the same address.",
+        "answer": "Two different reasons. If you're seeing a setup screen, your organisation is still missing its logo, industry, or website — add whatever's missing and you'll move on automatically. If Settings shows Pending, you're waiting on a platform admin to verify your organisation. If it shows Rejected, address the stated reason in your organisation details and save to resubmit. Nothing else to do.",
         "sectionIds": [
-          "team"
+          "org-setup",
+          "verification"
         ]
       },
       {
         "id": "employer-jobs-1",
-        "question": "Can I delete a job after I've published it?",
+        "question": "How do I create and post a new job?",
         "variants": [
-          "how do i delete a live job",
-          "can i remove a published job",
-          "delete job posting",
-          "remove a job i posted",
-          "can i erase a job that's live"
+          "how to post a job",
+          "creating a job posting",
+          "how do i make a new job",
+          "post a job on myambii",
+          "how to create job listing"
         ],
-        "answer": "No. Live and closed jobs can be closed or reopened but not deleted, so the hiring history stays intact. Draft jobs can be deleted.",
+        "answer": "Go to Job Postings and create a new job. You'll need a title, an internal job code (unique within your organisation), and a description. Location, salary, and experience range are optional. Save it as a draft first if you want, then publish it to make it live and start matching with candidates.",
         "sectionIds": [
-          "jobs",
-          "faq"
+          "jobs"
         ]
       },
       {
         "id": "employer-jobs-2",
-        "question": "What do I need to create a job posting?",
+        "question": "Can I use AI to help write my job description?",
         "variants": [
-          "what fields are required for a job",
-          "minimum info to post a job",
-          "whats needed to create a job posting",
-          "job posting requirements",
-          "what do i have to fill in"
+          "parse with ai job description",
+          "ai help for job posting",
+          "can myambii write job descriptions",
+          "use ai to fill in job details"
         ],
-        "answer": "You need a title, a job code unique within your organization, and a description. The job code is internal and never shown to candidates. Location, salary, and experience range are optional.",
+        "answer": "Yes. Use Parse with AI: paste in an existing job description and MyAmbii suggests a title, experience range, and skills mapped to the platform taxonomy. You can edit every suggestion, including skill levels and whether each one is required. Nothing saves until you do.",
         "sectionIds": [
           "jobs"
         ]
       },
       {
         "id": "employer-jobs-3",
-        "question": "How do I use Parse with AI?",
+        "question": "What happens if I unpublish a live job?",
         "variants": [
-          "parse with ai how does it work",
-          "can i paste a job description",
-          "ai job description parser",
-          "use existing description for job",
-          "paste description and let ai fill it"
+          "unpublish job",
+          "can i unpublish a job",
+          "what happens when i unpublish",
+          "unpublish live job",
+          "stop accepting applications for a job"
         ],
-        "answer": "Paste an existing job description and MyAmbii suggests a title, an experience range, and skills mapped to our taxonomy. You can edit every suggestion, including each skill's level and whether it's required. Nothing saves until you do.",
-        "sectionIds": [
-          "jobs"
-        ]
-      },
-      {
-        "id": "employer-jobs-4",
-        "question": "What happens when I unpublish a job?",
-        "variants": [
-          "unpublish job what happens",
-          "close a live job",
-          "take job offline",
-          "stop accepting applications",
-          "unpublish job notification"
-        ],
-        "answer": "When you unpublish, everyone who applied and everyone active on your shortlist for that job is told the role is no longer accepting applications. Candidates you've hired, or who've accepted an offer, aren't notified. This can't be undone. Reopening the job later doesn't retract those notifications or restore anything.",
+        "answer": "When you unpublish, everyone who applied and everyone active on your shortlist for that job is told the role is no longer accepting applications. This can't be undone. Reopening the job later doesn't retract those notifications or restore anything.",
         "sectionIds": [
           "unpublish"
         ]
       },
       {
-        "id": "employer-jobs-5",
-        "question": "Can I edit a job after publishing it?",
+        "id": "employer-jobs-4",
+        "question": "Can I delete a job I've published?",
         "variants": [
-          "change job details after live",
-          "edit published job",
-          "update live job posting",
-          "modify job that's live",
-          "can i change a job once its posted"
+          "delete live job",
+          "can i delete a published job",
+          "remove a job posting",
+          "delete job posting",
+          "can i remove a job"
         ],
-        "answer": "Once a job is live it can't be deleted, only closed — a live job's history is kept rather than erased. You can move between Draft, Live, and Closed states freely, including unpublishing a live job to take it offline.",
+        "answer": "No. Live and closed jobs can't be deleted, only closed or reopened — a live job's history is kept rather than erased. Drafts can be edited and deleted. This keeps your hiring history intact.",
         "sectionIds": [
           "jobs"
         ]
       },
       {
-        "id": "employer-jobs-6",
-        "question": "What's the difference between draft and live jobs?",
+        "id": "employer-jobs-5",
+        "question": "How do I post many jobs at once?",
         "variants": [
-          "draft vs live job",
-          "what does draft job mean",
-          "when should i publish",
-          "draft job what can i do",
-          "live job vs draft"
+          "bulk upload jobs",
+          "import jobs from file",
+          "upload multiple jobs",
+          "post multiple jobs at once",
+          "csv job import"
         ],
-        "answer": "Draft jobs can be edited and deleted. Once a job has gone live it can't be deleted, only closed — a live job's history is kept rather than erased. Draft jobs don't show applicants, and their candidate view is a preview of the pool rather than live matching.",
+        "answer": "On Job Postings, choose Import from file and download the CSV template. Fill in one row per job (up to 50 per file) with required columns: title, description (at least 20 characters), and employment type. Everything else is optional. Every row becomes a draft. After upload, review them and choose Post ready jobs to publish all that are ready.",
+        "sectionIds": [
+          "job-import"
+        ]
+      },
+      {
+        "id": "employer-jobs-6",
+        "question": "What do I need in a job code?",
+        "variants": [
+          "job code requirements",
+          "what is job code",
+          "internal job code",
+          "how to set job code",
+          "job code explained"
+        ],
+        "answer": "A job code is internal and never shown to candidates. It must be unique within your organisation. It's one of three things you need to save a job, along with a title and description.",
         "sectionIds": [
           "jobs"
         ]
       },
       {
         "id": "employer-jobs-7",
-        "question": "Do I need all my jobs to be published to see candidates?",
+        "question": "Can I reopen a job after I close it?",
         "variants": [
-          "draft job matches",
-          "view candidates for draft job",
-          "do i have to publish to see matches",
-          "unpublished job candidate pool",
-          "can i see matches on draft"
+          "reopen closed job",
+          "unpublish and republish job",
+          "can i reactivate a closed job",
+          "reopen job posting"
         ],
-        "answer": "Draft jobs don't show live matching. Once a job has gone live, open it and choose View matches to see candidates scored against that specific job's requirements. You can also use Find Candidates to browse by skill regardless of any job.",
+        "answer": "Yes. Jobs move freely between Draft, Live, and Closed states. You can unpublish a live job or reopen a closed one at any time.",
         "sectionIds": [
-          "jobs",
-          "job-matches"
+          "jobs"
+        ]
+      },
+      {
+        "id": "employer-jobs-8",
+        "question": "What skills do I add when importing jobs from CSV?",
+        "variants": [
+          "skills column in csv",
+          "how to add skills in bulk upload",
+          "skills format in import",
+          "csv skill format",
+          "how to list skills in job import"
+        ],
+        "answer": "Skills go in one cell as \"Skill name: level\", separated by semicolons, for example `RAG Systems: L2; Prompt Engineering: L1 (optional)`. Levels can be L1, L2, L3 or Foundational, Practitioner, Advanced. Leave the cell empty and AI suggests skills from the description.",
+        "sectionIds": [
+          "job-import"
+        ]
+      },
+      {
+        "id": "employer-jobs-9",
+        "question": "What happens to draft jobs when I import them?",
+        "variants": [
+          "import job draft",
+          "are imported jobs live",
+          "bulk upload draft",
+          "do imported jobs go live immediately",
+          "import creates draft or live"
+        ],
+        "answer": "Every row imported becomes a draft, never a live job. After upload you review each one. Each draft shows what still stops it being posted, usually at least one required skill and a city or \"remote\". Open any draft in the normal job form to finish it, then use Post ready jobs to publish those that are complete.",
+        "sectionIds": [
+          "job-import"
+        ]
+      },
+      {
+        "id": "employer-projects-1",
+        "question": "How do I group multiple jobs together as a project?",
+        "variants": [
+          "how to create a project",
+          "can I link jobs to a project",
+          "how do I organize jobs into projects",
+          "how to group roles together",
+          "project management multiple roles",
+          "creating a new project"
+        ],
+        "answer": "On Projects, choose New project. Give it a name, and optionally a description and start and end dates. Then add roles by either creating a new job (which links back to the project) or adding an existing job you already have. Each role is one job, and a job can only be in one project.",
+        "sectionIds": [
+          "projects"
+        ]
+      },
+      {
+        "id": "employer-projects-2",
+        "question": "What counts as 'hired' when I'm tracking progress on a project?",
+        "variants": [
+          "which pipeline stages count toward hired",
+          "does invited count as progress",
+          "how is project progress calculated",
+          "what counts toward people needed",
+          "do offer stage candidates count as hired",
+          "pipeline stages that count for project"
+        ],
+        "answer": "Progress is counted from each job's shortlist. Candidates at Hired count as hired; Invited, Interviewing and Offer count as in progress. Hiring more people than a role needs doesn't make up for another role that's short.",
+        "sectionIds": [
+          "projects"
+        ]
+      },
+      {
+        "id": "employer-projects-3",
+        "question": "How do I know when a role in my project is filled?",
+        "variants": [
+          "when is a role complete",
+          "how to tell if role is finished",
+          "role shows filled status",
+          "what does filled mean in projects",
+          "is my role done"
+        ],
+        "answer": "A role shows Filled when it has hired everyone it needs. On the project page you'll also see a Close job shortcut when this happens.",
+        "sectionIds": [
+          "projects"
+        ]
+      },
+      {
+        "id": "employer-projects-4",
+        "question": "Can I see which roles are behind schedule in my project?",
+        "variants": [
+          "past start date roles",
+          "which roles havent been filled in time",
+          "roles starting soon not filled",
+          "role overdue",
+          "late roles on project"
+        ],
+        "answer": "Yes. The project page marks a role with Start date passed when its target start has gone by and it still isn't filled. The project report also includes a Needs attention section listing roles past their start date.",
+        "sectionIds": [
+          "projects",
+          "project-reports"
+        ]
+      },
+      {
+        "id": "employer-projects-5",
+        "question": "Can I remove a job from a project without deleting it?",
+        "variants": [
+          "how to unlink job from project",
+          "remove role from project",
+          "take job out of project",
+          "delete role from project keep job",
+          "can I remove without deleting"
+        ],
+        "answer": "Yes. Remove from project takes a role out; its job and candidates are untouched. You can still access and work with the job normally afterward.",
+        "sectionIds": [
+          "projects"
+        ]
+      },
+      {
+        "id": "employer-projects-6",
+        "question": "What should I include in a project report to share with my manager?",
+        "variants": [
+          "what does project report show",
+          "how to download project report as pdf",
+          "project report contents",
+          "what info is in the report",
+          "viewing a project report",
+          "export project report"
+        ],
+        "answer": "View report on a project shows where hiring stands. It includes a summary (fill rate, candidates in progress, total applicants, and candidates holding every required skill verified at the required level), a roles table with people needed, hired, applicants, and pipeline stages, a Needs attention section, and where candidates came from (applied, sourced by AI, or added from search or matches). You can download as CSV or save as PDF in landscape. Reports never include candidate names or contact details.",
+        "sectionIds": [
+          "project-reports"
+        ]
+      },
+      {
+        "id": "employer-projects-7",
+        "question": "Can I archive a project and bring it back later?",
+        "variants": [
+          "archive a project",
+          "hide completed project",
+          "restore archived project",
+          "mark project complete",
+          "can I unarchive a project",
+          "archive vs close project"
+        ],
+        "answer": "Yes. Mark complete and Archive change only the project; its jobs stay as they are. Archived projects are hidden from the list until you show them, and can be restored.",
+        "sectionIds": [
+          "projects"
         ]
       },
       {
         "id": "employer-finding-candidates-1",
         "question": "What's the difference between Find Candidates and job matches?",
         "variants": [
-          "difference between find candidates and job matches",
-          "when should i use find candidates vs job matches",
-          "find candidates or job matches which one should i use",
           "find candidates vs job matches",
-          "whats the diference between find candidates and matches"
+          "whats the difference between find candidates and matches",
+          "find candidates or job matches which one should i use",
+          "how do find candidates and matches differ",
+          "when to use find candidates vs matches",
+          "find candidates vs matches for recruiting"
         ],
-        "answer": "Find Candidates is a filtered browse of verified candidates across the whole platform with no job attached — it filters by skill, level, role title, and verified-only status, but there's no ranking or match score. Job matches is used for a specific live job and scores every eligible candidate from 0 to 100 against that job's requirements. Use Find Candidates to explore who's out there with a given skill. Use job matches when you're filling a particular role.",
+        "answer": "Find Candidates is a filtered browse of verified candidates across the whole platform, not tied to any job — there's no match score because there's no job to score against. Job matches scores every eligible candidate from 0 to 100 against a specific job's requirements. Use Find Candidates for exploratory searching to see who's out there with a given skill. Use job matches when you're filling a particular role.",
         "sectionIds": [
-          "finding-candidates",
           "candidate-search",
           "job-matches"
         ]
       },
       {
         "id": "employer-finding-candidates-2",
-        "question": "Why can't I find a candidate I know is on MyAmbii?",
+        "question": "How does the matching score work?",
         "variants": [
-          "cant find a candidate on platform",
-          "why is candidate not showing up",
-          "candidate missing from search results",
-          "why dont i see the candidate i'm looking for",
-          "can't find candiate that should be there",
-          "candidate not appearing in results"
+          "how is the match score calculated",
+          "what affects the match score",
+          "how are candidates scored",
+          "explain the scoring algorithm",
+          "why did a candidate get this score",
+          "what factors into the score"
         ],
-        "answer": "Candidates need at least one verified skill to appear in search results. Candidates who've deactivated their account also won't show. If the candidate you're looking for isn't appearing, they may only have self-claimed skills with no verified skills, or they may have deactivated their account.",
+        "answer": "The score is calculated only from verified information: verified skill claims and their levels, and verified, unexpired certifications. A verified skill at or above the level you asked for counts in full. A verified skill below your level counts partially, scaled by how close it is. A skill claimed but not verified counts for very little. A verified certification covering a required skill counts as full credit. Required skills count double compared to nice-to-have skills. Years of experience nudges the score slightly either way, never decisively. Nothing a candidate writes about themselves — headlines, role titles, or locations — affects their score. Your top 10 matches also get a written explanation of why they scored as they did.",
         "sectionIds": [
-          "finding-candidates",
-          "candidate-search"
+          "scoring"
         ]
       },
       {
         "id": "employer-finding-candidates-3",
-        "question": "How does the scoring work in job matches?",
+        "question": "Why can't I find a candidate I know is on MyAmbii?",
         "variants": [
-          "how is the score calculated",
-          "what makes the match score",
-          "how do you calculate candidate score",
-          "what goes into the match score",
-          "how are candidates scored against jobs",
-          "score calculation explained"
+          "cant find candidate on myambii",
+          "why isnt this candidate showing up",
+          "candidate not appearing in search",
+          "how come i cant see a candidate",
+          "candidate invisible in myambii"
         ],
-        "answer": "The score is calculated only from verified information: verified skill claims and their levels, and verified, unexpired certifications tagged to the skills your job asks for. A verified skill at or above the level you asked for counts in full. A verified skill below your level counts partially, scaled by how close it is. A skill claimed but not verified counts for very little. A verified certification covering a required skill counts as full credit. Skills you marked required count double compared to nice-to-have skills. The candidate's years of experience nudges the score slightly either way, never decisively. Nothing a candidate writes about themselves — headlines, role titles, or locations — affects their score.",
+        "answer": "Candidates need at least one verified skill to appear. Candidates who've deactivated their account also won't show.",
         "sectionIds": [
-          "job-matches",
-          "scoring"
+          "candidate-search"
         ]
       },
       {
         "id": "employer-finding-candidates-4",
-        "question": "What does the written explanation next to top matches mean?",
+        "question": "How does AI sourcing work?",
         "variants": [
-          "what is the explanation on top matches",
-          "why do top 10 matches have explanations",
-          "what does the match explanation show",
-          "top matches have text explaining score",
-          "what's the written explanation for"
+          "how to use AI sourcing",
+          "what is AI sourcing",
+          "AI sourcing feature explained",
+          "how do i reach out with AI",
+          "AI sourcing limits"
         ],
-        "answer": "Your top 10 matches get a written explanation of why they scored as they did. It's generated after scoring and describes the result rather than influencing it.",
+        "answer": "AI sourcing finds candidates for a live job and writes each of them a personal message. Nothing is sent until you approve it. You pick a live job, and MyAmbii ranks every candidate who allows employers to contact them, leaving out people who already applied, are on the shortlist, or told you \"Not for me\" in the last 90 days. Each candidate gets a drafted message naming your role and their verified skills with a reason they were picked. You can edit any message or leave candidates out. Once you send, messages go by email and to their Opportunities page. Candidates reply with Interested, Not now, or Not for me. Up to two reminders go out automatically, 3 and 7 days after the first message, and stop as soon as they reply. When a candidate says Interested, you see their email and phone and they're added to that job's shortlist. Each person in your team can send up to 50 new messages a day. Each candidate also sets how many messages they accept per week (3 by default). You can find more candidates, pause, or close a campaign.",
         "sectionIds": [
-          "job-matches",
-          "scoring"
+          "ai-sourcing"
         ]
       },
       {
         "id": "employer-finding-candidates-5",
-        "question": "Do unverified skills affect the match score?",
+        "question": "What are the limits on AI sourcing?",
         "variants": [
-          "do self claimed skills count in score",
-          "unverified skills match score",
-          "do claimed but not verified skills count",
-          "does unverified count towards score",
-          "self-claimed skills affect score"
+          "AI sourcing limits per day",
+          "how many messages can i send",
+          "AI sourcing rate limit",
+          "how many candidates can i reach out to per day"
         ],
-        "answer": "A skill a candidate has claimed but not verified counts for very little in the score. Verified skills are what really matters — the score is calculated only from verified information.",
+        "answer": "Each person in your team can send up to 50 new messages a day. Each candidate also sets how many messages they accept per week (3 by default). A message held by a limit stays a draft, so you can send it later.",
         "sectionIds": [
-          "scoring"
+          "ai-sourcing"
         ]
       },
       {
         "id": "employer-finding-candidates-6",
-        "question": "How does Find Candidates sorting work?",
+        "question": "How do I find more candidates with AI sourcing?",
         "variants": [
-          "how is find candidates ordered",
-          "what order do candidates appear in",
-          "why are these candidates in this order",
-          "how are candidates ranked in find candidates",
-          "find candidates sorting"
+          "add more candidates to AI sourcing",
+          "find more matches for campaign",
+          "next best candidates AI sourcing",
+          "continue AI sourcing campaign",
+          "add additional candidates"
+        ],
+        "answer": "Choose Find more candidates on the campaign page to add the next best matches to the campaign.",
+        "sectionIds": [
+          "ai-sourcing"
+        ]
+      },
+      {
+        "id": "employer-finding-candidates-7",
+        "question": "What happens when a candidate says Interested to AI sourcing?",
+        "variants": [
+          "candidate interested what now",
+          "when candidate clicks interested",
+          "candidate says interested what do i do",
+          "interested response AI sourcing"
+        ],
+        "answer": "When a candidate says Interested, you see their email and phone on the campaign page, and they're added to that job's shortlist. Continue from the shortlist as usual.",
+        "sectionIds": [
+          "ai-sourcing"
+        ]
+      },
+      {
+        "id": "employer-finding-candidates-8",
+        "question": "Can I pause or stop an AI sourcing campaign?",
+        "variants": [
+          "how to pause AI sourcing",
+          "stop AI sourcing campaign",
+          "end AI sourcing",
+          "pause campaign"
+        ],
+        "answer": "You can Pause to stop sending and reminders. You can Close to end the campaign; candidates who haven't answered can no longer reply.",
+        "sectionIds": [
+          "ai-sourcing"
+        ]
+      },
+      {
+        "id": "employer-finding-candidates-9",
+        "question": "How many times will candidates get reminded?",
+        "variants": [
+          "reminder frequency AI sourcing",
+          "how many reminders do candidates get",
+          "when are reminders sent",
+          "reminder schedule"
+        ],
+        "answer": "Up to two reminders go out automatically, 3 and 7 days after the first message, and stop as soon as they reply.",
+        "sectionIds": [
+          "ai-sourcing"
+        ]
+      },
+      {
+        "id": "employer-finding-candidates-10",
+        "question": "Where do AI sourcing messages appear for candidates?",
+        "variants": [
+          "where do candidates see messages",
+          "how do candidates receive messages",
+          "message delivery AI sourcing",
+          "where do outreach messages show"
+        ],
+        "answer": "Messages go by email and to the candidate's Opportunities page.",
+        "sectionIds": [
+          "ai-sourcing"
+        ]
+      },
+      {
+        "id": "employer-finding-candidates-11",
+        "question": "What is filtering and what is ranking in candidate search?",
+        "variants": [
+          "is find candidates filtered or ranked",
+          "find candidates sorting",
+          "are results ranked in find candidates",
+          "how are results ordered in find candidates"
         ],
         "answer": "Find Candidates is a filter, not a ranking. Results come back ordered by how recently the candidate updated their profile. There's no match score, because there's no job to score against.",
         "sectionIds": [
@@ -1728,105 +1986,88 @@ export const HELP_LIBRARY: HelpLibraries = {
         ]
       },
       {
-        "id": "employer-finding-candidates-7",
-        "question": "What can I filter by in Find Candidates?",
+        "id": "employer-ai-sourcing-1",
+        "question": "How do I use AI sourcing to find candidates for a job?",
         "variants": [
-          "what filters are available in find candidates",
-          "find candidates filter options",
-          "what can i search for in find candidates",
-          "how do i filter in find candidates",
-          "find candidates search filters"
+          "how do I reach out with AI",
+          "how to use AI sourcing",
+          "can I use AI to find candidates",
+          "how do i contact candidates with AI",
+          "AI sourcing how does it work"
         ],
-        "answer": "You can filter by skill, minimum level, role title, and verified-only.",
+        "answer": "Open AI sourcing in the sidebar and pick a live job, or choose Reach out with AI on a job's matches page. MyAmbii ranks every candidate who allows employers to contact them using the same verified-skill score as job matches. It leaves out people who already applied, are on the job's shortlist, or told your organisation Not for me in the last 90 days. Each candidate gets a drafted message naming your role and their verified skills with a reason they were picked. You can edit any message or leave candidates out before you send.",
         "sectionIds": [
-          "candidate-search"
+          "ai-sourcing"
         ]
       },
       {
-        "id": "employer-finding-candidates-8",
-        "question": "What is verified-only in Find Candidates?",
+        "id": "employer-ai-sourcing-2",
+        "question": "What happens after I send AI sourcing messages?",
         "variants": [
-          "what does verified-only mean",
-          "verified-only filter explained",
-          "what is the verified-only option",
-          "what does verified only do"
+          "what do candidates see when I reach out",
+          "how do candidates respond to AI sourcing",
+          "what happens next after I send messages",
+          "do candidates have to reply"
         ],
-        "answer": "The verified-only filter is one of your options in Find Candidates. Only candidates with at least one verified skill appear on the platform in any case. When you use verified-only, you're filtering to ensure candidates have proven their skills through verification.",
+        "answer": "Messages go by email and to the candidate's Opportunities page. Candidates reply with one tap: Interested, Not now, or Not for me. Up to two reminders go out automatically, 3 and 7 days after the first message, and stop as soon as they reply. When a candidate says Interested, you see their email and phone on the campaign page, and they're added to that job's shortlist. Continue from the shortlist as usual.",
         "sectionIds": [
-          "candidate-search"
+          "ai-sourcing"
         ]
       },
       {
-        "id": "employer-finding-candidates-9",
-        "question": "Does Find Candidates use job matches scoring?",
+        "id": "employer-ai-sourcing-3",
+        "question": "How many AI sourcing messages can I send?",
         "variants": [
-          "does find candidates score candidates",
-          "is there a score in find candidates",
-          "find candidates scoring",
-          "does find candidates rank by match"
+          "AI sourcing limits",
+          "how many candidates can i reach out to",
+          "is there a limit on AI sourcing messages",
+          "can I send unlimited messages"
         ],
-        "answer": "No. Find Candidates is a filter, not a ranking. There's no match score, because there's no job to score against. To get scored candidates, open a live job and choose \"View matches\" to score them against that specific job's requirements.",
+        "answer": "Each person in your team can send up to 50 new messages a day. Each candidate also sets how many messages they accept per week, 3 by default. A message held by a limit stays a draft, so you can send it later.",
         "sectionIds": [
-          "candidate-search",
-          "job-matches"
+          "ai-sourcing"
         ]
       },
       {
-        "id": "employer-finding-candidates-10",
-        "question": "How do verified certifications affect the score?",
+        "id": "employer-ai-sourcing-4",
+        "question": "What happens if I edit a candidate's AI sourcing message?",
         "variants": [
-          "how do certifications impact score",
-          "do certifications count towards match score",
-          "certification score weight",
-          "certified skills match score",
-          "do verified certs help the score"
+          "can I change the message before sending",
+          "edit AI sourcing message",
+          "personalise the message to candidates"
         ],
-        "answer": "A verified certification covering a required skill counts as full credit toward the match score. Certifications are part of the verified information the score is built from.",
+        "answer": "You can edit any message before you send. Each candidate gets a drafted message that names your role and their verified skills with a one-line reason they were picked. Edit it, choose Leave out if you don't want to contact them, or choose Send to go ahead.",
         "sectionIds": [
-          "scoring"
-        ]
-      },
-      {
-        "id": "employer-finding-candidates-11",
-        "question": "Do required skills count differently in the score?",
-        "variants": [
-          "do required skills matter more in scoring",
-          "are required skills weighted more",
-          "required vs nice to have skills score",
-          "how much more do required skills count",
-          "required skills score weight"
-        ],
-        "answer": "Yes. Skills you marked required count double compared to nice-to-have skills when calculating the match score.",
-        "sectionIds": [
-          "scoring"
+          "ai-sourcing"
         ]
       },
       {
         "id": "employer-applicants-1",
-        "question": "Where can I see everyone who has applied to my jobs?",
+        "question": "Where can I see all the people who have applied to my jobs?",
         "variants": [
-          "how do i view all applicants",
-          "where are my applications",
+          "how do I view all applicants",
+          "where are my applicants",
+          "show me everyones applications",
           "can i see applicants across all jobs",
-          "applicants page location",
-          "how to find all candidates who aplied"
+          "applicants page",
+          "how to see all applications"
         ],
-        "answer": "The Applicants page lists everyone who has applied to any of your jobs, across the whole organisation. Individual jobs also have their own applicant views.",
+        "answer": "The Applicants page lists everyone who has applied to any of your jobs across your whole organisation. You can also view applicants for individual jobs on their own applicant pages.",
         "sectionIds": [
           "applicants"
         ]
       },
       {
         "id": "employer-applicants-2",
-        "question": "Are applicants automatically added to my shortlist?",
+        "question": "Are candidates automatically added to my shortlist when they apply?",
         "variants": [
-          "do applicants go on my shortlist automatically",
-          "when i get an application does it shortlist them",
-          "applicants and shortlist same thing",
-          "are people who apply automaticly shortlisted",
-          "do applications auto-add to shortlist"
+          "do applicants go on shortlist automatically",
+          "if someone applies are they shortlisted",
+          "applicants vs shortlist whats the difference",
+          "do applications mean shortlisted",
+          "are applied candidates shortlisted"
         ],
-        "answer": "No. Applying and being shortlisted are independent. A candidate can be on your shortlist without ever having applied, and applicants aren't shortlisted automatically. You decide who to add to your shortlist from your applicants.",
+        "answer": "No. Applying and being shortlisted are independent. A candidate can be on your shortlist without ever having applied, and applicants aren't shortlisted automatically. You choose who to add to your shortlist from your applicants.",
         "sectionIds": [
           "applicants",
           "shortlist"
@@ -1834,15 +2075,14 @@ export const HELP_LIBRARY: HelpLibraries = {
       },
       {
         "id": "employer-applicants-3",
-        "question": "Can I reject an applicant?",
+        "question": "Can I add applicants to my shortlist?",
         "variants": [
-          "how do i reject an applicant",
-          "reject application",
-          "can i turn down someone who applied",
-          "declining applicants",
-          "reject someone from applicants"
+          "how do i shortlist an applicant",
+          "add applicants to shortlist",
+          "move applicant to shortlist",
+          "shortlist someone who applied"
         ],
-        "answer": "If you add an applicant to your shortlist, you can reject them from any stage of your pipeline, including Shortlisted. You can also record a reason, which stays internal.",
+        "answer": "Yes. You can add candidates from your applicants to your shortlist, then move them through your hiring pipeline from there.",
         "sectionIds": [
           "applicants",
           "shortlist"
@@ -1850,47 +2090,44 @@ export const HELP_LIBRARY: HelpLibraries = {
       },
       {
         "id": "employer-applicants-4",
-        "question": "How many people have applied to a specific job?",
+        "question": "Can I see applicants for just one job?",
         "variants": [
-          "how many applicants for this job",
-          "view applicants for one job",
-          "see applications on individual job",
-          "applicant count per job",
-          "how many people aplied to my posting"
+          "how to view applicants for specific job",
+          "applicants for one role",
+          "individual job applicants",
+          "see who applied to this job"
         ],
-        "answer": "Individual jobs have their own applicant views. Open the job to see its applicants.",
+        "answer": "Yes. Individual jobs have their own applicant views, so you can see who applied to a specific role.",
         "sectionIds": [
-          "applicants",
-          "jobs"
+          "applicants"
         ]
       },
       {
         "id": "employer-applicants-5",
-        "question": "Can I see applicants if my organisation isn't verified yet?",
+        "question": "What's the difference between someone who applied and someone on my shortlist?",
         "variants": [
-          "applicants locked until verified",
-          "can i access applicants before verification",
-          "applicants page greyed out",
-          "why cant i see applicants",
-          "applicants unavailable pending"
+          "applicant vs shortlist difference",
+          "whats the difference between applicants and shortlist",
+          "applicant shortlisted meaning",
+          "applied candidate vs shortlisted"
         ],
-        "answer": "Until your organisation is Verified, the Applicants page stays locked. Once you're Verified, everything unlocks and stays unlocked.",
+        "answer": "Applying and being shortlisted are independent. A candidate can be on your shortlist without ever having applied, and applicants aren't automatically shortlisted. You choose which applicants to add to your shortlist to actively consider for roles.",
         "sectionIds": [
           "applicants",
-          "verification"
+          "shortlist"
         ]
       },
       {
         "id": "employer-shortlist-1",
-        "question": "What stages can I move candidates through in the hiring pipeline?",
+        "question": "How do I invite a candidate to interview?",
         "variants": [
-          "what are the hiring stages",
-          "candidate pipeline stages",
-          "what stages exist for candidates",
-          "how do I move candidates through stages",
-          "hiring pipeline steps"
+          "how to invite candidate to interview",
+          "inviting candidates to interview",
+          "can I send interview invite",
+          "interview invitation process",
+          "how do i contact candidate about interview"
         ],
-        "answer": "There are six stages: Shortlisted, Invited, Interviewing, Offer, Hired, and Closed. You can also Reject at any stage. Rejecting records an internal reason. Removing a candidate deletes their entry entirely, which is always available. Moving between these stages happens as candidates progress through your process.",
+        "answer": "On the shortlist, go to Shortlisted stage and choose \"Invite to interview.\" You can include an optional message with the invitation.",
         "sectionIds": [
           "shortlist",
           "stages"
@@ -1898,297 +2135,289 @@ export const HELP_LIBRARY: HelpLibraries = {
       },
       {
         "id": "employer-shortlist-2",
-        "question": "How do I invite a candidate to interview?",
+        "question": "What can I do once a candidate accepts my interview invite?",
         "variants": [
-          "how do i invite someone to an interview",
-          "invite candidate to interview",
-          "how to invite for interview",
-          "send interview invite",
-          "interview invitation"
+          "candidate accepted interview what now",
+          "after candidate accepts interview",
+          "what's next when they say yes to interview",
+          "once candidate accepts what do i do",
+          "candidate confirmed interview"
         ],
-        "answer": "On the candidate's shortlist card, choose Invite to interview. You can include an optional message. Once they accept the invitation, their status moves to Invited and you can then add interview rounds.",
+        "answer": "Once they accept, you can add interview rounds. Each round has a channel, a scheduled time, and an internal note. You can add as many rounds as you need, and round numbers are assigned automatically.",
         "sectionIds": [
           "shortlist",
-          "stages"
+          "rounds"
         ]
       },
       {
         "id": "employer-shortlist-3",
-        "question": "Can I reject a candidate at any point?",
+        "question": "Can candidates see my interview notes and future rounds?",
         "variants": [
-          "can i reject someone mid-process",
-          "reject candidate anytime",
-          "when can I reject",
-          "is rejection available at every stage",
-          "can I reject during interviewing"
+          "can candidate see my notes",
+          "do candidates see internal notes",
+          "can they see how many rounds",
+          "do candidates see upcoming rounds",
+          "are my notes visible to candidate"
         ],
-        "answer": "Yes. Rejecting is available at any stage. You can record a reason, which stays internal to your organisation.",
+        "answer": "No. Candidates only see the round they're currently on. They never see your internal notes, your earlier rounds, or how many rounds you're planning.",
+        "sectionIds": [
+          "rounds"
+        ]
+      },
+      {
+        "id": "employer-shortlist-4",
+        "question": "How do I extend an offer to a candidate?",
+        "variants": [
+          "how to send offer to candidate",
+          "extending job offer",
+          "offering job to candidate",
+          "making an offer",
+          "how do i offer the job"
+        ],
+        "answer": "In the Interviewing stage, choose to extend an offer. The candidate can then accept, decline, or tell you they're still deciding.",
+        "sectionIds": [
+          "shortlist",
+          "offers"
+        ]
+      },
+      {
+        "id": "employer-shortlist-5",
+        "question": "What happens after a candidate accepts an offer?",
+        "variants": [
+          "candidate accepted offer now what",
+          "after they accept offer",
+          "candidate said yes to offer",
+          "next steps after offer accepted",
+          "what do i do when they accept"
+        ],
+        "answer": "You can mark them hired, which is final and asks you to confirm. Or you can close the role for them, also final. Either ends the pipeline for that candidate.",
+        "sectionIds": [
+          "offers"
+        ]
+      },
+      {
+        "id": "employer-shortlist-6",
+        "question": "How do I reject a candidate?",
+        "variants": [
+          "rejecting a candidate",
+          "how to turn down candidate",
+          "can i reject someone",
+          "reject candidate from shortlist",
+          "declining a candidate"
+        ],
+        "answer": "Rejecting is available at any stage on the shortlist. You can record a reason, which stays internal.",
         "sectionIds": [
           "shortlist",
           "stages"
         ]
       },
       {
-        "id": "employer-shortlist-4",
-        "question": "How do I add interview rounds?",
-        "variants": [
-          "add interview rounds",
-          "how to schedule interview rounds",
-          "create interview round",
-          "add multiple rounds",
-          "interview rounds how"
-        ],
-        "answer": "Once a candidate accepts your interview invitation, you can add as many rounds as you need. Each round has a channel, a scheduled time, and an internal note. Round numbers are assigned automatically. Candidates see only the round they're currently on—they never see your internal notes, earlier rounds, or how many rounds you're planning.",
-        "sectionIds": [
-          "shortlist",
-          "rounds"
-        ]
-      },
-      {
-        "id": "employer-shortlist-5",
-        "question": "What can candidates see about interview rounds?",
-        "variants": [
-          "what do candidates see about rounds",
-          "can candidates see all rounds",
-          "candidate visibility interview rounds",
-          "can they see internal notes",
-          "how much info do candidates get"
-        ],
-        "answer": "Candidates see only the round they're currently on. They never see your internal notes, your earlier rounds, or how many rounds you're planning.",
-        "sectionIds": [
-          "rounds"
-        ]
-      },
-      {
-        "id": "employer-shortlist-6",
-        "question": "How do I extend an offer to a candidate?",
-        "variants": [
-          "how to make an offer",
-          "extend offer to candidate",
-          "offer a job",
-          "send job offer",
-          "when can I offer"
-        ],
-        "answer": "When you're ready, extend an offer from the candidate's card. The candidate can then accept, decline, or tell you they're still deciding. Their response appears on their card. Once you have a response, you can mark them hired or close the role for them.",
-        "sectionIds": [
-          "shortlist",
-          "offers"
-        ]
-      },
-      {
         "id": "employer-shortlist-7",
-        "question": "What happens after I extend an offer?",
+        "question": "Can I remove a candidate from the shortlist?",
         "variants": [
-          "after offer what next",
-          "what do I do with offer response",
-          "candidate accepted offer now what",
-          "offer response options",
-          "marking someone hired"
+          "how to remove candidate",
+          "removing candidates",
+          "delete candidate from shortlist",
+          "can i delete shortlist entry",
+          "remove from shortlist"
         ],
-        "answer": "The candidate can accept, decline, or say they're still deciding. Their response appears on their card. You can then mark them hired or close the role for them. Marking someone hired or closing without a hire is final and asks you to confirm.",
+        "answer": "Yes. Removing a candidate deletes the entry entirely and is always available at any stage.",
         "sectionIds": [
-          "offers"
+          "shortlist"
         ]
       },
       {
         "id": "employer-shortlist-8",
-        "question": "Can I add someone to my shortlist without them applying?",
+        "question": "Can a candidate be on my shortlist without applying?",
         "variants": [
-          "shortlist someone who didn't apply",
-          "add candidate to shortlist no application",
           "shortlist without application",
-          "applicants vs shortlist",
-          "does candidate need to apply"
+          "can i shortlist someone who didn't apply",
+          "do they have to apply first",
+          "shortlisting non-applicants",
+          "can applicants be separate from shortlist"
         ],
-        "answer": "Yes. Applying and being shortlisted are independent. You can add candidates to your shortlist from Find Candidates, from a job's matches, or from your applicants. A candidate can be on your shortlist without ever having applied.",
+        "answer": "Yes. Applying and being shortlisted are independent. You can add candidates to your shortlist from Find Candidates or from a job's matches without them ever having applied.",
         "sectionIds": [
-          "shortlist",
-          "applicants"
+          "shortlist"
         ]
       },
       {
         "id": "employer-shortlist-9",
-        "question": "Can I remove a candidate from the shortlist?",
+        "question": "What are the different stages in the hiring pipeline?",
         "variants": [
-          "delete candidate from shortlist",
-          "remove from shortlist",
-          "how to remove candidate",
-          "can I undo removal",
-          "removing candidates"
+          "what are pipeline stages",
+          "hiring pipeline stages",
+          "shortlist stages explained",
+          "pipeline stage names",
+          "how many stages are there"
         ],
-        "answer": "Yes. Removing a candidate deletes the entry entirely and is always available from any stage in the pipeline.",
+        "answer": "The stages are Shortlisted, Invited, Interviewing, Offer, Hired, Closed, and Rejected. Candidates move through them as you interview and make decisions.",
         "sectionIds": [
-          "shortlist",
           "stages"
         ]
       },
       {
         "id": "employer-shortlist-10",
-        "question": "What's the difference between rejection and removal?",
+        "question": "How do I ask a candidate to verify a skill they haven't proven yet?",
         "variants": [
-          "reject vs remove",
-          "difference between remove and reject",
-          "what happens if I remove vs reject",
-          "remove or reject candidate"
+          "verify candidate skill",
+          "asking candidate to take assessment",
+          "requesting skill verification",
+          "how to verify unverified skills",
+          "make candidate prove skill"
         ],
-        "answer": "Rejecting is available at any stage and lets you record an internal reason. Removing deletes the entry entirely. Both are available, but they serve different purposes—rejection tracks your decision, removal just removes the candidate.",
+        "answer": "On any shortlist card, choose \"Assess candidate\" to ask them to verify a whole skill. This includes all three levels (Foundational, Practitioner, Advanced), attempted in any order. You'll see the exact cost before the request goes out.",
         "sectionIds": [
-          "shortlist",
-          "stages"
+          "assessment-requests"
         ]
       },
       {
         "id": "employer-shortlist-11",
-        "question": "Where can I add candidates to my shortlist from?",
+        "question": "What do I see when a candidate completes a skill assessment?",
         "variants": [
-          "how do I shortlist candidates",
-          "add to shortlist where from",
-          "sourcing candidates for shortlist",
-          "shortlist from find candidates",
-          "shortlist from matches"
+          "assessment results what can i see",
+          "what do i learn from assessment",
+          "assessment score details",
+          "can i see test questions",
+          "what shows after they verify skill"
         ],
-        "answer": "You can add candidates from three places: from Find Candidates, from a job's matches when you open a live job and choose View matches, or from your Applicants page.",
+        "answer": "For the test portion, you see whether they passed, their score, and a topic-level breakdown. For the discussion portion, you see only whether they passed. You never see the questions, their individual answers, or the conversation.",
         "sectionIds": [
-          "shortlist",
-          "finding-candidates",
-          "candidate-search",
-          "job-matches"
+          "assessment-requests"
         ]
       },
       {
         "id": "employer-assessment-requests-1",
         "question": "How much does it cost to ask a candidate to verify a skill?",
         "variants": [
-          "what's the price of an assessment request",
-          "do I get charged for assessment requests",
-          "how am I billed for skill verification",
-          "assessment request cost",
-          "price for asking candidate to verify skill"
+          "What's the price of an assessment request?",
+          "How am I charged for skill verification?",
+          "Cost of asking candidate to verify skill",
+          "assessment request pricing",
+          "do I get charged when I send an assessment request"
         ],
-        "answer": "Cost depends on how far the candidate gets in the assessment. You'll see the exact amount and confirm it before the request goes out. You're only charged when the candidate starts it — requests that expire unstarted are never charged. Assessment requests accrue to your account as you make them, and on the 1st of each month everything uninvoiced is combined into a single GST tax invoice for your organisation.",
+        "answer": "Cost depends on how far the candidate gets in the assessment. You'll see the exact amount and confirm it before the request goes out. You're charged when the candidate starts it. Requests that expire unstarted are never charged.",
         "sectionIds": [
-          "assessment-requests",
-          "billing"
+          "assessment-requests"
         ]
       },
       {
         "id": "employer-assessment-requests-2",
-        "question": "What information do I get back when a candidate completes a skill assessment?",
+        "question": "What do I see when a candidate completes a skill verification?",
         "variants": [
-          "what results do I see from an assessment",
+          "What information do I get back from an assessment?",
+          "What results will I see from skill verification?",
+          "What can I view after candidate takes test",
           "what do assessment results show",
-          "can I see the candidate's answers",
-          "what feedback do I get on assessments",
-          "how much detail in assessment results"
+          "what information is provided when candidate verifies skill"
         ],
-        "answer": "For the Test level, you see whether they passed, their score, and a topic-level breakdown. For the Discussion level, you see whether they passed — nothing else. You'll never see the questions, their individual answers, or the conversation.",
+        "answer": "Per level, you'll see whether they passed and their score, plus a topic-level breakdown for the Test level. For the Discussion level, you'll only see whether they passed. You never see the questions, their individual answers, or the conversation.",
         "sectionIds": [
           "assessment-requests"
         ]
       },
       {
         "id": "employer-assessment-requests-3",
-        "question": "How long does a candidate have to start and complete a skill verification?",
+        "question": "How long does a candidate have to start the assessment?",
         "variants": [
+          "How many days to begin skill verification?",
           "assessment request time limit",
-          "how long can candidate take to do assessment",
-          "skill verification deadline",
-          "does assessment request expire",
-          "how many days to complete assessment"
+          "when does assessment request expire",
+          "how long can candidate take to start",
+          "what happens if candidate doesn't start assessment in time"
         ],
-        "answer": "A candidate has five days to start any level. Once at least one level is started, the full assessment has 14 days until it's settled — every level has a result (pass or fail), or the window closes. Requests that don't start within five days expire unstarted and are never charged.",
+        "answer": "A candidate has five days to start any level. If they don't start any level in time, the request expires and you're not charged.",
         "sectionIds": [
           "assessment-requests"
         ]
       },
       {
         "id": "employer-assessment-requests-4",
-        "question": "What does it mean when an assessment request status shows 'result ready'?",
+        "question": "What does an assessment request cover?",
         "variants": [
-          "assessment status result ready",
-          "what does result ready mean",
-          "assessment complete what now",
-          "result ready assessment",
-          "what happens after result ready"
+          "Which skill levels can I request verification for?",
+          "what can candidates verify through assessment",
+          "does assessment include all three levels",
+          "can I ask candidate to verify foundational level only"
         ],
-        "answer": "Result ready means the assessment is settled — every level has a result (pass or fail), or the 14-day window closed. Results are shown on the candidate's card.",
+        "answer": "An assessment request asks a candidate to verify a whole skill — all three levels (Foundational, Practitioner, Advanced), attempted in any order. Requests currently cover multiple-choice levels. Discussion-format verification isn't available to request yet.",
         "sectionIds": [
           "assessment-requests"
         ]
       },
       {
         "id": "employer-assessment-requests-5",
-        "question": "Can I request a skill verification for a candidate who already has verified badges at those levels?",
+        "question": "What are the different assessment request statuses?",
         "variants": [
-          "assess candidate who's already verified",
-          "skill already verified can I assess",
-          "request assessment already verified skill",
-          "assess verified badge",
-          "candidate already has verified skill"
+          "What status does assessment show",
+          "assessment request statuses explained",
+          "what does awaiting start mean",
+          "what does in progress mean for assessment",
+          "assessment result ready meaning"
         ],
-        "answer": "No. If a candidate held badges at every level already, the status shows 'Already verified' and no charge is applied.",
+        "answer": "Awaiting start means it's been sent and the candidate has five days to start any level. In progress means at least one level has started. Result ready means every level has a result (pass or fail), or the 14-day window closed. Expired — not billed means the candidate didn't start any level in time, with no charge. Already verified means they held badges at every level already, with no charge.",
         "sectionIds": [
           "assessment-requests"
         ]
       },
       {
         "id": "employer-billing-1",
-        "question": "When will I be charged for assessment requests?",
+        "question": "When do I get charged for assessment requests?",
         "variants": [
-          "when do i get billed for assessments",
-          "how much does it cost to request an assessment",
-          "when am i charged for an assessment",
-          "do i pay when i send the assessment or when the candidate takes it",
+          "when am i billed for assessments",
+          "do i pay when i request or when candidate starts",
+          "how much does each assessment cost",
+          "when does the charge happen",
           "assessment request pricing",
-          "when do assessment requests get charged"
+          "am i charged if candidate doesn't start"
         ],
-        "answer": "Assessment requests accrue to your account as you make them. You're charged when the candidate starts the assessment, not when you send it. On the 1st of each month, everything uninvoiced is combined into a single GST tax invoice for your organisation. Requests that expire unstarted are never charged.",
+        "answer": "You're charged when the candidate starts an assessment request. If they don't start any level within five days, the request expires and you're not billed. The exact cost depends on how far they progress through the levels, and you'll see the amount and confirm it before the request goes out.",
         "sectionIds": [
-          "billing",
-          "assessment-requests"
+          "assessment-requests",
+          "billing"
         ]
       },
       {
         "id": "employer-billing-2",
-        "question": "How often will I be invoiced?",
+        "question": "How often am I invoiced?",
         "variants": [
-          "when do i get invoiced",
-          "how often do i pay",
-          "billing frequency",
-          "monthly invoice",
-          "when is my billing cycle"
+          "when do i get my invoice",
+          "how frequently am i billed",
+          "monthly or yearly billing",
+          "when's my next invoice due",
+          "invoice schedule"
         ],
-        "answer": "On the 1st of each month, all uninvoiced assessment requests from the previous month are combined into a single GST tax invoice for your organisation.",
+        "answer": "On the 1st of each month, all uninvoiced assessment requests are combined into a single GST tax invoice for your organisation. You can download your invoices and receipts from the Billing page once they're generated.",
         "sectionIds": [
           "billing"
         ]
       },
       {
         "id": "employer-billing-3",
-        "question": "Where can I see my invoices and past payments?",
+        "question": "How do I fix my GST details on invoices?",
         "variants": [
-          "where are my invoices",
-          "how do i download my invoice",
-          "where do i find my receipts",
-          "can i see my billing history",
-          "how do i access past invoices"
+          "change my gst number",
+          "update tax details",
+          "wrong gst on invoice",
+          "fix my company details",
+          "incorrect legal entity name"
         ],
-        "answer": "The Billing page lists your invoices and receipts. You can download each one once it's generated. Documents still being prepared show as such.",
+        "answer": "Contact MyAmbii support — there's no self-service form for this yet. These details are what your tax invoices are built from, so it's worth getting them right early.",
         "sectionIds": [
           "billing"
         ]
       },
       {
         "id": "employer-billing-4",
-        "question": "Do I have to pay for team seats?",
+        "question": "Are team seats charged separately?",
         "variants": [
-          "is there a charge for team members",
-          "do i pay per seat",
-          "are team seats billed",
-          "cost of adding teammates",
-          "how much does each team member cost"
+          "do i pay per team member",
+          "is there a cost per invite",
+          "team seat pricing",
+          "do extra users cost more",
+          "charged for adding teammates"
         ],
-        "answer": "No. Team seats aren't billed. Every organisation gets 5 seats, and your usage is shown on Settings.",
+        "answer": "Team seats aren't billed. Every organisation gets 5, shown on Settings.",
         "sectionIds": [
           "billing",
           "team"
@@ -2196,33 +2425,33 @@ export const HELP_LIBRARY: HelpLibraries = {
       },
       {
         "id": "employer-billing-5",
-        "question": "How do I update my GST or company details for invoicing?",
+        "question": "Where can I see my invoices and receipts?",
         "variants": [
-          "how do i change my tax details",
-          "can i edit my gst number",
-          "how do i update my legal entity name",
-          "where do i change my billing address",
-          "how do i fix my company details on invoices"
+          "download my invoice",
+          "view my billing history",
+          "find my receipts",
+          "where are my documents",
+          "access past invoices"
         ],
-        "answer": "To correct your GST or legal entity details, contact MyAmbii support. There's no self-service form for this yet, and these details are what your tax invoices are built from, so it's worth getting right early.",
+        "answer": "The Billing page lists your invoices and receipts, with a download once each is generated. Documents still being prepared show as such.",
         "sectionIds": [
           "billing"
         ]
       },
       {
         "id": "employer-settings-1",
-        "question": "How do I change my organisation's logo, industry, or website?",
+        "question": "How do I change my organization's logo, industry, or website?",
         "variants": [
-          "where do I upload my logo",
-          "how do I edit my company details",
-          "can I change my industry after setup",
-          "update organisation info",
-          "edit org website"
+          "how to upload logo",
+          "where do i edit company details",
+          "can i change my industry",
+          "how do i update my website on myambii",
+          "edit organisation details",
+          "change org info"
         ],
-        "answer": "Go to Settings and select Organisation details. Admins can edit your logo, industry, and website; everyone on your team can view them. If you're editing details after a rejection, saving automatically resubmits you for verification.",
+        "answer": "Go to Settings and choose Organisation details. Admins can edit your industry, website, and logo. Everyone on your team can view these details but only admins can change them.",
         "sectionIds": [
-          "settings",
-          "verification"
+          "settings"
         ]
       },
       {
@@ -2230,164 +2459,226 @@ export const HELP_LIBRARY: HelpLibraries = {
         "question": "How do I invite someone to my team?",
         "variants": [
           "add a teammate",
-          "how do I invite staff",
+          "how to invite team member",
           "invite by email",
-          "add team member",
-          "send invitation link"
+          "add people to organization",
+          "invite colleague to myambii",
+          "how do i add staff"
         ],
-        "answer": "Go to Settings and select Team. Enter their email address to send an invitation. Invitations expire — if someone's invitation lapsed, revoke the old one and send a fresh invitation to the same address.",
-        "sectionIds": [
-          "team",
-          "settings"
-        ]
-      },
-      {
-        "id": "employer-settings-3",
-        "question": "Can I remove a teammate from my organisation?",
-        "variants": [
-          "delete team member",
-          "remove staff",
-          "how do I kick someone out",
-          "revoke team access",
-          "demote a user"
-        ],
-        "answer": "Go to Settings and select Team. You can remove or demote teammates there. You can't remove or demote the last admin — that option is disabled with an explanation.",
-        "sectionIds": [
-          "team",
-          "settings"
-        ]
-      },
-      {
-        "id": "employer-settings-4",
-        "question": "What's my verification status?",
-        "variants": [
-          "am I verified",
-          "why does it say pending",
-          "check verification",
-          "organisation verified yet",
-          "what does rejected mean"
-        ],
-        "answer": "Go to Settings and look at Verification. It shows whether your organisation is Pending, Verified, or Rejected with a reason. If Rejected, fix what the reason points to and save your organisation details to resubmit — it happens automatically. Until you're Verified, most of the portal stays locked.",
-        "sectionIds": [
-          "settings",
-          "verification"
-        ]
-      },
-      {
-        "id": "employer-settings-5",
-        "question": "How many team seats do I have?",
-        "variants": [
-          "how many people can I invite",
-          "what's my team limit",
-          "seat usage",
-          "how many teammates allowed",
-          "team member quota"
-        ],
-        "answer": "Go to Settings and check Team and roles. Every organisation gets 5 seats, and your usage is shown there.",
+        "answer": "Go to Settings and choose Team. Enter their email address to send them an invitation. Only admins can invite teammates. Invitations expire, so if someone doesn't accept, revoke the old one and send a fresh invitation to the same address.",
         "sectionIds": [
           "settings",
           "team"
         ]
       },
       {
-        "id": "employer-settings-6",
-        "question": "How do I deactivate my organisation?",
+        "id": "employer-settings-3",
+        "question": "What do the admin and member roles do?",
         "variants": [
-          "close my account",
-          "delete organisation",
-          "shut down hiring",
-          "cancel my organisation",
-          "deactivate company"
+          "what can admins do",
+          "whats the difference between admin and member",
+          "member vs admin",
+          "what permissions does each role have",
+          "what can members access",
+          "do members have same access as admins"
         ],
-        "answer": "Go to Settings and select Deactivate organisation — admin only. Before you confirm, you'll see how many live jobs will be closed and how many candidates will be notified. You'll need to type your organisation's name to confirm. There's no way to undo this yourself; reactivation is only possible through MyAmbii support, and your jobs won't be republished automatically.",
+        "answer": "Admins can edit organisation details, upload the logo, invite and manage teammates, and deactivate the organisation. Members can do everything related to hiring — jobs, candidate search, applicants, and the shortlist — with exactly the same access as admins for those things. Members can see organisation and team information but can't change it.",
+        "sectionIds": [
+          "team"
+        ]
+      },
+      {
+        "id": "employer-settings-4",
+        "question": "How many team seats do we get?",
+        "variants": [
+          "seat limit",
+          "how many people can i invite",
+          "max team size",
+          "how many teammates",
+          "do we have unlimited seats",
+          "what's the seat limit"
+        ],
+        "answer": "Every organisation gets 5 seats. You can see your usage on Settings.",
+        "sectionIds": [
+          "settings",
+          "team"
+        ]
+      },
+      {
+        "id": "employer-settings-5",
+        "question": "How do I check my verification status?",
+        "variants": [
+          "am i verified",
+          "where do i see if im verified",
+          "verification status",
+          "is my org verified",
+          "pending or verified",
+          "how to check verification"
+        ],
+        "answer": "Go to Settings and look at Verification. It shows your current status: Pending, Verified, or Rejected with the reason. If you're Rejected, fix what the reason points to and save your organisation details to resubmit automatically. Everyone on your team can see the status; only admins can act on rejections.",
+        "sectionIds": [
+          "settings",
+          "verification"
+        ]
+      },
+      {
+        "id": "employer-settings-6",
+        "question": "How do I remove or demote a team member?",
+        "variants": [
+          "how to fire someone",
+          "remove teammate",
+          "demote admin",
+          "how do i take away admin access",
+          "delete team member",
+          "can i remove the last admin"
+        ],
+        "answer": "Go to Settings and choose Team to remove or demote teammates. You can't remove or demote the last admin — the option is disabled with an explanation. If someone's invitation expired, revoke the old one and send a fresh invitation if you want to invite them again.",
+        "sectionIds": [
+          "settings",
+          "team"
+        ]
+      },
+      {
+        "id": "employer-settings-7",
+        "question": "How do I permanently close my organization?",
+        "variants": [
+          "deactivate my company",
+          "close my organization",
+          "how to delete my account",
+          "shut down my org",
+          "what happens if i deactivate",
+          "can i reactivate later"
+        ],
+        "answer": "Go to Settings and choose Deactivate organisation. Before you confirm, you'll see exactly how many live jobs will be closed and how many candidates will be notified. You'll be asked to type your organisation's name. There's no way to undo this yourself — reactivation is only possible through MyAmbii support, and your jobs won't be republished automatically even then.",
         "sectionIds": [
           "settings",
           "deactivate"
         ]
       },
       {
-        "id": "employer-settings-7",
-        "question": "Why can't I access most of the portal?",
+        "id": "employer-integrations-1",
+        "question": "How do I connect my ATS to MyAmbii?",
         "variants": [
-          "why is everything locked",
-          "portal access denied",
-          "why can't I post jobs",
-          "settings is all I can use",
-          "why am I stuck in settings"
+          "can I integrate my ats",
+          "connect ats to myambii",
+          "set up ats integration",
+          "how to link my applicant tracking system",
+          "ats integration setup",
+          "do you work with my ats"
         ],
-        "answer": "Two different reasons: You're either at the setup screen and missing your logo, industry, or website — add what's missing and you'll move on automatically. Or your Settings shows Pending or Rejected. If Pending, wait for verification. If Rejected, fix the stated reason and save your organisation details to resubmit automatically.",
+        "answer": "Admins set this up under Settings → Integrations. You have three options: webhooks to send events like candidates applying or moving stage, API keys so your own systems can read jobs and applicants and move candidates through the pipeline, or download candidate details as JSON files for your ATS from the shortlist and AI sourcing pages.",
         "sectionIds": [
-          "settings",
-          "verification",
-          "faq"
+          "integrations"
+        ]
+      },
+      {
+        "id": "employer-integrations-2",
+        "question": "What information does MyAmbii send to my ATS?",
+        "variants": [
+          "what data goes to my ats",
+          "what gets sent to the ats",
+          "does myambii send contact details",
+          "what information is shared with ats",
+          "what can my ats see"
+        ],
+        "answer": "Every message includes the candidate's verified skills with links anyone can check. Contact details are included only once the candidate applied to your job or said Interested to AI sourcing. If you download candidate details as JSON files, you get their full details and verified skills.",
+        "sectionIds": [
+          "integrations"
+        ]
+      },
+      {
+        "id": "employer-integrations-3",
+        "question": "How do webhooks work?",
+        "variants": [
+          "what are webhooks",
+          "how do i set up webhooks",
+          "webhook integration",
+          "what events can i send via webhook",
+          "which events trigger webhooks"
+        ],
+        "answer": "You add an HTTPS address and choose which events to send, such as a candidate applying, moving stage on the shortlist, or saying Interested to AI sourcing. MyAmbii sends each event as a signed JSON message. Use Send test event to check it works, and Recent deliveries to see what was sent — failed deliveries are retried automatically.",
+        "sectionIds": [
+          "integrations"
+        ]
+      },
+      {
+        "id": "employer-integrations-4",
+        "question": "How do I get API access?",
+        "variants": [
+          "how do i get an api key",
+          "api key setup",
+          "can i use the api",
+          "what is the api key for",
+          "api authentication"
+        ],
+        "answer": "Admins create API keys under Settings → Integrations. A key is shown only once when you create it, so copy it then. Keys let your own systems read your jobs, applicants and shortlist, and move candidates through stages (invite, offer, hire, close or reject). Full documentation is at myambii.com/developers.",
+        "sectionIds": [
+          "integrations"
+        ]
+      },
+      {
+        "id": "employer-integrations-5",
+        "question": "Can I download a candidate's details?",
+        "variants": [
+          "download candidate data",
+          "export candidate info",
+          "how do i export candidate details",
+          "download as json",
+          "what format can i download"
+        ],
+        "answer": "On the shortlist and AI sourcing pages, any team member can download a candidate's details and verified skills as a JSON file for your ATS.",
+        "sectionIds": [
+          "integrations"
         ]
       },
       {
         "id": "employer-faq-1",
         "question": "Why can't I access anything except Settings?",
         "variants": [
-          "portal locked",
-          "everything is locked except settings",
-          "why is most of the portal locked",
-          "cant access jobs or candidates",
-          "why can't I see job postings",
-          "portal greyed out"
+          "I can only see Settings",
+          "portal is locked",
+          "everything is locked except Settings",
+          "I'm stuck on the setup screen",
+          "why is everything greyed out"
         ],
-        "answer": "Two different reasons. If you're seeing a setup screen, your organisation is still missing its logo, industry, or website — add whatever's missing and you'll move on automatically. If Settings shows Pending or Rejected, setup is done and you're waiting on verification, or you need to fix something after a rejection. If Pending, there's nothing to do. If Rejected, address the stated reason and save your organisation details to resubmit.",
+        "answer": "Two different reasons with different fixes:\n\nIf you're sent to the setup screen, your organisation is still missing its logo, industry, or website. Add whatever's missing and you'll move on automatically.\n\nIf Settings shows Pending or Rejected, setup is already done. You're waiting on a platform admin to verify your organisation, or you need to fix something after a rejection. Nothing to do while Pending; if Rejected, address the stated reason and save your organisation details to resubmit.",
         "sectionIds": [
           "verification",
-          "org-setup",
-          "faq"
+          "org-setup"
         ]
       },
       {
         "id": "employer-faq-2",
-        "question": "Can I delete a job I've published?",
+        "question": "Why does this candidate have no match score?",
         "variants": [
-          "delete live job",
-          "can i remove a published job",
-          "how to delete a job posting",
-          "delete job that's already live",
-          "remove live job"
+          "candidate has no score",
+          "why is there no score",
+          "score is missing",
+          "no match score showing"
         ],
-        "answer": "No. Live and closed jobs can be closed or reopened but not deleted — this keeps your hiring history intact. Only draft jobs can be deleted.",
+        "answer": "Scores only exist against a specific job. Find Candidates has no job to score against, so there's no match score there.\n\nUse job matches instead — open a live job and choose View matches to see candidates scored against that specific role.",
         "sectionIds": [
-          "jobs",
-          "faq"
-        ]
-      },
-      {
-        "id": "employer-faq-3",
-        "question": "I unpublished a job by mistake. What do I do?",
-        "variants": [
-          "unpublished job by accident",
-          "accidentally unpublished a job",
-          "how to undo unpublishing a job",
-          "reopen unpublished job",
-          "restore unpublished job"
-        ],
-        "answer": "Reopen it from Job Postings. Your applicants and shortlisted candidates were already notified that the role stopped accepting applications, and reopening doesn't retract that notification.",
-        "sectionIds": [
-          "unpublish",
-          "faq"
+          "job-matches",
+          "candidate-search"
         ]
       }
     ]
   },
   "recruiter": {
-    "guideHash": "5ce1e886cd58c67a",
+    "guideHash": "1ac4e0076b1b599e",
     "entries": [
       {
         "id": "recruiter-getting-started-1",
         "question": "How do I sign in to MyAmbii as a recruiter?",
         "variants": [
-          "how to log in recruiter",
+          "how do i log in",
           "recruiter login",
-          "where do I sign in",
-          "recruiter sign in page",
-          "how do i access the recruiter portal"
+          "where do i sign in",
+          "how to access recruiter portal",
+          "myambii sign in",
+          "how do i get started"
         ],
-        "answer": "Sign in at myambii.com/staffing or go to For business → Recruiter on the home page. You'll need a work email and a one-time code. There's no password.",
+        "answer": "Sign in at myambii.com/staffing or go to For business → Recruiter on the home page. You'll need a work email and a one-time code—there's no password.",
         "sectionIds": [
           "getting-started"
         ]
@@ -2397,94 +2688,118 @@ export const HELP_LIBRARY: HelpLibraries = {
         "question": "What do I see when I first sign in?",
         "variants": [
           "what's in the recruiter portal",
-          "what pages do recruiters have",
-          "first time login what happens",
-          "where do I go after signing in",
-          "what tools do recruiters get"
+          "where do I go after I sign in",
+          "what tools do I have access to",
+          "what can I do as a recruiter",
+          "first time setup"
         ],
-        "answer": "You go straight to the recruiter portal with these pages: Find talent, Requests, Submissions and Clients. Employer tools like job posts and assessment requests aren't included in the recruiter portal.",
+        "answer": "You go straight to the recruiter portal. You'll see: Find talent, AI sourcing, Job Postings, Projects, Availability requests, Submissions and Clients. Employer-only tools like the shortlist and assessment requests aren't available to recruiters.",
         "sectionIds": [
           "getting-started"
         ]
       },
       {
         "id": "recruiter-getting-started-3",
-        "question": "Do I need to set up my organization before I can search?",
+        "question": "Do I need to set up my organization?",
         "variants": [
           "how do I set up my company",
-          "organization setup recruiter",
-          "what happens first time i sign in",
-          "do I need to verify my org"
+          "do I need company setup",
+          "first time organization setup",
+          "setting up my org",
+          "initial setup required"
         ],
-        "answer": "Yes. The first time you sign in, you set up your organisation. Your organisation needs to be reviewed and verified before you can search candidates. Once it's verified, its type can't be changed.",
+        "answer": "Yes. The first time you sign in, you set up your organisation. Your account is set up as a recruiter automatically, so you go straight to the recruiter portal. Your organisation will be reviewed before you can search candidates.",
         "sectionIds": [
           "getting-started"
         ]
       },
       {
         "id": "recruiter-getting-started-4",
-        "question": "Can I use both recruiter and employer tools?",
+        "question": "Can I switch from recruiter to employer after I sign up?",
         "variants": [
+          "can I change to employer",
+          "can I use employer tools too",
+          "switch account type",
           "can I be both recruiter and employer",
-          "use employer portal as recruiter",
-          "access job posts as recruiter",
-          "do recruiters post jobs"
+          "change organization type"
         ],
-        "answer": "No. Recruiter and employer organisations have separate portals. If your company also hires for itself, you need to set up a separate employer organisation from the Employer sign-in.",
+        "answer": "Once your organisation is verified, its type can't be changed. If you set up under the wrong one, contact us before verification. If your company also hires for itself, you can set up a separate employer organisation from the Employer sign-in.",
         "sectionIds": [
-          "getting-started"
+          "getting-started",
+          "faq"
         ]
       },
       {
         "id": "recruiter-getting-started-5",
-        "question": "What if I signed up with the wrong account type?",
+        "question": "What happens before I can search for candidates?",
         "variants": [
-          "signed up as wrong type",
-          "set up recruiter instead of employer",
-          "can I change recruiter to employer",
-          "wrong organisation type"
+          "when can I start searching",
+          "why can't I search yet",
+          "how long until I can find talent",
+          "approval process",
+          "verification required"
         ],
-        "answer": "Contact us before your organisation is verified. Once it's verified, the type can't be changed. Use the contact page at myambii.com/contact.",
+        "answer": "Your organisation is reviewed before you can search candidates. Once it's verified, you'll be able to use the Find talent tool.",
         "sectionIds": [
           "getting-started"
         ]
       },
       {
         "id": "recruiter-find-talent-1",
-        "question": "What information can I see about candidates in the search results?",
+        "question": "how do I search for candidates on MyAmbii?",
         "variants": [
-          "what do i see about candidates",
-          "what candidate info is shown",
-          "can i see candidate names",
-          "what details are visible"
+          "how to find candidates",
+          "how do i find talent",
+          "searching for candidates",
+          "how to search candidates",
+          "find talent search",
+          "candidate search how"
         ],
-        "answer": "Profiles are anonymous: you see verified skills, availability and conditions, but not names or contact details. Those are shared only when the candidate says yes to you.",
+        "answer": "Go to Find talent in the recruiter portal. You can filter by verified AI skills, skill level, start date, contract or permanent work, and expected rate. Candidates shown are open to recruiters and have confirmed their availability in the last 30 days.",
         "sectionIds": [
           "find-talent"
         ]
       },
       {
         "id": "recruiter-find-talent-2",
-        "question": "How do I filter candidates by skills?",
+        "question": "what information can I see about candidates?",
         "variants": [
-          "how to filter by skill",
-          "can i search by AI skills",
-          "filter candidates skills",
-          "how do i find candidates with specific skills"
+          "what do candidate profiles show",
+          "what can i see on a candidates profile",
+          "candidate profile information",
+          "what details are on candidate profiles",
+          "can i see candidate names"
         ],
-        "answer": "You can filter by verified AI skills and skill level, start date, contract or permanent work, and expected rate.",
+        "answer": "Profiles are anonymous until a candidate shares their details with you. You see verified skills, skill levels, availability and work conditions. Names and contact details are shared only when the candidate answers Available to your availability check.",
+        "sectionIds": [
+          "find-talent",
+          "availability-checks"
+        ]
+      },
+      {
+        "id": "recruiter-find-talent-3",
+        "question": "why did a candidate disappear from my search?",
+        "variants": [
+          "candidate disappeared from search",
+          "why cant i find a candidate anymore",
+          "candidate no longer showing up",
+          "where did the candidate go",
+          "candidate vanished from results"
+        ],
+        "answer": "Either they turned off Open to recruiters, or they haven't confirmed their availability in the last 30 days. Candidates you've already been in touch with stay on your Requests and Submissions pages.",
         "sectionIds": [
           "find-talent"
         ]
       },
       {
-        "id": "recruiter-find-talent-3",
-        "question": "What does verified skills mean?",
+        "id": "recruiter-find-talent-4",
+        "question": "how do I know a candidate's skill level is real?",
         "variants": [
-          "what are verified skills",
-          "where do skills come from",
-          "are skills from CVs",
-          "what does skill level mean"
+          "are candidate skills verified",
+          "how do i know skills are genuine",
+          "are these real skills",
+          "verified skills what does that mean",
+          "skill verification"
         ],
         "answer": "Skills shown on MyAmbii come from MyAmbii assessments, not from what a candidate typed into a CV. A skill level is evidence of what the candidate actually demonstrated.",
         "sectionIds": [
@@ -2492,131 +2807,118 @@ export const HELP_LIBRARY: HelpLibraries = {
         ]
       },
       {
-        "id": "recruiter-find-talent-4",
-        "question": "Who shows up in the Find talent search?",
+        "id": "recruiter-find-talent-5",
+        "question": "what does open to recruiters mean?",
         "variants": [
-          "which candidates can i see",
-          "why dont i see all candidates",
-          "what candidates appear in search",
-          "who is in find talent"
+          "open to recruiters setting",
+          "what is open to recruiters",
+          "open to recruiter profile setting",
+          "whats open to recruiters",
+          "how to find open to recruiters candidates"
         ],
-        "answer": "Find talent shows only candidates who have turned on Open to recruiters in their MyAmbii profile, and confirmed their availability in the last 30 days. Candidates who haven't confirmed recently drop out of search automatically, so everyone you see has recently said they're available.",
+        "answer": "Open to recruiters is a setting candidates turn on in their MyAmbii profile. Only candidates with this turned on appear in your Find talent search.",
         "sectionIds": [
           "find-talent"
         ]
       },
       {
-        "id": "recruiter-find-talent-5",
-        "question": "Why did a candidate disappear from my search?",
-        "variants": [
-          "candidate disappeared",
-          "cant find candidate anymore",
-          "where did the candidate go",
-          "candidate no longer showing"
-        ],
-        "answer": "Either they turned off Open to recruiters, or they haven't confirmed their availability in the last 30 days. Candidates you've already been in touch with stay on your Requests and Submissions pages.",
-        "sectionIds": [
-          "find-talent",
-          "faq"
-        ]
-      },
-      {
         "id": "recruiter-find-talent-6",
-        "question": "How often do candidates update their availability?",
+        "question": "how recent does a candidate's availability need to be?",
         "variants": [
-          "how frequently must candidates confirm availability",
-          "availability confirmation frequency",
-          "when do candidates need to update availability",
-          "how often should candidates refresh availability"
+          "how old can availability be",
+          "how long does availability last",
+          "availability confirmation how recent",
+          "30 day availability",
+          "when does availability expire"
         ],
-        "answer": "Candidates must confirm their availability in the last 30 days to appear in search. Candidates get a reminder before their availability goes out of date.",
+        "answer": "Candidates shown in Find talent have confirmed their availability in the last 30 days. Candidates get a reminder before their availability goes out of date, and those who haven't confirmed recently drop out of search automatically.",
         "sectionIds": [
           "find-talent"
         ]
       },
       {
         "id": "recruiter-find-talent-7",
-        "question": "Can I filter candidates by start date or work type?",
+        "question": "can I contact a candidate directly or do I need to send an availability check first?",
         "variants": [
-          "filter by start date",
-          "filter by contract or permanent",
-          "search by work type",
-          "can i filter by when they start"
+          "how do i contact a candidate",
+          "can i message a candidate",
+          "how to reach out to candidates",
+          "direct contact candidates",
+          "do i need availability check to contact"
         ],
-        "answer": "You can filter by verified AI skills and skill level, start date, contract or permanent work, and expected rate.",
+        "answer": "To contact a candidate, send an availability check for a specific role, including the title and type of work. The candidate can answer Available or Not now. Only if they answer Available do you get their name, email and phone number.",
         "sectionIds": [
-          "find-talent"
+          "find-talent",
+          "availability-checks"
         ]
       },
       {
         "id": "recruiter-availability-checks-1",
         "question": "How do I contact a candidate on MyAmbii?",
         "variants": [
-          "how to reach out to a candidate",
-          "how do i message a candidate",
-          "can i email a candidate directly",
-          "how to contact candidates",
-          "whats the process for contacting a candidate"
+          "how do I reach out to a candidate",
+          "how to message a candidate",
+          "whats the process for contacting candidates",
+          "can I email candidates directly",
+          "how do i get in touch with a candidate"
         ],
-        "answer": "Send an availability check for the specific role. The candidate sees which organisation is asking and for what role, then answers Available or Not now. If they answer Available, their name, email and phone number are shared with you on the Requests page.",
+        "answer": "Send an availability check for a specific role. Tell the candidate the job title, type of work (contract or permanent), and optionally the rate and start date. The candidate sees which organisation is asking and for what role, then answers Available or Not now. If they say Available, their name, email and phone number are shared with you on the Requests page.",
         "sectionIds": [
           "availability-checks"
         ]
       },
       {
         "id": "recruiter-availability-checks-2",
-        "question": "What information do I need to include in an availability check?",
+        "question": "How long do I have to wait for a candidate to respond to an availability check?",
         "variants": [
-          "what details go in an availability check",
-          "what to put in availability check",
-          "do i need to specify the role",
-          "what fields are required for availability check",
-          "how much info does a candidate see"
+          "how long does an availability check last",
+          "when does an availability check expire",
+          "whats the deadline for a candidate to answer",
+          "how many days for availability check response"
         ],
-        "answer": "You need to specify the role with a title and type of work (contract or permanent). You can also optionally include the expected rate and start date. The candidate sees which organisation is asking and for what role.",
+        "answer": "A candidate has 48 hours to answer an availability check. If they don't answer within that time, the check expires.",
         "sectionIds": [
           "availability-checks"
         ]
       },
       {
         "id": "recruiter-availability-checks-3",
-        "question": "How long does a candidate have to respond to an availability check?",
+        "question": "How many availability checks can I send per week?",
         "variants": [
-          "how long before availability check expires",
-          "response time for availability check",
-          "when does an availability check time out",
-          "how many hours to respond",
-          "availability check deadline"
+          "whats the limit on availability checks",
+          "how many candidates can i contact",
+          "availability check limits",
+          "can i send unlimited availability checks",
+          "max availability checks per week"
         ],
-        "answer": "A candidate has 48 hours to respond. A check that isn't answered within 48 hours expires.",
+        "answer": "You can send up to 100 availability checks per organisation per week. There's also a cap on how many checks any one candidate receives each week, to protect them from being flooded with requests.",
         "sectionIds": [
           "availability-checks"
         ]
       },
       {
         "id": "recruiter-availability-checks-4",
-        "question": "What's the limit on how many availability checks I can send?",
+        "question": "What information do I see before a candidate accepts my availability check?",
         "variants": [
-          "how many checks per week",
-          "availability check limits",
-          "max number of checks",
-          "can i send unlimited checks",
-          "weekly limit on contacting candidates"
+          "what can i see about a candidate before they reply",
+          "do i see candidate names in search",
+          "when do i get contact details",
+          "what details are hidden from me initially"
         ],
-        "answer": "You can send up to 100 checks per organisation per week. There's also a cap on how many checks any one candidate receives each week to protect them from being flooded.",
+        "answer": "In Find talent, profiles are anonymous: you see verified skills, availability and conditions, but not names or contact details. Names and contact details are shared only when the candidate says yes to your availability check.",
         "sectionIds": [
-          "availability-checks"
+          "availability-checks",
+          "find-talent"
         ]
       },
       {
         "id": "recruiter-availability-checks-5",
-        "question": "Can a candidate block me from contacting them again?",
+        "question": "Can a candidate refuse to hear from me again?",
         "variants": [
-          "can candidate refuse future contact",
-          "how to stop contacting a candidate",
-          "can i be blocked",
-          "candidate dont want to hear from me again",
-          "can they opt out"
+          "can a candidate block my company",
+          "can candidates opt out of my messages",
+          "what if a candidate doesnt want to hear from me",
+          "can candidates block recruiters"
         ],
         "answer": "Yes. A candidate can choose not to be contacted by your organisation again.",
         "sectionIds": [
@@ -2628,12 +2930,12 @@ export const HELP_LIBRARY: HelpLibraries = {
         "question": "How do I add a client to MyAmbii?",
         "variants": [
           "how to add clients",
-          "add a new client",
-          "how do i create a client",
-          "creating a client account",
-          "add client to myambii"
+          "how do i register a client",
+          "adding clients to myambii",
+          "how do you add a company",
+          "where do I add my clients"
         ],
-        "answer": "Go to the Clients page and add the client's name and website domain. Both the name and domain are used to recognise the same company, so include both.",
+        "answer": "Go to the Clients page and add the client's name and website domain. Both are used to recognise the same company, so if you add them, duplicate submissions to the same client can be prevented.",
         "sectionIds": [
           "clients"
         ]
@@ -2642,45 +2944,61 @@ export const HELP_LIBRARY: HelpLibraries = {
         "id": "recruiter-clients-2",
         "question": "Why do I need to add the client's website domain?",
         "variants": [
-          "why do i need domain",
           "what's the domain for",
-          "does domain matter",
-          "do i have to add domain",
-          "why website domain required"
+          "do I have to include the domain",
+          "why ask for domain",
+          "domain required",
+          "what if I don't know the domain"
         ],
-        "answer": "The domain is used alongside the company name to recognise the same client. This matching prevents a candidate being submitted to the same client twice, including by different recruiters.",
+        "answer": "The domain is used alongside the name to recognise the same client. This matching prevents a candidate being submitted to the same client twice, including by different recruiters. For example, acme.com will count as the same client even if the name is recorded slightly differently.",
         "sectionIds": [
           "clients"
         ]
       },
       {
         "id": "recruiter-clients-3",
-        "question": "How does MyAmbii match clients with the same name?",
+        "question": "What if the client's name is different each time I add it?",
         "variants": [
-          "how are clients matched",
-          "does myambii recognise same company",
-          "matching client names",
-          "how does it know it's the same client",
-          "client matching rules"
+          "client name variations",
+          "how do I handle different names for the same company",
+          "acme ltd vs acme inc",
+          "does the name have to be exact",
+          "different legal suffixes"
         ],
-        "answer": "Names are compared without legal suffixes, so \"Acme Pvt Ltd\", \"Acme Ltd\" and \"Acme Inc.\" count as the same client. A matching domain (for example acme.com) also counts as the same client.",
+        "answer": "Names are compared without legal suffixes, so \"Acme Pvt Ltd\", \"Acme Ltd\" and \"Acme Inc.\" count as the same client. As long as the domain matches, they'll be recognised as the same company.",
         "sectionIds": [
           "clients"
         ]
       },
       {
         "id": "recruiter-clients-4",
-        "question": "Will two recruiters submit the same candidate to the same client?",
+        "question": "Can two recruiters submit the same candidate to the same client?",
         "variants": [
-          "can two recruiters submit same candidate",
-          "duplicate submissions",
+          "can another recruiter submit to my client",
+          "what if two recruiters submit the same person",
+          "duplicate submissions to client",
           "prevent double submission",
-          "same candidate submitted twice",
-          "will candidate get submitted twice"
+          "same candidate two recruiters"
         ],
-        "answer": "No. The matching of client names and domains is what prevents a candidate being submitted to the same client twice, including by different recruiters.",
+        "answer": "No. When a candidate is submitted to a client, their representation is recorded with that client, and no other recruiter can submit them there. The matching by name and domain is what prevents duplicate submissions.",
         "sectionIds": [
           "clients"
+        ]
+      },
+      {
+        "id": "recruiter-clients-5",
+        "question": "Do I have to add a client before I can submit a candidate to them?",
+        "variants": [
+          "do I need to register clients first",
+          "add client before submission",
+          "can I submit without adding client",
+          "client setup required",
+          "set up client"
+        ],
+        "answer": "Yes. You need to add clients on the Clients page before you can submit candidates to them. For job postings, you also add the client first before you can create a job for them.",
+        "sectionIds": [
+          "clients",
+          "submissions"
         ]
       },
       {
@@ -2688,12 +3006,12 @@ export const HELP_LIBRARY: HelpLibraries = {
         "question": "How do I submit a candidate to a client?",
         "variants": [
           "how to submit candidate to client",
-          "how do i send a candidate to a company",
           "submit candidate process",
-          "can i submit a candidate to a client",
-          "how do i put forward a candidate"
+          "how do i put a candidate forward to a client",
+          "submitting candidates",
+          "how to send candidate to employer"
         ],
-        "answer": "Once a candidate has shared their contact details with you, choose the candidate, the client and the role. The candidate is asked to approve the submission. They have 72 hours to decide; if the request expires after that, you can ask again. If they approve, you represent them to that client and no other recruiter can submit them there. Nothing is sent to the client by MyAmbii; this records that you represent the candidate there, with the candidate's consent.",
+        "answer": "Choose the candidate, the client and the role. The candidate is asked to approve. They have 72 hours to decide; after that the request expires. If they approve, you represent them to that client, and no other recruiter can submit them there.",
         "sectionIds": [
           "submissions"
         ]
@@ -2702,27 +3020,28 @@ export const HELP_LIBRARY: HelpLibraries = {
         "id": "recruiter-submissions-2",
         "question": "How long does a candidate have to approve a submission?",
         "variants": [
-          "how long to approve submission",
-          "submission approval timeout",
-          "when does submission request expire",
-          "candidate approval deadline"
+          "how long for candidate to approve",
+          "submission approval time limit",
+          "how many hours to approve submission",
+          "approval deadline",
+          "when does submission request expire"
         ],
-        "answer": "The candidate has 72 hours to approve a submission request. After that, the request expires and you can ask again.",
+        "answer": "The candidate has 72 hours to decide. After that the request expires.",
         "sectionIds": [
           "submissions"
         ]
       },
       {
         "id": "recruiter-submissions-3",
-        "question": "How long does my representation of a candidate last?",
+        "question": "What happens when I mark a candidate as placed?",
         "variants": [
-          "how long can i represent a candidate",
-          "representation duration",
-          "how long is representation valid",
-          "when does representation end",
-          "representation expires"
+          "mark candidate placed",
+          "placement protection",
+          "how long is placement protected",
+          "what does placing a candidate mean",
+          "candidate placed what happens next"
         ],
-        "answer": "Representation lasts 30 days from approval. However, it's held for as long as the submission is at interviewing or offer, so it doesn't run out mid-process. When you mark a candidate as placed, your placement at that client is protected for 180 days.",
+        "answer": "When you mark a candidate as placed, your placement at that client is protected for 180 days.",
         "sectionIds": [
           "submissions",
           "representation"
@@ -2730,99 +3049,426 @@ export const HELP_LIBRARY: HelpLibraries = {
       },
       {
         "id": "recruiter-submissions-4",
-        "question": "Can multiple recruiters submit the same candidate to the same client?",
+        "question": "How long can I represent a candidate?",
         "variants": [
-          "can 2 recruiters submit same candidate",
-          "multiple recruiters same client",
-          "can another recruiter submit this candidate",
-          "duplicate submissions blocked"
+          "how long representation lasts",
+          "representation time limit",
+          "when does representation expire",
+          "representation period",
+          "how many days can i represent someone"
         ],
-        "answer": "No. Once you represent a candidate to a client, no other recruiter can submit them there. You'll see this reason if you try to submit and another recruiter already represents them to that client.",
+        "answer": "Representation lasts 30 days from approval. It's held for as long as the submission is at interviewing or offer, so it doesn't run out mid-process. When you mark a candidate as placed, your placement at that client is protected for 180 days.",
         "sectionIds": [
-          "submissions",
-          "blocked-submissions"
+          "representation"
         ]
       },
       {
         "id": "recruiter-submissions-5",
-        "question": "When can't I submit a candidate?",
+        "question": "Why can't I submit a candidate to a client?",
         "variants": [
-          "why cant i submit candidate",
-          "submission blocked",
-          "why is submission not allowed",
-          "candidate cant be submitted"
+          "blocked submission",
+          "submission blocked why",
+          "can't submit candidate error",
+          "submission not allowed",
+          "why is my submission blocked"
         ],
-        "answer": "You can't submit a candidate to a client when another recruiter already represents them to that client, or when the candidate is already in that company's own hiring process on MyAmbii (they applied directly or were shortlisted by the company). You'll see the reason when you try. This protects candidates from duplicate submissions and protects whoever brought the candidate to the client first.",
+        "answer": "You can't submit a candidate to a client when another recruiter already represents them to that client, or the candidate is already in that company's own hiring process on MyAmbii (they applied directly or were shortlisted by the company). You'll see the reason when you try.",
         "sectionIds": [
-          "submissions",
           "blocked-submissions"
         ]
       },
       {
         "id": "recruiter-submissions-6",
-        "question": "Where do I track submissions?",
+        "question": "What do I do if another recruiter represents a candidate to my client?",
         "variants": [
-          "how do i see my submissions",
-          "submissions page",
-          "where to track candidate submissions",
-          "view submission status"
+          "another recruiter submitted candidate",
+          "candidate already submitted by another recruiter",
+          "duplicate submission",
+          "can i submit if already represented"
         ],
-        "answer": "Track each submission on the Submissions page. You can keep its status up to date as it moves through interviews, offer and placement. The candidate sees the status too, and can withdraw.",
+        "answer": "You can't submit a candidate to a client when another recruiter already represents them there. You'll see the reason when you try. This protects candidates from duplicate submissions and protects whoever brought the candidate to the client first.",
+        "sectionIds": [
+          "blocked-submissions"
+        ]
+      },
+      {
+        "id": "recruiter-submissions-7",
+        "question": "What is submission status and how do I update it?",
+        "variants": [
+          "submission status",
+          "track submission",
+          "update submission status",
+          "submission status change",
+          "what are submission statuses"
+        ],
+        "answer": "Track each submission on the Submissions page and keep its status up to date as it moves through interviews, offer and placement. The candidate sees the status too, and can withdraw.",
         "sectionIds": [
           "submissions"
         ]
       },
       {
-        "id": "recruiter-submissions-7",
-        "question": "Do I need to add clients before submitting candidates?",
-        "variants": [
-          "do i need to add client first",
-          "add client to myambii",
-          "client setup required",
-          "how to add a client"
-        ],
-        "answer": "Yes. Add the companies you place candidates with on the Clients page. Add the client's website domain as well as its name, because both are used to recognise the same company. For example, \"Acme Pvt Ltd\", \"Acme Ltd\" and \"Acme Inc.\" count as the same client, and a matching domain like acme.com also counts as the same client. This matching prevents a candidate being submitted to the same client twice, including by different recruiters.",
-        "sectionIds": [
-          "submissions",
-          "clients"
-        ]
-      },
-      {
         "id": "recruiter-submissions-8",
-        "question": "What happens when I submit a candidate?",
+        "question": "Does MyAmbii send the candidate's CV to my client?",
         "variants": [
-          "what does submit mean",
-          "what happens after i submit",
-          "submission process explained",
-          "does myambii send candidate to client"
+          "does myambii send cv to client",
+          "cv sent to employer",
+          "myambii send documents to client",
+          "does client get candidate info",
+          "what information goes to client"
         ],
-        "answer": "When you submit a candidate, nothing is sent to the client by MyAmbii. MyAmbii records that you represent the candidate there, with the candidate's consent. How you present the candidate to your client is up to you.",
+        "answer": "No. MyAmbii records consent and representation; how you present the candidate to your client is up to you.",
         "sectionIds": [
           "submissions"
         ]
       },
       {
         "id": "recruiter-submissions-9",
-        "question": "Can a candidate withdraw a submission?",
+        "question": "What is consent and do I need it to submit a candidate?",
         "variants": [
-          "can candidate cancel submission",
-          "candidate withdraws representation",
-          "can i stop representing a candidate"
+          "candidate consent",
+          "do i need approval to submit",
+          "consent process submission",
+          "candidate approval",
+          "does candidate need to agree"
         ],
-        "answer": "Yes. The candidate sees the submission status and can withdraw.",
+        "answer": "To submit a candidate, you first ask for their approval. They have 72 hours to decide. If they approve, you represent them to that client.",
         "sectionIds": [
           "submissions"
+        ]
+      },
+      {
+        "id": "recruiter-job-postings-1",
+        "question": "Can I post jobs on behalf of my clients?",
+        "variants": [
+          "how do i post jobs for clients",
+          "can recruiters post job listings",
+          "post job on behalf of client",
+          "can i create jobs for my clients",
+          "recruiting job postings"
+        ],
+        "answer": "Yes. You can post jobs on behalf of your clients from Job Postings. Add the client on the Clients page first, then every job you create is for one client that you choose on the job form.",
+        "sectionIds": [
+          "job-postings"
+        ]
+      },
+      {
+        "id": "recruiter-job-postings-2",
+        "question": "Will the client's name be shown to candidates?",
+        "variants": [
+          "do candidates see the client name",
+          "hide client name from applicants",
+          "should i show client name to candidates",
+          "clients name visible to candidates",
+          "confidential client posting"
+        ],
+        "answer": "The client's name is hidden by default. Candidates see your company's name with \"for a confidential client\", for example \"Posted by Talent Partners for a confidential client\". You can untick Hide the client's name from candidates if you want to show it instead.",
+        "sectionIds": [
+          "job-postings"
+        ]
+      },
+      {
+        "id": "recruiter-job-postings-3",
+        "question": "How do I fill in the job details when posting?",
+        "variants": [
+          "how to describe the job posting",
+          "fill in job title and skills",
+          "job description tips",
+          "use parse with ai for job posting",
+          "paste job description"
+        ],
+        "answer": "Paste a description and use Parse with AI to fill in the title, experience and skills, the same as for employers.",
+        "sectionIds": [
+          "job-postings"
+        ]
+      },
+      {
+        "id": "recruiter-job-postings-4",
+        "question": "Who sees the candidate's details when they apply?",
+        "variants": [
+          "where do applicant details go",
+          "are candidates sent to client",
+          "does client get candidate info",
+          "who gets applicant contact details",
+          "candidate details shared with client"
+        ],
+        "answer": "When a candidate applies, their name and contact details are shared with you, not with the client.",
+        "sectionIds": [
+          "job-postings"
+        ]
+      },
+      {
+        "id": "recruiter-job-postings-5",
+        "question": "How do I submit a candidate from my job posting to a client?",
+        "variants": [
+          "submit applicant to client from job posting",
+          "put candidate forward for job",
+          "how to forward candidate to client",
+          "send applicant to employer",
+          "process for submitting candidates"
+        ],
+        "answer": "Open a job's applicants and choose Submit to (followed by the client's name) to put someone forward. The candidate approves first, as with every submission.",
+        "sectionIds": [
+          "job-postings",
+          "submissions"
+        ]
+      },
+      {
+        "id": "recruiter-projects-1",
+        "question": "How do I group roles for one client?",
+        "variants": [
+          "how do i organize roles by client",
+          "how to group jobs for a client",
+          "group multiple roles together",
+          "set up a project for a client",
+          "creating a project"
+        ],
+        "answer": "On Projects, choose New project and pick the client. Add a name, and optionally a description and dates. Then add roles: either create new jobs with + New role, or add existing job postings for that client. Each job can be in one project only.",
+        "sectionIds": [
+          "projects"
+        ]
+      },
+      {
+        "id": "recruiter-projects-2",
+        "question": "How do I track how many people I've placed?",
+        "variants": [
+          "track placements by role",
+          "how many placed vs needed",
+          "see my placement progress",
+          "progress on a role",
+          "how many filled vs open"
+        ],
+        "answer": "Each role in a project shows how many you've placed against how many the client needs. Placed counts as filled. Submitted, Interviewing and Offer count as in progress. Progress comes from your submissions for each role.",
+        "sectionIds": [
+          "projects"
+        ]
+      },
+      {
+        "id": "recruiter-projects-3",
+        "question": "What counts as progress on a project?",
+        "variants": [
+          "what statuses count as in progress",
+          "does submitted count as progress",
+          "does offer count as progress",
+          "which submission statuses show progress"
+        ],
+        "answer": "Placed counts as filled. Submitted, Interviewing and Offer count as in progress. Each role links to its applicants and to Submissions so you can see the status of each one.",
+        "sectionIds": [
+          "projects"
+        ]
+      },
+      {
+        "id": "recruiter-projects-4",
+        "question": "How do I know which roles need my attention?",
+        "variants": [
+          "which roles are behind",
+          "which roles haven't been filled",
+          "roles past start date",
+          "roles that need work",
+          "identify problem roles"
+        ],
+        "answer": "View report shows the roles that need attention: past their start date, nobody in progress, not yet posted, or closed before filling. Submissions whose consent request ran out show as expired.",
+        "sectionIds": [
+          "project-reports"
+        ]
+      },
+      {
+        "id": "recruiter-projects-5",
+        "question": "Can I download a project report for my client?",
+        "variants": [
+          "export project report",
+          "save report as PDF",
+          "project report CSV",
+          "send report to client",
+          "download as Excel"
+        ],
+        "answer": "Yes. Download CSV for Excel or Google Sheets, or Save as PDF. Reports never include candidate names or contact details, so you can share them with your client.",
+        "sectionIds": [
+          "project-reports"
+        ]
+      },
+      {
+        "id": "recruiter-projects-6",
+        "question": "Can I add a job I already posted to a project?",
+        "variants": [
+          "reuse a job posting",
+          "add existing job to project",
+          "use posted job in project",
+          "job already created"
+        ],
+        "answer": "Yes. When adding roles to a project, choose Add an existing job to use one of your postings for that client. Each job can be in one project only.",
+        "sectionIds": [
+          "projects"
+        ]
+      },
+      {
+        "id": "recruiter-projects-7",
+        "question": "What happens when I mark a role complete?",
+        "variants": [
+          "mark role as complete",
+          "complete a role",
+          "finish a role",
+          "mark project complete",
+          "what does complete do"
+        ],
+        "answer": "Mark complete and Archive change only the project, never its jobs. So marking a role or project complete doesn't affect the jobs themselves.",
+        "sectionIds": [
+          "projects"
+        ]
+      },
+      {
+        "id": "recruiter-ai-sourcing-1",
+        "question": "How does AI sourcing work?",
+        "variants": [
+          "how do I use AI sourcing",
+          "what is AI sourcing",
+          "how does the AI sourcing feature work",
+          "explain AI sourcing",
+          "AI sourcing explained"
+        ],
+        "answer": "AI sourcing finds candidates for one of your live job postings and writes each of them a personal message. Nothing is sent until you approve it. You pick a live job, MyAmbii ranks candidates who are open to recruiters by their verified skills against the job, you review the drafted messages and edit them if you want, then send. Candidates reply with one tap: Interested, Not now, or Not for me.",
+        "sectionIds": [
+          "ai-sourcing"
+        ]
+      },
+      {
+        "id": "recruiter-ai-sourcing-2",
+        "question": "How many AI sourcing messages can I send?",
+        "variants": [
+          "AI sourcing limits",
+          "how many messages per day can I send",
+          "daily message limit",
+          "what's the cap on AI sourcing messages",
+          "am I limited on how many people I can message"
+        ],
+        "answer": "Each person can send up to 50 new messages a day. Each candidate also sets how many messages they accept per week.",
+        "sectionIds": [
+          "ai-sourcing"
+        ]
+      },
+      {
+        "id": "recruiter-ai-sourcing-3",
+        "question": "Who will see my AI sourcing messages?",
+        "variants": [
+          "which candidates get AI sourcing messages",
+          "who is included in AI sourcing",
+          "are all candidates eligible for AI sourcing",
+          "which candidates can I reach with AI sourcing"
+        ],
+        "answer": "MyAmbii ranks candidates who are open to recruiters and allow contact by their verified skills against the job. Anyone who blocked your company, or told you Not now or Not for me recently, is left out. Candidates stay anonymous until they say Interested.",
+        "sectionIds": [
+          "ai-sourcing"
+        ]
+      },
+      {
+        "id": "recruiter-ai-sourcing-4",
+        "question": "What happens after a candidate says Interested to my AI sourcing message?",
+        "variants": [
+          "candidate replied interested to AI sourcing what now",
+          "what do I do when someone replies interested",
+          "after they say interested what happens",
+          "next steps after interested reply"
+        ],
+        "answer": "You'll see their name, email and phone, and can submit them to the client from the campaign page, with the usual consent step.",
+        "sectionIds": [
+          "ai-sourcing",
+          "submissions"
+        ]
+      },
+      {
+        "id": "recruiter-ai-sourcing-5",
+        "question": "Do I need to do anything after I send my AI sourcing messages?",
+        "variants": [
+          "what happens after I send AI sourcing messages",
+          "do reminders go out automatically",
+          "will candidates get follow ups",
+          "do you send reminders for AI sourcing"
+        ],
+        "answer": "Up to two reminders go out after 3 and 7 days, and stop as soon as they reply. You just need to approve and send the messages; the rest is automatic.",
+        "sectionIds": [
+          "ai-sourcing"
+        ]
+      },
+      {
+        "id": "recruiter-integrations-1",
+        "question": "How do I connect MyAmbii to my ATS?",
+        "variants": [
+          "how to connect ats to myambii",
+          "connecting myambii to our ats",
+          "can i integrate myambii with my applicant tracking system",
+          "how do i set up ats integration",
+          "myambii ats connection"
+        ],
+        "answer": "Admins can connect MyAmbii to your ATS under Settings → Integrations. The guide covers webhooks, API keys, and downloading candidate data as JSON for your ATS. For detailed instructions, check the developer reference at myambii.com/developers or contact us at myambii.com/contact.",
+        "sectionIds": [
+          "integrations"
+        ]
+      },
+      {
+        "id": "recruiter-integrations-2",
+        "question": "What data can I send to my ATS from MyAmbii?",
+        "variants": [
+          "what information gets sent to ats",
+          "myambii ats webhook data",
+          "what does myambii send my ats",
+          "ats integration what gets synced",
+          "myambii to ats data"
+        ],
+        "answer": "Webhooks send a signed JSON message when a candidate applies to your postings, says Interested to AI sourcing, or when a submission changes status. API keys let your systems read your postings, applicants and submissions, and update submission status. You can also download candidate details and verified skills as JSON. Candidates stay anonymous in these messages until they've approved a submission, said yes to an availability check, applied, or said Interested.",
+        "sectionIds": [
+          "integrations"
+        ]
+      },
+      {
+        "id": "recruiter-integrations-3",
+        "question": "Can I use API keys to update submission status in MyAmbii?",
+        "variants": [
+          "api key update submission",
+          "can ats update myambii status",
+          "read write api myambii",
+          "myambii submission status api"
+        ],
+        "answer": "Yes. API keys let your systems read your postings, applicants and submissions, and update a submission's status.",
+        "sectionIds": [
+          "integrations"
+        ]
+      },
+      {
+        "id": "recruiter-integrations-4",
+        "question": "How do I get candidate details into my ATS automatically?",
+        "variants": [
+          "automatic candidate import ats",
+          "sync candidate data to ats",
+          "myambii download for ats",
+          "ats integration candidate details"
+        ],
+        "answer": "You can download candidate details and verified skills as a JSON file using Download for ATS on the Submissions and AI sourcing pages. You can also set up webhooks to send data automatically when candidates apply, say Interested, or submissions change status. For more details, see the developer reference at myambii.com/developers.",
+        "sectionIds": [
+          "integrations"
+        ]
+      },
+      {
+        "id": "recruiter-integrations-5",
+        "question": "What is a webhook in MyAmbii?",
+        "variants": [
+          "myambii webhooks how they work",
+          "what does webhook do",
+          "webhook integration myambii",
+          "how webhooks work ats"
+        ],
+        "answer": "A webhook sends a signed JSON message automatically when a candidate applies to one of your postings, says Interested to AI sourcing, or when a submission changes status. This lets your ATS receive updates from MyAmbii in real time.",
+        "sectionIds": [
+          "integrations"
         ]
       },
       {
         "id": "recruiter-faq-1",
         "question": "Why can't I see a candidate's name?",
         "variants": [
-          "why is candidate name hidden",
-          "how do I get candidate details",
-          "when do I see the candidates name",
-          "why dont I see names on profiles",
-          "how to view candidate contact information"
+          "how do i see candidate names",
+          "when will i get the candidates name",
+          "why is the candidate anonymous",
+          "how to view candidate contact details",
+          "when do i get candidate info"
         ],
         "answer": "Names and contact details are shared only after the candidate answers Available to your availability check.",
         "sectionIds": [
@@ -2833,13 +3479,13 @@ export const HELP_LIBRARY: HelpLibraries = {
         "id": "recruiter-faq-2",
         "question": "Can I use the employer tools as well?",
         "variants": [
-          "can I post jobs as a recruiter",
-          "do I have access to employer features",
-          "can recruiter account use hiring tools",
-          "can I create job posts",
-          "do recruiters get employer portal access"
+          "can recruiters use shortlist",
+          "do i have access to assessment requests",
+          "can i use employer features",
+          "can a recruiter access the shortlist",
+          "do recruiters get the same tools"
         ],
-        "answer": "No. Recruiter and employer organisations have separate portals. If your company also hires for itself, set up a separate employer organisation from the Employer sign-in.",
+        "answer": "Recruiters have their own job postings, projects and AI sourcing, but not the employer shortlist or assessment requests. Recruiter and employer organisations have separate portals. If your company also hires for itself, set up a separate employer organisation from the Employer sign-in.",
         "sectionIds": [
           "faq",
           "getting-started"
@@ -2847,29 +3493,13 @@ export const HELP_LIBRARY: HelpLibraries = {
       },
       {
         "id": "recruiter-faq-3",
-        "question": "Does MyAmbii send the candidate's CV to my client?",
-        "variants": [
-          "does MyAmbii submit CVs for me",
-          "will the client get the candidates CV",
-          "does MyAmbii send documents to clients",
-          "who sends CV to employer",
-          "does platform forward candidate CV"
-        ],
-        "answer": "No. MyAmbii records consent and representation; how you present the candidate to your client is up to you.",
-        "sectionIds": [
-          "faq",
-          "submissions"
-        ]
-      },
-      {
-        "id": "recruiter-faq-4",
         "question": "Who do I contact with questions?",
         "variants": [
-          "how do I get help",
-          "where do I contact support",
-          "how to reach customer service",
-          "who can I ask for help",
-          "how do I contact MyAmbii"
+          "how do i get help",
+          "where can i contact support",
+          "how do i reach myambii",
+          "whos my account manager",
+          "how to contact myambii"
         ],
         "answer": "Use the contact page at myambii.com/contact.",
         "sectionIds": [
